@@ -17,6 +17,7 @@ struct SettingsView: View {
     @EnvironmentObject var dataManager: DataManager
     @State private var showingMailCompose = false
     @State private var showingAbout = false
+    @State private var showingPrivacyInfo = false
     @State private var showingWeChatCopied = false
     
     var body: some View {
@@ -79,6 +80,9 @@ struct SettingsView: View {
         .sheet(isPresented: $showingAbout) {
             AboutView()
         }
+        .sheet(isPresented: $showingPrivacyInfo) {
+            PrivacyInfoView()
+        }
     }
     
     // MARK: - 使用统计
@@ -132,6 +136,20 @@ struct SettingsView: View {
             }
             
             VStack(spacing: 0) {
+                SettingRow(
+                    icon: "lock.shield.fill",
+                    iconColor: PhotoDelStyle.positive,
+                    title: "隐私说明",
+                    subtitle: "不需要账号，不上传照片",
+                    action: {
+                        showingPrivacyInfo = true
+                    }
+                )
+
+                Divider()
+                    .background(PhotoDelStyle.hairline)
+                    .padding(.horizontal, 16)
+
                 SettingRow(
                     icon: "safari.fill",
                     iconColor: PhotoDelStyle.accent,
@@ -384,6 +402,100 @@ struct MailComposeView: UIViewControllerRepresentable {
     }
 }
 #endif
+
+// MARK: - 隐私说明视图
+struct PrivacyInfoView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationView {
+            ZStack {
+                PhotoDelScreenBackground()
+
+                VStack(alignment: .leading, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("隐私优先")
+                            .font(.system(size: 28, weight: .semibold))
+                            .foregroundColor(PhotoDelStyle.primaryText)
+
+                        Text("PhotoDel 的照片整理流程不需要账号，也不会上传您的照片。")
+                            .font(.system(size: 16, weight: .regular))
+                            .foregroundColor(PhotoDelStyle.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    VStack(spacing: 12) {
+                        PrivacyInfoRow(
+                            icon: "person.crop.circle.badge.xmark",
+                            title: "不需要账号",
+                            detail: "打开 App 后即可整理授权范围内的照片。"
+                        )
+
+                        PrivacyInfoRow(
+                            icon: "icloud.slash",
+                            title: "不上传照片",
+                            detail: "照片判断、候选列表和批量确认都在设备上完成。"
+                        )
+
+                        PrivacyInfoRow(
+                            icon: "link",
+                            title: "主动打开外部链接才会离开 App",
+                            detail: "例如官网、邮件反馈或系统设置。"
+                        )
+                    }
+
+                    Spacer()
+                }
+                .padding(24)
+            }
+            .navigationTitle("隐私")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("完成") {
+                        dismiss()
+                    }
+                    .foregroundColor(PhotoDelStyle.accent)
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+}
+
+struct PrivacyInfoRow: View {
+    let icon: String
+    let title: String
+    let detail: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(PhotoDelStyle.accent)
+                .frame(width: 34, height: 34)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(PhotoDelStyle.elevatedSurface)
+                )
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.primaryText)
+
+                Text(detail)
+                    .font(.system(size: 14, weight: .regular))
+                    .foregroundColor(PhotoDelStyle.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer()
+        }
+        .padding(16)
+        .photoDelCard(radius: 16)
+    }
+}
 
 // MARK: - 关于视图
 struct AboutView: View {

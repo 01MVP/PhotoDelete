@@ -12,7 +12,6 @@ import UIKit
 
 class DataManager: ObservableObject {
     @Published var organizeStats = OrganizeStats()
-    @Published var currentRealPhotoIndex = 0
 
     // 真实照片管理器
     @Published var photoLibraryManager = PhotoLibraryManager()
@@ -103,23 +102,6 @@ class DataManager: ObservableObject {
     }
 
     // MARK: - 真实照片操作
-    func getCurrentRealPhoto() -> PHAsset? {
-        guard currentRealPhotoIndex < photoLibraryManager.allPhotos.count else { return nil }
-        return photoLibraryManager.allPhotos[currentRealPhotoIndex]
-    }
-
-    func moveToNextRealPhoto() {
-        if currentRealPhotoIndex < photoLibraryManager.allPhotos.count - 1 {
-            currentRealPhotoIndex += 1
-        }
-    }
-
-    func moveToPreviousRealPhoto() {
-        if currentRealPhotoIndex > 0 {
-            currentRealPhotoIndex -= 1
-        }
-    }
-
     // MARK: - 候选库操作（新的删除逻辑）- 线程安全版本
     func addToDeleteCandidates(_ asset: PHAsset) {
         favoriteCandidates.remove(asset)
@@ -149,40 +131,6 @@ class DataManager: ObservableObject {
 
     func isInFavoriteCandidates(_ asset: PHAsset) -> Bool {
         favoriteCandidates.contains(asset)
-    }
-
-    // MARK: - 滑动操作（候选库模式）
-    func handleLeftSwipe() {
-        guard let currentPhoto = getCurrentRealPhoto() else { return }
-
-        if isInDeleteCandidates(currentPhoto) {
-            removeFromDeleteCandidates(currentPhoto)
-        } else {
-            addToDeleteCandidates(currentPhoto)
-        }
-        moveToNextRealPhoto()
-    }
-
-    func handleRightSwipe() {
-        // 右滑：跳过当前照片，不做任何操作
-        moveToNextRealPhoto()
-    }
-
-    func handleUpSwipe() {
-        guard let currentPhoto = getCurrentRealPhoto() else { return }
-        addToFavoriteCandidates(currentPhoto)
-        moveToNextRealPhoto()
-    }
-
-    func handleDownSwipe() {
-        // 下滑：跳过当前照片
-        moveToNextRealPhoto()
-    }
-
-    func undoLastAction() {
-        // 撤销：回到上一张照片
-        moveToPreviousRealPhoto()
-        objectWillChange.send()
     }
 
     // MARK: - 批量操作（离开页面时执行）
@@ -324,14 +272,6 @@ class DataManager: ObservableObject {
         case .favorites:
             return photoLibraryManager.favorites
         }
-    }
-
-    func getOrganizedCount(for category: PhotoCategory) -> Int {
-        // 简单示例：假设已删除和已收藏的照片为已整理的照片
-        // 实际项目中可能需要从持久化存储中获取
-        let deletedCount = deleteCandidates.count
-        let favoritedCount = favoriteCandidates.count
-        return deletedCount + favoritedCount
     }
 
     // MARK: - 收藏操作

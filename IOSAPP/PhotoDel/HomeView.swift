@@ -42,6 +42,7 @@ enum SwipeViewDestination: Hashable {
 
 struct HomeView: View {
     @EnvironmentObject var dataManager: DataManager
+    @AppStorage("hasSeenPhotoDelIntro") private var hasSeenPhotoDelIntro = false
     @State private var navigationPath = NavigationPath()
 
     var body: some View {
@@ -86,6 +87,7 @@ struct HomeView: View {
                 HStack(alignment: .top, spacing: 22) {
                     VStack(spacing: 18) {
                         titleSection
+                        introSection(isCompact: true)
                         primaryOrganizeSection(isCompact: true)
                     }
                     .frame(maxWidth: .infinity)
@@ -99,6 +101,7 @@ struct HomeView: View {
             } else {
                 VStack(spacing: 22) {
                     titleSection
+                    introSection(isCompact: false)
                     primaryOrganizeSection(isCompact: false)
                     secondaryEntrySection
                     timelineSection
@@ -107,8 +110,68 @@ struct HomeView: View {
         } else {
             VStack(spacing: 22) {
                 titleSection
+                introSection(isCompact: false)
                 authorizationSection
             }
+        }
+    }
+
+    @ViewBuilder
+    private func introSection(isCompact: Bool) -> some View {
+        if !hasSeenPhotoDelIntro {
+            VStack(alignment: .leading, spacing: isCompact ? 12 : 14) {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "hand.draw")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(PhotoDelStyle.accent)
+                        .frame(width: 28, height: 28)
+                        .background(Circle().fill(PhotoDelStyle.elevatedSurface))
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("快速上手")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundColor(PhotoDelStyle.primaryText)
+
+                        Text("左滑放入待删除，右滑保留跳过，上滑加入收藏。点完成后再统一确认。")
+                            .font(.system(size: 14, weight: .regular))
+                            .foregroundColor(PhotoDelStyle.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "lock.shield")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(PhotoDelStyle.positive)
+                        .frame(width: 28, height: 28)
+                        .background(Circle().fill(PhotoDelStyle.elevatedSurface))
+
+                    Text("隐私优先：整理照片不需要账号，不上传照片，也不连接服务器。")
+                        .font(.system(size: 14, weight: .regular))
+                        .foregroundColor(PhotoDelStyle.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        hasSeenPhotoDelIntro = true
+                    }
+                } label: {
+                    Text("知道了")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(PhotoDelStyle.accent)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                }
+                .buttonStyle(.plain)
+                .background(
+                    RoundedRectangle(cornerRadius: PhotoDelStyle.controlRadius, style: .continuous)
+                        .fill(PhotoDelStyle.elevatedSurface)
+                )
+            }
+            .padding(isCompact ? 16 : 18)
+            .photoDelCard(radius: 18)
+            .transition(.opacity.combined(with: .move(edge: .top)))
         }
     }
 
@@ -161,7 +224,7 @@ struct HomeView: View {
                     .font(.system(size: 24, weight: .bold))
                     .foregroundColor(PhotoDelStyle.primaryText)
 
-                Text("PhotoDel需要访问您的照片库来帮助您整理照片。我们不会上传或分享您的照片。")
+                Text("PhotoDel 需要照片库权限来整理相册。不需要账号，也不会上传您的照片。")
                     .font(.system(size: 16, weight: .regular))
                     .foregroundColor(PhotoDelStyle.secondaryText)
                     .multilineTextAlignment(.center)
@@ -198,7 +261,7 @@ struct HomeView: View {
                     .font(.system(size: 15, weight: .medium))
                     .foregroundColor(PhotoDelStyle.secondaryText)
 
-                Text("索引完成后会自动显示分类和数量。照片只在本机读取。")
+                Text("索引完成后会自动显示分类和数量。不会上传您的照片。")
                     .font(.system(size: 15, weight: .regular))
                     .foregroundColor(PhotoDelStyle.secondaryText)
                     .multilineTextAlignment(.center)
@@ -269,7 +332,7 @@ struct HomeView: View {
                         .font(.system(size: isCompact ? 22 : 26, weight: .semibold))
                         .foregroundColor(PhotoDelStyle.primaryText)
 
-                    Text("左滑删除，右滑保留，上滑收藏。所有照片只在本机处理。")
+                    Text("左滑删除，右滑保留，上滑收藏。完成前不会真正删除。")
                         .font(.system(size: 15, weight: .regular))
                         .foregroundColor(PhotoDelStyle.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)

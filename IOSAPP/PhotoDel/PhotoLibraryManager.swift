@@ -278,7 +278,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         let options = PHImageRequestOptions()
         options.deliveryMode = .fastFormat
         options.resizeMode = .fast
-        options.isNetworkAccessAllowed = true
+        options.isNetworkAccessAllowed = false
 
         return imageManager.requestImage(
             for: asset,
@@ -314,7 +314,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         let options = PHImageRequestOptions()
         options.deliveryMode = .fastFormat
         options.resizeMode = .fast
-        options.isNetworkAccessAllowed = true
+        options.isNetworkAccessAllowed = false
 
         imageManager.startCachingImages(
             for: assetsToPreload,
@@ -342,7 +342,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     func loadFullImage(for asset: PHAsset, completion: @escaping (UIImage?) -> Void) {
         let options = PHImageRequestOptions()
         options.deliveryMode = .highQualityFormat
-        options.isNetworkAccessAllowed = true
+        options.isNetworkAccessAllowed = false
 
         imageManager.requestImage(
             for: asset,

@@ -19,13 +19,9 @@ struct SwipePhotoView: View {
 
     @State private var dragOffset = CGSize.zero
     @State private var rotationAngle: Double = 0
-    @State private var showDeleteConfirm = false
-    @State private var swipeDirection: SwipeDirection?
-    @State private var showPhotoAccessAlert = false
     @State private var showBatchConfirm = false
     @State private var currentPhotoIndex = 0
     @State private var showCompletionMessage = false
-    @State private var favoriteRefreshTrigger = false
     @State private var actionHistory: [SwipeAction] = []
     @State private var sessionPhotos: [PHAsset] = []
     @State private var shouldDismissAfterBatch = false
@@ -79,7 +75,6 @@ struct SwipePhotoView: View {
 
     private var isCurrentPhotoFavorited: Bool {
         guard let asset = currentRealPhoto else { return false }
-        _ = favoriteRefreshTrigger
         return asset.isFavorite || dataManager.isInFavoriteCandidates(asset)
     }
 
@@ -689,11 +684,6 @@ struct SwipePhotoView: View {
     private func handleFavoriteAction() {
         guard let asset = currentRealPhoto else { return }
         markFavoriteCandidate(asset)
-
-        // 强制刷新UI以更新收藏状态显示
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            favoriteRefreshTrigger.toggle()
-        }
         moveToNextPhoto()
     }
 
@@ -850,6 +840,16 @@ struct RealPhotoCard: View {
                                 ProgressView()
                                     .progressViewStyle(CircularProgressViewStyle(tint: PhotoDelStyle.accent))
                                     .scaleEffect(1.2)
+                            } else {
+                                VStack(spacing: 10) {
+                                    Image(systemName: "photo")
+                                        .font(.system(size: 28, weight: .medium))
+                                        .foregroundColor(PhotoDelStyle.secondaryText)
+
+                                    Text("无法读取本地预览")
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundColor(PhotoDelStyle.secondaryText)
+                                }
                             }
                         }
                     )
