@@ -46,48 +46,20 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
-            ZStack {
-                PhotoDelScreenBackground()
+            GeometryReader { geometry in
+                let isLandscape = geometry.size.width > geometry.size.height && geometry.size.width > 700
 
-                ScrollView {
-                    VStack(spacing: 24) {
-                        // 顶部标题
-                        VStack(spacing: 8) {
-                            Text("PhotoDel")
-                                .font(.system(size: 34, weight: .semibold, design: .rounded))
-                                .foregroundColor(PhotoDelStyle.primaryText)
+                ZStack {
+                    PhotoDelScreenBackground()
 
-                            if dataManager.photoLibraryManager.hasPhotoLibraryAccess {
-                                Text(isLibraryPreparing ? "正在建立本机照片索引" : "选择分类开始整理")
-                                    .font(.system(size: 15, weight: .regular))
-                                    .foregroundColor(PhotoDelStyle.secondaryText)
-                            } else {
-                                Text("需要访问照片库权限")
-                                    .font(.system(size: 15, weight: .regular))
-                                    .foregroundColor(PhotoDelStyle.accent)
-                            }
-                        }
-                        .padding(.top, 24)
-
-                        if !dataManager.photoLibraryManager.hasPhotoLibraryAccess {
-                            authorizationSection
-                        } else if isLibraryPreparing {
-                            libraryScanningSection
-
-                            categorySkeletonSection
-                        } else if dataManager.photoLibraryManager.totalPhotosCount == 0 {
-                            emptyLibrarySection
-                        } else {
-                            categorySection
-
-                            timelineSection
-                        }
-
-                        // 底部安全区域
-                        Spacer()
-                            .frame(height: 100)
+                    ScrollView {
+                        homeContent(isLandscape: isLandscape)
+                            .padding(.horizontal, isLandscape ? 32 : 24)
+                            .padding(.top, isLandscape ? 18 : 24)
+                            .padding(.bottom, 112)
+                            .frame(maxWidth: isLandscape ? 900 : 520)
+                            .frame(maxWidth: .infinity)
                     }
-                    .padding(.horizontal, 24)
                 }
             }
             .navigationBarHidden(true)
@@ -107,8 +79,74 @@ struct HomeView: View {
         }
     }
 
+    @ViewBuilder
+    private func homeContent(isLandscape: Bool) -> some View {
+        if dataManager.photoLibraryManager.hasPhotoLibraryAccess {
+            if isLandscape {
+                HStack(alignment: .top, spacing: 22) {
+                    VStack(spacing: 18) {
+                        titleSection
+                        primaryOrganizeSection(isCompact: true)
+                    }
+                    .frame(maxWidth: .infinity)
+
+                    VStack(spacing: 18) {
+                        secondaryEntrySection
+                        timelineSection
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+            } else {
+                VStack(spacing: 22) {
+                    titleSection
+                    primaryOrganizeSection(isCompact: false)
+                    secondaryEntrySection
+                    timelineSection
+                }
+            }
+        } else {
+            VStack(spacing: 22) {
+                titleSection
+                authorizationSection
+            }
+        }
+    }
+
     private var isLibraryPreparing: Bool {
         dataManager.isPreparingLibrary || dataManager.photoLibraryManager.isLoading
+    }
+
+    private var titleSection: some View {
+        VStack(spacing: 7) {
+            Text("PhotoDel")
+                .font(.system(size: 34, weight: .semibold, design: .rounded))
+                .foregroundColor(PhotoDelStyle.primaryText)
+
+            Text(titleSubtitle)
+                .font(.system(size: 15, weight: .regular))
+                .foregroundColor(dataManager.photoLibraryManager.hasPhotoLibraryAccess ? PhotoDelStyle.secondaryText : PhotoDelStyle.accent)
+        }
+    }
+
+    private var titleSubtitle: String {
+        if !dataManager.photoLibraryManager.hasPhotoLibraryAccess {
+            return "需要访问照片库权限"
+        }
+        if isLibraryPreparing {
+            return "正在读取本机照片"
+        }
+        return "轻扫判断照片去留"
+    }
+
+    @ViewBuilder
+    private func primaryOrganizeSection(isCompact: Bool) -> some View {
+        if isLibraryPreparing {
+            libraryScanningSection
+        } else if dataManager.photoLibraryManager.totalPhotosCount == 0 {
+            emptyLibrarySection
+        } else {
+            startOrganizingSection(isCompact: isCompact)
+        }
     }
 
     // MARK: - 权限授权区域
@@ -177,7 +215,7 @@ struct HomeView: View {
     private var categorySkeletonSection: some View {
         VStack(spacing: 16) {
             HStack {
-                Text("照片分类")
+                Text("快速入口")
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.primaryText)
                 Spacer()
@@ -212,24 +250,90 @@ struct HomeView: View {
         .photoDelCard()
     }
 
-    // MARK: - 照片分类区域
-    private var categorySection: some View {
-        VStack(spacing: 16) {
-            HStack {
-                Text("照片分类")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(PhotoDelStyle.primaryText)
-                Spacer()
+    // MARK: - 主整理入口
+    private func startOrganizingSection(isCompact: Bool) -> some View {
+        VStack(alignment: .leading, spacing: isCompact ? 16 : 22) {
+            HStack(alignment: .top, spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(PhotoDelStyle.elevatedSurface)
+                        .frame(width: isCompact ? 46 : 54, height: isCompact ? 46 : 54)
+
+                    Image(systemName: "photo.on.rectangle.angled")
+                        .font(.system(size: isCompact ? 19 : 23, weight: .semibold))
+                        .foregroundColor(PhotoDelStyle.accent)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("开始整理照片")
+                        .font(.system(size: isCompact ? 22 : 26, weight: .semibold))
+                        .foregroundColor(PhotoDelStyle.primaryText)
+
+                    Text("左滑删除，右滑保留，上滑收藏。所有照片只在本机处理。")
+                        .font(.system(size: 15, weight: .regular))
+                        .foregroundColor(PhotoDelStyle.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
-            VStack(spacing: 12) {
-                ForEach(PhotoCategory.allCases, id: \.rawValue) { category in
-                    CategoryCard(
-                        category: category,
-                        count: getPhotoCount(for: category),
-                        progress: getProgressFor(category: category)
-                    ) {
-                        navigationPath.append(SwipeViewDestination.category(category))
+            Button {
+                navigationPath.append(SwipeViewDestination.category(.all))
+            } label: {
+                HStack(spacing: 9) {
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 15, weight: .semibold))
+                    Text("整理全部照片")
+                }
+            }
+            .photoDelPrimaryButton()
+
+            if isCompact {
+                Text("\(dataManager.photoLibraryManager.totalPhotosCount) 张待整理 · \(dataManager.deleteCandidates.count) 张待删除")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(PhotoDelStyle.secondaryText)
+            } else {
+                HStack(spacing: 0) {
+                    HomeStatPill(value: "\(dataManager.photoLibraryManager.totalPhotosCount)", label: "待整理")
+                    Divider()
+                        .frame(height: 28)
+                        .background(PhotoDelStyle.hairline)
+                    HomeStatPill(value: "\(dataManager.deleteCandidates.count)", label: "待删除")
+                    Divider()
+                        .frame(height: 28)
+                        .background(PhotoDelStyle.hairline)
+                    HomeStatPill(value: dataManager.organizeStats.formattedSpaceSaved, label: "可释放")
+                }
+                .padding(.vertical, 3)
+            }
+        }
+        .padding(isCompact ? 18 : 22)
+        .photoDelCard(radius: 20)
+    }
+
+    // MARK: - 快速入口区域
+    @ViewBuilder
+    private var secondaryEntrySection: some View {
+        if isLibraryPreparing {
+            categorySkeletonSection
+        } else {
+            VStack(spacing: 14) {
+                HStack {
+                    Text("快速入口")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(PhotoDelStyle.primaryText)
+                    Spacer()
+                }
+
+                VStack(spacing: 10) {
+                    ForEach(PhotoCategory.allCases, id: \.rawValue) { category in
+                        HomeEntryRow(
+                            icon: category.icon,
+                            title: category.rawValue,
+                            detail: "\(getPhotoCount(for: category)) 张",
+                            tint: PhotoDelStyle.iconTint(for: category == .videos ? "video" : category == .favorites ? "favorite" : "photo")
+                        ) {
+                            navigationPath.append(SwipeViewDestination.category(category))
+                        }
                     }
                 }
             }
@@ -237,23 +341,27 @@ struct HomeView: View {
     }
 
     // MARK: - 时间线浏览区域
+    @ViewBuilder
     private var timelineSection: some View {
-        VStack(spacing: 16) {
-            HStack {
-                Text("时间线浏览")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(PhotoDelStyle.primaryText)
-                Spacer()
-            }
+        if !isLibraryPreparing && !dataManager.timeGroups.isEmpty {
+            VStack(spacing: 14) {
+                HStack {
+                    Text("按时间整理")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(PhotoDelStyle.primaryText)
+                    Spacer()
+                }
 
-            VStack(spacing: 12) {
-                ForEach(dataManager.timeGroups) { timeGroupInfo in
-                    TimelineCard(
-                        timeGroup: timeGroupInfo.timeGroup,
-                        count: timeGroupInfo.photosCount,
-                        progress: timeGroupInfo.progress
-                    ) {
-                        navigationPath.append(SwipeViewDestination.timeGroup(timeGroupInfo.timeGroup.rawValue))
+                VStack(spacing: 10) {
+                    ForEach(dataManager.timeGroups) { timeGroupInfo in
+                        HomeEntryRow(
+                            icon: timeGroupInfo.timeGroup.icon,
+                            title: timeGroupInfo.timeGroup.rawValue,
+                            detail: "\(timeGroupInfo.photosCount) 张",
+                            tint: PhotoDelStyle.accent
+                        ) {
+                            navigationPath.append(SwipeViewDestination.timeGroup(timeGroupInfo.timeGroup.rawValue))
+                        }
                     }
                 }
             }
@@ -274,24 +382,34 @@ struct HomeView: View {
         }
     }
 
-    private func getPhotoCount(for timeGroup: TimeGroup) -> Int {
-        return dataManager.getPhotosForTimeGroup(timeGroup).count
-    }
+}
 
-    private func getProgressFor(category: PhotoCategory) -> Double {
-        let totalPhotos = getPhotoCount(for: category)
-        guard totalPhotos > 0 else { return 0.0 }
+// MARK: - 首页组件
+struct HomeStatPill: View {
+    let value: String
+    let label: String
 
-        let organizedCount = dataManager.getOrganizedCount(for: category)
-        return Double(organizedCount) / Double(totalPhotos)
+    var body: some View {
+        VStack(spacing: 5) {
+            Text(value)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(PhotoDelStyle.primaryText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+
+            Text(label)
+                .font(.system(size: 12, weight: .regular))
+                .foregroundColor(PhotoDelStyle.tertiaryText)
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 
-// MARK: - 分类卡片
-struct CategoryCard: View {
-    let category: PhotoCategory
-    let count: Int
-    let progress: Double
+struct HomeEntryRow: View {
+    let icon: String
+    let title: String
+    let detail: String
+    let tint: Color
     let onTap: () -> Void
 
     var body: some View {
@@ -300,98 +418,34 @@ struct CategoryCard: View {
                 ZStack {
                     Circle()
                         .fill(PhotoDelStyle.elevatedSurface)
-                        .frame(width: 42, height: 42)
+                        .frame(width: 38, height: 38)
 
-                    Image(systemName: category.icon)
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(PhotoDelStyle.iconTint(for: category == .videos ? "video" : category == .favorites ? "favorite" : "photo"))
+                    Image(systemName: icon)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(tint)
                 }
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(category.rawValue)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(PhotoDelStyle.primaryText)
-
-                    Text("\(count) 张")
-                        .font(.system(size: 12, weight: .regular))
-                        .foregroundColor(PhotoDelStyle.secondaryText)
-                }
+                Text(title)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.primaryText)
+                    .lineLimit(1)
 
                 Spacer()
 
-                VStack(alignment: .trailing, spacing: 6) {
-                    Text("\(Int(progress * 100))%")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(PhotoDelStyle.tertiaryText)
-
-                    ProgressView(value: progress)
-                        .progressViewStyle(LinearProgressViewStyle(tint: PhotoDelStyle.accent))
-                        .frame(width: 48)
-                }
+                Text(detail)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(PhotoDelStyle.secondaryText)
+                    .lineLimit(1)
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.tertiaryText)
             }
-            .padding(14)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
         }
         .buttonStyle(.plain)
-        .photoDelCard()
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isButton)
-    }
-}
-
-// MARK: - 时间线卡片
-struct TimelineCard: View {
-    let timeGroup: TimeGroup
-    let count: Int
-    let progress: Double
-    let onTap: () -> Void
-
-    var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(PhotoDelStyle.elevatedSurface)
-                        .frame(width: 42, height: 42)
-
-                    Image(systemName: timeGroup.icon)
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(PhotoDelStyle.accent)
-                }
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(timeGroup.rawValue)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(PhotoDelStyle.primaryText)
-
-                    Text("\(count) 张")
-                        .font(.system(size: 12, weight: .regular))
-                        .foregroundColor(PhotoDelStyle.secondaryText)
-                }
-
-                Spacer()
-
-                VStack(alignment: .trailing, spacing: 6) {
-                    Text("\(Int(progress * 100))%")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(PhotoDelStyle.tertiaryText)
-
-                    ProgressView(value: progress)
-                        .progressViewStyle(LinearProgressViewStyle(tint: PhotoDelStyle.accent))
-                        .frame(width: 48)
-                }
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(PhotoDelStyle.tertiaryText)
-            }
-            .padding(14)
-        }
-        .buttonStyle(.plain)
-        .photoDelCard()
+        .photoDelCard(radius: 15)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
     }

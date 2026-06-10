@@ -15,6 +15,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     private var allPhotosResult: PHFetchResult<PHAsset>?
     private let imageManager = PHCachingImageManager()
     private let imageCache = NSCache<NSString, UIImage>()
+    private var pendingLoadCompletions: [() -> Void] = []
 
     private var isObserverRegistered = false
 
@@ -72,10 +73,15 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     func loadPhotos(completion: (() -> Void)? = nil) {
         guard hasPhotoLibraryAccess else { return }
         guard !isLoading else {
-            completion?()
+            if let completion {
+                pendingLoadCompletions.append(completion)
+            }
             return
         }
 
+        if let completion {
+            pendingLoadCompletions.append(completion)
+        }
         isLoading = true
         loadingProgress = 0
 
@@ -103,7 +109,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                     self.favorites = []
                     self.loadingProgress = 1.0
                     self.isLoading = false
-                    completion?()
+                    self.finishLoadingPhotos()
                 }
                 return
             }
@@ -141,10 +147,16 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                     self.favorites = favorites
                     self.loadingProgress = 1.0
                     self.isLoading = false
-                    completion?()
+                    self.finishLoadingPhotos()
                 }
             }
         }
+    }
+
+    private func finishLoadingPhotos() {
+        let completions = pendingLoadCompletions
+        pendingLoadCompletions.removeAll()
+        completions.forEach { $0() }
     }
 
     private func categorizePhotos(_ photos: [PHAsset], completion: @escaping ([PHAsset], [PHAsset], [PHAsset]) -> Void) {
@@ -204,16 +216,15 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         // 备用方法：通过设备尺寸判断
         let screenScale = UIScreen.main.scale
         let screenSize = UIScreen.main.bounds.size
-        let screenPixelSize = CGSize(
-            width: screenSize.width * screenScale,
-            height: screenSize.height * screenScale
-        )
-
         let assetSize = CGSize(width: CGFloat(asset.pixelWidth), height: CGFloat(asset.pixelHeight))
+        let screenLongSide = max(screenSize.width, screenSize.height) * screenScale
+        let screenShortSide = min(screenSize.width, screenSize.height) * screenScale
+        let assetLongSide = max(assetSize.width, assetSize.height)
+        let assetShortSide = min(assetSize.width, assetSize.height)
 
         // 如果尺寸匹配屏幕尺寸，可能是截图
-        return abs(assetSize.width - screenPixelSize.width) < 10 &&
-               abs(assetSize.height - screenPixelSize.height) < 10
+        return abs(assetLongSide - screenLongSide) < 10 &&
+               abs(assetShortSide - screenShortSide) < 10
     }
 
     // MARK: - Photo Operations

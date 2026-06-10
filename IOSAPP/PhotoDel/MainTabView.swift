@@ -20,7 +20,7 @@ struct MainTabView: View {
             HomeView()
                 .environmentObject(dataManager)
                 .tabItem {
-                    Image(systemName: "square.and.arrow.up.on.square")
+                    Image(systemName: "photo.on.rectangle.angled")
                     Text("整理")
                 }
                 .tag(0)
@@ -29,7 +29,7 @@ struct MainTabView: View {
             AlbumsView()
                 .environmentObject(dataManager)
                 .tabItem {
-                    Image(systemName: "photo.stack")
+                    Image(systemName: "rectangle.stack")
                     Text("相册")
                 }
                 .tag(1)

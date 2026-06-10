@@ -14,7 +14,6 @@ struct AlbumsView: View {
     @State private var showingCreateAlbum = false
     @State private var editingAlbum: PHAssetCollection?
     @State private var showingEditAlbum = false
-    @State private var isLoading = false
     @State private var showSwipeView = false
     @State private var selectedAlbumInfo: AlbumInfo?
     @State private var showSearchBar = false
@@ -157,7 +156,7 @@ struct AlbumsView: View {
             LazyVStack(spacing: 12) {
                 pullSearchArea
 
-                if isLoading {
+                if isLoadingAlbums {
                     VStack(spacing: 12) {
                         ProgressView()
                             .progressViewStyle(CircularProgressViewStyle(tint: PhotoDelStyle.accent))
@@ -323,6 +322,10 @@ struct AlbumsView: View {
     }
 
     // MARK: - 计算属性
+    private var isLoadingAlbums: Bool {
+        dataManager.isLoadingAlbums || dataManager.isPreparingLibrary || dataManager.photoLibraryManager.isLoading
+    }
+
     private var filteredSystemAlbums: [AlbumInfo] {
         let albums = dataManager.getSystemAlbums()
         if searchText.isEmpty {

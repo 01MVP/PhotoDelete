@@ -27,6 +27,7 @@ class DataManager: ObservableObject {
     @Published var timeGroups: [TimeGroupInfo] = []
     @Published var systemAlbums: [AlbumInfo] = []
     @Published var userAlbums: [AlbumInfo] = []
+    @Published var isLoadingAlbums = false
 
     private var isReloadingLibrary = false
 
@@ -404,7 +405,12 @@ class DataManager: ObservableObject {
 
     // MARK: - 相册数据加载
     func loadAlbums() {
-        guard photoLibraryManager.hasPhotoLibraryAccess else { return }
+        guard photoLibraryManager.hasPhotoLibraryAccess else {
+            isLoadingAlbums = false
+            return
+        }
+
+        isLoadingAlbums = true
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
@@ -470,6 +476,7 @@ class DataManager: ObservableObject {
             DispatchQueue.main.async {
                 self.systemAlbums = systemAlbums
                 self.userAlbums = userAlbums
+                self.isLoadingAlbums = false
             }
         }
     }

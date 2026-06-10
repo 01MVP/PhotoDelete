@@ -84,19 +84,29 @@ struct SwipePhotoView: View {
     }
 
     var body: some View {
-        NavigationView {
-            ZStack {
-                PhotoDelScreenBackground()
+        ZStack {
+            PhotoDelScreenBackground()
 
-                VStack(spacing: 0) {
-                    // 导航栏
-                    navigationHeader
+            GeometryReader { geometry in
+                let isLandscape = geometry.size.width > geometry.size.height && geometry.size.width > 620
 
-                    // 主要照片区域
-                    photoArea
+                if isLandscape {
+                    HStack(spacing: 0) {
+                        VStack(spacing: 0) {
+                            navigationHeader
+                            photoArea
+                        }
+                        .frame(width: geometry.size.width * 0.64)
 
-                    // 底部操作区域
-                    bottomControls
+                        landscapeSidebar
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                } else {
+                    VStack(spacing: 0) {
+                        navigationHeader
+                        photoArea
+                        bottomControls
+                    }
                 }
             }
         }
@@ -377,57 +387,29 @@ struct SwipePhotoView: View {
 
     // MARK: - 底部控制区域
     private var bottomControls: some View {
-        VStack(spacing: 16) {
-            // 用户相册快速归类按钮（仅在非相册模式下显示）
-            if !isAlbumMode && !dataManager.userAlbums.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(dataManager.userAlbums) { albumInfo in
-                            Button(action: {
-                                handleAddToAlbum(albumInfo)
-                            }) {
-                                Text(albumInfo.title)
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundColor(PhotoDelStyle.primaryText)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 6)
-                                    .background(
-                                        Capsule(style: .continuous)
-                                            .fill(PhotoDelStyle.surface)
-                                            .overlay(
-                                                Capsule(style: .continuous)
-                                                    .stroke(PhotoDelStyle.hairline, lineWidth: 1)
-                                            )
-                                    )
-                                    .lineLimit(1)
-                            }
-                            .buttonStyle(PlainButtonStyle())
-                        }
-                    }
-                    .padding(.horizontal, 24)
-                }
-                .frame(height: 40)
-            }
+        VStack(spacing: 14) {
+            albumShortcutStrip(horizontalPadding: 24)
+            actionToolbar
+        }
+        .padding(.top, 12)
+        .padding(.bottom, 30)
+        .background(
+            PhotoDelStyle.background.opacity(0.92)
+                .overlay(PhotoDelStyle.hairline.frame(height: 1), alignment: .top)
+        )
+    }
 
-            // 功能按钮
-            HStack(spacing: 0) {
-                Spacer()
+    private var landscapeSidebar: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            sessionSummaryPanel
+            gestureGuidePanel
+            albumShortcutStrip(horizontalPadding: 0)
 
-                // 撤销
-                ActionButton(
-                    icon: "arrow.uturn.backward",
-                    title: "撤销",
-                    color: PhotoDelStyle.secondaryText
-                ) {
-                    handleUndoAction()
-                    resetCardPosition()
-                }
+            Spacer(minLength: 8)
 
-                Spacer()
-
-                // 收藏 - 动态显示图标
-                ActionButton(
-                    icon: isCurrentPhotoFavorited ? "heart.fill" : "heart",
+            VStack(spacing: 10) {
+                SidebarActionButton(
+                    icon: "heart",
                     title: isCurrentPhotoFavorited ? "已收藏" : "收藏",
                     color: PhotoDelStyle.iconTint(for: "favorite")
                 ) {
@@ -435,10 +417,7 @@ struct SwipePhotoView: View {
                     resetCardPosition()
                 }
 
-                Spacer()
-
-                // 删除候选
-                ActionButton(
+                SidebarActionButton(
                     icon: "trash",
                     title: "删除候选",
                     color: PhotoDelStyle.destructive
@@ -447,10 +426,7 @@ struct SwipePhotoView: View {
                     resetCardPosition()
                 }
 
-                Spacer()
-
-                // 跳过
-                ActionButton(
+                SidebarActionButton(
                     icon: "arrow.right",
                     title: "跳过",
                     color: PhotoDelStyle.accent
@@ -459,26 +435,137 @@ struct SwipePhotoView: View {
                     resetCardPosition()
                 }
 
-                Spacer()
+                HStack(spacing: 10) {
+                    SidebarActionButton(
+                        icon: "arrow.uturn.backward",
+                        title: "撤销",
+                        color: PhotoDelStyle.secondaryText,
+                        isCompact: true
+                    ) {
+                        handleUndoAction()
+                        resetCardPosition()
+                    }
 
-                ActionButton(
-                    icon: "checkmark",
-                    title: "完成",
-                    color: PhotoDelStyle.positive
-                ) {
-                    handleFinishAction()
-                    resetCardPosition()
+                    SidebarActionButton(
+                        icon: "checkmark",
+                        title: "完成",
+                        color: PhotoDelStyle.positive,
+                        isCompact: true
+                    ) {
+                        handleFinishAction()
+                        resetCardPosition()
+                    }
                 }
-
-                Spacer()
             }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 32)
         }
+        .padding(.horizontal, 22)
+        .padding(.vertical, 18)
         .background(
             PhotoDelStyle.background.opacity(0.92)
-                .overlay(PhotoDelStyle.hairline.frame(height: 1), alignment: .top)
+                .overlay(PhotoDelStyle.hairline.frame(width: 1), alignment: .leading)
         )
+    }
+
+    private var sessionSummaryPanel: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(getDisplayTitle())
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundColor(PhotoDelStyle.primaryText)
+                .lineLimit(1)
+
+            Text(isAlbumMode ? "\(totalPhotosCount) 张照片" : "\(currentProgress)/\(totalPhotosCount) 已浏览")
+                .font(.system(size: 14, weight: .regular))
+                .foregroundColor(PhotoDelStyle.secondaryText)
+
+            HStack(spacing: 12) {
+                Label("\(dataManager.deleteCandidates.count)", systemImage: "trash")
+                    .foregroundColor(PhotoDelStyle.destructive)
+                Label("\(dataManager.favoriteCandidates.count)", systemImage: "heart")
+                    .foregroundColor(PhotoDelStyle.iconTint(for: "favorite"))
+            }
+            .font(.system(size: 13, weight: .semibold))
+        }
+        .padding(16)
+        .photoDelCard(radius: 16)
+    }
+
+    private var gestureGuidePanel: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("手势")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(PhotoDelStyle.tertiaryText)
+
+            GestureGuideRow(icon: "arrow.left", title: "左滑", detail: "删除候选", color: PhotoDelStyle.destructive)
+            GestureGuideRow(icon: "arrow.right", title: "右滑", detail: "保留跳过", color: PhotoDelStyle.positive)
+            GestureGuideRow(icon: "arrow.up", title: "上滑", detail: "加入收藏", color: PhotoDelStyle.iconTint(for: "favorite"))
+        }
+        .padding(16)
+        .photoDelCard(radius: 16)
+    }
+
+    @ViewBuilder
+    private func albumShortcutStrip(horizontalPadding: CGFloat) -> some View {
+        if !isAlbumMode && !dataManager.userAlbums.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(dataManager.userAlbums) { albumInfo in
+                        Button(action: {
+                            handleAddToAlbum(albumInfo)
+                        }) {
+                            Text(albumInfo.title)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(PhotoDelStyle.primaryText)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 7)
+                                .background(
+                                    Capsule(style: .continuous)
+                                        .fill(PhotoDelStyle.surface)
+                                        .overlay(
+                                            Capsule(style: .continuous)
+                                                .stroke(PhotoDelStyle.hairline, lineWidth: 1)
+                                        )
+                                )
+                                .lineLimit(1)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, horizontalPadding)
+            }
+            .frame(height: 36)
+        }
+    }
+
+    private var actionToolbar: some View {
+        HStack(spacing: 0) {
+            Spacer()
+            ActionButton(icon: "arrow.uturn.backward", title: "撤销", color: PhotoDelStyle.secondaryText) {
+                handleUndoAction()
+                resetCardPosition()
+            }
+            Spacer()
+            ActionButton(icon: isCurrentPhotoFavorited ? "heart.fill" : "heart", title: "收藏", color: PhotoDelStyle.iconTint(for: "favorite")) {
+                handleFavoriteAction()
+                resetCardPosition()
+            }
+            Spacer()
+            ActionButton(icon: "trash", title: "删除", color: PhotoDelStyle.destructive) {
+                handleDeleteAction()
+                resetCardPosition()
+            }
+            Spacer()
+            ActionButton(icon: "arrow.right", title: "跳过", color: PhotoDelStyle.accent) {
+                handleSkipAction()
+                resetCardPosition()
+            }
+            Spacer()
+            ActionButton(icon: "checkmark", title: "完成", color: PhotoDelStyle.positive) {
+                handleFinishAction()
+                resetCardPosition()
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 24)
     }
 
     // MARK: - 手势处理
@@ -505,8 +592,10 @@ struct SwipePhotoView: View {
     }
 
     private func photoCardSize(in containerSize: CGSize) -> CGSize {
-        let width = min(containerSize.width - 40, 380)
-        let height = min(max(containerSize.height * 0.72, 360), 520)
+        let availableWidth = max(containerSize.width - 40, 180)
+        let availableHeight = max(containerSize.height - 72, 220)
+        let width = min(availableWidth, 390)
+        let height = min(availableHeight, 540)
         return CGSize(width: width, height: height)
     }
 
@@ -931,6 +1020,73 @@ struct ActionButton: View {
             .frame(width: 60)
         }
         .buttonStyle(PlainButtonStyle())
+    }
+}
+
+struct GestureGuideRow: View {
+    let icon: String
+    let title: String
+    let detail: String
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(color)
+                .frame(width: 18)
+
+            Text(title)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(PhotoDelStyle.primaryText)
+
+            Spacer()
+
+            Text(detail)
+                .font(.system(size: 13, weight: .regular))
+                .foregroundColor(PhotoDelStyle.secondaryText)
+        }
+    }
+}
+
+struct SidebarActionButton: View {
+    let icon: String
+    let title: String
+    let color: Color
+    var isCompact = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: icon)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(color)
+                    .frame(width: 20)
+
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.primaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+
+                if !isCompact {
+                    Spacer()
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 13)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(PhotoDelStyle.surface)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(color.opacity(0.32), lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
     }
 }
 
