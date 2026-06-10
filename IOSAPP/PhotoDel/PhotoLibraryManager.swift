@@ -1,6 +1,5 @@
 import Foundation
 import Photos
-import PhotosUI
 import SwiftUI
 
 class PhotoLibraryManager: NSObject, ObservableObject {
@@ -244,17 +243,6 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         }
     }
 
-    func toggleFavorite(_ asset: PHAsset, completion: @escaping (Bool, Error?) -> Void) {
-        PHPhotoLibrary.shared().performChanges({
-            let request = PHAssetChangeRequest(for: asset)
-            request.isFavorite = !asset.isFavorite
-        }) { success, error in
-            DispatchQueue.main.async {
-                completion(success, error)
-            }
-        }
-    }
-
     func addToFavorites(_ assets: [PHAsset], completion: @escaping (Bool, Error?) -> Void) {
         expectLocalLibraryChange()
         PHPhotoLibrary.shared().performChanges({
@@ -339,10 +327,6 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         imageManager.cancelImageRequest(requestID)
     }
 
-    func clearImageCache() {
-        imageCache.removeAllObjects()
-    }
-
     func applyCommittedBatchChanges(deletedAssets: [PHAsset], favoritedAssets: [PHAsset]) {
         let deletedIDs = Set(deletedAssets.map(\.localIdentifier))
         if !deletedIDs.isEmpty {
@@ -391,23 +375,6 @@ class PhotoLibraryManager: NSObject, ObservableObject {
 
     func loadThumbnail(for asset: PHAsset, completion: @escaping (UIImage?) -> Void) {
         loadImage(for: asset, size: CGSize(width: 150, height: 150), completion: completion)
-    }
-
-    func loadFullImage(for asset: PHAsset, completion: @escaping (UIImage?) -> Void) {
-        let options = PHImageRequestOptions()
-        options.deliveryMode = .highQualityFormat
-        options.isNetworkAccessAllowed = false
-
-        imageManager.requestImage(
-            for: asset,
-            targetSize: PHImageManagerMaximumSize,
-            contentMode: .aspectFit,
-            options: options
-        ) { image, _ in
-            DispatchQueue.main.async {
-                completion(image)
-            }
-        }
     }
 
     private func expectLocalLibraryChange() {
@@ -554,27 +521,6 @@ class PhotoLibraryManager: NSObject, ObservableObject {
 
     // MARK: - Albums
 
-    func createAlbum(title: String, completion: @escaping (PHAssetCollection?, Error?) -> Void) {
-        var albumPlaceholder: PHObjectPlaceholder?
-
-        PHPhotoLibrary.shared().performChanges({
-            let request = PHAssetCollectionChangeRequest.creationRequestForAssetCollection(withTitle: title)
-            albumPlaceholder = request.placeholderForCreatedAssetCollection
-        }) { success, error in
-            DispatchQueue.main.async {
-                if success, let placeholder = albumPlaceholder {
-                    let album = PHAssetCollection.fetchAssetCollections(
-                        withLocalIdentifiers: [placeholder.localIdentifier],
-                        options: nil
-                    ).firstObject
-                    completion(album, nil)
-                } else {
-                    completion(nil, error)
-                }
-            }
-        }
-    }
-
     func addPhotosToAlbum(_ assets: [PHAsset], album: PHAssetCollection, completion: @escaping (Bool, Error?) -> Void) {
         PHPhotoLibrary.shared().performChanges({
             if let addAssetRequest = PHAssetCollectionChangeRequest(for: album) {
@@ -594,10 +540,6 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     var screenshotsCount: Int { screenshots.count }
     var favoritesCount: Int { favorites.count }
 
-    func getTotalSizeOfPhotos(_ assets: [PHAsset]) -> Int64 {
-        // 这是一个估算，实际大小需要异步获取
-        return Int64(assets.count) * 3_000_000 // 平均3MB每张照片
-    }
 }
 
 // MARK: - PHPhotoLibraryChangeObserver

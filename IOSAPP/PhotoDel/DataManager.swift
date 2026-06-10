@@ -5,7 +5,6 @@
 //  Created by PhotoDel Team on 11/7/25.
 //
 
-import Foundation
 import SwiftUI
 import Photos
 import UIKit
@@ -268,13 +267,11 @@ class DataManager: ObservableObject {
         deleteCandidates.removeAll()
         favoriteCandidates.removeAll()
         updateStats()
-        objectWillChange.send()
     }
 
     // MARK: - 统计更新
     private func updateStats() {
         organizeStats.deletedPhotos = deleteCandidates.count
-        organizeStats.favoritedPhotos = favoriteCandidates.count
         organizeStats.totalPhotos = photoLibraryManager.totalPhotosCount
 
         // 估算节省的空间（每张照片约3MB）
@@ -295,6 +292,10 @@ class DataManager: ObservableObject {
         }
     }
 
+    func getVideosCount() -> Int {
+        return photoLibraryManager.videosCount
+    }
+
     // MARK: - 收藏操作
     func toggleFavoriteStatus(_ asset: PHAsset, shouldFavorite: Bool) {
         PHPhotoLibrary.shared().performChanges({
@@ -307,38 +308,6 @@ class DataManager: ObservableObject {
                 print("Successfully \(shouldFavorite ? "favorited" : "unfavorited") photo")
             }
         }
-    }
-
-    // MARK: - 统一接口
-    func getTotalPhotosCount() -> Int {
-        return photoLibraryManager.totalPhotosCount
-    }
-
-    func getVideosCount() -> Int {
-        return photoLibraryManager.videosCount
-    }
-
-    func getScreenshotsCount() -> Int {
-        return photoLibraryManager.screenshotsCount
-    }
-
-    func getFavoritesCount() -> Int {
-        return photoLibraryManager.favoritesCount
-    }
-
-    // MARK: - DeleteConfirmView需要的方法
-    func performBatchOperations() {
-        executeBatchOperations { success, error in
-            if success {
-                print("批量操作执行成功")
-            } else {
-                print("批量操作执行失败: \(error?.localizedDescription ?? "未知错误")")
-            }
-        }
-    }
-
-    func clearCandidates() {
-        cancelAllOperations()
     }
 
     // MARK: - 时间组数据加载

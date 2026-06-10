@@ -125,8 +125,6 @@ struct PhotoDelTests {
         let stats = OrganizeStats()
         #expect(stats.totalPhotos == 0)
         #expect(stats.deletedPhotos == 0)
-        #expect(stats.keptPhotos == 0)
-        #expect(stats.favoritedPhotos == 0)
         #expect(stats.spaceSaved == 0.0)
         #expect(stats.formattedSpaceSaved == "0.0 MB")
     }

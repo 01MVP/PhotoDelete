@@ -24,15 +24,6 @@ enum PhotoCategory: String, CaseIterable {
         case .favorites: return "heart.fill"
         }
     }
-
-    var color: Color {
-        switch self {
-        case .all: return .blue
-        case .videos: return .purple
-        case .screenshots: return .green
-        case .favorites: return .yellow
-        }
-    }
 }
 
 // MARK: - 时间分组
@@ -50,16 +41,6 @@ enum TimeGroup: String, CaseIterable {
         case .thisMonth: return "calendar.circle"
         case .lastMonth: return "calendar.badge.minus"
         case .olderPhotos: return "calendar.badge.exclamationmark"
-        }
-    }
-
-    var color: Color {
-        switch self {
-        case .today: return .green
-        case .thisWeek: return .blue
-        case .thisMonth: return .purple
-        case .lastMonth: return .orange
-        case .olderPhotos: return .gray
         }
     }
 }
@@ -120,17 +101,6 @@ enum AlbumType: String, CaseIterable {
         case .userCreated: return "folder"
         }
     }
-
-    var color: Color {
-        switch self {
-        case .all: return .blue
-        case .recents: return .green
-        case .favorites: return .red
-        case .screenshots: return .purple
-        case .videos: return .orange
-        case .userCreated: return .gray
-        }
-    }
 }
 
 // MARK: - 相册信息
@@ -171,22 +141,12 @@ struct TimeGroupInfo: Identifiable {
         self.photosCount = photosCount
         self.progress = progress
     }
-
-    var progressColor: Color {
-        if progress >= 0.9 { return .yellow } // 90%以上 - 黄色
-        else if progress >= 0.8 { return .green } // 80-90% - 绿色
-        else if progress >= 0.6 { return .blue } // 60-80% - 蓝色
-        else if progress >= 0.4 { return .cyan } // 40-60% - 青色
-        else { return .purple } // 40%以下 - 紫色
-    }
 }
 
 // MARK: - 整理统计
 struct OrganizeStats {
     var totalPhotos: Int = 0
     var deletedPhotos: Int = 0
-    var keptPhotos: Int = 0
-    var favoritedPhotos: Int = 0
     var spaceSaved: Double = 0.0 // MB
 
     var formattedSpaceSaved: String {
