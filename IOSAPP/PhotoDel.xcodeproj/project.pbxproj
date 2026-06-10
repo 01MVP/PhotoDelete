@@ -400,6 +400,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "PhotoDel需要权限来保存处理后的照片到您的相册。";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "PhotoDel需要访问您的照片库来帮助您整理和管理照片。我们不会上传或分享您的照片。";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -430,6 +431,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "PhotoDel需要权限来保存处理后的照片到您的相册。";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "PhotoDel需要访问您的照片库来帮助您整理和管理照片。我们不会上传或分享您的照片。";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
