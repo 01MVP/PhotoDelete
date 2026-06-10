@@ -23,7 +23,7 @@ struct AlbumsView: View {
     var body: some View {
         NavigationView {
             ZStack {
-                Color.black.ignoresSafeArea()
+                PhotoDelScreenBackground()
 
                 VStack(spacing: 0) {
                     // 顶部区域
@@ -73,17 +73,17 @@ struct AlbumsView: View {
             // 标题
             VStack(spacing: 8) {
                 Text("相册管理")
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundColor(.white)
+                    .font(.system(size: 28, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.primaryText)
 
                 if dataManager.photoLibraryManager.hasPhotoLibraryAccess {
                     Text("管理您的照片相册")
                         .font(.system(size: 16, weight: .regular))
-                        .foregroundColor(.gray)
+                        .foregroundColor(PhotoDelStyle.secondaryText)
                 } else {
                     Text("需要访问照片库权限")
                         .font(.system(size: 16, weight: .regular))
-                        .foregroundColor(.orange)
+                        .foregroundColor(PhotoDelStyle.accent)
                 }
             }
             .padding(.top, 20)
@@ -96,20 +96,20 @@ struct AlbumsView: View {
                         HStack {
                             Image(systemName: "magnifyingglass")
                                 .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(.gray)
+                                .foregroundColor(PhotoDelStyle.secondaryText)
 
                             TextField("搜索相册", text: $searchText)
                                 .font(.system(size: 16, weight: .regular))
-                                .foregroundColor(.white)
+                                .foregroundColor(PhotoDelStyle.primaryText)
                         }
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
                         .background(
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color.gray.opacity(0.1))
+                            RoundedRectangle(cornerRadius: PhotoDelStyle.controlRadius, style: .continuous)
+                                .fill(PhotoDelStyle.surface)
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                    RoundedRectangle(cornerRadius: PhotoDelStyle.controlRadius, style: .continuous)
+                                        .stroke(PhotoDelStyle.hairline, lineWidth: 1)
                                 )
                         )
                         .transition(.move(edge: .top).combined(with: .opacity))
@@ -124,10 +124,10 @@ struct AlbumsView: View {
                         }) {
                             Image(systemName: "magnifyingglass")
                                 .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.white)
+                                .foregroundColor(PhotoDelStyle.primaryText)
                                 .frame(width: 44, height: 44)
-                                .background(Color.gray.opacity(0.6))
-                                .cornerRadius(8)
+                                .background(PhotoDelStyle.elevatedSurface)
+                                .clipShape(RoundedRectangle(cornerRadius: PhotoDelStyle.controlRadius, style: .continuous))
                         }
                     }
 
@@ -137,10 +137,10 @@ struct AlbumsView: View {
                     }) {
                         Image(systemName: "plus")
                             .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.white)
+                            .foregroundColor(Color.black.opacity(0.86))
                             .frame(width: 44, height: 44)
-                            .background(Color.blue)
-                            .cornerRadius(8)
+                            .background(PhotoDelStyle.accent)
+                            .clipShape(RoundedRectangle(cornerRadius: PhotoDelStyle.controlRadius, style: .continuous))
                     }
                 }
                 .padding(.horizontal, 24)
@@ -157,15 +157,15 @@ struct AlbumsView: View {
             VStack(spacing: 20) {
                 Image(systemName: "photo.stack")
                     .font(.system(size: 60, weight: .medium))
-                    .foregroundColor(.blue)
+                    .foregroundColor(PhotoDelStyle.accent)
 
                 Text("需要访问照片库")
-                    .font(.system(size: 24, weight: .bold))
-                    .foregroundColor(.white)
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.primaryText)
 
                 Text("需要访问您的照片库来管理相册。我们不会上传或分享您的照片。")
                     .font(.system(size: 16, weight: .regular))
-                    .foregroundColor(.gray)
+                    .foregroundColor(PhotoDelStyle.secondaryText)
                     .multilineTextAlignment(.center)
                     .lineLimit(nil)
 
@@ -173,19 +173,16 @@ struct AlbumsView: View {
                     dataManager.requestPhotoLibraryAccess()
                 }) {
                     HStack(spacing: 8) {
-                        Image(systemName: "key.fill")
+                        Image(systemName: "arrow.right")
                             .font(.system(size: 16, weight: .semibold))
 
-                        Text("授权访问照片库")
-                            .font(.system(size: 16, weight: .semibold))
+                        Text("继续")
                     }
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(Color.blue)
-                    .cornerRadius(12)
                 }
+                .photoDelPrimaryButton()
             }
+            .padding(24)
+            .photoDelCard()
             .padding(.horizontal, 32)
 
             Spacer()
@@ -218,12 +215,12 @@ struct AlbumsView: View {
                 if isLoading {
                     VStack(spacing: 12) {
                         ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            .progressViewStyle(CircularProgressViewStyle(tint: PhotoDelStyle.accent))
                             .scaleEffect(1.2)
 
                         Text("加载相册中...")
                             .font(.system(size: 16, weight: .regular))
-                            .foregroundColor(.gray)
+                            .foregroundColor(PhotoDelStyle.secondaryText)
                     }
                     .padding(.top, 40)
                 } else {
@@ -232,7 +229,7 @@ struct AlbumsView: View {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("系统相册 (\(filteredSystemAlbums.count)个)")
                                 .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(.white)
+                                .foregroundColor(PhotoDelStyle.primaryText)
                                 .padding(.horizontal, 24)
                                 .padding(.top, 12)
 
@@ -267,7 +264,7 @@ struct AlbumsView: View {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("我的相册 (\(filteredUserAlbums.count)个)")
                                 .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(.white)
+                                .foregroundColor(PhotoDelStyle.primaryText)
                                 .padding(.horizontal, 24)
                                 .padding(.top, 12)
 
@@ -302,15 +299,15 @@ struct AlbumsView: View {
                         VStack(spacing: 20) {
                             Image(systemName: "photo.stack")
                                 .font(.system(size: 60, weight: .medium))
-                                .foregroundColor(.gray)
+                                .foregroundColor(PhotoDelStyle.secondaryText)
 
                             Text("没有找到相册")
                                 .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(.white)
+                                .foregroundColor(PhotoDelStyle.primaryText)
 
                             Text("尝试创建一个新相册或检查搜索条件")
                                 .font(.system(size: 14, weight: .regular))
-                                .foregroundColor(.gray)
+                                .foregroundColor(PhotoDelStyle.secondaryText)
                         }
                         .padding(.top, 60)
                     }
@@ -423,7 +420,7 @@ struct AlbumInfoRow: View {
                 Button(action: onEdit) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.blue)
+                            .fill(PhotoDelStyle.accent.opacity(0.82))
                             .frame(width: 60, height: 60)
 
                         Image(systemName: "pencil")
@@ -437,9 +434,9 @@ struct AlbumInfoRow: View {
                 // 删除按钮（只有用户创建的相册可以删除）
                 if albumInfo.type == .userCreated {
                     Button(action: onDelete) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color.red)
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8)
+                                .fill(PhotoDelStyle.destructive.opacity(0.86))
                                 .frame(width: 60, height: 60)
 
                             Image(systemName: "trash")
@@ -466,12 +463,12 @@ struct AlbumInfoRow: View {
                     } else {
                         ZStack {
                             RoundedRectangle(cornerRadius: 8)
-                                .fill(albumInfo.type.color.opacity(0.3))
+                                .fill(PhotoDelStyle.elevatedSurface)
                                 .frame(width: isCompact ? 50 : 60, height: isCompact ? 50 : 60)
 
                             Image(systemName: albumInfo.type.icon)
                                 .font(.system(size: isCompact ? 16 : 20, weight: .medium))
-                                .foregroundColor(albumInfo.type.color)
+                                .foregroundColor(albumIconTint)
                         }
                     }
                 }
@@ -480,12 +477,12 @@ struct AlbumInfoRow: View {
                 VStack(alignment: .leading, spacing: isCompact ? 2 : 4) {
                     Text(albumInfo.title)
                         .font(.system(size: isCompact ? 14 : 16, weight: .semibold))
-                        .foregroundColor(.white)
+                        .foregroundColor(PhotoDelStyle.primaryText)
                         .lineLimit(1)
 
                     Text("\(albumInfo.photosCount) 张照片")
                         .font(.system(size: isCompact ? 12 : 14, weight: .regular))
-                        .foregroundColor(.gray)
+                        .foregroundColor(PhotoDelStyle.secondaryText)
                 }
 
                 Spacer()
@@ -496,7 +493,7 @@ struct AlbumInfoRow: View {
                         Button(action: onEdit) {
                             Image(systemName: "pencil")
                                 .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(.gray)
+                                .foregroundColor(PhotoDelStyle.secondaryText)
                         }
 
                         Button(action: {
@@ -506,25 +503,18 @@ struct AlbumInfoRow: View {
                         }) {
                             Image(systemName: "trash")
                                 .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(.red.opacity(0.8))
+                                .foregroundColor(PhotoDelStyle.destructive)
                         }
                     }
 
                     // 进入整理页面箭头
                     Image(systemName: "chevron.right")
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.gray.opacity(0.6))
+                        .foregroundColor(PhotoDelStyle.tertiaryText)
                 }
             }
             .padding(isCompact ? 8 : 12)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.gray.opacity(0.1))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                    )
-            )
+            .photoDelCard(radius: 14)
             .offset(dragOffset)
             .contentShape(Rectangle())
             .onTapGesture(perform: onTap)
@@ -563,6 +553,17 @@ struct AlbumInfoRow: View {
             }
         }
     }
+
+    private var albumIconTint: Color {
+        switch albumInfo.type {
+        case .favorites:
+            return PhotoDelStyle.iconTint(for: "favorite")
+        case .videos:
+            return PhotoDelStyle.iconTint(for: "video")
+        default:
+            return PhotoDelStyle.accent
+        }
+    }
 }
 
 // MARK: - 创建相册视图
@@ -575,43 +576,43 @@ struct CreateAlbumView: View {
     var body: some View {
         NavigationView {
             ZStack {
-                Color.black.ignoresSafeArea()
+                PhotoDelScreenBackground()
 
                 VStack(spacing: 32) {
                     VStack(spacing: 16) {
                         Image(systemName: "plus.rectangle.on.folder")
                             .font(.system(size: 60, weight: .medium))
-                            .foregroundColor(.blue)
+                            .foregroundColor(PhotoDelStyle.accent)
 
                         Text("创建新相册")
-                            .font(.system(size: 24, weight: .bold))
-                            .foregroundColor(.white)
+                            .font(.system(size: 24, weight: .semibold))
+                            .foregroundColor(PhotoDelStyle.primaryText)
                     }
 
                     VStack(spacing: 16) {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("相册名称")
                                 .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.white)
+                                .foregroundColor(PhotoDelStyle.primaryText)
 
                             TextField("输入相册名称", text: $albumName)
                                 .font(.system(size: 16, weight: .regular))
-                                .foregroundColor(.white)
+                                .foregroundColor(PhotoDelStyle.primaryText)
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 12)
                                 .background(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(Color.gray.opacity(0.1))
+                                    RoundedRectangle(cornerRadius: PhotoDelStyle.controlRadius, style: .continuous)
+                                        .fill(PhotoDelStyle.surface)
                                         .overlay(
-                                            RoundedRectangle(cornerRadius: 8)
-                                                .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                            RoundedRectangle(cornerRadius: PhotoDelStyle.controlRadius, style: .continuous)
+                                                .stroke(PhotoDelStyle.hairline, lineWidth: 1)
                                         )
                                 )
                         }
 
                         Text("简洁的相册名称，如\"旅行\"、\"家庭\"等")
                             .font(.system(size: 14, weight: .regular))
-                            .foregroundColor(.gray)
+                            .foregroundColor(PhotoDelStyle.secondaryText)
                             .multilineTextAlignment(.leading)
                     }
 
@@ -628,28 +629,15 @@ struct CreateAlbumView: View {
                                 }
 
                                 Text(isCreating ? "创建中..." : "创建相册")
-                                    .font(.system(size: 16, weight: .semibold))
                             }
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
-                            .background(albumName.isEmpty ? Color.gray : Color.blue)
-                            .cornerRadius(12)
                         }
+                        .photoDelPrimaryButton()
                         .disabled(albumName.isEmpty || isCreating)
 
                         Button(action: { dismiss() }) {
                             Text("取消")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.gray)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 16)
-                                .background(Color.clear)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color.gray.opacity(0.5), lineWidth: 1)
-                                )
                         }
+                        .photoDelSecondaryButton()
                     }
 
                     Spacer()
@@ -664,7 +652,7 @@ struct CreateAlbumView: View {
                     Button("取消") {
                         dismiss()
                     }
-                    .foregroundColor(.gray)
+                    .foregroundColor(PhotoDelStyle.secondaryText)
                 }
             }
         }
@@ -707,36 +695,36 @@ struct EditAlbumView: View {
     var body: some View {
         NavigationView {
             ZStack {
-                Color.black.ignoresSafeArea()
+                PhotoDelScreenBackground()
 
                 VStack(spacing: 32) {
                     VStack(spacing: 16) {
                         Image(systemName: "pencil.circle")
                             .font(.system(size: 60, weight: .medium))
-                            .foregroundColor(.blue)
+                            .foregroundColor(PhotoDelStyle.accent)
 
                         Text("编辑相册")
-                            .font(.system(size: 24, weight: .bold))
-                            .foregroundColor(.white)
+                            .font(.system(size: 24, weight: .semibold))
+                            .foregroundColor(PhotoDelStyle.primaryText)
                     }
 
                     VStack(spacing: 16) {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("相册名称")
                                 .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.white)
+                                .foregroundColor(PhotoDelStyle.primaryText)
 
                             TextField("输入相册名称", text: $newName)
                                 .font(.system(size: 16, weight: .regular))
-                                .foregroundColor(.white)
+                                .foregroundColor(PhotoDelStyle.primaryText)
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 12)
                                 .background(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(Color.gray.opacity(0.1))
+                                    RoundedRectangle(cornerRadius: PhotoDelStyle.controlRadius, style: .continuous)
+                                        .fill(PhotoDelStyle.surface)
                                         .overlay(
-                                            RoundedRectangle(cornerRadius: 8)
-                                                .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                            RoundedRectangle(cornerRadius: PhotoDelStyle.controlRadius, style: .continuous)
+                                                .stroke(PhotoDelStyle.hairline, lineWidth: 1)
                                         )
                                 )
                         }
@@ -755,28 +743,15 @@ struct EditAlbumView: View {
                                 }
 
                                 Text(isUpdating ? "更新中..." : "保存更改")
-                                    .font(.system(size: 16, weight: .semibold))
                             }
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
-                            .background(newName.isEmpty ? Color.gray : Color.blue)
-                            .cornerRadius(12)
                         }
+                        .photoDelPrimaryButton()
                         .disabled(newName.isEmpty || isUpdating)
 
                         Button(action: { dismiss() }) {
                             Text("取消")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.gray)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 16)
-                                .background(Color.clear)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color.gray.opacity(0.5), lineWidth: 1)
-                                )
                         }
+                        .photoDelSecondaryButton()
                     }
 
                     Spacer()
@@ -791,7 +766,7 @@ struct EditAlbumView: View {
                     Button("取消") {
                         dismiss()
                     }
-                    .foregroundColor(.gray)
+                    .foregroundColor(PhotoDelStyle.secondaryText)
                 }
             }
         }

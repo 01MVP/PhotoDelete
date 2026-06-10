@@ -16,9 +16,7 @@ struct SplashView: View {
     
     var body: some View {
         ZStack {
-            // 黑色背景
-            Color.black
-                .ignoresSafeArea()
+            PhotoDelScreenBackground()
             
             VStack(spacing: 24) {
                 Spacer()
@@ -26,12 +24,21 @@ struct SplashView: View {
                 // App图标
                 ZStack {
                     RoundedRectangle(cornerRadius: 24)
-                        .fill(Color.white)
+                        .fill(PhotoDelStyle.surface)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 24)
+                                .stroke(PhotoDelStyle.hairline, lineWidth: 1)
+                        )
                         .frame(width: 120, height: 120)
-                    
-                    Image(systemName: "camera")
+
+                    Image(systemName: "photo.on.rectangle.angled")
                         .font(.system(size: 48, weight: .medium))
-                        .foregroundColor(.black)
+                        .foregroundColor(PhotoDelStyle.accent)
+
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(PhotoDelStyle.accent)
+                        .offset(x: 26, y: 26)
                 }
                 .scaleEffect(animateIcon ? 1.0 : 0.9)
                 .opacity(animateIcon ? 1.0 : 0.8)
@@ -41,11 +48,11 @@ struct SplashView: View {
                 VStack(spacing: 8) {
                     Text("PhotoDel")
                         .font(.system(size: 32, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
+                        .foregroundColor(PhotoDelStyle.primaryText)
                     
                     Text("照片整理助手")
                         .font(.system(size: 16, weight: .regular))
-                        .foregroundColor(.gray)
+                        .foregroundColor(PhotoDelStyle.secondaryText)
                 }
                 .opacity(animateIcon ? 1.0 : 0.0)
                 .animation(.easeOut(duration: 0.6).delay(0.2), value: animateIcon)
@@ -57,19 +64,19 @@ struct SplashView: View {
                         if dataManager.photoLibraryManager.isLoading {
                             VStack(spacing: 8) {
                                 ProgressView(value: dataManager.photoLibraryManager.loadingProgress)
-                                    .progressViewStyle(LinearProgressViewStyle(tint: .white))
+                                    .progressViewStyle(LinearProgressViewStyle(tint: PhotoDelStyle.accent))
                                     .frame(width: 200)
                                 
                                 Text("\(Int(dataManager.photoLibraryManager.loadingProgress * 100))%")
                                     .font(.system(size: 14, weight: .medium))
-                                    .foregroundColor(.white)
+                                    .foregroundColor(PhotoDelStyle.primaryText)
                             }
                         }
                         
                         // 加载状态文字
                         Text(loadingText)
                             .font(.system(size: 14, weight: .regular))
-                            .foregroundColor(.gray)
+                            .foregroundColor(PhotoDelStyle.secondaryText)
                             .multilineTextAlignment(.center)
                     }
                     .transition(.opacity)
@@ -98,7 +105,11 @@ struct SplashView: View {
             // 已授权，显示加载进度
             showProgress = true
             loadingText = "正在加载照片库..."
-            
+            if dataManager.photoLibraryManager.totalPhotosCount == 0 &&
+                !dataManager.photoLibraryManager.isLoading {
+                dataManager.reloadLibraryData()
+            }
+
             // 监听加载完成
             monitorLoadingProgress()
         } else if dataManager.photoLibraryManager.authorizationStatus == .notDetermined {
@@ -122,7 +133,7 @@ struct SplashView: View {
     private func monitorLoadingProgress() {
         // 监听加载进度
         Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { timer in
-            if !dataManager.photoLibraryManager.isLoading {
+            if !dataManager.photoLibraryManager.isLoading && !dataManager.isPreparingLibrary {
                 // 加载完成
                 timer.invalidate()
                 loadingText = "准备完成！"

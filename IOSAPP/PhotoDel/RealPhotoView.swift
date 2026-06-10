@@ -8,6 +8,7 @@ struct RealPhotoView: View {
 
     @State private var image: UIImage?
     @State private var isLoading = true
+    @State private var requestID: PHImageRequestID?
 
     var body: some View {
         Group {
@@ -27,8 +28,8 @@ struct RealPhotoView: View {
                     .fill(
                         LinearGradient(
                             colors: [
-                                Color(red: 0.1, green: 0.1, blue: 0.15),
-                                Color(red: 0.15, green: 0.15, blue: 0.2)
+                                PhotoDelStyle.surface,
+                                PhotoDelStyle.elevatedSurface
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
@@ -39,7 +40,7 @@ struct RealPhotoView: View {
                         Group {
                             if isLoading {
                                 ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    .progressViewStyle(CircularProgressViewStyle(tint: PhotoDelStyle.accent))
                                     .scaleEffect(0.8)
                             }
                         }
@@ -57,6 +58,9 @@ struct RealPhotoView: View {
         .onChange(of: asset.localIdentifier) { _ in
             loadImage()
         }
+        .onDisappear {
+            photoLibraryManager.cancelImageRequest(requestID)
+        }
     }
 
     @ViewBuilder
@@ -65,11 +69,11 @@ struct RealPhotoView: View {
             // 视频图标
             if asset.mediaType == .video {
                 Image(systemName: "play.circle.fill")
-                    .foregroundColor(.white)
+                    .foregroundColor(PhotoDelStyle.primaryText)
                     .font(.system(size: 20))
                     .background(
                         Circle()
-                            .fill(Color.black.opacity(0.4))
+                            .fill(PhotoDelStyle.background.opacity(0.62))
                             .frame(width: 24, height: 24)
                     )
             }
@@ -77,11 +81,11 @@ struct RealPhotoView: View {
             // 收藏图标
             if asset.isFavorite {
                 Image(systemName: "heart.fill")
-                    .foregroundColor(.red)
+                    .foregroundColor(PhotoDelStyle.iconTint(for: "favorite"))
                     .font(.system(size: 16))
                     .background(
                         Circle()
-                            .fill(Color.white)
+                            .fill(PhotoDelStyle.background.opacity(0.62))
                             .frame(width: 20, height: 20)
                     )
             }
@@ -89,11 +93,11 @@ struct RealPhotoView: View {
             // 截图标识
             if isScreenshot {
                 Image(systemName: "camera.viewfinder")
-                    .foregroundColor(.yellow)
+                    .foregroundColor(PhotoDelStyle.warning)
                     .font(.system(size: 14))
                     .background(
                         Circle()
-                            .fill(Color.black.opacity(0.4))
+                            .fill(PhotoDelStyle.background.opacity(0.62))
                             .frame(width: 18, height: 18)
                     )
             }
@@ -121,12 +125,16 @@ struct RealPhotoView: View {
     }
 
     private func loadImage() {
+        photoLibraryManager.cancelImageRequest(requestID)
         isLoading = true
         image = nil
+        let requestedAssetID = asset.localIdentifier
 
-        photoLibraryManager.loadImage(for: asset, size: size) { loadedImage in
+        requestID = photoLibraryManager.loadImage(for: asset, size: size) { loadedImage in
+            guard asset.localIdentifier == requestedAssetID else { return }
             self.image = loadedImage
             self.isLoading = false
+            self.requestID = nil
         }
     }
 }
@@ -170,7 +178,7 @@ struct FullScreenPhotoView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            PhotoDelStyle.background.ignoresSafeArea()
 
             if let image = image {
                 Image(uiImage: image)
@@ -189,7 +197,7 @@ struct FullScreenPhotoView: View {
                     Button("完成") {
                         dismiss()
                     }
-                    .foregroundColor(.white)
+                    .foregroundColor(PhotoDelStyle.primaryText)
                     .padding()
 
                     Spacer()
@@ -217,7 +225,7 @@ struct RealPhotoView_Previews: PreviewProvider {
         // 注意：预览无法显示真实照片，需要在真机或模拟器上运行
         Text("需要在真机或模拟器上运行以显示真实照片")
             .padding()
-            .background(Color.gray.opacity(0.2))
+            .background(PhotoDelStyle.surface)
             .cornerRadius(8)
     }
 }

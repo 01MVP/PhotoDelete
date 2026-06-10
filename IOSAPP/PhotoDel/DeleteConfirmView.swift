@@ -14,7 +14,7 @@ struct DeleteConfirmView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            PhotoDelScreenBackground()
 
             VStack(spacing: 0) {
                 Spacer()
@@ -23,7 +23,7 @@ struct DeleteConfirmView: View {
                     // 标题图标
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 60, weight: .light))
-                        .foregroundColor(.green)
+                        .foregroundColor(PhotoDelStyle.positive)
                         .opacity(showAnimation ? 1.0 : 0.0)
                         .scaleEffect(showAnimation ? 1.0 : 0.5)
                         .animation(.spring(response: 0.8, dampingFraction: 0.6), value: showAnimation)
@@ -31,12 +31,12 @@ struct DeleteConfirmView: View {
                     // 标题文本
                     VStack(spacing: 8) {
                         Text("操作完成")
-                            .font(.system(size: 24, weight: .bold))
-                            .foregroundColor(.white)
+                            .font(.system(size: 24, weight: .semibold))
+                            .foregroundColor(PhotoDelStyle.primaryText)
 
                         Text("照片整理完成")
                             .font(.system(size: 16, weight: .regular))
-                            .foregroundColor(.gray)
+                            .foregroundColor(PhotoDelStyle.secondaryText)
                     }
                     .opacity(showAnimation ? 1.0 : 0.0)
                     .offset(y: showAnimation ? 0 : 20)
@@ -56,14 +56,7 @@ struct DeleteConfirmView: View {
                 }
                 .padding(.horizontal, 32)
                 .padding(.vertical, 40)
-                .background(
-                    RoundedRectangle(cornerRadius: 20)
-                        .fill(Color.gray.opacity(0.1))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 20)
-                                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                        )
-                )
+                .photoDelCard(radius: 20)
                 .padding(.horizontal, 24)
                 .scaleEffect(showAnimation ? 1.0 : 0.9)
                 .opacity(showAnimation ? 1.0 : 0.0)
@@ -83,13 +76,13 @@ struct DeleteConfirmView: View {
             StatisticCard(
                 value: "\(dataManager.deleteCandidates.count)",
                 label: "待删除",
-                color: .red
+                color: PhotoDelStyle.destructive
             )
 
             StatisticCard(
                 value: "\(dataManager.favoriteCandidates.count)",
                 label: "待收藏",
-                color: .yellow
+                color: PhotoDelStyle.iconTint(for: "favorite")
             )
         }
         .opacity(showAnimation ? 1.0 : 0.0)
@@ -113,10 +106,10 @@ struct DeleteConfirmView: View {
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color.black)
+                .fill(PhotoDelStyle.surface)
                 .overlay(
                     RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                        .stroke(PhotoDelStyle.hairline, lineWidth: 1)
                 )
         )
         .opacity(showAnimation ? 1.0 : 0.0)
@@ -134,14 +127,9 @@ struct DeleteConfirmView: View {
                         .font(.system(size: 16, weight: .semibold))
 
                     Text("执行操作")
-                        .font(.system(size: 16, weight: .semibold))
                 }
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
-                .background(Color.blue)
-                .cornerRadius(12)
             }
+            .photoDelPrimaryButton()
 
             // 取消操作按钮
             Button(action: cancelOperations) {
@@ -150,17 +138,9 @@ struct DeleteConfirmView: View {
                         .font(.system(size: 16, weight: .semibold))
 
                     Text("取消操作")
-                        .font(.system(size: 16, weight: .semibold))
                 }
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
-                .background(Color.clear)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.gray.opacity(0.5), lineWidth: 1)
-                )
             }
+            .photoDelSecondaryButton()
         }
         .opacity(showAnimation ? 1.0 : 0.0)
         .offset(y: showAnimation ? 0 : 30)
@@ -193,18 +173,11 @@ struct StatisticCard: View {
 
             Text(label)
                 .font(.system(size: 12, weight: .regular))
-                .foregroundColor(.gray)
+                .foregroundColor(PhotoDelStyle.secondaryText)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 16)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.gray.opacity(0.1))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                )
-        )
+        .photoDelCard(radius: 12)
     }
 }
 
@@ -217,13 +190,13 @@ struct DetailRow: View {
         HStack {
             Text(label)
                 .font(.system(size: 14, weight: .regular))
-                .foregroundColor(.gray)
+                .foregroundColor(PhotoDelStyle.secondaryText)
 
             Spacer()
 
             Text(value)
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(.white)
+                .foregroundColor(PhotoDelStyle.primaryText)
         }
     }
 }
@@ -234,11 +207,11 @@ struct InfoBanner: View {
         HStack(spacing: 8) {
             Image(systemName: "info.circle")
                 .font(.system(size: 14, weight: .medium))
-                .foregroundColor(.gray.opacity(0.8))
+                .foregroundColor(PhotoDelStyle.secondaryText)
 
             Text("删除的照片将移至回收站，30天后永久删除")
                 .font(.system(size: 12, weight: .regular))
-                .foregroundColor(.gray.opacity(0.8))
+                .foregroundColor(PhotoDelStyle.secondaryText)
         }
         .padding(.top, 16)
     }

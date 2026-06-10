@@ -6,6 +6,9 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct MainTabView: View {
     @EnvironmentObject var dataManager: DataManager
@@ -40,25 +43,26 @@ struct MainTabView: View {
                 }
                 .tag(2)
         }
-        .accentColor(.white)
+        .accentColor(PhotoDelStyle.accent)
         .preferredColorScheme(.dark)
         .onAppear {
             // 自定义TabBar外观
             let appearance = UITabBarAppearance()
-            appearance.configureWithOpaqueBackground()
-            appearance.backgroundColor = UIColor.black
-            appearance.selectionIndicatorTintColor = UIColor.white
+            appearance.configureWithTransparentBackground()
+            appearance.backgroundColor = PhotoDelStyle.uiBackground.withAlphaComponent(0.92)
+            appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterialDark)
+            appearance.selectionIndicatorTintColor = PhotoDelStyle.uiAccent
             
             // 未选中状态
-            appearance.stackedLayoutAppearance.normal.iconColor = UIColor.gray
+            appearance.stackedLayoutAppearance.normal.iconColor = PhotoDelStyle.uiSecondaryText
             appearance.stackedLayoutAppearance.normal.titleTextAttributes = [
-                .foregroundColor: UIColor.gray
+                .foregroundColor: PhotoDelStyle.uiSecondaryText
             ]
             
             // 选中状态
-            appearance.stackedLayoutAppearance.selected.iconColor = UIColor.white
+            appearance.stackedLayoutAppearance.selected.iconColor = PhotoDelStyle.uiAccent
             appearance.stackedLayoutAppearance.selected.titleTextAttributes = [
-                .foregroundColor: UIColor.white
+                .foregroundColor: PhotoDelStyle.uiAccent
             ]
             
             UITabBar.appearance().standardAppearance = appearance

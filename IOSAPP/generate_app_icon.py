@@ -1,173 +1,137 @@
 #!/usr/bin/env python3
-"""
-PhotoDel App Icon Generator
-生成PhotoDel应用的图标，包含多个尺寸
-"""
 
-from PIL import Image, ImageDraw, ImageFont
-import os
+from pathlib import Path
+
+from PIL import Image, ImageDraw
+
+
+ROOT = Path(__file__).resolve().parent
+ICON_DIR = ROOT / "PhotoDel" / "Assets.xcassets" / "AppIcon.appiconset"
+SITE_ICON = ROOT.parent / "site" / "assets" / "app-icon.png"
+
+
+def lerp(a, b, t):
+    return int(a + (b - a) * t)
+
+
+def rounded_layer(size, rect, radius, fill, outline=None, width=1, angle=0):
+    layer = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(layer)
+    draw.rounded_rectangle(rect, radius=radius, fill=fill, outline=outline, width=width)
+    if angle:
+        layer = layer.rotate(angle, resample=Image.Resampling.BICUBIC, center=(size / 2, size / 2))
+    return layer
+
 
 def create_app_icon(size=1024):
-    """创建PhotoDel应用图标"""
-    # 创建画布
-    img = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+    img = Image.new("RGB", (size, size), (10, 11, 13))
     draw = ImageDraw.Draw(img)
-    
-    # 计算相对尺寸
-    margin = size * 0.1  # 10% 边距
-    inner_size = size - 2 * margin
-    
-    # 背景渐变 - 深蓝到紫色
+
     for y in range(size):
-        # 从深蓝 #1E3A8A 到紫色 #7C3AED 的渐变
-        ratio = y / size
-        r = int(30 + (124 - 30) * ratio)
-        g = int(58 + (58 - 58) * ratio)  
-        b = int(138 + (237 - 138) * ratio)
-        color = (r, g, b, 255)
+        t = y / max(size - 1, 1)
+        color = (
+            lerp(10, 22, t),
+            lerp(11, 24, t),
+            lerp(13, 28, t),
+        )
         draw.line([(0, y), (size, y)], fill=color)
-    
-    # 圆角矩形背景
-    corner_radius = size * 0.22  # 22% 圆角
-    draw.rounded_rectangle([0, 0, size, size], radius=corner_radius, fill=None, outline=None)
-    
-    # 主要图标元素：相机图标结合删除符号
-    center_x, center_y = size // 2, size // 2
-    
-    # 相机机身 
-    camera_width = inner_size * 0.7
-    camera_height = camera_width * 0.6
-    camera_x = center_x - camera_width // 2
-    camera_y = center_y - camera_height // 2 + size * 0.05  # 稍微向下偏移
-    
-    # 相机机身 - 白色半透明
-    draw.rounded_rectangle(
-        [camera_x, camera_y, camera_x + camera_width, camera_y + camera_height],
-        radius=size * 0.05,
-        fill=(255, 255, 255, 200)
+
+    glow = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    glow_draw = ImageDraw.Draw(glow)
+    glow_draw.ellipse(
+        [size * 0.18, size * 0.02, size * 0.9, size * 0.55],
+        fill=(163, 199, 255, 26),
     )
-    
-    # 相机镜头
-    lens_radius = camera_width * 0.25
-    lens_center_x = center_x
-    lens_center_y = camera_y + camera_height * 0.6
-    
-    # 外圈镜头 - 深灰色
-    draw.ellipse(
-        [lens_center_x - lens_radius, lens_center_y - lens_radius,
-         lens_center_x + lens_radius, lens_center_y + lens_radius],
-        fill=(60, 60, 60, 255)
+    img = Image.alpha_composite(img.convert("RGBA"), glow)
+
+    cx = size / 2
+    card_w = size * 0.54
+    card_h = size * 0.62
+    radius = int(size * 0.055)
+
+    cards = [
+        (-0.14, -0.05, -8, (42, 47, 53, 245), (255, 255, 255, 38)),
+        (0.12, -0.02, 7, (60, 67, 76, 245), (255, 255, 255, 44)),
+        (0.0, 0.05, 0, (232, 237, 244, 255), (255, 255, 255, 70)),
+    ]
+
+    for dx, dy, angle, fill, outline in cards:
+        x0 = cx - card_w / 2 + size * dx
+        y0 = size * 0.21 + size * dy
+        layer = rounded_layer(
+            size,
+            [x0, y0, x0 + card_w, y0 + card_h],
+            radius,
+            fill,
+            outline=outline,
+            width=max(2, int(size * 0.004)),
+            angle=angle,
+        )
+        img = Image.alpha_composite(img, layer)
+
+    overlay = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    od = ImageDraw.Draw(overlay)
+
+    front_x0 = cx - card_w / 2
+    front_y0 = size * 0.26
+    front_x1 = front_x0 + card_w
+    front_y1 = front_y0 + card_h
+
+    od.rounded_rectangle(
+        [front_x0 + size * 0.07, front_y0 + size * 0.08, front_x1 - size * 0.07, front_y0 + size * 0.14],
+        radius=int(size * 0.018),
+        fill=(18, 21, 25, 56),
     )
-    
-    # 内圈镜头 - 黑色
-    inner_lens_radius = lens_radius * 0.7
-    draw.ellipse(
-        [lens_center_x - inner_lens_radius, lens_center_y - inner_lens_radius,
-         lens_center_x + inner_lens_radius, lens_center_y + inner_lens_radius],
-        fill=(30, 30, 30, 255)
+    od.rounded_rectangle(
+        [front_x0 + size * 0.07, front_y1 - size * 0.16, front_x1 - size * 0.07, front_y1 - size * 0.1],
+        radius=int(size * 0.018),
+        fill=(18, 21, 25, 48),
     )
-    
-    # 相机闪光灯
-    flash_radius = size * 0.025
-    flash_x = camera_x + camera_width * 0.2
-    flash_y = camera_y + camera_height * 0.25
-    draw.ellipse(
-        [flash_x - flash_radius, flash_y - flash_radius,
-         flash_x + flash_radius, flash_y + flash_radius],
-        fill=(255, 255, 255, 255)
-    )
-    
-    # 删除/整理符号 - 在右上角
-    delete_size = size * 0.25
-    delete_x = size - delete_size - margin * 0.5
-    delete_y = margin * 0.5
-    
-    # 删除符号背景 - 红色圆形
-    delete_radius = delete_size * 0.4
-    delete_center_x = delete_x + delete_size // 2
-    delete_center_y = delete_y + delete_size // 2
-    
-    draw.ellipse(
-        [delete_center_x - delete_radius, delete_center_y - delete_radius,
-         delete_center_x + delete_radius, delete_center_y + delete_radius],
-        fill=(239, 68, 68, 255)  # 红色
-    )
-    
-    # 删除符号 - 白色X
-    line_width = int(size * 0.008)
-    x_size = delete_radius * 0.6
-    draw.line(
-        [delete_center_x - x_size, delete_center_y - x_size,
-         delete_center_x + x_size, delete_center_y + x_size],
-        fill=(255, 255, 255, 255), width=line_width
-    )
-    draw.line(
-        [delete_center_x - x_size, delete_center_y + x_size,
-         delete_center_x + x_size, delete_center_y - x_size],
-        fill=(255, 255, 255, 255), width=line_width
-    )
-    
-    # 添加光泽效果
-    overlay = Image.new('RGBA', (size, size), (255, 255, 255, 0))
-    overlay_draw = ImageDraw.Draw(overlay)
-    
-    # 顶部高光
-    overlay_draw.ellipse(
-        [size * 0.1, size * 0.05, size * 0.6, size * 0.4],
-        fill=(255, 255, 255, 20)
-    )
-    
+
+    line_width = max(9, int(size * 0.034))
+    start = (front_x0 + size * 0.13, front_y0 + size * 0.42)
+    mid = (front_x0 + size * 0.28, front_y0 + size * 0.50)
+    end = (front_x1 - size * 0.12, front_y0 + size * 0.36)
+    accent = (163, 199, 255, 255)
+    shadow = (11, 13, 16, 52)
+
+    od.line([start, mid, end], fill=shadow, width=line_width + max(4, int(size * 0.008)), joint="curve")
+    od.line([start, mid, end], fill=accent, width=line_width, joint="curve")
+
+    arrow = [
+        (end[0] - size * 0.075, end[1] - size * 0.045),
+        end,
+        (end[0] - size * 0.055, end[1] + size * 0.066),
+    ]
+    od.line(arrow, fill=accent, width=line_width, joint="curve")
+
+    dot_r = size * 0.024
+    od.ellipse([start[0] - dot_r, start[1] - dot_r, start[0] + dot_r, start[1] + dot_r], fill=(12, 15, 18, 255))
+    od.ellipse([start[0] - dot_r * 0.58, start[1] - dot_r * 0.58, start[0] + dot_r * 0.58, start[1] + dot_r * 0.58], fill=accent)
+
     img = Image.alpha_composite(img, overlay)
-    
-    return img
+    return img.convert("RGB")
+
+
+def save_icon(size, path):
+    icon = create_app_icon(size)
+    icon.save(path, "PNG", optimize=True)
+
 
 def generate_all_sizes():
-    """生成所有需要的图标尺寸"""
-    sizes = [1024, 512, 256, 180, 167, 152, 120, 87, 80, 76, 60, 58, 40, 29, 20]
-    
-    # 创建输出目录
-    output_dir = "PhotoDel/Assets.xcassets/AppIcon.appiconset"
-    os.makedirs(output_dir, exist_ok=True)
-    
-    print("🎨 正在生成PhotoDel应用图标...")
-    
+    ICON_DIR.mkdir(parents=True, exist_ok=True)
+    SITE_ICON.parent.mkdir(parents=True, exist_ok=True)
+
+    sizes = [180, 167, 152, 120, 87, 80, 76, 60, 58, 40, 29, 20]
+
     for size in sizes:
-        print(f"   生成 {size}x{size} 图标...")
-        icon = create_app_icon(size)
-        
-        # 保存不同密度的图标
-        if size >= 180:
-            # 大尺寸图标，保存多个密度
-            icon.save(f"{output_dir}/icon_{size}x{size}.png", "PNG")
-            
-            # @2x 版本
-            icon_2x = create_app_icon(size * 2)
-            icon_2x = icon_2x.resize((size, size), Image.Resampling.LANCZOS)
-            icon_2x.save(f"{output_dir}/icon_{size}x{size}@2x.png", "PNG")
-            
-            # @3x 版本 (仅适用于某些尺寸)
-            if size in [180, 120, 87, 60, 40, 29, 20]:
-                icon_3x = create_app_icon(size * 3)
-                icon_3x = icon_3x.resize((size, size), Image.Resampling.LANCZOS)
-                icon_3x.save(f"{output_dir}/icon_{size}x{size}@3x.png", "PNG")
-        else:
-            icon.save(f"{output_dir}/icon_{size}x{size}.png", "PNG")
-    
-    # 创建主图标 (1024x1024)
-    main_icon = create_app_icon(1024)
-    main_icon.save(f"{output_dir}/Icon-1024.png", "PNG")
-    
-    print("✅ 所有图标已生成完成！")
-    print(f"📁 图标文件保存在: {output_dir}/")
-    print("\n🔧 下一步：")
-    print("1. 在Xcode中打开PhotoDel.xcodeproj")
-    print("2. 选择Assets.xcassets中的AppIcon")
-    print("3. 将生成的图标文件拖拽到对应的尺寸槽位中")
+        save_icon(size, ICON_DIR / f"icon_{size}x{size}.png")
+
+    save_icon(1024, ICON_DIR / "Icon-1024.png")
+    save_icon(512, SITE_ICON)
+
+    print(f"Generated {len(sizes) + 2} icon files.")
+
 
 if __name__ == "__main__":
-    try:
-        generate_all_sizes()
-    except ImportError:
-        print("❌ 缺少PIL库，请安装：pip install Pillow")
-    except Exception as e:
-        print(f"❌ 生成图标时出错：{e}") 
+    generate_all_sizes()

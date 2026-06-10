@@ -47,38 +47,37 @@ struct HomeView: View {
     var body: some View {
         NavigationStack(path: $navigationPath) {
             ZStack {
-                Color.black.ignoresSafeArea()
+                PhotoDelScreenBackground()
 
                 ScrollView {
                     VStack(spacing: 24) {
                         // 顶部标题
                         VStack(spacing: 8) {
                             Text("PhotoDel")
-                                .font(.system(size: 28, weight: .bold, design: .rounded))
-                                .foregroundColor(.white)
+                                .font(.system(size: 34, weight: .semibold, design: .rounded))
+                                .foregroundColor(PhotoDelStyle.primaryText)
 
                             if dataManager.photoLibraryManager.hasPhotoLibraryAccess {
                                 Text("选择分类开始整理")
-                                    .font(.system(size: 16, weight: .regular))
-                                    .foregroundColor(.gray)
+                                    .font(.system(size: 15, weight: .regular))
+                                    .foregroundColor(PhotoDelStyle.secondaryText)
                             } else {
                                 Text("需要访问照片库权限")
-                                    .font(.system(size: 16, weight: .regular))
-                                    .foregroundColor(.orange)
+                                    .font(.system(size: 15, weight: .regular))
+                                    .foregroundColor(PhotoDelStyle.accent)
                             }
                         }
-                        .padding(.top, 20)
+                        .padding(.top, 24)
 
-                        // 权限状态和授权
                         if !dataManager.photoLibraryManager.hasPhotoLibraryAccess {
                             authorizationSection
-                        }
-
-                        // 照片分类（仅在已授权时显示）
-                        if dataManager.photoLibraryManager.hasPhotoLibraryAccess {
+                        } else if isLibraryPreparing {
+                            libraryLoadingSection
+                        } else if dataManager.photoLibraryManager.totalPhotosCount == 0 {
+                            emptyLibrarySection
+                        } else {
                             categorySection
 
-                            // 时间线浏览
                             timelineSection
                         }
 
@@ -106,21 +105,25 @@ struct HomeView: View {
         }
     }
 
+    private var isLibraryPreparing: Bool {
+        dataManager.isPreparingLibrary || dataManager.photoLibraryManager.isLoading
+    }
+
     // MARK: - 权限授权区域
     private var authorizationSection: some View {
         VStack(spacing: 20) {
             VStack(spacing: 12) {
                 Image(systemName: "photo.on.rectangle.angled")
-                    .font(.system(size: 60, weight: .medium))
-                    .foregroundColor(.blue)
+                    .font(.system(size: 58, weight: .medium))
+                    .foregroundColor(PhotoDelStyle.accent)
 
                 Text("需要访问照片库")
                     .font(.system(size: 24, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(PhotoDelStyle.primaryText)
 
                 Text("PhotoDel需要访问您的照片库来帮助您整理照片。我们不会上传或分享您的照片。")
                     .font(.system(size: 16, weight: .regular))
-                    .foregroundColor(.gray)
+                    .foregroundColor(PhotoDelStyle.secondaryText)
                     .multilineTextAlignment(.center)
                     .lineLimit(nil)
             }
@@ -129,28 +132,63 @@ struct HomeView: View {
                 dataManager.requestPhotoLibraryAccess()
             }) {
                 HStack(spacing: 8) {
-                    Image(systemName: "key.fill")
+                    Image(systemName: "arrow.right")
                         .font(.system(size: 16, weight: .semibold))
 
-                    Text("授权访问照片库")
-                        .font(.system(size: 16, weight: .semibold))
+                    Text("继续")
                 }
-                .foregroundColor(.white)
+            }
+            .photoDelPrimaryButton()
+        }
+        .padding(24)
+        .photoDelCard()
+    }
+
+    // MARK: - 照片库加载区域
+    private var libraryLoadingSection: some View {
+        VStack(spacing: 18) {
+            ProgressView(value: dataManager.photoLibraryManager.loadingProgress)
+                .progressViewStyle(LinearProgressViewStyle(tint: PhotoDelStyle.accent))
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
-                .background(Color.blue)
-                .cornerRadius(12)
+
+            VStack(spacing: 8) {
+                Text("正在扫描照片库")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.primaryText)
+
+                Text("\(Int(dataManager.photoLibraryManager.loadingProgress * 100))%")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundColor(PhotoDelStyle.secondaryText)
+
+                Text("首次打开需要一点时间。完成前不会显示空分类。")
+                    .font(.system(size: 15, weight: .regular))
+                    .foregroundColor(PhotoDelStyle.secondaryText)
+                    .multilineTextAlignment(.center)
             }
         }
         .padding(24)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.gray.opacity(0.1))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                )
-        )
+        .photoDelCard()
+    }
+
+    // MARK: - 空照片库区域
+    private var emptyLibrarySection: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "photo.on.rectangle.angled")
+                .font(.system(size: 52, weight: .medium))
+                .foregroundColor(PhotoDelStyle.secondaryText)
+
+            Text("没有可整理的照片")
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundColor(PhotoDelStyle.primaryText)
+
+            Text("当前授权范围内没有照片。您可以在系统设置里调整 PhotoDel 的照片访问范围。")
+                .font(.system(size: 15, weight: .regular))
+                .foregroundColor(PhotoDelStyle.secondaryText)
+                .multilineTextAlignment(.center)
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity)
+        .photoDelCard()
     }
 
     // MARK: - 照片分类区域
@@ -159,7 +197,7 @@ struct HomeView: View {
             HStack {
                 Text("照片分类")
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.white)
+                    .foregroundColor(PhotoDelStyle.primaryText)
                 Spacer()
             }
 
@@ -183,21 +221,21 @@ struct HomeView: View {
             HStack {
                 Text("时间线浏览")
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.white)
+                    .foregroundColor(PhotoDelStyle.primaryText)
                 Spacer()
             }
 
-                         VStack(spacing: 12) {
-                 ForEach(dataManager.timeGroups) { timeGroupInfo in
-                     TimelineCard(
-                         timeGroup: timeGroupInfo.timeGroup,
-                         count: timeGroupInfo.photosCount,
-                         progress: timeGroupInfo.progress
-                     ) {
-                         navigationPath.append(SwipeViewDestination.timeGroup(timeGroupInfo.timeGroup.rawValue))
-                     }
-                 }
-             }
+            VStack(spacing: 12) {
+                ForEach(dataManager.timeGroups) { timeGroupInfo in
+                    TimelineCard(
+                        timeGroup: timeGroupInfo.timeGroup,
+                        count: timeGroupInfo.photosCount,
+                        progress: timeGroupInfo.progress
+                    ) {
+                        navigationPath.append(SwipeViewDestination.timeGroup(timeGroupInfo.timeGroup.rawValue))
+                    }
+                }
+            }
         }
     }
 
@@ -235,71 +273,49 @@ struct CategoryCard: View {
     let progress: Double
     let onTap: () -> Void
 
-    private var progressColor: Color {
-        if progress >= 0.9 { return .yellow } // 90%以上 - 黄色
-        else if progress >= 0.8 { return .green } // 80-90% - 绿色
-        else if progress >= 0.6 { return .blue } // 60-80% - 蓝色
-        else if progress >= 0.4 { return .cyan } // 40-60% - 青色
-        else { return .purple } // 40%以下 - 紫色
-    }
-
     var body: some View {
-        VStack(spacing: 0) {
+        Button(action: onTap) {
             HStack(spacing: 12) {
-                // 图标
                 ZStack {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(category.color)
-                        .frame(width: 40, height: 40)
+                    Circle()
+                        .fill(PhotoDelStyle.elevatedSurface)
+                        .frame(width: 42, height: 42)
 
                     Image(systemName: category.icon)
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.white)
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundColor(PhotoDelStyle.iconTint(for: category == .videos ? "video" : category == .favorites ? "favorite" : "photo"))
                 }
 
-                // 文字信息
                 VStack(alignment: .leading, spacing: 2) {
                     Text(category.rawValue)
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.white)
+                        .foregroundColor(PhotoDelStyle.primaryText)
 
-                    Text("\(count)张")
+                    Text("\(count) 张")
                         .font(.system(size: 12, weight: .regular))
-                        .foregroundColor(.gray)
+                        .foregroundColor(PhotoDelStyle.secondaryText)
                 }
 
                 Spacer()
 
-                // 进度指示器
-                ZStack {
-                    Circle()
-                        .stroke(Color.gray.opacity(0.3), lineWidth: 2)
-                        .frame(width: 24, height: 24)
+                VStack(alignment: .trailing, spacing: 6) {
+                    Text("\(Int(progress * 100))%")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(PhotoDelStyle.tertiaryText)
 
-                    Circle()
-                        .trim(from: 0, to: progress)
-                        .stroke(progressColor, style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                        .frame(width: 24, height: 24)
-                        .rotationEffect(.degrees(-90))
+                    ProgressView(value: progress)
+                        .progressViewStyle(LinearProgressViewStyle(tint: PhotoDelStyle.accent))
+                        .frame(width: 48)
                 }
 
-                // 箭头
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.gray.opacity(0.6))
+                    .foregroundColor(PhotoDelStyle.tertiaryText)
             }
-            .padding(12)
+            .padding(14)
         }
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.gray.opacity(0.1))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                )
-        )
-        .contentShape(Rectangle())
-        .onTapGesture(perform: onTap)
+        .buttonStyle(.plain)
+        .photoDelCard()
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
     }
@@ -312,75 +328,49 @@ struct TimelineCard: View {
     let progress: Double
     let onTap: () -> Void
 
-    private var progressColor: Color {
-        if progress >= 0.9 { return .yellow } // 90%以上 - 黄色
-        else if progress >= 0.8 { return .green } // 80-90% - 绿色
-        else if progress >= 0.6 { return .blue } // 60-80% - 蓝色
-        else if progress >= 0.4 { return .cyan } // 40-60% - 青色
-        else { return .purple } // 40%以下 - 紫色
-    }
-
     var body: some View {
-        VStack(spacing: 0) {
+        Button(action: onTap) {
             HStack(spacing: 12) {
-                // 图标
                 ZStack {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(timeGroup.color)
-                        .frame(width: 40, height: 40)
+                    Circle()
+                        .fill(PhotoDelStyle.elevatedSurface)
+                        .frame(width: 42, height: 42)
 
                     Image(systemName: timeGroup.icon)
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.white)
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundColor(PhotoDelStyle.accent)
                 }
 
-                // 文字信息
                 VStack(alignment: .leading, spacing: 2) {
                     Text(timeGroup.rawValue)
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.white)
+                        .foregroundColor(PhotoDelStyle.primaryText)
 
-                    Text("\(count)张")
+                    Text("\(count) 张")
                         .font(.system(size: 12, weight: .regular))
-                        .foregroundColor(.gray)
+                        .foregroundColor(PhotoDelStyle.secondaryText)
                 }
 
                 Spacer()
 
-                // 进度指示器
-                ZStack {
-                    Circle()
-                        .stroke(Color.gray.opacity(0.3), lineWidth: 3)
-                        .frame(width: 32, height: 32)
-
-                    Circle()
-                        .trim(from: 0, to: progress)
-                        .stroke(progressColor, style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                        .frame(width: 32, height: 32)
-                        .rotationEffect(.degrees(-90))
-
+                VStack(alignment: .trailing, spacing: 6) {
                     Text("\(Int(progress * 100))%")
-                        .font(.system(size: 8, weight: .semibold))
-                        .foregroundColor(progressColor)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(PhotoDelStyle.tertiaryText)
+
+                    ProgressView(value: progress)
+                        .progressViewStyle(LinearProgressViewStyle(tint: PhotoDelStyle.accent))
+                        .frame(width: 48)
                 }
 
-                // 箭头
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.gray.opacity(0.6))
+                    .foregroundColor(PhotoDelStyle.tertiaryText)
             }
-            .padding(12)
+            .padding(14)
         }
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.gray.opacity(0.1))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                )
-        )
-        .contentShape(Rectangle())
-        .onTapGesture(perform: onTap)
+        .buttonStyle(.plain)
+        .photoDelCard()
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
     }

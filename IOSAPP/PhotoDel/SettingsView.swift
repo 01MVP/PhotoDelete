@@ -18,19 +18,19 @@ struct SettingsView: View {
     var body: some View {
         NavigationView {
             ZStack {
-                Color.black.ignoresSafeArea()
+                PhotoDelScreenBackground()
                 
                 ScrollView {
                     VStack(spacing: 24) {
                         // 顶部标题
                         VStack(spacing: 8) {
                             Text("设置")
-                                .font(.system(size: 28, weight: .bold))
-                                .foregroundColor(.white)
+                                .font(.system(size: 28, weight: .semibold))
+                                .foregroundColor(PhotoDelStyle.primaryText)
                             
                             Text("个人设置与偏好")
                                 .font(.system(size: 16, weight: .regular))
-                                .foregroundColor(.gray)
+                                .foregroundColor(PhotoDelStyle.secondaryText)
                         }
                         .padding(.top, 20)
                         
@@ -59,12 +59,12 @@ struct SettingsView: View {
             } else {
                 // 如果设备不支持邮件，显示替代方案
                 Text("此设备不支持发送邮件")
-                    .foregroundColor(.white)
+                    .foregroundColor(PhotoDelStyle.primaryText)
                     .padding()
             }
             #else
             Text("此设备不支持发送邮件")
-                .foregroundColor(.white)
+                .foregroundColor(PhotoDelStyle.primaryText)
                 .padding()
             #endif
         }
@@ -79,7 +79,7 @@ struct SettingsView: View {
             HStack {
                 Text("使用统计")
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.white)
+                    .foregroundColor(PhotoDelStyle.primaryText)
                 Spacer()
             }
             
@@ -87,36 +87,29 @@ struct SettingsView: View {
                 StatCard(
                     value: "\(dataManager.organizeStats.totalPhotos)",
                     label: "总照片",
-                    color: .blue
+                    color: PhotoDelStyle.accent
                 )
                 
                 StatCard(
                     value: "\(dataManager.organizeStats.deletedPhotos)",
                     label: "已删除",
-                    color: .red
+                    color: PhotoDelStyle.destructive
                 )
                 
                 StatCard(
                     value: "\(dataManager.getVideosCount())",
                     label: "视频",
-                    color: .purple
+                    color: PhotoDelStyle.iconTint(for: "video")
                 )
                 
                 StatCard(
                     value: dataManager.organizeStats.formattedSpaceSaved,
                     label: "节省空间",
-                    color: .green
+                    color: PhotoDelStyle.positive
                 )
             }
             .padding(20)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.gray.opacity(0.1))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                    )
-            )
+            .photoDelCard()
         }
     }
     
@@ -126,7 +119,7 @@ struct SettingsView: View {
             HStack {
                 Text("关于与支持")
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.gray)
+                    .foregroundColor(PhotoDelStyle.primaryText)
                 Spacer()
             }
             
@@ -134,7 +127,7 @@ struct SettingsView: View {
                 // 帮助中心
                 SettingRow(
                     icon: "questionmark.circle.fill",
-                    iconColor: .blue,
+                    iconColor: PhotoDelStyle.accent,
                     title: "帮助中心",
                     subtitle: "使用指南和常见问题",
                     action: {
@@ -143,13 +136,13 @@ struct SettingsView: View {
                 )
                 
                 Divider()
-                    .background(Color.gray.opacity(0.3))
+                    .background(PhotoDelStyle.hairline)
                     .padding(.horizontal, 16)
                 
                 // 邮件反馈
                 SettingRow(
                     icon: "envelope.fill",
-                    iconColor: .green,
+                    iconColor: PhotoDelStyle.positive,
                     title: "邮件反馈",
                     subtitle: mailSubtitle,
                     action: {
@@ -158,13 +151,13 @@ struct SettingsView: View {
                 )
                 
                 Divider()
-                    .background(Color.gray.opacity(0.3))
+                    .background(PhotoDelStyle.hairline)
                     .padding(.horizontal, 16)
                 
                 // 评分应用
                 SettingRow(
                     icon: "star.fill",
-                    iconColor: .yellow,
+                    iconColor: PhotoDelStyle.warning,
                     title: "评分应用",
                     subtitle: "在 App Store 中评分",
                     action: {
@@ -173,13 +166,13 @@ struct SettingsView: View {
                 )
                 
                 Divider()
-                    .background(Color.gray.opacity(0.3))
+                    .background(PhotoDelStyle.hairline)
                     .padding(.horizontal, 16)
                 
                 // 关于应用
                 SettingRow(
                     icon: "info.circle.fill",
-                    iconColor: .gray,
+                    iconColor: PhotoDelStyle.secondaryText,
                     title: "关于 PhotoDel",
                     subtitle: "版本 1.0.0",
                     action: {
@@ -187,14 +180,7 @@ struct SettingsView: View {
                     }
                 )
             }
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.gray.opacity(0.1))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                    )
-            )
+            .photoDelCard()
         }
     }
     
@@ -203,11 +189,11 @@ struct SettingsView: View {
         VStack(spacing: 8) {
             Text("PhotoDel v1.0.0")
                 .font(.system(size: 14, weight: .regular))
-                .foregroundColor(.gray.opacity(0.8))
+                .foregroundColor(PhotoDelStyle.secondaryText)
             
             Text("让照片整理变得简单")
                 .font(.system(size: 12, weight: .regular))
-                .foregroundColor(.gray.opacity(0.6))
+                .foregroundColor(PhotoDelStyle.tertiaryText)
         }
     }
     
@@ -253,7 +239,7 @@ struct StatCard: View {
             
             Text(label)
                 .font(.system(size: 12, weight: .regular))
-                .foregroundColor(.gray)
+                .foregroundColor(PhotoDelStyle.secondaryText)
         }
         .frame(maxWidth: .infinity)
     }
@@ -273,23 +259,27 @@ struct SettingRow: View {
                 // 图标
                 ZStack {
                     RoundedRectangle(cornerRadius: 8)
-                        .fill(iconColor.opacity(0.8))
+                        .fill(PhotoDelStyle.elevatedSurface)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(iconColor.opacity(0.36), lineWidth: 1)
+                        )
                         .frame(width: 32, height: 32)
                     
                     Image(systemName: icon)
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.white)
+                        .foregroundColor(iconColor)
                 }
                 
                 // 文字信息
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.white)
+                        .foregroundColor(PhotoDelStyle.primaryText)
                     
                     Text(subtitle)
                         .font(.system(size: 14, weight: .regular))
-                        .foregroundColor(.gray)
+                        .foregroundColor(PhotoDelStyle.secondaryText)
                 }
                 
                 Spacer()
@@ -297,7 +287,7 @@ struct SettingRow: View {
                 // 箭头
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.gray.opacity(0.6))
+                    .foregroundColor(PhotoDelStyle.tertiaryText)
             }
             .padding(16)
         }
@@ -357,33 +347,37 @@ struct AboutView: View {
     var body: some View {
         NavigationView {
             ZStack {
-                Color.black.ignoresSafeArea()
+                PhotoDelScreenBackground()
                 
                 VStack(spacing: 32) {
                     // App图标
                     ZStack {
                         RoundedRectangle(cornerRadius: 24)
-                            .fill(Color.white)
+                            .fill(PhotoDelStyle.surface)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 24)
+                                    .stroke(PhotoDelStyle.hairline, lineWidth: 1)
+                            )
                             .frame(width: 120, height: 120)
                         
-                        Image(systemName: "camera")
+                        Image(systemName: "photo.on.rectangle.angled")
                             .font(.system(size: 48, weight: .medium))
-                            .foregroundColor(.black)
+                            .foregroundColor(PhotoDelStyle.accent)
                     }
                     
                     // App信息
                     VStack(spacing: 16) {
                         Text("PhotoDel")
                             .font(.system(size: 32, weight: .bold, design: .rounded))
-                            .foregroundColor(.white)
+                            .foregroundColor(PhotoDelStyle.primaryText)
                         
                         Text("版本 1.0.0")
                             .font(.system(size: 16, weight: .regular))
-                            .foregroundColor(.gray)
+                            .foregroundColor(PhotoDelStyle.secondaryText)
                         
                         Text("一款专注于照片整理和删除的移动应用，通过直观的滑动手势帮助用户快速清理手机中的照片。")
                             .font(.system(size: 16, weight: .regular))
-                            .foregroundColor(.gray)
+                            .foregroundColor(PhotoDelStyle.secondaryText)
                             .multilineTextAlignment(.center)
                             .lineLimit(nil)
                     }
@@ -393,7 +387,7 @@ struct AboutView: View {
                     // 版权信息
                     Text("© 2025 PhotoDel Team. All rights reserved.")
                         .font(.system(size: 12, weight: .regular))
-                        .foregroundColor(.gray.opacity(0.6))
+                        .foregroundColor(PhotoDelStyle.tertiaryText)
                 }
                 .padding(.horizontal, 32)
                 .padding(.top, 60)
@@ -406,7 +400,7 @@ struct AboutView: View {
                     Button("完成") {
                         dismiss()
                     }
-                    .foregroundColor(.blue)
+                    .foregroundColor(PhotoDelStyle.accent)
                 }
             }
         }

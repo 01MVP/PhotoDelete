@@ -17,6 +17,7 @@ class DataManager: ObservableObject {
     // 真实照片管理器
     @Published var photoLibraryManager = PhotoLibraryManager()
     @Published var authorizationRequested = false
+    @Published var isPreparingLibrary = false
 
     // 删除候选库 - 用于批量删除（线程安全）
     @Published var deleteCandidates: Set<PHAsset> = []
@@ -26,6 +27,8 @@ class DataManager: ObservableObject {
     @Published var timeGroups: [TimeGroupInfo] = []
     @Published var systemAlbums: [AlbumInfo] = []
     @Published var userAlbums: [AlbumInfo] = []
+
+    private var isReloadingLibrary = false
 
     init() {
         setupPhotoLibraryManager()
@@ -78,10 +81,23 @@ class DataManager: ObservableObject {
     }
 
     func reloadLibraryData() {
+        guard photoLibraryManager.hasPhotoLibraryAccess else {
+            isPreparingLibrary = false
+            isReloadingLibrary = false
+            return
+        }
+
+        guard !isReloadingLibrary else { return }
+        isPreparingLibrary = true
+        isReloadingLibrary = true
+
         photoLibraryManager.loadPhotos { [weak self] in
-            self?.loadTimeGroups()
-            self?.loadAlbums()
-            self?.updateStats()
+            guard let self else { return }
+            self.loadTimeGroups()
+            self.loadAlbums()
+            self.updateStats()
+            self.isPreparingLibrary = false
+            self.isReloadingLibrary = false
         }
     }
 

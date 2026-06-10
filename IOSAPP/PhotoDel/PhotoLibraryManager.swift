@@ -13,7 +13,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     @Published var loadingProgress: Double = 0
 
     private var allPhotosResult: PHFetchResult<PHAsset>?
-    private let imageManager = PHImageManager.default()
+    private let imageManager = PHCachingImageManager()
     private let imageCache = NSCache<NSString, UIImage>()
 
     private var isObserverRegistered = false
@@ -71,6 +71,10 @@ class PhotoLibraryManager: NSObject, ObservableObject {
 
     func loadPhotos(completion: (() -> Void)? = nil) {
         guard hasPhotoLibraryAccess else { return }
+        guard !isLoading else {
+            completion?()
+            return
+        }
 
         isLoading = true
         loadingProgress = 0
@@ -91,6 +95,19 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             let totalCount = allPhotosResult.count
             var allPhotosArray: [PHAsset] = []
 
+            if totalCount == 0 {
+                DispatchQueue.main.async {
+                    self.allPhotos = []
+                    self.videos = []
+                    self.screenshots = []
+                    self.favorites = []
+                    self.loadingProgress = 1.0
+                    self.isLoading = false
+                    completion?()
+                }
+                return
+            }
+
             // 分批处理照片
             for batchStart in stride(from: 0, to: totalCount, by: batchSize) {
                 let batchEnd = min(batchStart + batchSize, totalCount)
@@ -109,10 +126,6 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                     self.loadingProgress = Double(batchEnd) / Double(totalCount) * 0.6 // 60%用于基础加载
                 }
 
-                // 避免内存峰值，添加小延迟
-                if batchEnd < totalCount {
-                    usleep(100000) // 100ms = 100,000 microseconds
-                }
             }
 
             DispatchQueue.main.async {
@@ -241,21 +254,22 @@ class PhotoLibraryManager: NSObject, ObservableObject {
 
     // MARK: - Image Loading
 
-    func loadImage(for asset: PHAsset, size: CGSize, completion: @escaping (UIImage?) -> Void) {
+    @discardableResult
+    func loadImage(for asset: PHAsset, size: CGSize, completion: @escaping (UIImage?) -> Void) -> PHImageRequestID? {
         let cacheKey = "\(asset.localIdentifier)_\(Int(size.width))x\(Int(size.height))" as NSString
 
         // 检查缓存
         if let cachedImage = imageCache.object(forKey: cacheKey) {
             completion(cachedImage)
-            return
+            return nil
         }
 
         let options = PHImageRequestOptions()
-        options.deliveryMode = .opportunistic
+        options.deliveryMode = .fastFormat
         options.resizeMode = .fast
         options.isNetworkAccessAllowed = true
 
-        imageManager.requestImage(
+        return imageManager.requestImage(
             for: asset,
             targetSize: size,
             contentMode: .aspectFill,
@@ -272,6 +286,11 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         }
     }
 
+    func cancelImageRequest(_ requestID: PHImageRequestID?) {
+        guard let requestID else { return }
+        imageManager.cancelImageRequest(requestID)
+    }
+
     func clearImageCache() {
         imageCache.removeAllObjects()
     }
@@ -279,17 +298,19 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     func preloadImagesForAssets(_ assets: [PHAsset], size: CGSize, maxCount: Int = 10) {
         // 预加载接下来几张照片以提升用户体验
         let assetsToPreload = Array(assets.prefix(maxCount))
+        guard !assetsToPreload.isEmpty else { return }
 
-        for asset in assetsToPreload {
-            let cacheKey = "\(asset.localIdentifier)_\(Int(size.width))x\(Int(size.height))" as NSString
+        let options = PHImageRequestOptions()
+        options.deliveryMode = .fastFormat
+        options.resizeMode = .fast
+        options.isNetworkAccessAllowed = true
 
-            // 如果缓存中没有，则预加载
-            if imageCache.object(forKey: cacheKey) == nil {
-                loadImage(for: asset, size: size) { _ in
-                    // 预加载完成，不需要回调
-                }
-            }
-        }
+        imageManager.startCachingImages(
+            for: assetsToPreload,
+            targetSize: size,
+            contentMode: .aspectFill,
+            options: options
+        )
     }
 
     func handleMemoryWarning() {

@@ -27,6 +27,8 @@ struct SwipePhotoView: View {
     @State private var showCompletionMessage = false
     @State private var favoriteRefreshTrigger = false
     @State private var actionHistory: [SwipeAction] = []
+    @State private var sessionPhotos: [PHAsset] = []
+    @State private var shouldDismissAfterBatch = false
 
     enum SwipeDirection {
         case left, right, up, down
@@ -39,11 +41,10 @@ struct SwipePhotoView: View {
     }
 
     private var currentRealPhoto: PHAsset? {
-        let photos = filteredRealPhotos
-        guard !photos.isEmpty, currentPhotoIndex >= 0, currentPhotoIndex < photos.count else {
+        guard !sessionPhotos.isEmpty, currentPhotoIndex >= 0, currentPhotoIndex < sessionPhotos.count else {
             return nil
         }
-        return photos[currentPhotoIndex]
+        return sessionPhotos[currentPhotoIndex]
     }
 
     private var filteredRealPhotos: [PHAsset] {
@@ -64,7 +65,7 @@ struct SwipePhotoView: View {
     }
 
     private var totalPhotosCount: Int {
-        return filteredRealPhotos.count
+        return sessionPhotos.count
     }
 
     private var currentProgress: Int {
@@ -85,7 +86,7 @@ struct SwipePhotoView: View {
     var body: some View {
         NavigationView {
             ZStack {
-                Color.black.ignoresSafeArea()
+                PhotoDelScreenBackground()
 
                 VStack(spacing: 0) {
                     // 导航栏
@@ -102,7 +103,11 @@ struct SwipePhotoView: View {
         .navigationBarHidden(true)
         .toolbar(.hidden, for: .tabBar)
         .sheet(isPresented: $showBatchConfirm) {
-            BatchConfirmView()
+            BatchConfirmView {
+                if shouldDismissAfterBatch {
+                    dismiss()
+                }
+            }
                 .environmentObject(dataManager)
         }
         .onDisappear {
@@ -111,6 +116,12 @@ struct SwipePhotoView: View {
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
             // 处理内存警告
             dataManager.photoLibraryManager.handleMemoryWarning()
+        }
+        .onAppear {
+            refreshSessionPhotos()
+        }
+        .onChange(of: dataManager.photoLibraryManager.allPhotos.count) { _ in
+            refreshSessionPhotos()
         }
     }
 
@@ -121,53 +132,64 @@ struct SwipePhotoView: View {
             Button(action: handleBackAction) {
                 ZStack {
                     Circle()
-                        .fill(Color.gray.opacity(0.8))
+                        .fill(PhotoDelStyle.elevatedSurface)
                         .frame(width: 40, height: 40)
 
                     Image(systemName: "arrow.left")
                         .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.white)
+                        .foregroundColor(PhotoDelStyle.primaryText)
                 }
             }
+            .buttonStyle(.plain)
 
             Spacer()
 
             // 标题信息
             VStack(spacing: 2) {
                 Text(isAlbumMode ? "相册整理" : "照片整理")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(.white)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.primaryText)
 
                 if isAlbumMode {
                     Text("\(getDisplayTitle()) · \(totalPhotosCount) 张照片")
                         .font(.system(size: 14, weight: .regular))
-                        .foregroundColor(.gray)
+                        .foregroundColor(PhotoDelStyle.secondaryText)
                 } else {
                     Text("\(getDisplayTitle()) · \(currentProgress)/\(totalPhotosCount)")
                         .font(.system(size: 14, weight: .regular))
-                        .foregroundColor(.gray)
+                        .foregroundColor(PhotoDelStyle.secondaryText)
                 }
             }
 
             Spacer()
 
             // 候选库统计
-            VStack(alignment: .trailing, spacing: 2) {
-                Text("待删除")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.white)
-
+            HStack(spacing: 7) {
+                Image(systemName: "trash")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.destructive)
                 Text("\(dataManager.deleteCandidates.count)")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(.red)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.primaryText)
             }
+            .frame(minWidth: 40)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(PhotoDelStyle.surface)
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .stroke(PhotoDelStyle.hairline, lineWidth: 1)
+                    )
+            )
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 16)
-        .background(Color.black)
+        .background(PhotoDelStyle.background.opacity(0.86))
         .overlay(
             Rectangle()
-                .fill(Color.gray.opacity(0.3))
+                .fill(PhotoDelStyle.hairline)
                 .frame(height: 1),
             alignment: .bottom
         )
@@ -184,44 +206,44 @@ struct SwipePhotoView: View {
                     VStack(spacing: 20) {
                         Image(systemName: "photo.on.rectangle.angled")
                             .font(.system(size: 60, weight: .medium))
-                            .foregroundColor(.blue)
+                            .foregroundColor(PhotoDelStyle.accent)
 
                         Text("需要访问照片库")
-                            .font(.system(size: 24, weight: .bold))
-                            .foregroundColor(.white)
+                            .font(.system(size: 24, weight: .semibold))
+                            .foregroundColor(PhotoDelStyle.primaryText)
 
                         Text("请允许访问您的照片库来开始整理照片")
                             .font(.system(size: 16, weight: .regular))
-                            .foregroundColor(.gray)
+                            .foregroundColor(PhotoDelStyle.secondaryText)
                             .multilineTextAlignment(.center)
 
                         Button(action: {
                             dataManager.requestPhotoLibraryAccess()
                         }) {
-                            Text("授权访问照片库")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 24)
-                                .padding(.vertical, 12)
-                                .background(Color.blue)
-                                .cornerRadius(8)
+                            Text("继续")
+                                .frame(maxWidth: 180)
                         }
+                        .photoDelPrimaryButton()
                     }
+                    .padding(24)
+                    .photoDelCard()
+                    .padding(.horizontal, 24)
                 } else if let realPhoto = currentRealPhoto {
                     // 真实照片显示
+                    let cardSize = photoCardSize(in: geometry.size)
                     ZStack {
                         RealPhotoCard(
                             asset: realPhoto,
                             photoLibraryManager: dataManager.photoLibraryManager,
                             isInDeleteCandidates: dataManager.isInDeleteCandidates(realPhoto),
-                            isInFavoriteCandidates: dataManager.isInFavoriteCandidates(realPhoto)
+                            isInFavoriteCandidates: dataManager.isInFavoriteCandidates(realPhoto),
+                            displaySize: cardSize,
+                            targetSize: imageTargetSize(for: cardSize)
                         )
-                        .frame(width: geometry.size.width - 48, height: 450)
                         .offset(dragOffset)
                         .rotationEffect(.degrees(rotationAngle))
                         .scaleEffect(1.0 - abs(dragOffset.width) / 1000)
                         .gesture(createDragGesture())
-                        .animation(.spring(response: 0.5, dampingFraction: 0.8), value: dragOffset)
 
                         if abs(dragOffset.width) > 50 {
                             SwipeIndicator(direction: dragOffset.width < 0 ? .left : .right)
@@ -233,48 +255,39 @@ struct SwipePhotoView: View {
                         Group {
                             if showCompletionMessage {
                                 ZStack {
-                                    Color.black.opacity(0.7)
+                                    PhotoDelStyle.background.opacity(0.78)
                                         .ignoresSafeArea()
 
-                                    VStack(spacing: 20) {
+                                    VStack(spacing: 18) {
                                         Image(systemName: "checkmark.circle.fill")
-                                            .font(.system(size: 60))
-                                            .foregroundColor(.green)
+                                            .font(.system(size: 54, weight: .medium))
+                                            .foregroundColor(PhotoDelStyle.positive)
 
                                         Text("整理完成！")
-                                            .font(.title2)
-                                            .fontWeight(.bold)
-                                            .foregroundColor(.white)
+                                            .font(.system(size: 24, weight: .semibold))
+                                            .foregroundColor(PhotoDelStyle.primaryText)
 
                                         Text("您已经浏览完所有照片")
-                                            .font(.body)
-                                            .foregroundColor(.gray)
+                                            .font(.system(size: 15, weight: .regular))
+                                            .foregroundColor(PhotoDelStyle.secondaryText)
 
-                                        HStack(spacing: 20) {
+                                        HStack(spacing: 12) {
                                             Button("继续整理") {
                                                 showCompletionMessage = false
                                             }
-                                            .padding(.horizontal, 20)
-                                            .padding(.vertical, 10)
-                                            .background(Color.blue)
-                                            .foregroundColor(.white)
-                                            .cornerRadius(8)
+                                            .photoDelSecondaryButton()
 
                                             Button("完成整理") {
+                                                shouldDismissAfterBatch = true
                                                 showBatchConfirm = true
                                                 showCompletionMessage = false
                                             }
-                                            .padding(.horizontal, 20)
-                                            .padding(.vertical, 10)
-                                            .background(Color.green)
-                                            .foregroundColor(.white)
-                                            .cornerRadius(8)
+                                            .photoDelPrimaryButton()
                                         }
                                     }
-                                    .padding()
-                                    .background(Color.black.opacity(0.8))
-                                    .cornerRadius(16)
-                                    .padding(.horizontal, 40)
+                                    .padding(24)
+                                    .photoDelCard()
+                                    .padding(.horizontal, 32)
                                 }
                                 .transition(.opacity)
                             }
@@ -287,52 +300,47 @@ struct SwipePhotoView: View {
                             // 没有照片的情况
                             Image(systemName: "photo.badge.plus")
                                 .font(.system(size: 60, weight: .medium))
-                                .foregroundColor(.blue)
+                                .foregroundColor(PhotoDelStyle.accent)
 
                             Text("这里还没有可整理的照片")
-                                .font(.system(size: 24, weight: .bold))
-                                .foregroundColor(.white)
+                                .font(.system(size: 24, weight: .semibold))
+                                .foregroundColor(PhotoDelStyle.primaryText)
 
                             Text("您可以返回选择其他分类，或稍后在系统照片中添加更多照片后再回来。")
                                 .font(.system(size: 16, weight: .regular))
-                                .foregroundColor(.gray)
+                                .foregroundColor(PhotoDelStyle.secondaryText)
                                 .multilineTextAlignment(.center)
                                 .padding(.horizontal, 24)
 
                             Button(action: { dismiss() }) {
                                 Text("返回主页")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 24)
-                                    .padding(.vertical, 12)
-                                    .background(Color.blue)
-                                    .cornerRadius(8)
+                                    .frame(maxWidth: 180)
                             }
+                            .photoDelSecondaryButton()
                         } else {
                             // 整理完成的情况
                             Image(systemName: "checkmark.circle.fill")
                                 .font(.system(size: 60, weight: .medium))
-                                .foregroundColor(.green)
+                                .foregroundColor(PhotoDelStyle.positive)
 
                             Text("整理完成！")
-                                .font(.system(size: 24, weight: .bold))
-                                .foregroundColor(.white)
+                                .font(.system(size: 24, weight: .semibold))
+                                .foregroundColor(PhotoDelStyle.primaryText)
 
                             Text("您已经整理完所有照片")
                                 .font(.system(size: 16, weight: .regular))
-                                .foregroundColor(.gray)
+                                .foregroundColor(PhotoDelStyle.secondaryText)
 
                             Button(action: { dismiss() }) {
                                 Text("返回主页")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 24)
-                                    .padding(.vertical, 12)
-                                    .background(Color.blue)
-                                    .cornerRadius(8)
+                                    .frame(maxWidth: 180)
                             }
+                            .photoDelSecondaryButton()
                         }
                     }
+                    .padding(24)
+                    .photoDelCard()
+                    .padding(.horizontal, 24)
                 }
 
                 // 操作提示
@@ -341,22 +349,22 @@ struct SwipePhotoView: View {
                         HStack(spacing: 8) {
                             Image(systemName: "arrow.left")
                                 .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(.red)
-                            Text("左滑加入删除候选")
+                                .foregroundColor(PhotoDelStyle.destructive)
+                            Text("左滑删除候选")
                                 .font(.system(size: 14, weight: .regular))
-                                .foregroundColor(.gray)
+                                .foregroundColor(PhotoDelStyle.secondaryText)
                         }
 
                         Text("·")
-                            .foregroundColor(.gray.opacity(0.5))
+                            .foregroundColor(PhotoDelStyle.tertiaryText)
 
                         HStack(spacing: 8) {
                             Image(systemName: "arrow.right")
                                 .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(.green)
+                                .foregroundColor(PhotoDelStyle.positive)
                             Text("右滑跳过")
                                 .font(.system(size: 14, weight: .regular))
-                                .foregroundColor(.gray)
+                                .foregroundColor(PhotoDelStyle.secondaryText)
                         }
                     }
                     .padding(.bottom, 20)
@@ -380,12 +388,16 @@ struct SwipePhotoView: View {
                             }) {
                                 Text(albumInfo.title)
                                     .font(.system(size: 12, weight: .medium))
-                                    .foregroundColor(.white)
+                                    .foregroundColor(PhotoDelStyle.primaryText)
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 6)
                                     .background(
-                                        RoundedRectangle(cornerRadius: 16)
-                                            .fill(Color.purple.opacity(0.8))
+                                        Capsule(style: .continuous)
+                                            .fill(PhotoDelStyle.surface)
+                                            .overlay(
+                                                Capsule(style: .continuous)
+                                                    .stroke(PhotoDelStyle.hairline, lineWidth: 1)
+                                            )
                                     )
                                     .lineLimit(1)
                             }
@@ -405,7 +417,7 @@ struct SwipePhotoView: View {
                 ActionButton(
                     icon: "arrow.uturn.backward",
                     title: "撤销",
-                    color: .gray
+                    color: PhotoDelStyle.secondaryText
                 ) {
                     handleUndoAction()
                     resetCardPosition()
@@ -417,7 +429,7 @@ struct SwipePhotoView: View {
                 ActionButton(
                     icon: isCurrentPhotoFavorited ? "heart.fill" : "heart",
                     title: isCurrentPhotoFavorited ? "已收藏" : "收藏",
-                    color: .pink
+                    color: PhotoDelStyle.iconTint(for: "favorite")
                 ) {
                     handleFavoriteAction()
                     resetCardPosition()
@@ -429,7 +441,7 @@ struct SwipePhotoView: View {
                 ActionButton(
                     icon: "trash",
                     title: "删除候选",
-                    color: .red
+                    color: PhotoDelStyle.destructive
                 ) {
                     handleDeleteAction()
                     resetCardPosition()
@@ -441,9 +453,20 @@ struct SwipePhotoView: View {
                 ActionButton(
                     icon: "arrow.right",
                     title: "跳过",
-                    color: .blue
+                    color: PhotoDelStyle.accent
                 ) {
                     handleSkipAction()
+                    resetCardPosition()
+                }
+
+                Spacer()
+
+                ActionButton(
+                    icon: "checkmark",
+                    title: "完成",
+                    color: PhotoDelStyle.positive
+                ) {
+                    handleFinishAction()
                     resetCardPosition()
                 }
 
@@ -452,10 +475,46 @@ struct SwipePhotoView: View {
             .padding(.horizontal, 24)
             .padding(.bottom, 32)
         }
-        .background(Color.black)
+        .background(
+            PhotoDelStyle.background.opacity(0.92)
+                .overlay(PhotoDelStyle.hairline.frame(height: 1), alignment: .top)
+        )
     }
 
     // MARK: - 手势处理
+    private func refreshSessionPhotos() {
+        let photos = filteredRealPhotos
+        sessionPhotos = photos
+        currentPhotoIndex = min(currentPhotoIndex, max(photos.count - 1, 0))
+        preloadUpcomingImages(from: currentPhotoIndex)
+    }
+
+    private func preloadUpcomingImages(from index: Int) {
+        guard index < sessionPhotos.count else { return }
+        let upcomingPhotos = Array(sessionPhotos.dropFirst(index).prefix(6))
+        dataManager.photoLibraryManager.preloadImagesForAssets(
+            upcomingPhotos,
+            size: swipeImageTargetSize,
+            maxCount: 6
+        )
+    }
+
+    private var swipeImageTargetSize: CGSize {
+        let scale = min(UIScreen.main.scale, 2)
+        return CGSize(width: 380 * scale, height: 520 * scale)
+    }
+
+    private func photoCardSize(in containerSize: CGSize) -> CGSize {
+        let width = min(containerSize.width - 40, 380)
+        let height = min(max(containerSize.height * 0.72, 360), 520)
+        return CGSize(width: width, height: height)
+    }
+
+    private func imageTargetSize(for displaySize: CGSize) -> CGSize {
+        let scale = min(UIScreen.main.scale, 2)
+        return CGSize(width: displaySize.width * scale, height: displaySize.height * scale)
+    }
+
     private func createDragGesture() -> some Gesture {
         DragGesture()
             .onChanged { value in
@@ -517,20 +576,12 @@ struct SwipePhotoView: View {
     }
 
     private func moveToNextPhoto() {
-        let photos = filteredRealPhotos
-        guard !photos.isEmpty else { return }
+        guard !sessionPhotos.isEmpty else { return }
 
         let newIndex = currentPhotoIndex + 1
-        if newIndex < photos.count {
+        if newIndex < sessionPhotos.count {
             currentPhotoIndex = newIndex
-
-            // 预加载接下来的几张照片
-            let remainingPhotos = Array(photos.dropFirst(newIndex))
-            dataManager.photoLibraryManager.preloadImagesForAssets(
-                remainingPhotos,
-                size: CGSize(width: 350, height: 450),
-                maxCount: 5
-            )
+            preloadUpcomingImages(from: newIndex)
         } else {
             // 到达最后一张照片时显示完成提示
             showCompletionMessage = true
@@ -543,8 +594,7 @@ struct SwipePhotoView: View {
     }
 
     private func isValidPhotoIndex(_ index: Int) -> Bool {
-        let photos = filteredRealPhotos
-        return index >= 0 && index < photos.count
+        return index >= 0 && index < sessionPhotos.count
     }
 
     private func handleFavoriteAction() {
@@ -567,6 +617,15 @@ struct SwipePhotoView: View {
     private func handleSkipAction() {
         actionHistory.append(.skip)
         moveToNextPhoto()
+    }
+
+    private func handleFinishAction() {
+        if hasPendingOperations {
+            shouldDismissAfterBatch = true
+            showBatchConfirm = true
+        } else {
+            dismiss()
+        }
     }
 
     private func handleUndoAction() {
@@ -619,17 +678,24 @@ struct SwipePhotoView: View {
     }
 
     private func resetCardPosition() {
-        dragOffset = .zero
-        rotationAngle = 0
+        withAnimation(.interactiveSpring(response: 0.28, dampingFraction: 0.86)) {
+            dragOffset = .zero
+            rotationAngle = 0
+        }
     }
 
     private func handleBackAction() {
         // 如果有待处理的删除操作，显示确认对话框
-        if !dataManager.deleteCandidates.isEmpty {
+        if hasPendingOperations {
+            shouldDismissAfterBatch = true
             showBatchConfirm = true
         } else {
             dismiss()
         }
+    }
+
+    private var hasPendingOperations: Bool {
+        !dataManager.deleteCandidates.isEmpty || !dataManager.favoriteCandidates.isEmpty
     }
 
     private func getDisplayTitle() -> String {
@@ -651,9 +717,12 @@ struct RealPhotoCard: View {
     let photoLibraryManager: PhotoLibraryManager
     let isInDeleteCandidates: Bool
     let isInFavoriteCandidates: Bool
+    let displaySize: CGSize
+    let targetSize: CGSize
 
     @State private var image: UIImage?
     @State private var isLoading = true
+    @State private var requestID: PHImageRequestID?
 
     var body: some View {
         ZStack {
@@ -661,9 +730,9 @@ struct RealPhotoCard: View {
                 Image(uiImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .frame(width: 350, height: 450)
+                    .frame(width: displaySize.width, height: displaySize.height)
                     .clipped()
-                    .cornerRadius(16)
+                    .cornerRadius(20)
                     .overlay(
                         overlayContent,
                         alignment: .topTrailing
@@ -677,31 +746,41 @@ struct RealPhotoCard: View {
                     .fill(
                         LinearGradient(
                             colors: [
-                                Color(red: 0.1, green: 0.1, blue: 0.15),
-                                Color(red: 0.15, green: 0.15, blue: 0.2)
+                                PhotoDelStyle.surface,
+                                PhotoDelStyle.elevatedSurface
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
-                    .frame(width: 350, height: 450)
-                    .cornerRadius(16)
+                    .frame(width: displaySize.width, height: displaySize.height)
+                    .cornerRadius(20)
                     .overlay(
                         Group {
                             if isLoading {
                                 ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    .progressViewStyle(CircularProgressViewStyle(tint: PhotoDelStyle.accent))
                                     .scaleEffect(1.2)
                             }
                         }
                     )
+                    .frame(width: displaySize.width, height: displaySize.height)
             }
         }
+        .frame(width: displaySize.width, height: displaySize.height)
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(PhotoDelStyle.hairline, lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.35), radius: 26, x: 0, y: 18)
         .onAppear {
             loadImage()
         }
         .onChange(of: asset.localIdentifier) { _ in
             loadImage()
+        }
+        .onDisappear {
+            photoLibraryManager.cancelImageRequest(requestID)
         }
     }
 
@@ -711,7 +790,7 @@ struct RealPhotoCard: View {
             if asset.mediaType == .video {
                 ZStack {
                     Circle()
-                        .fill(Color.black.opacity(0.6))
+                        .fill(PhotoDelStyle.background.opacity(0.62))
                         .frame(width: 30, height: 30)
 
                     Image(systemName: "play.fill")
@@ -723,7 +802,7 @@ struct RealPhotoCard: View {
             if isScreenshot {
                 ZStack {
                     Circle()
-                        .fill(Color.black.opacity(0.6))
+                        .fill(PhotoDelStyle.background.opacity(0.62))
                         .frame(width: 30, height: 30)
 
                     Image(systemName: "camera.viewfinder")
@@ -739,21 +818,21 @@ struct RealPhotoCard: View {
     private var candidateOverlay: some View {
         if isInDeleteCandidates || isInFavoriteCandidates {
             ZStack {
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.black.opacity(0.7))
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(PhotoDelStyle.background.opacity(0.72))
 
                 VStack(spacing: 12) {
                     Image(systemName: isInDeleteCandidates ? "trash.fill" : "heart.fill")
-                        .font(.system(size: 40, weight: .medium))
-                        .foregroundColor(isInDeleteCandidates ? .red : .pink)
+                        .font(.system(size: 38, weight: .medium))
+                        .foregroundColor(isInDeleteCandidates ? PhotoDelStyle.destructive : PhotoDelStyle.iconTint(for: "favorite"))
 
                     Text(isInDeleteCandidates ? "删除候选" : "收藏候选")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.white)
+                        .foregroundColor(PhotoDelStyle.primaryText)
                 }
             }
-            .frame(width: 350, height: 450)
-            .cornerRadius(16)
+            .frame(width: displaySize.width, height: displaySize.height)
+            .cornerRadius(20)
         }
     }
 
@@ -777,12 +856,16 @@ struct RealPhotoCard: View {
     }
 
     private func loadImage() {
+        photoLibraryManager.cancelImageRequest(requestID)
         isLoading = true
         image = nil
+        let requestedAssetID = asset.localIdentifier
 
-        photoLibraryManager.loadImage(for: asset, size: CGSize(width: 350, height: 450)) { loadedImage in
+        requestID = photoLibraryManager.loadImage(for: asset, size: targetSize) { loadedImage in
+            guard asset.localIdentifier == requestedAssetID else { return }
             self.image = loadedImage
             self.isLoading = false
+            self.requestID = nil
         }
     }
 }
@@ -795,17 +878,21 @@ struct SwipeIndicator: View {
         HStack(spacing: 8) {
             Image(systemName: direction == .left ? "trash" : "arrow.right")
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.white)
+                .foregroundColor(direction == .left ? PhotoDelStyle.destructive : PhotoDelStyle.positive)
 
             Text(direction == .left ? "删除候选" : "跳过")
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(.white)
+                .foregroundColor(PhotoDelStyle.primaryText)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
         .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(direction == .left ? Color.red.opacity(0.9) : Color.blue.opacity(0.9))
+            Capsule(style: .continuous)
+                .fill(PhotoDelStyle.background.opacity(0.82))
+                .overlay(
+                    Capsule(style: .continuous)
+                        .stroke(direction == .left ? PhotoDelStyle.destructive.opacity(0.38) : PhotoDelStyle.positive.opacity(0.38), lineWidth: 1)
+                )
         )
         .offset(x: direction == .left ? -100 : 100)
     }
@@ -823,18 +910,25 @@ struct ActionButton: View {
             VStack(spacing: 8) {
                 ZStack {
                     Circle()
-                        .fill(color.opacity(0.8))
-                        .frame(width: 48, height: 48)
+                        .fill(PhotoDelStyle.elevatedSurface)
+                        .overlay(
+                            Circle()
+                                .stroke(color.opacity(0.38), lineWidth: 1)
+                        )
+                        .frame(width: 44, height: 44)
 
                     Image(systemName: icon)
-                        .font(.system(size: 20, weight: .medium))
-                        .foregroundColor(.white)
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundColor(color)
                 }
 
                 Text(title)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.gray)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(PhotoDelStyle.secondaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
+            .frame(width: 60)
         }
         .buttonStyle(PlainButtonStyle())
     }
@@ -846,6 +940,11 @@ struct BatchConfirmView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var isProcessing = false
     @State private var errorMessage: String?
+    let onComplete: (() -> Void)?
+
+    init(onComplete: (() -> Void)? = nil) {
+        self.onComplete = onComplete
+    }
 
     private var hasPendingOperations: Bool {
         !dataManager.deleteCandidates.isEmpty || !dataManager.favoriteCandidates.isEmpty
@@ -853,41 +952,41 @@ struct BatchConfirmView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            PhotoDelScreenBackground()
 
             VStack(spacing: 32) {
                 VStack(spacing: 16) {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 60, weight: .medium))
-                        .foregroundColor(.green)
+                        .font(.system(size: 56, weight: .medium))
+                        .foregroundColor(PhotoDelStyle.positive)
 
                     Text("执行批量操作")
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundColor(.white)
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundColor(PhotoDelStyle.primaryText)
 
                     VStack(spacing: 8) {
                         if !dataManager.deleteCandidates.isEmpty {
                             Text("删除 \(dataManager.deleteCandidates.count) 张照片")
                                 .font(.system(size: 16, weight: .regular))
-                                .foregroundColor(.red)
+                                .foregroundColor(PhotoDelStyle.destructive)
                         }
 
                         if !dataManager.favoriteCandidates.isEmpty {
                             Text("收藏 \(dataManager.favoriteCandidates.count) 张照片")
                                 .font(.system(size: 16, weight: .regular))
-                                .foregroundColor(.pink)
+                                .foregroundColor(PhotoDelStyle.iconTint(for: "favorite"))
                         }
 
                         if !hasPendingOperations {
                             Text("没有待执行的操作")
                                 .font(.system(size: 16, weight: .regular))
-                                .foregroundColor(.gray)
+                                .foregroundColor(PhotoDelStyle.secondaryText)
                         }
 
                         if let errorMessage {
                             Text(errorMessage)
                                 .font(.system(size: 14, weight: .regular))
-                                .foregroundColor(.orange)
+                                .foregroundColor(PhotoDelStyle.warning)
                                 .multilineTextAlignment(.center)
                                 .padding(.top, 8)
                         }
@@ -897,29 +996,21 @@ struct BatchConfirmView: View {
                 VStack(spacing: 12) {
                     Button(action: executeBatchOperations) {
                         Text(isProcessing ? "正在执行..." : "确认执行")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
-                            .background(Color.green)
-                            .cornerRadius(12)
                     }
+                    .photoDelPrimaryButton()
                     .disabled(isProcessing || !hasPendingOperations)
-                    .opacity((isProcessing || !hasPendingOperations) ? 0.6 : 1.0)
 
                     Button(action: cancelOperations) {
                         Text("取消操作")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
-                            .background(Color.red)
-                            .cornerRadius(12)
                     }
+                    .photoDelSecondaryButton()
                     .disabled(isProcessing)
                 }
             }
             .padding(.horizontal, 32)
+            .padding(.vertical, 36)
+            .photoDelCard()
+            .padding(.horizontal, 24)
         }
     }
 
@@ -939,6 +1030,7 @@ struct BatchConfirmView: View {
                     dataManager.loadTimeGroups()
                     dataManager.loadAlbums()
                     dismiss()
+                    onComplete?()
                 }
             } else {
                 errorMessage = error?.localizedDescription ?? "操作失败，请稍后重试。"
