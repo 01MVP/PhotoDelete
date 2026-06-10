@@ -17,6 +17,7 @@ struct SettingsView: View {
     @EnvironmentObject var dataManager: DataManager
     @State private var showingMailCompose = false
     @State private var showingAbout = false
+    @State private var showingAuthor = false
     @State private var showingPrivacyInfo = false
     @State private var showingWeChatCopied = false
     
@@ -79,6 +80,9 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $showingAbout) {
             AboutView()
+        }
+        .sheet(isPresented: $showingAuthor) {
+            AuthorView()
         }
         .sheet(isPresented: $showingPrivacyInfo) {
             PrivacyInfoView()
@@ -151,11 +155,13 @@ struct SettingsView: View {
                     .padding(.horizontal, 16)
 
                 SettingRow(
-                    icon: "safari.fill",
+                    icon: "person.text.rectangle.fill",
                     iconColor: PhotoDelStyle.accent,
-                    title: "01MVP 官网",
-                    subtitle: "了解作者和更多产品",
-                    action: openWebsite
+                    title: "了解作者",
+                    subtitle: "01MVP 与小产品创作",
+                    action: {
+                        showingAuthor = true
+                    }
                 )
                 
                 Divider()
@@ -179,7 +185,7 @@ struct SettingsView: View {
                     icon: "envelope.fill",
                     iconColor: PhotoDelStyle.secondaryText,
                     title: "邮件反馈",
-                    subtitle: mailSubtitle,
+                    subtitle: "contact@01mvp.com",
                     action: {
                         handleMailAction()
                     }
@@ -246,25 +252,22 @@ struct SettingsView: View {
         }
     }
     
-    private var mailSubtitle: String {
-        #if canImport(MessageUI)
-        return MFMailComposeViewController.canSendMail() ? "发送邮件告诉我们你的想法" : "此设备不支持邮件"
-        #else
-        return "此设备不支持邮件"
-        #endif
-    }
-    
     private func handleMailAction() {
         #if canImport(MessageUI)
         if MFMailComposeViewController.canSendMail() {
             showingMailCompose = true
+        } else {
+            openFeedbackMailURL()
         }
+        #else
+        openFeedbackMailURL()
         #endif
     }
     
     // MARK: - 方法
-    private func openWebsite() {
-        if let url = URL(string: "https://01mvp.com") {
+    private func openFeedbackMailURL() {
+        let subject = "PhotoDel App 反馈".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        if let url = URL(string: "mailto:contact@01mvp.com?subject=\(subject)") {
             #if canImport(UIKit)
             UIApplication.shared.open(url)
             #endif
@@ -367,7 +370,7 @@ struct MailComposeView: UIViewControllerRepresentable {
         let composer = MFMailComposeViewController()
         composer.mailComposeDelegate = context.coordinator
         composer.setSubject("PhotoDel App 反馈")
-        composer.setToRecipients(["jackie.xiao@outlook.com"])
+        composer.setToRecipients(["contact@01mvp.com"])
         
         let body = """
         请在此处写下您的反馈和建议：
@@ -402,6 +405,87 @@ struct MailComposeView: UIViewControllerRepresentable {
     }
 }
 #endif
+
+// MARK: - 作者介绍视图
+struct AuthorView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationView {
+            ZStack {
+                PhotoDelScreenBackground()
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 22) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("关于作者")
+                                .font(.system(size: 28, weight: .semibold))
+                                .foregroundColor(PhotoDelStyle.primaryText)
+
+                            Text("我是 Jackie，长期做独立产品、AI 工具和 01MVP 实战内容。PhotoDel 是一个很小的相册整理工具，目标是把删照片这件事做得足够直接。")
+                                .font(.system(size: 16, weight: .regular))
+                                .foregroundColor(PhotoDelStyle.secondaryText)
+                                .lineSpacing(4)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text("01MVP")
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundColor(PhotoDelStyle.primaryText)
+
+                            Text("01mvp.com 是一个教你如何从 0 到 1 创作自己的小产品的网站，记录真实产品从想法、设计、开发到发布的过程。")
+                                .font(.system(size: 15, weight: .regular))
+                                .foregroundColor(PhotoDelStyle.secondaryText)
+                                .lineSpacing(4)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            Button(action: openWebsite) {
+                                HStack(spacing: 8) {
+                                    Text("打开 01mvp.com")
+                                    Image(systemName: "arrow.up.right")
+                                        .font(.system(size: 14, weight: .semibold))
+                                }
+                            }
+                            .photoDelPrimaryButton()
+                        }
+                        .padding(18)
+                        .photoDelCard(radius: 18)
+
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("微信反馈：mvps01", systemImage: "bubble.left.and.bubble.right.fill")
+                            Label("邮件反馈：contact@01mvp.com", systemImage: "envelope.fill")
+                        }
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(PhotoDelStyle.secondaryText)
+
+                        Spacer(minLength: 24)
+                    }
+                    .padding(24)
+                }
+            }
+            .navigationTitle("了解作者")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("完成") {
+                        dismiss()
+                    }
+                    .foregroundColor(PhotoDelStyle.accent)
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+
+    private func openWebsite() {
+        if let url = URL(string: "https://01mvp.com") {
+            #if canImport(UIKit)
+            UIApplication.shared.open(url)
+            #endif
+        }
+    }
+}
 
 // MARK: - 隐私说明视图
 struct PrivacyInfoView: View {

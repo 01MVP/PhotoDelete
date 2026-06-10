@@ -196,7 +196,7 @@ struct HomeView: View {
             return "需要访问照片库权限"
         }
         if isLibraryPreparing {
-            return "正在读取本机照片"
+            return "正在读取照片信息"
         }
         return "轻扫判断照片去留"
     }
@@ -253,7 +253,7 @@ struct HomeView: View {
             ScanningSwipeGlyph()
 
             VStack(spacing: 8) {
-                Text("正在建立本机索引")
+                Text("正在准备照片")
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.primaryText)
 
@@ -261,7 +261,7 @@ struct HomeView: View {
                     .font(.system(size: 15, weight: .medium))
                     .foregroundColor(PhotoDelStyle.secondaryText)
 
-                Text("索引完成后会自动显示分类和数量。不会上传您的照片。")
+                Text("准备完成后会自动显示分类和数量。不会上传您的照片。")
                     .font(.system(size: 15, weight: .regular))
                     .foregroundColor(PhotoDelStyle.secondaryText)
                     .multilineTextAlignment(.center)

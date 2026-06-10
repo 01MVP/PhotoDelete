@@ -7,6 +7,9 @@
 
 import SwiftUI
 import Photos
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct AlbumsView: View {
     @EnvironmentObject var dataManager: DataManager
@@ -14,9 +17,10 @@ struct AlbumsView: View {
     @State private var showingCreateAlbum = false
     @State private var editingAlbum: PHAssetCollection?
     @State private var showingEditAlbum = false
-    @State private var showSwipeView = false
     @State private var selectedAlbumInfo: AlbumInfo?
     @State private var showSearchBar = false
+    @State private var sortMode: AlbumSortMode = .defaultOrder
+    @State private var albumToast: AlbumToast?
 
     var body: some View {
         NavigationView {
@@ -34,6 +38,10 @@ struct AlbumsView: View {
                         // 相册列表
                         albumsList
                     }
+                }
+
+                if let albumToast {
+                    albumToastView(albumToast)
                 }
             }
         }
@@ -54,11 +62,9 @@ struct AlbumsView: View {
                     }
             }
         }
-        .sheet(isPresented: $showSwipeView) {
-            if let albumInfo = selectedAlbumInfo {
-                SwipePhotoView(selectedCategory: nil, selectedTimeGroup: nil, selectedAlbumInfo: albumInfo)
-                    .environmentObject(dataManager)
-            }
+        .sheet(item: $selectedAlbumInfo) { albumInfo in
+            SwipePhotoView(selectedCategory: nil, selectedTimeGroup: nil, selectedAlbumInfo: albumInfo)
+                .environmentObject(dataManager)
         }
         .onAppear {
             dataManager.loadAlbums()
@@ -182,8 +188,7 @@ struct AlbumsView: View {
                                     albumInfo: albumInfo,
                                     photoLibraryManager: dataManager.photoLibraryManager,
                                     onTap: {
-                                        selectedAlbumInfo = albumInfo
-                                        showSwipeView = true
+                                        openAlbum(albumInfo)
                                     },
                                     onEdit: {
                                         if let collection = albumInfo.assetCollection {
@@ -196,7 +201,8 @@ struct AlbumsView: View {
                                             deleteAlbum(collection)
                                         }
                                     },
-                                    isCompact: true
+                                    isCompact: true,
+                                    allowsSwipeActions: false
                                 )
                                 .padding(.horizontal, 24)
                             }
@@ -217,8 +223,7 @@ struct AlbumsView: View {
                                     albumInfo: albumInfo,
                                     photoLibraryManager: dataManager.photoLibraryManager,
                                     onTap: {
-                                        selectedAlbumInfo = albumInfo
-                                        showSwipeView = true
+                                        openAlbum(albumInfo)
                                     },
                                     onEdit: {
                                         if let collection = albumInfo.assetCollection {
@@ -231,7 +236,8 @@ struct AlbumsView: View {
                                             deleteAlbum(collection)
                                         }
                                     },
-                                    isCompact: true
+                                    isCompact: true,
+                                    allowsSwipeActions: true
                                 )
                                 .padding(.horizontal, 24)
                             }
@@ -264,7 +270,7 @@ struct AlbumsView: View {
     }
 
     private var pullSearchArea: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 12) {
             if showSearchBar {
                 HStack(spacing: 10) {
                     Image(systemName: "magnifyingglass")
@@ -306,6 +312,15 @@ struct AlbumsView: View {
                 }
                 .buttonStyle(.plain)
             }
+
+            if !dataManager.getAllAlbums().isEmpty {
+                Picker("排序", selection: $sortMode) {
+                    ForEach(AlbumSortMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
         }
         .padding(.horizontal, 24)
         .contentShape(Rectangle())
@@ -327,7 +342,7 @@ struct AlbumsView: View {
     }
 
     private var filteredSystemAlbums: [AlbumInfo] {
-        let albums = dataManager.getSystemAlbums()
+        let albums = sortedAlbums(dataManager.getSystemAlbums())
         if searchText.isEmpty {
             return albums
         } else {
@@ -338,7 +353,7 @@ struct AlbumsView: View {
     }
 
     private var filteredUserAlbums: [AlbumInfo] {
-        let albums = dataManager.getUserAlbums()
+        let albums = sortedAlbums(dataManager.getUserAlbums())
         if searchText.isEmpty {
             return albums
         } else {
@@ -362,6 +377,34 @@ struct AlbumsView: View {
         }
     }
 
+    private func sortedAlbums(_ albums: [AlbumInfo]) -> [AlbumInfo] {
+        switch sortMode {
+        case .defaultOrder:
+            return albums
+        case .name:
+            return albums.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+        case .count:
+            return albums.sorted { $0.photosCount > $1.photosCount }
+        }
+    }
+
+    private func openAlbum(_ albumInfo: AlbumInfo) {
+        guard !isLoadingAlbums else {
+            showAlbumToast("相册还在加载中", icon: "hourglass", style: .neutral)
+            return
+        }
+
+        let photos = dataManager.getPhotosForAlbum(albumInfo)
+        guard !photos.isEmpty else {
+            impact(.light)
+            showAlbumToast("这个相册还没有照片", icon: "photo", style: .warning)
+            return
+        }
+
+        impact(.light)
+        selectedAlbumInfo = albumInfo
+    }
+
     private func deleteAlbum(_ album: PHAssetCollection) {
         // 只有用户创建的相册可以删除（非系统相册）
         guard album.assetCollectionType == .album else { return }
@@ -371,13 +414,111 @@ struct AlbumsView: View {
         }) { success, error in
             DispatchQueue.main.async {
                 if success {
+                    self.notify(.success)
+                    self.showAlbumToast("相册已删除", icon: "trash", style: .positive)
                     self.dataManager.loadAlbums()
                 } else if let error = error {
+                    self.notify(.error)
+                    self.showAlbumToast("删除失败，请再试一次", icon: "exclamationmark.triangle", style: .warning)
                     print("删除相册失败: \(error.localizedDescription)")
                 }
             }
         }
     }
+
+    private func showAlbumToast(_ message: String, icon: String, style: AlbumToastStyle) {
+        let toast = AlbumToast(message: message, icon: icon, style: style)
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.88)) {
+            albumToast = toast
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.4) {
+            guard albumToast?.id == toast.id else { return }
+            withAnimation(.easeOut(duration: 0.18)) {
+                albumToast = nil
+            }
+        }
+    }
+
+    private func albumToastView(_ toast: AlbumToast) -> some View {
+        VStack {
+            Spacer()
+
+            HStack(spacing: 8) {
+                Image(systemName: toast.icon)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(toast.style.color)
+
+                Text(toast.message)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.primaryText)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(PhotoDelStyle.background.opacity(0.92))
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .stroke(toast.style.color.opacity(0.35), lineWidth: 1)
+                    )
+            )
+            .shadow(color: .black.opacity(0.24), radius: 14, x: 0, y: 8)
+            .padding(.bottom, 96)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+        }
+    }
+
+    private func impact(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
+        UIImpactFeedbackGenerator(style: style).impactOccurred()
+    }
+
+    private func notify(_ type: UINotificationFeedbackGenerator.FeedbackType) {
+        UINotificationFeedbackGenerator().notificationOccurred(type)
+    }
+}
+
+private enum AlbumSortMode: String, CaseIterable, Identifiable {
+    case defaultOrder
+    case name
+    case count
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .defaultOrder:
+            return "默认"
+        case .name:
+            return "名称"
+        case .count:
+            return "数量"
+        }
+    }
+}
+
+private enum AlbumToastStyle {
+    case neutral
+    case positive
+    case warning
+
+    var color: Color {
+        switch self {
+        case .neutral:
+            return PhotoDelStyle.accent
+        case .positive:
+            return PhotoDelStyle.positive
+        case .warning:
+            return PhotoDelStyle.warning
+        }
+    }
+}
+
+private struct AlbumToast: Identifiable {
+    let id = UUID()
+    let message: String
+    let icon: String
+    let style: AlbumToastStyle
 }
 
 // MARK: - 相册信息行
@@ -388,19 +529,79 @@ struct AlbumInfoRow: View {
     let onEdit: () -> Void
     let onDelete: () -> Void
     let isCompact: Bool
+    let allowsSwipeActions: Bool
 
     @State private var thumbnailImage: UIImage?
+    @State private var revealOffset: CGFloat = 0
+    @State private var actionsRevealed = false
 
-    init(albumInfo: AlbumInfo, photoLibraryManager: PhotoLibraryManager, onTap: @escaping () -> Void, onEdit: @escaping () -> Void, onDelete: @escaping () -> Void, isCompact: Bool = false) {
+    private let actionWidth: CGFloat = 112
+
+    init(
+        albumInfo: AlbumInfo,
+        photoLibraryManager: PhotoLibraryManager,
+        onTap: @escaping () -> Void,
+        onEdit: @escaping () -> Void,
+        onDelete: @escaping () -> Void,
+        isCompact: Bool = false,
+        allowsSwipeActions: Bool = false
+    ) {
         self.albumInfo = albumInfo
         self.photoLibraryManager = photoLibraryManager
         self.onTap = onTap
         self.onEdit = onEdit
         self.onDelete = onDelete
         self.isCompact = isCompact
+        self.allowsSwipeActions = allowsSwipeActions
     }
 
     var body: some View {
+        ZStack(alignment: .trailing) {
+            if allowsSwipeActions {
+                HStack(spacing: 0) {
+                    Button(action: {
+                        closeActions()
+                        onEdit()
+                    }) {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(PhotoDelStyle.primaryText)
+                            .frame(width: 56, height: isCompact ? 66 : 78)
+                            .background(PhotoDelStyle.elevatedSurface)
+                    }
+                    .buttonStyle(.plain)
+
+                    Button(action: {
+                        closeActions()
+                        onDelete()
+                    }) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(width: 56, height: isCompact ? 66 : 78)
+                            .background(PhotoDelStyle.destructive)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+
+            Button(action: handleRowTap) {
+                rowContent
+            }
+            .buttonStyle(.plain)
+            .offset(x: revealOffset)
+            .simultaneousGesture(revealGesture)
+        }
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .onAppear {
+            loadAlbumThumbnail()
+        }
+    }
+
+    private var rowContent: some View {
         HStack(spacing: isCompact ? 12 : 16) {
             Group {
                 if let image = thumbnailImage {
@@ -436,36 +637,46 @@ struct AlbumInfoRow: View {
 
             Spacer()
 
-            HStack(spacing: 16) {
-                if albumInfo.type == .userCreated {
-                    Button(action: onEdit) {
-                        Image(systemName: "pencil")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(PhotoDelStyle.secondaryText)
-                    }
-                    .buttonStyle(.plain)
-
-                    Button(action: onDelete) {
-                        Image(systemName: "trash")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(PhotoDelStyle.destructive)
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(PhotoDelStyle.tertiaryText)
-            }
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(PhotoDelStyle.tertiaryText)
         }
         .padding(isCompact ? 8 : 12)
         .photoDelCard(radius: 14)
-        .contentShape(Rectangle())
-        .onTapGesture(perform: onTap)
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isButton)
-        .onAppear {
-            loadAlbumThumbnail()
+    }
+
+    private var revealGesture: some Gesture {
+        DragGesture(minimumDistance: 18)
+            .onChanged { value in
+                guard allowsSwipeActions,
+                      abs(value.translation.width) > abs(value.translation.height) else { return }
+
+                let baseOffset: CGFloat = actionsRevealed ? -actionWidth : 0
+                let proposedOffset = min(0, max(-actionWidth, baseOffset + value.translation.width))
+                revealOffset = proposedOffset
+            }
+            .onEnded { value in
+                guard allowsSwipeActions else { return }
+                let shouldReveal = value.translation.width < -34 || revealOffset < -actionWidth / 2
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+                    actionsRevealed = shouldReveal
+                    revealOffset = shouldReveal ? -actionWidth : 0
+                }
+            }
+    }
+
+    private func closeActions() {
+        withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) {
+            actionsRevealed = false
+            revealOffset = 0
+        }
+    }
+
+    private func handleRowTap() {
+        if revealOffset < 0 {
+            closeActions()
+        } else {
+            onTap()
         }
     }
 

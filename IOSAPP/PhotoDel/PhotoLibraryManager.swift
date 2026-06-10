@@ -16,6 +16,8 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     private let imageManager = PHCachingImageManager()
     private let imageCache = NSCache<NSString, UIImage>()
     private var pendingLoadCompletions: [() -> Void] = []
+    private var localChangeNotificationsRemaining = 0
+    private var localChangeResetWorkItem: DispatchWorkItem?
 
     private var isObserverRegistered = false
 
@@ -230,6 +232,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     // MARK: - Photo Operations
 
     func deletePhotos(_ assets: [PHAsset], completion: @escaping (Bool, Error?) -> Void) {
+        expectLocalLibraryChange()
         PHPhotoLibrary.shared().performChanges({
             PHAssetChangeRequest.deleteAssets(assets as NSArray)
         }) { success, error in
@@ -251,6 +254,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     }
 
     func addToFavorites(_ assets: [PHAsset], completion: @escaping (Bool, Error?) -> Void) {
+        expectLocalLibraryChange()
         PHPhotoLibrary.shared().performChanges({
             for asset in assets {
                 let request = PHAssetChangeRequest(for: asset)
@@ -297,6 +301,37 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         }
     }
 
+    @discardableResult
+    func loadSwipePreview(for asset: PHAsset, size: CGSize, completion: @escaping (UIImage?) -> Void) -> PHImageRequestID? {
+        let cacheKey = "\(asset.localIdentifier)_swipe_\(Int(size.width))x\(Int(size.height))" as NSString
+
+        if let cachedImage = imageCache.object(forKey: cacheKey) {
+            completion(cachedImage)
+            return nil
+        }
+
+        let options = PHImageRequestOptions()
+        options.deliveryMode = .highQualityFormat
+        options.resizeMode = .exact
+        options.isNetworkAccessAllowed = false
+        options.isSynchronous = false
+
+        return imageManager.requestImage(
+            for: asset,
+            targetSize: size,
+            contentMode: .aspectFit,
+            options: options
+        ) { [weak self] image, _ in
+            DispatchQueue.main.async {
+                if let image {
+                    let cost = Int(image.size.width * image.size.height * 4)
+                    self?.imageCache.setObject(image, forKey: cacheKey, cost: cost)
+                }
+                completion(image)
+            }
+        }
+    }
+
     func cancelImageRequest(_ requestID: PHImageRequestID?) {
         guard let requestID else { return }
         imageManager.cancelImageRequest(requestID)
@@ -306,20 +341,37 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         imageCache.removeAllObjects()
     }
 
+    func applyCommittedBatchChanges(deletedAssets: [PHAsset], favoritedAssets: [PHAsset]) {
+        let deletedIDs = Set(deletedAssets.map(\.localIdentifier))
+        if !deletedIDs.isEmpty {
+            removeAssets(with: deletedIDs, from: &allPhotos)
+            removeAssets(with: deletedIDs, from: &videos)
+            removeAssets(with: deletedIDs, from: &screenshots)
+            removeAssets(with: deletedIDs, from: &favorites)
+        }
+
+        for asset in favoritedAssets {
+            upsertFavorite(asset)
+        }
+
+        loadingProgress = 1
+        isLoading = false
+    }
+
     func preloadImagesForAssets(_ assets: [PHAsset], size: CGSize, maxCount: Int = 10) {
         // 预加载接下来几张照片以提升用户体验
         let assetsToPreload = Array(assets.prefix(maxCount))
         guard !assetsToPreload.isEmpty else { return }
 
         let options = PHImageRequestOptions()
-        options.deliveryMode = .fastFormat
-        options.resizeMode = .fast
+        options.deliveryMode = .opportunistic
+        options.resizeMode = .exact
         options.isNetworkAccessAllowed = false
 
         imageManager.startCachingImages(
             for: assetsToPreload,
             targetSize: size,
-            contentMode: .aspectFill,
+            contentMode: .aspectFit,
             options: options
         )
     }
@@ -353,6 +405,78 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             DispatchQueue.main.async {
                 completion(image)
             }
+        }
+    }
+
+    private func expectLocalLibraryChange() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.localChangeNotificationsRemaining += 1
+            self.localChangeResetWorkItem?.cancel()
+
+            let resetWorkItem = DispatchWorkItem { [weak self] in
+                self?.localChangeNotificationsRemaining = 0
+            }
+            self.localChangeResetWorkItem = resetWorkItem
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4, execute: resetWorkItem)
+        }
+    }
+
+    private func shouldApplyChangeIncrementally() -> Bool {
+        guard localChangeNotificationsRemaining > 0 else { return false }
+        localChangeNotificationsRemaining -= 1
+        if localChangeNotificationsRemaining == 0 {
+            localChangeResetWorkItem?.cancel()
+            localChangeResetWorkItem = nil
+        }
+        return true
+    }
+
+    private func applyIncrementalPhotoChanges(_ changes: PHFetchResultChangeDetails<PHAsset>) {
+        if !changes.insertedObjects.isEmpty {
+            loadPhotos()
+            return
+        }
+
+        let removedIDs = Set(changes.removedObjects.map(\.localIdentifier))
+        if !removedIDs.isEmpty {
+            removeAssets(with: removedIDs, from: &allPhotos)
+            removeAssets(with: removedIDs, from: &videos)
+            removeAssets(with: removedIDs, from: &screenshots)
+            removeAssets(with: removedIDs, from: &favorites)
+        }
+
+        for changedAsset in changes.changedObjects {
+            replaceAsset(changedAsset, in: &allPhotos)
+            replaceAsset(changedAsset, in: &videos)
+            replaceAsset(changedAsset, in: &screenshots)
+
+            if changedAsset.isFavorite {
+                upsertFavorite(changedAsset)
+            } else {
+                favorites.removeAll { $0.localIdentifier == changedAsset.localIdentifier }
+            }
+        }
+
+        loadingProgress = 1
+        isLoading = false
+        finishLoadingPhotos()
+    }
+
+    private func removeAssets(with identifiers: Set<String>, from assets: inout [PHAsset]) {
+        assets.removeAll { identifiers.contains($0.localIdentifier) }
+    }
+
+    private func replaceAsset(_ asset: PHAsset, in assets: inout [PHAsset]) {
+        guard let index = assets.firstIndex(where: { $0.localIdentifier == asset.localIdentifier }) else { return }
+        assets[index] = asset
+    }
+
+    private func upsertFavorite(_ asset: PHAsset) {
+        if let index = favorites.firstIndex(where: { $0.localIdentifier == asset.localIdentifier }) {
+            favorites[index] = asset
+        } else {
+            favorites.insert(asset, at: 0)
         }
     }
 
@@ -409,11 +533,18 @@ class PhotoLibraryManager: NSObject, ObservableObject {
 extension PhotoLibraryManager: PHPhotoLibraryChangeObserver {
     func photoLibraryDidChange(_ changeInstance: PHChange) {
         DispatchQueue.main.async { [weak self] in
-            // 检查照片库变化并更新数据
-            if let fetchResult = self?.allPhotosResult,
-               let changes = changeInstance.changeDetails(for: fetchResult) {
-                self?.allPhotosResult = changes.fetchResultAfterChanges
-                self?.loadPhotos()
+            guard let self,
+                  let fetchResult = self.allPhotosResult,
+                  let changes = changeInstance.changeDetails(for: fetchResult) else {
+                return
+            }
+
+            self.allPhotosResult = changes.fetchResultAfterChanges
+
+            if self.shouldApplyChangeIncrementally() {
+                self.applyIncrementalPhotoChanges(changes)
+            } else {
+                self.loadPhotos()
             }
         }
     }

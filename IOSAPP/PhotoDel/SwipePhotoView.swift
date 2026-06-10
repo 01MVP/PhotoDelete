@@ -8,6 +8,9 @@
 import SwiftUI
 import Photos
 import Foundation
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct SwipePhotoView: View {
     @EnvironmentObject var dataManager: DataManager
@@ -25,6 +28,7 @@ struct SwipePhotoView: View {
     @State private var actionHistory: [SwipeAction] = []
     @State private var sessionPhotos: [PHAsset] = []
     @State private var shouldDismissAfterBatch = false
+    @State private var feedbackToast: SwipeFeedbackToast?
 
     enum SwipeDirection {
         case left, right, up, down
@@ -85,22 +89,34 @@ struct SwipePhotoView: View {
             GeometryReader { geometry in
                 let isLandscape = geometry.size.width > geometry.size.height && geometry.size.width > 620
 
-                if isLandscape {
-                    HStack(spacing: 0) {
+                ZStack(alignment: .bottom) {
+                    if isLandscape {
+                        HStack(spacing: 0) {
+                            VStack(spacing: 0) {
+                                navigationHeader
+                                photoArea
+                            }
+                            .frame(width: geometry.size.width * 0.64)
+
+                            landscapeSidebar
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        }
+                    } else {
                         VStack(spacing: 0) {
                             navigationHeader
                             photoArea
+                            bottomControls
                         }
-                        .frame(width: geometry.size.width * 0.64)
-
-                        landscapeSidebar
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
-                } else {
-                    VStack(spacing: 0) {
-                        navigationHeader
-                        photoArea
-                        bottomControls
+
+                    if let feedbackToast {
+                        SwipeToastView(toast: feedbackToast) {
+                            handleUndoAction()
+                            resetCardPosition()
+                        }
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, isLandscape ? 24 : 126)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
             }
@@ -229,6 +245,24 @@ struct SwipePhotoView: View {
                                 .frame(maxWidth: 180)
                         }
                         .photoDelPrimaryButton()
+                    }
+                    .padding(24)
+                    .photoDelCard()
+                    .padding(.horizontal, 24)
+                } else if dataManager.photoLibraryManager.isLoading || dataManager.isPreparingLibrary {
+                    VStack(spacing: 18) {
+                        ProgressView(value: dataManager.photoLibraryManager.loadingProgress)
+                            .progressViewStyle(LinearProgressViewStyle(tint: PhotoDelStyle.accent))
+                            .frame(width: min(260, geometry.size.width - 80))
+
+                        Text("正在准备照片")
+                            .font(.system(size: 22, weight: .semibold))
+                            .foregroundColor(PhotoDelStyle.primaryText)
+
+                        Text("准备完成后会自动显示当前分类。")
+                            .font(.system(size: 15, weight: .regular))
+                            .foregroundColor(PhotoDelStyle.secondaryText)
+                            .multilineTextAlignment(.center)
                     }
                     .padding(24)
                     .photoDelCard()
@@ -501,33 +535,45 @@ struct SwipePhotoView: View {
     @ViewBuilder
     private func albumShortcutStrip(horizontalPadding: CGFloat) -> some View {
         if !isAlbumMode && !dataManager.userAlbums.isEmpty {
+            let rows = [
+                GridItem(.fixed(32), spacing: 8),
+                GridItem(.fixed(32), spacing: 8)
+            ]
+
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
+                LazyHGrid(rows: rows, spacing: 8) {
                     ForEach(dataManager.userAlbums) { albumInfo in
                         Button(action: {
                             handleAddToAlbum(albumInfo)
                         }) {
-                            Text(albumInfo.title)
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(PhotoDelStyle.primaryText)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 7)
-                                .background(
-                                    Capsule(style: .continuous)
-                                        .fill(PhotoDelStyle.surface)
-                                        .overlay(
-                                            Capsule(style: .continuous)
-                                                .stroke(PhotoDelStyle.hairline, lineWidth: 1)
-                                        )
-                                )
-                                .lineLimit(1)
+                            HStack(spacing: 6) {
+                                Image(systemName: "folder")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundColor(PhotoDelStyle.accent)
+
+                                Text(albumInfo.title)
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundColor(PhotoDelStyle.primaryText)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.82)
+                            }
+                            .padding(.horizontal, 11)
+                            .frame(width: 118, height: 32)
+                            .background(
+                                Capsule(style: .continuous)
+                                    .fill(PhotoDelStyle.surface)
+                                    .overlay(
+                                        Capsule(style: .continuous)
+                                            .stroke(PhotoDelStyle.hairline, lineWidth: 1)
+                                    )
+                            )
                         }
                         .buttonStyle(.plain)
                     }
                 }
                 .padding(.horizontal, horizontalPadding)
             }
-            .frame(height: 36)
+            .frame(height: 76)
         }
     }
 
@@ -582,7 +628,7 @@ struct SwipePhotoView: View {
     }
 
     private var swipeImageTargetSize: CGSize {
-        let scale = min(UIScreen.main.scale, 2)
+        let scale = UIScreen.main.scale
         return CGSize(width: 380 * scale, height: 520 * scale)
     }
 
@@ -595,7 +641,7 @@ struct SwipePhotoView: View {
     }
 
     private func imageTargetSize(for displaySize: CGSize) -> CGSize {
-        let scale = min(UIScreen.main.scale, 2)
+        let scale = UIScreen.main.scale
         return CGSize(width: displaySize.width * scale, height: displaySize.height * scale)
     }
 
@@ -641,7 +687,7 @@ struct SwipePhotoView: View {
                 moveToNextPhoto()
             } else {
                 // 右滑：跳过
-                actionHistory.append(.skip)
+                markSkip()
                 moveToNextPhoto()
             }
         } else if abs(translation.height) > threshold {
@@ -651,7 +697,7 @@ struct SwipePhotoView: View {
                 moveToNextPhoto()
             } else {
                 // 下滑：跳过
-                actionHistory.append(.skip)
+                markSkip()
                 moveToNextPhoto()
             }
         }
@@ -694,7 +740,7 @@ struct SwipePhotoView: View {
     }
 
     private func handleSkipAction() {
-        actionHistory.append(.skip)
+        markSkip()
         moveToNextPhoto()
     }
 
@@ -708,47 +754,70 @@ struct SwipePhotoView: View {
     }
 
     private func handleUndoAction() {
-        if let lastAction = actionHistory.popLast() {
-            switch lastAction {
-            case .delete(let asset):
-                dataManager.removeFromDeleteCandidates(asset)
-            case .favorite(let asset):
-                dataManager.removeFromFavoriteCandidates(asset)
-            case .skip:
-                break
-            }
+        guard let lastAction = actionHistory.popLast() else {
+            impact(.light)
+            showFeedback("没有可撤销的操作", icon: "arrow.uturn.backward", style: .neutral)
+            return
+        }
+
+        switch lastAction {
+        case .delete(let asset):
+            dataManager.removeFromDeleteCandidates(asset)
+        case .favorite(let asset):
+            dataManager.removeFromFavoriteCandidates(asset)
+        case .skip:
+            break
         }
         moveToPreviousPhoto()
+        notify(.success)
+        showFeedback("已撤销上一步", icon: "arrow.uturn.backward", style: .positive)
     }
 
     private func markDeleteCandidate(_ asset: PHAsset) {
         dataManager.addToDeleteCandidates(asset)
         actionHistory.append(.delete(asset))
+        impact(.medium)
+        showFeedback("已加入删除候选", icon: "trash", style: .destructive, showsUndo: true)
     }
 
     private func markFavoriteCandidate(_ asset: PHAsset) {
         guard !asset.isFavorite else {
-            actionHistory.append(.skip)
+            markSkip(message: "已经是收藏")
             return
         }
 
         dataManager.addToFavoriteCandidates(asset)
         actionHistory.append(.favorite(asset))
+        impact(.light)
+        showFeedback("已加入收藏候选", icon: "heart.fill", style: .favorite, showsUndo: true)
+    }
+
+    private func markSkip(message: String = "已跳过") {
+        actionHistory.append(.skip)
+        impact(.light)
+        showFeedback(message, icon: "arrow.right", style: .neutral)
     }
 
     private func handleAddToAlbum(_ albumInfo: AlbumInfo) {
         guard let asset = currentRealPhoto,
-              let assetCollection = albumInfo.assetCollection else { return }
+              let assetCollection = albumInfo.assetCollection else {
+            showFeedback("无法归类到这个相册", icon: "exclamationmark.triangle", style: .warning)
+            return
+        }
 
         // 将照片添加到指定相册
+        impact(.light)
+        showFeedback("正在归类到 \(albumInfo.title)", icon: "folder", style: .neutral, duration: 1.0)
         dataManager.addPhotoToAlbum(asset, album: assetCollection) { success in
             DispatchQueue.main.async {
                 if success {
                     // 添加成功后移动到下一张照片
+                    self.notify(.success)
+                    self.showFeedback("已归类到 \(albumInfo.title)", icon: "checkmark.circle.fill", style: .positive)
                     self.moveToNextPhoto()
                 } else {
-                    // 添加失败，可以显示错误提示
-                    print("添加照片到相册失败")
+                    self.notify(.error)
+                    self.showFeedback("归类失败，请再试一次", icon: "exclamationmark.triangle", style: .warning)
                 }
             }
         }
@@ -788,6 +857,108 @@ struct SwipePhotoView: View {
             return "全部照片"
         }
     }
+
+    private func showFeedback(
+        _ message: String,
+        icon: String,
+        style: SwipeFeedbackStyle,
+        showsUndo: Bool = false,
+        duration: TimeInterval = 3.0
+    ) {
+        let toast = SwipeFeedbackToast(message: message, icon: icon, style: style, showsUndo: showsUndo)
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.88)) {
+            feedbackToast = toast
+        }
+
+        let visibleDuration = showsUndo ? max(duration, 4.5) : duration
+        DispatchQueue.main.asyncAfter(deadline: .now() + visibleDuration) {
+            guard feedbackToast?.id == toast.id else { return }
+            withAnimation(.easeOut(duration: 0.18)) {
+                feedbackToast = nil
+            }
+        }
+    }
+
+    private func impact(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
+        UIImpactFeedbackGenerator(style: style).impactOccurred()
+    }
+
+    private func notify(_ type: UINotificationFeedbackGenerator.FeedbackType) {
+        UINotificationFeedbackGenerator().notificationOccurred(type)
+    }
+}
+
+private enum SwipeFeedbackStyle {
+    case neutral
+    case positive
+    case destructive
+    case favorite
+    case warning
+
+    var color: Color {
+        switch self {
+        case .neutral:
+            return PhotoDelStyle.accent
+        case .positive:
+            return PhotoDelStyle.positive
+        case .destructive:
+            return PhotoDelStyle.destructive
+        case .favorite:
+            return PhotoDelStyle.iconTint(for: "favorite")
+        case .warning:
+            return PhotoDelStyle.warning
+        }
+    }
+}
+
+private struct SwipeFeedbackToast: Identifiable {
+    let id = UUID()
+    let message: String
+    let icon: String
+    let style: SwipeFeedbackStyle
+    let showsUndo: Bool
+}
+
+private struct SwipeToastView: View {
+    let toast: SwipeFeedbackToast
+    let onUndo: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: toast.icon)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(toast.style.color)
+                .frame(width: 22)
+
+            Text(toast.message)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(PhotoDelStyle.primaryText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+
+            if toast.showsUndo {
+                Divider()
+                    .frame(height: 18)
+                    .background(PhotoDelStyle.hairline)
+
+                Button("撤销", action: onUndo)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.accent)
+                    .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .background(
+            Capsule(style: .continuous)
+                .fill(PhotoDelStyle.background.opacity(0.9))
+                .overlay(
+                    Capsule(style: .continuous)
+                        .stroke(toast.style.color.opacity(0.34), lineWidth: 1)
+                )
+        )
+        .shadow(color: .black.opacity(0.24), radius: 14, x: 0, y: 8)
+    }
 }
 
 // MARK: - 真实照片卡片
@@ -806,9 +977,15 @@ struct RealPhotoCard: View {
     var body: some View {
         ZStack {
             if let image = image {
-                Image(uiImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
+                ZStack {
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .fill(Color.black.opacity(0.22))
+
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: displaySize.width, height: displaySize.height)
+                }
                     .frame(width: displaySize.width, height: displaySize.height)
                     .clipped()
                     .cornerRadius(20)
@@ -950,7 +1127,7 @@ struct RealPhotoCard: View {
         image = nil
         let requestedAssetID = asset.localIdentifier
 
-        requestID = photoLibraryManager.loadImage(for: asset, size: targetSize) { loadedImage in
+        requestID = photoLibraryManager.loadSwipePreview(for: asset, size: targetSize) { loadedImage in
             guard asset.localIdentifier == requestedAssetID else { return }
             self.image = loadedImage
             self.isLoading = false

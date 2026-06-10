@@ -200,10 +200,14 @@ class DataManager: ObservableObject {
 
         group.notify(queue: .main) {
             if !hasError {
-                // 操作成功，清空候选库
+                // 操作成功后先做本地增量更新，避免重新跑整库索引。
+                self.photoLibraryManager.applyCommittedBatchChanges(
+                    deletedAssets: Array(originalDeleteCandidates),
+                    favoritedAssets: Array(originalFavoriteCandidates)
+                )
                 self.deleteCandidates.removeAll()
                 self.favoriteCandidates.removeAll()
-                self.updateStats()
+                self.refreshDerivedLibraryData()
                 completion(true, nil)
             } else {
                 // 操作失败，恢复原始状态
@@ -219,6 +223,12 @@ class DataManager: ObservableObject {
                 completion(false, enhancedError)
             }
         }
+    }
+
+    private func refreshDerivedLibraryData() {
+        loadTimeGroups()
+        loadAlbums()
+        updateStats()
     }
 
     private func checkSystemReadiness() -> Bool {

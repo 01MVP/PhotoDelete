@@ -104,7 +104,7 @@ struct SplashView: View {
         if dataManager.photoLibraryManager.hasPhotoLibraryAccess {
             // 已授权，显示加载进度
             showProgress = true
-            loadingText = "正在建立本机照片索引..."
+            loadingText = "正在准备照片信息..."
             if dataManager.photoLibraryManager.totalPhotosCount == 0 &&
                 !dataManager.photoLibraryManager.isLoading {
                 dataManager.reloadLibraryData()
