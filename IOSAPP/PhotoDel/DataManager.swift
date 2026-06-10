@@ -29,6 +29,7 @@ class DataManager: ObservableObject {
     @Published var isLoadingAlbums = false
 
     private var isReloadingLibrary = false
+    private var hasLoadedAlbums = false
 
     init() {
         setupPhotoLibraryManager()
@@ -37,14 +38,7 @@ class DataManager: ObservableObject {
     private func setupPhotoLibraryManager() {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            self.photoLibraryManager.checkAuthorizationStatus()
-            if self.photoLibraryManager.hasPhotoLibraryAccess {
-                self.reloadLibraryData()
-            } else {
-                self.timeGroups = []
-                self.systemAlbums = []
-                self.userAlbums = []
-            }
+            self.syncPhotoLibraryAuthorization()
         }
     }
 
@@ -67,9 +61,26 @@ class DataManager: ObservableObject {
         photoLibraryManager.requestAuthorization { [weak self] _ in
             guard let self else { return }
             self.authorizationRequested = false
-            if self.photoLibraryManager.hasPhotoLibraryAccess {
-                self.reloadLibraryData()
-            }
+            self.syncPhotoLibraryAuthorization()
+        }
+    }
+
+    func syncPhotoLibraryAuthorization() {
+        let hadAccess = photoLibraryManager.hasPhotoLibraryAccess
+        photoLibraryManager.checkAuthorizationStatus()
+
+        guard photoLibraryManager.hasPhotoLibraryAccess else {
+            isPreparingLibrary = false
+            isReloadingLibrary = false
+            timeGroups = []
+            systemAlbums = []
+            userAlbums = []
+            hasLoadedAlbums = false
+            return
+        }
+
+        if !hadAccess || (photoLibraryManager.allPhotos.isEmpty && !photoLibraryManager.isLoading) {
+            reloadLibraryData()
         }
     }
 
@@ -94,7 +105,7 @@ class DataManager: ObservableObject {
         photoLibraryManager.loadPhotos { [weak self] in
             guard let self else { return }
             self.loadTimeGroups()
-            self.loadAlbums()
+            self.loadAlbums(showLoading: !self.hasLoadedAlbums)
             self.updateStats()
             self.isPreparingLibrary = false
             self.isReloadingLibrary = false
@@ -227,7 +238,7 @@ class DataManager: ObservableObject {
 
     private func refreshDerivedLibraryData() {
         loadTimeGroups()
-        loadAlbums()
+        loadAlbums(showLoading: false)
         updateStats()
     }
 
@@ -354,13 +365,17 @@ class DataManager: ObservableObject {
     }
 
     // MARK: - 相册数据加载
-    func loadAlbums() {
+    func loadAlbums(showLoading: Bool? = nil) {
         guard photoLibraryManager.hasPhotoLibraryAccess else {
             isLoadingAlbums = false
+            hasLoadedAlbums = false
             return
         }
 
-        isLoadingAlbums = true
+        let shouldShowLoading = showLoading ?? (!hasLoadedAlbums && systemAlbums.isEmpty && userAlbums.isEmpty)
+        if shouldShowLoading {
+            isLoadingAlbums = true
+        }
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
@@ -426,6 +441,7 @@ class DataManager: ObservableObject {
             DispatchQueue.main.async {
                 self.systemAlbums = systemAlbums
                 self.userAlbums = userAlbums
+                self.hasLoadedAlbums = true
                 self.isLoadingAlbums = false
             }
         }

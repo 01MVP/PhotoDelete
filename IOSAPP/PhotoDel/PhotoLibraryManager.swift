@@ -409,7 +409,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     }
 
     private func expectLocalLibraryChange() {
-        DispatchQueue.main.async { [weak self] in
+        let updateCounter = { [weak self] in
             guard let self else { return }
             self.localChangeNotificationsRemaining += 1
             self.localChangeResetWorkItem?.cancel()
@@ -419,6 +419,14 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             }
             self.localChangeResetWorkItem = resetWorkItem
             DispatchQueue.main.asyncAfter(deadline: .now() + 4, execute: resetWorkItem)
+        }
+
+        if Thread.isMainThread {
+            updateCounter()
+        } else {
+            DispatchQueue.main.async {
+                updateCounter()
+            }
         }
     }
 
@@ -433,8 +441,8 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     }
 
     private func applyIncrementalPhotoChanges(_ changes: PHFetchResultChangeDetails<PHAsset>) {
-        if !changes.insertedObjects.isEmpty {
-            loadPhotos()
+        guard changes.hasIncrementalChanges else {
+            rebuildCachedAssets(from: changes.fetchResultAfterChanges)
             return
         }
 
@@ -458,9 +466,36 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             }
         }
 
+        for insertedAsset in changes.insertedObjects {
+            upsertPhotoAsset(insertedAsset)
+        }
+
         loadingProgress = 1
         isLoading = false
         finishLoadingPhotos()
+    }
+
+    private func rebuildCachedAssets(from fetchResult: PHFetchResult<PHAsset>) {
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            guard let self else { return }
+
+            var photos: [PHAsset] = []
+            fetchResult.enumerateObjects { asset, _, _ in
+                photos.append(asset)
+            }
+
+            self.categorizePhotos(photos) { videos, screenshots, favorites in
+                DispatchQueue.main.async {
+                    self.allPhotos = photos
+                    self.videos = videos
+                    self.screenshots = screenshots
+                    self.favorites = favorites
+                    self.loadingProgress = 1
+                    self.isLoading = false
+                    self.finishLoadingPhotos()
+                }
+            }
+        }
     }
 
     private func removeAssets(with identifiers: Set<String>, from assets: inout [PHAsset]) {
@@ -470,6 +505,41 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     private func replaceAsset(_ asset: PHAsset, in assets: inout [PHAsset]) {
         guard let index = assets.firstIndex(where: { $0.localIdentifier == asset.localIdentifier }) else { return }
         assets[index] = asset
+    }
+
+    private func upsertPhotoAsset(_ asset: PHAsset) {
+        upsertAsset(asset, in: &allPhotos)
+
+        if asset.mediaType == .video {
+            upsertAsset(asset, in: &videos)
+        } else {
+            videos.removeAll { $0.localIdentifier == asset.localIdentifier }
+        }
+
+        if isScreenshot(asset) {
+            upsertAsset(asset, in: &screenshots)
+        } else {
+            screenshots.removeAll { $0.localIdentifier == asset.localIdentifier }
+        }
+
+        if asset.isFavorite {
+            upsertFavorite(asset)
+        } else {
+            favorites.removeAll { $0.localIdentifier == asset.localIdentifier }
+        }
+    }
+
+    private func upsertAsset(_ asset: PHAsset, in assets: inout [PHAsset]) {
+        if let index = assets.firstIndex(where: { $0.localIdentifier == asset.localIdentifier }) {
+            assets[index] = asset
+            return
+        }
+
+        let assetDate = asset.creationDate ?? .distantPast
+        let insertionIndex = assets.firstIndex { existingAsset in
+            (existingAsset.creationDate ?? .distantPast) < assetDate
+        } ?? assets.endIndex
+        assets.insert(asset, at: insertionIndex)
     }
 
     private func upsertFavorite(_ asset: PHAsset) {
@@ -544,7 +614,7 @@ extension PhotoLibraryManager: PHPhotoLibraryChangeObserver {
             if self.shouldApplyChangeIncrementally() {
                 self.applyIncrementalPhotoChanges(changes)
             } else {
-                self.loadPhotos()
+                self.applyIncrementalPhotoChanges(changes)
             }
         }
     }

@@ -12,6 +12,7 @@ import UIKit
 
 struct MainTabView: View {
     @EnvironmentObject var dataManager: DataManager
+    @Environment(\.scenePhase) private var scenePhase
     @State private var selectedTab = 0
     
     var body: some View {
@@ -67,6 +68,12 @@ struct MainTabView: View {
             
             UITabBar.appearance().standardAppearance = appearance
             UITabBar.appearance().scrollEdgeAppearance = appearance
+
+            dataManager.syncPhotoLibraryAuthorization()
+        }
+        .onChange(of: scenePhase) { phase in
+            guard phase == .active else { return }
+            dataManager.syncPhotoLibraryAuthorization()
         }
     }
 }

@@ -29,6 +29,7 @@ struct SwipePhotoView: View {
     @State private var sessionPhotos: [PHAsset] = []
     @State private var shouldDismissAfterBatch = false
     @State private var feedbackToast: SwipeFeedbackToast?
+    @State private var didInitializeSession = false
 
     enum SwipeDirection {
         case left, right, up, down
@@ -139,10 +140,13 @@ struct SwipePhotoView: View {
             dataManager.photoLibraryManager.handleMemoryWarning()
         }
         .onAppear {
-            refreshSessionPhotos()
+            initializeSessionIfNeeded()
         }
-        .onChange(of: dataManager.photoLibraryManager.allPhotos.count) { _ in
-            refreshSessionPhotos()
+        .onChange(of: dataManager.photoLibraryManager.isLoading) { _ in
+            initializeSessionIfNeeded()
+        }
+        .onChange(of: dataManager.isPreparingLibrary) { _ in
+            initializeSessionIfNeeded()
         }
     }
 
@@ -249,24 +253,6 @@ struct SwipePhotoView: View {
                     .padding(24)
                     .photoDelCard()
                     .padding(.horizontal, 24)
-                } else if dataManager.photoLibraryManager.isLoading || dataManager.isPreparingLibrary {
-                    VStack(spacing: 18) {
-                        ProgressView(value: dataManager.photoLibraryManager.loadingProgress)
-                            .progressViewStyle(LinearProgressViewStyle(tint: PhotoDelStyle.accent))
-                            .frame(width: min(260, geometry.size.width - 80))
-
-                        Text("正在准备照片")
-                            .font(.system(size: 22, weight: .semibold))
-                            .foregroundColor(PhotoDelStyle.primaryText)
-
-                        Text("准备完成后会自动显示当前分类。")
-                            .font(.system(size: 15, weight: .regular))
-                            .foregroundColor(PhotoDelStyle.secondaryText)
-                            .multilineTextAlignment(.center)
-                    }
-                    .padding(24)
-                    .photoDelCard()
-                    .padding(.horizontal, 24)
                 } else if let realPhoto = currentRealPhoto {
                     // 真实照片显示
                     let cardSize = photoCardSize(in: geometry.size)
@@ -332,6 +318,24 @@ struct SwipePhotoView: View {
                             }
                         }
                     )
+                } else if shouldShowInitialPreparingState {
+                    VStack(spacing: 18) {
+                        ProgressView(value: dataManager.photoLibraryManager.loadingProgress)
+                            .progressViewStyle(LinearProgressViewStyle(tint: PhotoDelStyle.accent))
+                            .frame(width: min(260, geometry.size.width - 80))
+
+                        Text("正在准备照片")
+                            .font(.system(size: 22, weight: .semibold))
+                            .foregroundColor(PhotoDelStyle.primaryText)
+
+                        Text("首次读取完成后会显示当前分类。")
+                            .font(.system(size: 15, weight: .regular))
+                            .foregroundColor(PhotoDelStyle.secondaryText)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(24)
+                    .photoDelCard()
+                    .padding(.horizontal, 24)
                 } else {
                     // 没有更多照片
                     VStack(spacing: 20) {
@@ -610,6 +614,24 @@ struct SwipePhotoView: View {
     }
 
     // MARK: - 手势处理
+    private var shouldShowInitialPreparingState: Bool {
+        !didInitializeSession &&
+            sessionPhotos.isEmpty &&
+            (dataManager.photoLibraryManager.isLoading || dataManager.isPreparingLibrary)
+    }
+
+    private func initializeSessionIfNeeded() {
+        guard !didInitializeSession else { return }
+
+        let photos = filteredRealPhotos
+        if photos.isEmpty && (dataManager.photoLibraryManager.isLoading || dataManager.isPreparingLibrary) {
+            return
+        }
+
+        refreshSessionPhotos()
+        didInitializeSession = true
+    }
+
     private func refreshSessionPhotos() {
         let photos = filteredRealPhotos
         sessionPhotos = photos
@@ -1358,10 +1380,7 @@ struct BatchConfirmView: View {
         dataManager.executeBatchOperations { success, error in
             isProcessing = false
             if success {
-                // 重新加载数据以更新主页
                 DispatchQueue.main.async {
-                    dataManager.loadTimeGroups()
-                    dataManager.loadAlbums()
                     dismiss()
                     onComplete?()
                 }

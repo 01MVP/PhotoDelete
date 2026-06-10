@@ -28,14 +28,11 @@ struct AlbumsView: View {
                 PhotoDelScreenBackground()
 
                 VStack(spacing: 0) {
-                    // 顶部区域
                     headerSection
 
                     if !dataManager.photoLibraryManager.hasPhotoLibraryAccess {
-                        // 权限授权区域
                         authorizationSection
                     } else {
-                        // 相册列表
                         albumsList
                     }
                 }
@@ -50,7 +47,7 @@ struct AlbumsView: View {
             CreateAlbumView()
                 .environmentObject(dataManager)
                 .onDisappear {
-                    dataManager.loadAlbums()
+                    dataManager.loadAlbums(showLoading: false)
                 }
         }
         .sheet(isPresented: $showingEditAlbum) {
@@ -58,7 +55,7 @@ struct AlbumsView: View {
                 EditAlbumView(album: album)
                     .environmentObject(dataManager)
                     .onDisappear {
-                        dataManager.loadAlbums()
+                        dataManager.loadAlbums(showLoading: false)
                     }
             }
         }
@@ -67,53 +64,57 @@ struct AlbumsView: View {
                 .environmentObject(dataManager)
         }
         .onAppear {
-            dataManager.loadAlbums()
+            dataManager.loadAlbums(showLoading: false)
         }
     }
 
     // MARK: - 顶部区域
     private var headerSection: some View {
-        VStack(spacing: 20) {
-            // 标题
-            VStack(spacing: 8) {
-                Text("相册管理")
-                    .font(.system(size: 28, weight: .semibold))
+        HStack(alignment: .center, spacing: 14) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text("相册")
+                    .font(.system(size: 34, weight: .semibold, design: .rounded))
                     .foregroundColor(PhotoDelStyle.primaryText)
 
-                if dataManager.photoLibraryManager.hasPhotoLibraryAccess {
-                    Text("管理您的照片相册")
-                        .font(.system(size: 16, weight: .regular))
-                        .foregroundColor(PhotoDelStyle.secondaryText)
-                } else {
-                    Text("需要访问照片库权限")
-                        .font(.system(size: 16, weight: .regular))
-                        .foregroundColor(PhotoDelStyle.accent)
-                }
+                Text(albumHeaderSubtitle)
+                    .font(.system(size: 15, weight: .regular))
+                    .foregroundColor(dataManager.photoLibraryManager.hasPhotoLibraryAccess ? PhotoDelStyle.secondaryText : PhotoDelStyle.accent)
             }
-            .padding(.top, 20)
 
-            // 搜索栏和创建按钮（仅在已授权时显示）
+            Spacer()
+
             if dataManager.photoLibraryManager.hasPhotoLibraryAccess {
-                HStack {
-                    Spacer()
-
-                    // 创建相册按钮
-                    Button(action: {
-                        showingCreateAlbum = true
-                    }) {
-                        Image(systemName: "plus")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(Color.black.opacity(0.86))
-                            .frame(width: 44, height: 44)
-                            .background(PhotoDelStyle.accent)
-                            .clipShape(RoundedRectangle(cornerRadius: PhotoDelStyle.controlRadius, style: .continuous))
+                Menu {
+                    Picker("排序", selection: $sortMode) {
+                        ForEach(AlbumSortMode.allCases) { mode in
+                            Label(mode.title, systemImage: mode.icon).tag(mode)
+                        }
                     }
-                    .buttonStyle(.plain)
+                } label: {
+                    Image(systemName: "arrow.up.arrow.down")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(PhotoDelStyle.primaryText)
+                        .frame(width: 42, height: 42)
+                        .background(Circle().fill(PhotoDelStyle.elevatedSurface))
                 }
-                .padding(.horizontal, 24)
+                .menuStyle(.button)
+
+                Button(action: {
+                    impact(.light)
+                    showingCreateAlbum = true
+                }) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(Color.black.opacity(0.86))
+                        .frame(width: 42, height: 42)
+                        .background(Circle().fill(PhotoDelStyle.accent))
+                }
+                .buttonStyle(.plain)
             }
         }
-        .padding(.bottom, 20)
+        .padding(.horizontal, 24)
+        .padding(.top, 22)
+        .padding(.bottom, 12)
     }
 
     // MARK: - 权限授权区域
@@ -158,187 +159,189 @@ struct AlbumsView: View {
 
     // MARK: - 相册列表
     private var albumsList: some View {
-        ScrollView {
-            LazyVStack(spacing: 12) {
-                pullSearchArea
-
-                if isLoadingAlbums {
-                    VStack(spacing: 12) {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: PhotoDelStyle.accent))
-                            .scaleEffect(1.2)
-
-                        Text("加载相册中...")
-                            .font(.system(size: 16, weight: .regular))
-                            .foregroundColor(PhotoDelStyle.secondaryText)
-                    }
-                    .padding(.top, 40)
-                } else {
-                    // 系统相册
-                    if !filteredSystemAlbums.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("系统相册 (\(filteredSystemAlbums.count)个)")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(PhotoDelStyle.primaryText)
-                                .padding(.horizontal, 24)
-                                .padding(.top, 12)
-
-                            ForEach(filteredSystemAlbums) { albumInfo in
-                                AlbumInfoRow(
-                                    albumInfo: albumInfo,
-                                    photoLibraryManager: dataManager.photoLibraryManager,
-                                    onTap: {
-                                        openAlbum(albumInfo)
-                                    },
-                                    onEdit: {
-                                        if let collection = albumInfo.assetCollection {
-                                            editingAlbum = collection
-                                            showingEditAlbum = true
-                                        }
-                                    },
-                                    onDelete: {
-                                        if let collection = albumInfo.assetCollection {
-                                            deleteAlbum(collection)
-                                        }
-                                    },
-                                    isCompact: true,
-                                    allowsSwipeActions: false
-                                )
-                                .padding(.horizontal, 24)
-                            }
-                        }
-                    }
-
-                    // 用户创建的相册
-                    if !filteredUserAlbums.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("我的相册 (\(filteredUserAlbums.count)个)")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(PhotoDelStyle.primaryText)
-                                .padding(.horizontal, 24)
-                                .padding(.top, 12)
-
-                            ForEach(filteredUserAlbums, id: \.id) { albumInfo in
-                                AlbumInfoRow(
-                                    albumInfo: albumInfo,
-                                    photoLibraryManager: dataManager.photoLibraryManager,
-                                    onTap: {
-                                        openAlbum(albumInfo)
-                                    },
-                                    onEdit: {
-                                        if let collection = albumInfo.assetCollection {
-                                            editingAlbum = collection
-                                            showingEditAlbum = true
-                                        }
-                                    },
-                                    onDelete: {
-                                        if let collection = albumInfo.assetCollection {
-                                            deleteAlbum(collection)
-                                        }
-                                    },
-                                    isCompact: true,
-                                    allowsSwipeActions: true
-                                )
-                                .padding(.horizontal, 24)
-                            }
-                        }
-                    }
-
-                    if filteredSystemAlbums.isEmpty && filteredUserAlbums.isEmpty {
-                        VStack(spacing: 20) {
-                            Image(systemName: "photo.stack")
-                                .font(.system(size: 60, weight: .medium))
-                                .foregroundColor(PhotoDelStyle.secondaryText)
-
-                            Text("没有找到相册")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(PhotoDelStyle.primaryText)
-
-                            Text("尝试创建一个新相册或检查搜索条件")
-                                .font(.system(size: 14, weight: .regular))
-                                .foregroundColor(PhotoDelStyle.secondaryText)
-                        }
-                        .padding(.top, 60)
-                    }
-                }
-
-                // 底部安全区域
-                Spacer()
-                    .frame(height: 100)
-            }
-        }
-    }
-
-    private var pullSearchArea: some View {
-        VStack(spacing: 12) {
+        List {
             if showSearchBar {
-                HStack(spacing: 10) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundColor(PhotoDelStyle.secondaryText)
-
-                    TextField("搜索相册", text: $searchText)
-                        .font(.system(size: 15, weight: .regular))
-                        .foregroundColor(PhotoDelStyle.primaryText)
-
-                    Button(action: hideSearch) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(PhotoDelStyle.tertiaryText)
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 11)
-                .background(
-                    RoundedRectangle(cornerRadius: PhotoDelStyle.controlRadius, style: .continuous)
-                        .fill(PhotoDelStyle.surface)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: PhotoDelStyle.controlRadius, style: .continuous)
-                                .stroke(PhotoDelStyle.hairline, lineWidth: 1)
-                        )
-                )
-                .transition(.move(edge: .top).combined(with: .opacity))
-            } else {
-                Button(action: showSearch) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 13, weight: .semibold))
-                        Text("搜索相册")
-                            .font(.system(size: 13, weight: .medium))
-                    }
-                    .foregroundColor(PhotoDelStyle.tertiaryText)
-                    .padding(.vertical, 8)
-                }
-                .buttonStyle(.plain)
+                searchRow
+                    .transition(.move(edge: .top).combined(with: .opacity))
             }
 
-            if !dataManager.getAllAlbums().isEmpty {
-                Picker("排序", selection: $sortMode) {
-                    ForEach(AlbumSortMode.allCases) { mode in
-                        Text(mode.title).tag(mode)
+            if isLoadingAlbums {
+                loadingRow
+            } else {
+                if !filteredSystemAlbums.isEmpty {
+                    Section {
+                        ForEach(filteredSystemAlbums) { albumInfo in
+                            albumRow(albumInfo, allowsActions: false)
+                        }
+                    } header: {
+                        sectionHeader("系统相册", count: filteredSystemAlbums.count)
                     }
                 }
-                .pickerStyle(.segmented)
+
+                if !filteredUserAlbums.isEmpty {
+                    Section {
+                        ForEach(filteredUserAlbums) { albumInfo in
+                            albumRow(albumInfo, allowsActions: true)
+                        }
+                    } header: {
+                        sectionHeader("我的相册", count: filteredUserAlbums.count)
+                    }
+                }
+
+                if filteredSystemAlbums.isEmpty && filteredUserAlbums.isEmpty {
+                    emptyRow
+                }
             }
         }
-        .padding(.horizontal, 24)
-        .contentShape(Rectangle())
-        .gesture(
-            DragGesture(minimumDistance: 16)
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .background(Color.clear)
+        .environment(\.defaultMinListRowHeight, 0)
+        .refreshable {
+            dataManager.loadAlbums(showLoading: false)
+        }
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 30)
                 .onEnded { value in
-                    if value.translation.height > 34 {
+                    if value.translation.height > 46 {
                         showSearch()
-                    } else if value.translation.height < -34 {
+                    } else if value.translation.height < -46 {
                         hideSearch()
                     }
                 }
         )
+        .safeAreaInset(edge: .bottom) {
+            Color.clear.frame(height: 88)
+        }
+    }
+
+    private var searchRow: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundColor(PhotoDelStyle.secondaryText)
+
+            TextField("搜索相册", text: $searchText)
+                .font(.system(size: 15, weight: .regular))
+                .foregroundColor(PhotoDelStyle.primaryText)
+                .submitLabel(.search)
+
+            Button(action: hideSearch) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.tertiaryText)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .background(
+            RoundedRectangle(cornerRadius: PhotoDelStyle.controlRadius, style: .continuous)
+                .fill(PhotoDelStyle.surface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: PhotoDelStyle.controlRadius, style: .continuous)
+                        .stroke(PhotoDelStyle.hairline, lineWidth: 1)
+                )
+        )
+        .listRowInsets(EdgeInsets(top: 4, leading: 24, bottom: 10, trailing: 24))
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+    }
+
+    private var loadingRow: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+                .progressViewStyle(CircularProgressViewStyle(tint: PhotoDelStyle.accent))
+
+            Text("加载相册中")
+                .font(.system(size: 15, weight: .regular))
+                .foregroundColor(PhotoDelStyle.secondaryText)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 48)
+        .listRowInsets(EdgeInsets(top: 0, leading: 24, bottom: 0, trailing: 24))
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+    }
+
+    private var emptyRow: some View {
+        VStack(spacing: 18) {
+            Image(systemName: searchText.isEmpty ? "photo.stack" : "magnifyingglass")
+                .font(.system(size: 44, weight: .medium))
+                .foregroundColor(PhotoDelStyle.secondaryText)
+
+            VStack(spacing: 6) {
+                Text(searchText.isEmpty ? "还没有相册" : "没有找到相册")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.primaryText)
+
+                Text(searchText.isEmpty ? "可以点右上角加号创建一个新相册。" : "换个关键词试试。")
+                    .font(.system(size: 14, weight: .regular))
+                    .foregroundColor(PhotoDelStyle.secondaryText)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 58)
+        .listRowInsets(EdgeInsets(top: 0, leading: 24, bottom: 0, trailing: 24))
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+    }
+
+    private func sectionHeader(_ title: String, count: Int) -> some View {
+        Text("\(title) (\(count))")
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundColor(PhotoDelStyle.tertiaryText)
+            .textCase(nil)
+            .padding(.top, 8)
+    }
+
+    private func albumRow(_ albumInfo: AlbumInfo, allowsActions: Bool) -> some View {
+        Button(action: {
+            openAlbum(albumInfo)
+        }) {
+            AlbumInfoRow(
+                albumInfo: albumInfo,
+                photoLibraryManager: dataManager.photoLibraryManager
+            )
+        }
+        .buttonStyle(.plain)
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            if allowsActions, let collection = albumInfo.assetCollection {
+                Button(role: .destructive) {
+                    deleteAlbum(collection)
+                } label: {
+                    Label("删除", systemImage: "trash")
+                }
+
+                Button {
+                    editingAlbum = collection
+                    showingEditAlbum = true
+                } label: {
+                    Label("编辑", systemImage: "pencil")
+                }
+                .tint(.gray)
+            }
+        }
+        .listRowInsets(EdgeInsets(top: 6, leading: 24, bottom: 6, trailing: 24))
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+    }
+
+    private var albumHeaderSubtitle: String {
+        if !dataManager.photoLibraryManager.hasPhotoLibraryAccess {
+            return "需要访问照片库权限"
+        }
+
+        let albumCount = dataManager.getAllAlbums().count
+        if dataManager.isLoadingAlbums && albumCount == 0 {
+            return "正在读取相册"
+        }
+        return "\(albumCount) 个相册"
     }
 
     // MARK: - 计算属性
     private var isLoadingAlbums: Bool {
-        dataManager.isLoadingAlbums || dataManager.isPreparingLibrary || dataManager.photoLibraryManager.isLoading
+        dataManager.isLoadingAlbums && dataManager.getAllAlbums().isEmpty
     }
 
     private var filteredSystemAlbums: [AlbumInfo] {
@@ -365,13 +368,13 @@ struct AlbumsView: View {
 
     // MARK: - 方法
     private func showSearch() {
-        withAnimation(.easeInOut(duration: 0.22)) {
+        withAnimation(.easeInOut(duration: 0.2)) {
             showSearchBar = true
         }
     }
 
     private func hideSearch() {
-        withAnimation(.easeInOut(duration: 0.22)) {
+        withAnimation(.easeInOut(duration: 0.2)) {
             showSearchBar = false
             searchText = ""
         }
@@ -389,11 +392,6 @@ struct AlbumsView: View {
     }
 
     private func openAlbum(_ albumInfo: AlbumInfo) {
-        guard !isLoadingAlbums else {
-            showAlbumToast("相册还在加载中", icon: "hourglass", style: .neutral)
-            return
-        }
-
         let photos = dataManager.getPhotosForAlbum(albumInfo)
         guard !photos.isEmpty else {
             impact(.light)
@@ -406,7 +404,6 @@ struct AlbumsView: View {
     }
 
     private func deleteAlbum(_ album: PHAssetCollection) {
-        // 只有用户创建的相册可以删除（非系统相册）
         guard album.assetCollectionType == .album else { return }
 
         PHPhotoLibrary.shared().performChanges({
@@ -416,7 +413,7 @@ struct AlbumsView: View {
                 if success {
                     self.notify(.success)
                     self.showAlbumToast("相册已删除", icon: "trash", style: .positive)
-                    self.dataManager.loadAlbums()
+                    self.dataManager.loadAlbums(showLoading: false)
                 } else if let error = error {
                     self.notify(.error)
                     self.showAlbumToast("删除失败，请再试一次", icon: "exclamationmark.triangle", style: .warning)
@@ -495,6 +492,17 @@ private enum AlbumSortMode: String, CaseIterable, Identifiable {
             return "数量"
         }
     }
+
+    var icon: String {
+        switch self {
+        case .defaultOrder:
+            return "rectangle.stack"
+        case .name:
+            return "textformat"
+        case .count:
+            return "number"
+        }
+    }
 }
 
 private enum AlbumToastStyle {
@@ -525,74 +533,11 @@ private struct AlbumToast: Identifiable {
 struct AlbumInfoRow: View {
     let albumInfo: AlbumInfo
     let photoLibraryManager: PhotoLibraryManager
-    let onTap: () -> Void
-    let onEdit: () -> Void
-    let onDelete: () -> Void
-    let isCompact: Bool
-    let allowsSwipeActions: Bool
 
     @State private var thumbnailImage: UIImage?
-    @State private var revealOffset: CGFloat = 0
-    @State private var actionsRevealed = false
-
-    private let actionWidth: CGFloat = 112
-
-    init(
-        albumInfo: AlbumInfo,
-        photoLibraryManager: PhotoLibraryManager,
-        onTap: @escaping () -> Void,
-        onEdit: @escaping () -> Void,
-        onDelete: @escaping () -> Void,
-        isCompact: Bool = false,
-        allowsSwipeActions: Bool = false
-    ) {
-        self.albumInfo = albumInfo
-        self.photoLibraryManager = photoLibraryManager
-        self.onTap = onTap
-        self.onEdit = onEdit
-        self.onDelete = onDelete
-        self.isCompact = isCompact
-        self.allowsSwipeActions = allowsSwipeActions
-    }
 
     var body: some View {
-        ZStack(alignment: .trailing) {
-            if allowsSwipeActions {
-                HStack(spacing: 0) {
-                    Button(action: {
-                        closeActions()
-                        onEdit()
-                    }) {
-                        Image(systemName: "pencil")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(PhotoDelStyle.primaryText)
-                            .frame(width: 56, height: isCompact ? 66 : 78)
-                            .background(PhotoDelStyle.elevatedSurface)
-                    }
-                    .buttonStyle(.plain)
-
-                    Button(action: {
-                        closeActions()
-                        onDelete()
-                    }) {
-                        Image(systemName: "trash")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(width: 56, height: isCompact ? 66 : 78)
-                            .background(PhotoDelStyle.destructive)
-                    }
-                    .buttonStyle(.plain)
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            }
-
-            Button(action: handleRowTap) {
-                rowContent
-            }
-            .buttonStyle(.plain)
-            .offset(x: revealOffset)
-            .simultaneousGesture(revealGesture)
-        }
+        rowContent
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
@@ -602,36 +547,36 @@ struct AlbumInfoRow: View {
     }
 
     private var rowContent: some View {
-        HStack(spacing: isCompact ? 12 : 16) {
+        HStack(spacing: 12) {
             Group {
                 if let image = thumbnailImage {
                     Image(uiImage: image)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
-                        .frame(width: isCompact ? 50 : 60, height: isCompact ? 50 : 60)
+                        .frame(width: 56, height: 56)
                         .clipped()
-                        .cornerRadius(8)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 } else {
                     ZStack {
-                        RoundedRectangle(cornerRadius: 8)
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
                             .fill(PhotoDelStyle.elevatedSurface)
-                            .frame(width: isCompact ? 50 : 60, height: isCompact ? 50 : 60)
+                            .frame(width: 56, height: 56)
 
                         Image(systemName: albumInfo.type.icon)
-                            .font(.system(size: isCompact ? 16 : 20, weight: .medium))
+                            .font(.system(size: 20, weight: .medium))
                             .foregroundColor(albumIconTint)
                     }
                 }
             }
 
-            VStack(alignment: .leading, spacing: isCompact ? 2 : 4) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(albumInfo.title)
-                    .font(.system(size: isCompact ? 14 : 16, weight: .semibold))
+                    .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.primaryText)
                     .lineLimit(1)
 
                 Text("\(albumInfo.photosCount) 张照片")
-                    .font(.system(size: isCompact ? 12 : 14, weight: .regular))
+                    .font(.system(size: 13, weight: .regular))
                     .foregroundColor(PhotoDelStyle.secondaryText)
             }
 
@@ -641,47 +586,12 @@ struct AlbumInfoRow: View {
                 .font(.system(size: 12, weight: .medium))
                 .foregroundColor(PhotoDelStyle.tertiaryText)
         }
-        .padding(isCompact ? 8 : 12)
+        .padding(10)
+        .frame(minHeight: 76)
         .photoDelCard(radius: 14)
     }
 
-    private var revealGesture: some Gesture {
-        DragGesture(minimumDistance: 18)
-            .onChanged { value in
-                guard allowsSwipeActions,
-                      abs(value.translation.width) > abs(value.translation.height) else { return }
-
-                let baseOffset: CGFloat = actionsRevealed ? -actionWidth : 0
-                let proposedOffset = min(0, max(-actionWidth, baseOffset + value.translation.width))
-                revealOffset = proposedOffset
-            }
-            .onEnded { value in
-                guard allowsSwipeActions else { return }
-                let shouldReveal = value.translation.width < -34 || revealOffset < -actionWidth / 2
-                withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
-                    actionsRevealed = shouldReveal
-                    revealOffset = shouldReveal ? -actionWidth : 0
-                }
-            }
-    }
-
-    private func closeActions() {
-        withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) {
-            actionsRevealed = false
-            revealOffset = 0
-        }
-    }
-
-    private func handleRowTap() {
-        if revealOffset < 0 {
-            closeActions()
-        } else {
-            onTap()
-        }
-    }
-
     private func loadAlbumThumbnail() {
-        // 加载缩略图
         if let thumbnailAsset = albumInfo.thumbnailAsset {
             photoLibraryManager.loadThumbnail(for: thumbnailAsset) { image in
                 self.thumbnailImage = image
