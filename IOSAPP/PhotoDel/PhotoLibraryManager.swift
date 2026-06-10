@@ -98,7 +98,9 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
 
             let allPhotosResult = PHAsset.fetchAssets(with: fetchOptions)
-            self.allPhotosResult = allPhotosResult
+            DispatchQueue.main.async {
+                self.allPhotosResult = allPhotosResult
+            }
 
             let totalCount = allPhotosResult.count
             var allPhotosArray: [PHAsset] = []
@@ -614,7 +616,7 @@ extension PhotoLibraryManager: PHPhotoLibraryChangeObserver {
             if self.shouldApplyChangeIncrementally() {
                 self.applyIncrementalPhotoChanges(changes)
             } else {
-                self.applyIncrementalPhotoChanges(changes)
+                self.rebuildCachedAssets(from: changes.fetchResultAfterChanges)
             }
         }
     }

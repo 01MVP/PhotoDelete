@@ -133,7 +133,9 @@ struct SwipePhotoView: View {
         }
         .navigationBarHidden(true)
         .toolbar(.hidden, for: .tabBar)
-        .sheet(isPresented: $showBatchConfirm) {
+        .sheet(isPresented: $showBatchConfirm, onDismiss: {
+            didInitializeSession = false
+        }) {
             BatchConfirmView {
                 if shouldDismissAfterBatch {
                     dismiss()
