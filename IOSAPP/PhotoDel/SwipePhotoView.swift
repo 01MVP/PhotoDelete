@@ -930,12 +930,22 @@ struct SwipePhotoView: View {
         }
     }
 
+    private static let mediumFeedback = UIImpactFeedbackGenerator(style: .medium)
+    private static let lightFeedback = UIImpactFeedbackGenerator(style: .light)
+    private static let heavyFeedback = UIImpactFeedbackGenerator(style: .heavy)
+    private static let notificationFeedback = UINotificationFeedbackGenerator()
+
     private func impact(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
-        UIImpactFeedbackGenerator(style: style).impactOccurred()
+        switch style {
+        case .medium: Self.mediumFeedback.impactOccurred()
+        case .light: Self.lightFeedback.impactOccurred()
+        case .heavy: Self.heavyFeedback.impactOccurred()
+        default: UIImpactFeedbackGenerator(style: style).impactOccurred()
+        }
     }
 
     private func notify(_ type: UINotificationFeedbackGenerator.FeedbackType) {
-        UINotificationFeedbackGenerator().notificationOccurred(type)
+        Self.notificationFeedback.notificationOccurred(type)
     }
 }
 

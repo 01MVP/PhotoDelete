@@ -392,8 +392,7 @@ struct AlbumsView: View {
     }
 
     private func openAlbum(_ albumInfo: AlbumInfo) {
-        let photos = dataManager.getPhotosForAlbum(albumInfo)
-        guard !photos.isEmpty else {
+        guard albumInfo.photosCount > 0 else {
             impact(.light)
             showAlbumToast("这个相册还没有照片", icon: "photo", style: .warning)
             return
@@ -466,12 +465,20 @@ struct AlbumsView: View {
         }
     }
 
+    private static let mediumFeedback = UIImpactFeedbackGenerator(style: .medium)
+    private static let lightFeedback = UIImpactFeedbackGenerator(style: .light)
+    private static let notificationFeedback = UINotificationFeedbackGenerator()
+
     private func impact(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
-        UIImpactFeedbackGenerator(style: style).impactOccurred()
+        switch style {
+        case .medium: Self.mediumFeedback.impactOccurred()
+        case .light: Self.lightFeedback.impactOccurred()
+        default: UIImpactFeedbackGenerator(style: style).impactOccurred()
+        }
     }
 
     private func notify(_ type: UINotificationFeedbackGenerator.FeedbackType) {
-        UINotificationFeedbackGenerator().notificationOccurred(type)
+        Self.notificationFeedback.notificationOccurred(type)
     }
 }
 

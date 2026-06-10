@@ -12,8 +12,8 @@ import UIKit
 class DataManager: ObservableObject {
     @Published var organizeStats = OrganizeStats()
 
-    // 真实照片管理器
-    @Published var photoLibraryManager = PhotoLibraryManager()
+    // 真实照片管理器 (非 @Published，避免内部属性变化级联刷新所有视图)
+    let photoLibraryManager = PhotoLibraryManager()
     @Published var authorizationRequested = false
     @Published var isPreparingLibrary = false
 
@@ -29,6 +29,7 @@ class DataManager: ObservableObject {
 
     private var isReloadingLibrary = false
     private var hasLoadedAlbums = false
+    private var timeGroupCache: [TimeGroup: [PHAsset]] = [:]
 
     init() {
         setupPhotoLibraryManager()
@@ -314,8 +315,19 @@ class DataManager: ObservableObject {
     func loadTimeGroups() {
         guard photoLibraryManager.hasPhotoLibraryAccess else { return }
 
+        // 单次遍历构建缓存，避免重复全量扫描
+        let calendar = Calendar.current
+        let now = Date()
+        timeGroupCache.removeAll()
+
+        for asset in photoLibraryManager.allPhotos {
+            guard let creationDate = asset.creationDate else { continue }
+            let group = TimeGroupResolver.group(for: creationDate, now: now, calendar: calendar)
+            timeGroupCache[group, default: []].append(asset)
+        }
+
         timeGroups = TimeGroup.allCases.map { timeGroup in
-            let photos = getPhotosForTimeGroup(timeGroup)
+            let photos = timeGroupCache[timeGroup] ?? []
             let progress = calculateProgressForTimeGroup(timeGroup, photos: photos)
             return TimeGroupInfo(timeGroup: timeGroup, photosCount: photos.count, progress: progress)
         }
@@ -418,9 +430,12 @@ class DataManager: ObservableObject {
 
     // MARK: - 时间筛选方法
     func getPhotosForTimeGroup(_ timeGroup: TimeGroup) -> [PHAsset] {
+        if let cached = timeGroupCache[timeGroup] {
+            return cached
+        }
+        // 缓存未命中时回退到实时计算
         let calendar = Calendar.current
         let now = Date()
-
         return photoLibraryManager.allPhotos.filter { asset in
             guard let creationDate = asset.creationDate else { return false }
             return TimeGroupResolver.group(for: creationDate, now: now, calendar: calendar) == timeGroup

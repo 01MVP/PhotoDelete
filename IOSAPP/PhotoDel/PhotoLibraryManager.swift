@@ -363,14 +363,8 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     }
 
     func handleMemoryWarning() {
-        // 清理一半的缓存
-        let currentCount = imageCache.countLimit
-        imageCache.countLimit = currentCount / 2
-
-        // 重置缓存限制
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-            self?.imageCache.countLimit = currentCount
-        }
+        imageCache.removeAllObjects()
+        imageManager.stopCachingImagesForAllAssets()
     }
 
     func loadThumbnail(for asset: PHAsset, completion: @escaping (UIImage?) -> Void) {
