@@ -6,6 +6,9 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 #if canImport(MessageUI)
 import MessageUI
 #endif
@@ -14,6 +17,7 @@ struct SettingsView: View {
     @EnvironmentObject var dataManager: DataManager
     @State private var showingMailCompose = false
     @State private var showingAbout = false
+    @State private var showingWeChatCopied = false
     
     var body: some View {
         NavigationView {
@@ -48,6 +52,10 @@ struct SettingsView: View {
                             .frame(height: 100)
                     }
                     .padding(.horizontal, 24)
+                }
+
+                if showingWeChatCopied {
+                    copyToast
                 }
             }
         }
@@ -124,44 +132,38 @@ struct SettingsView: View {
             }
             
             VStack(spacing: 0) {
-                // 帮助中心
                 SettingRow(
-                    icon: "questionmark.circle.fill",
+                    icon: "safari.fill",
                     iconColor: PhotoDelStyle.accent,
-                    title: "帮助中心",
-                    subtitle: "使用指南和常见问题",
-                    action: {
-                        // 打开帮助中心
-                    }
+                    title: "01MVP 官网",
+                    subtitle: "了解作者和更多产品",
+                    action: openWebsite
                 )
                 
                 Divider()
                     .background(PhotoDelStyle.hairline)
                     .padding(.horizontal, 16)
                 
+                SettingRow(
+                    icon: "bubble.left.and.bubble.right.fill",
+                    iconColor: PhotoDelStyle.positive,
+                    title: "微信反馈",
+                    subtitle: "mvps01",
+                    action: copyWeChatID
+                )
+
+                Divider()
+                    .background(PhotoDelStyle.hairline)
+                    .padding(.horizontal, 16)
+
                 // 邮件反馈
                 SettingRow(
                     icon: "envelope.fill",
-                    iconColor: PhotoDelStyle.positive,
+                    iconColor: PhotoDelStyle.secondaryText,
                     title: "邮件反馈",
                     subtitle: mailSubtitle,
                     action: {
                         handleMailAction()
-                    }
-                )
-                
-                Divider()
-                    .background(PhotoDelStyle.hairline)
-                    .padding(.horizontal, 16)
-                
-                // 评分应用
-                SettingRow(
-                    icon: "star.fill",
-                    iconColor: PhotoDelStyle.warning,
-                    title: "评分应用",
-                    subtitle: "在 App Store 中评分",
-                    action: {
-                        openAppStore()
                     }
                 )
                 
@@ -196,6 +198,35 @@ struct SettingsView: View {
                 .foregroundColor(PhotoDelStyle.tertiaryText)
         }
     }
+
+    private var copyToast: some View {
+        VStack {
+            Spacer()
+
+            HStack(spacing: 8) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.positive)
+
+                Text("已复制微信号 mvps01")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(PhotoDelStyle.primaryText)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(
+                Capsule()
+                    .fill(PhotoDelStyle.surface)
+                    .overlay(
+                        Capsule()
+                            .stroke(PhotoDelStyle.hairline, lineWidth: 1)
+                    )
+            )
+            .shadow(color: .black.opacity(0.24), radius: 12, x: 0, y: 8)
+            .padding(.bottom, 96)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+        }
+    }
     
     private var mailSubtitle: String {
         #if canImport(MessageUI)
@@ -214,12 +245,26 @@ struct SettingsView: View {
     }
     
     // MARK: - 方法
-    private func openAppStore() {
-        // 这里应该打开App Store评分页面
-        // 实际实现中需要使用真实的App Store链接
-        if let url = URL(string: "https://apps.apple.com") {
+    private func openWebsite() {
+        if let url = URL(string: "https://01mvp.com") {
+            #if canImport(UIKit)
             UIApplication.shared.open(url)
+            #endif
         }
+    }
+
+    private func copyWeChatID() {
+        #if canImport(UIKit)
+        UIPasteboard.general.string = "mvps01"
+        withAnimation(.easeInOut(duration: 0.18)) {
+            showingWeChatCopied = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
+            withAnimation(.easeInOut(duration: 0.18)) {
+                showingWeChatCopied = false
+            }
+        }
+        #endif
     }
 }
 

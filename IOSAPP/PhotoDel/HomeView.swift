@@ -58,7 +58,7 @@ struct HomeView: View {
                                 .foregroundColor(PhotoDelStyle.primaryText)
 
                             if dataManager.photoLibraryManager.hasPhotoLibraryAccess {
-                                Text("选择分类开始整理")
+                                Text(isLibraryPreparing ? "正在建立本机照片索引" : "选择分类开始整理")
                                     .font(.system(size: 15, weight: .regular))
                                     .foregroundColor(PhotoDelStyle.secondaryText)
                             } else {
@@ -72,7 +72,9 @@ struct HomeView: View {
                         if !dataManager.photoLibraryManager.hasPhotoLibraryAccess {
                             authorizationSection
                         } else if isLibraryPreparing {
-                            libraryLoadingSection
+                            libraryScanningSection
+
+                            categorySkeletonSection
                         } else if dataManager.photoLibraryManager.totalPhotosCount == 0 {
                             emptyLibrarySection
                         } else {
@@ -144,15 +146,13 @@ struct HomeView: View {
         .photoDelCard()
     }
 
-    // MARK: - 照片库加载区域
-    private var libraryLoadingSection: some View {
+    // MARK: - 照片库扫描区域
+    private var libraryScanningSection: some View {
         VStack(spacing: 18) {
-            ProgressView(value: dataManager.photoLibraryManager.loadingProgress)
-                .progressViewStyle(LinearProgressViewStyle(tint: PhotoDelStyle.accent))
-                .frame(maxWidth: .infinity)
+            ScanningSwipeGlyph()
 
             VStack(spacing: 8) {
-                Text("正在扫描照片库")
+                Text("正在建立本机索引")
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.primaryText)
 
@@ -160,14 +160,35 @@ struct HomeView: View {
                     .font(.system(size: 15, weight: .medium))
                     .foregroundColor(PhotoDelStyle.secondaryText)
 
-                Text("首次打开需要一点时间。完成前不会显示空分类。")
+                Text("索引完成后会自动显示分类和数量。照片只在本机读取。")
                     .font(.system(size: 15, weight: .regular))
                     .foregroundColor(PhotoDelStyle.secondaryText)
                     .multilineTextAlignment(.center)
             }
+
+            ProgressView(value: dataManager.photoLibraryManager.loadingProgress)
+                .progressViewStyle(LinearProgressViewStyle(tint: PhotoDelStyle.accent))
+                .frame(maxWidth: .infinity)
         }
         .padding(24)
         .photoDelCard()
+    }
+
+    private var categorySkeletonSection: some View {
+        VStack(spacing: 16) {
+            HStack {
+                Text("照片分类")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.primaryText)
+                Spacer()
+            }
+
+            VStack(spacing: 12) {
+                CategorySkeletonCard(title: "全部照片", icon: "photo.on.rectangle")
+                CategorySkeletonCard(title: "视频", icon: "video")
+                CategorySkeletonCard(title: "截图", icon: "iphone")
+            }
+        }
     }
 
     // MARK: - 空照片库区域
@@ -373,6 +394,93 @@ struct TimelineCard: View {
         .photoDelCard()
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
+    }
+}
+
+// MARK: - 扫描态组件
+struct ScanningSwipeGlyph: View {
+    @State private var animate = false
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(PhotoDelStyle.elevatedSurface)
+                .frame(width: 132, height: 92)
+                .rotationEffect(.degrees(animate ? 5 : 1))
+                .offset(x: animate ? 20 : 14, y: -3)
+
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.white.opacity(0.9))
+                .frame(width: 132, height: 92)
+                .overlay(
+                    VStack(alignment: .leading, spacing: 10) {
+                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                            .fill(Color.black.opacity(0.16))
+                            .frame(width: 58, height: 8)
+
+                        Spacer()
+
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(Color.black.opacity(0.12))
+                            .frame(width: 82, height: 10)
+                    }
+                    .padding(16)
+                )
+                .rotationEffect(.degrees(animate ? -5 : -1))
+                .offset(x: animate ? -18 : -8)
+
+            Image(systemName: "arrow.left")
+                .font(.system(size: 17, weight: .bold))
+                .foregroundColor(PhotoDelStyle.accent)
+                .offset(x: -70, y: 4)
+
+            Image(systemName: "trash")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(PhotoDelStyle.destructive)
+                .offset(x: 76, y: 28)
+        }
+        .frame(height: 108)
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.35).repeatForever(autoreverses: true)) {
+                animate = true
+            }
+        }
+    }
+}
+
+struct CategorySkeletonCard: View {
+    let title: String
+    let icon: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Circle()
+                .fill(PhotoDelStyle.elevatedSurface)
+                .frame(width: 42, height: 42)
+                .overlay(
+                    Image(systemName: icon)
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundColor(PhotoDelStyle.secondaryText)
+                )
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.primaryText)
+
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .fill(PhotoDelStyle.elevatedSurface)
+                    .frame(width: 54, height: 6)
+            }
+
+            Spacer()
+
+            Text("准备中")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(PhotoDelStyle.tertiaryText)
+        }
+        .padding(14)
+        .photoDelCard()
     }
 }
 

@@ -18,7 +18,6 @@ struct AlbumsView: View {
     @State private var showSwipeView = false
     @State private var selectedAlbumInfo: AlbumInfo?
     @State private var showSearchBar = false
-    @State private var userAlbumsOrder: [String] = []
 
     var body: some View {
         NavigationView {
@@ -90,46 +89,8 @@ struct AlbumsView: View {
 
             // 搜索栏和创建按钮（仅在已授权时显示）
             if dataManager.photoLibraryManager.hasPhotoLibraryAccess {
-                HStack(spacing: 12) {
-                    // 搜索栏（条件显示）
-                    if showSearchBar {
-                        HStack {
-                            Image(systemName: "magnifyingglass")
-                                .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(PhotoDelStyle.secondaryText)
-
-                            TextField("搜索相册", text: $searchText)
-                                .font(.system(size: 16, weight: .regular))
-                                .foregroundColor(PhotoDelStyle.primaryText)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                        .background(
-                            RoundedRectangle(cornerRadius: PhotoDelStyle.controlRadius, style: .continuous)
-                                .fill(PhotoDelStyle.surface)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: PhotoDelStyle.controlRadius, style: .continuous)
-                                        .stroke(PhotoDelStyle.hairline, lineWidth: 1)
-                                )
-                        )
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                    }
-
-                    // 搜索按钮（当搜索栏隐藏时显示）
-                    if !showSearchBar {
-                        Button(action: {
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                showSearchBar = true
-                            }
-                        }) {
-                            Image(systemName: "magnifyingglass")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(PhotoDelStyle.primaryText)
-                                .frame(width: 44, height: 44)
-                                .background(PhotoDelStyle.elevatedSurface)
-                                .clipShape(RoundedRectangle(cornerRadius: PhotoDelStyle.controlRadius, style: .continuous))
-                        }
-                    }
+                HStack {
+                    Spacer()
 
                     // 创建相册按钮
                     Button(action: {
@@ -142,6 +103,7 @@ struct AlbumsView: View {
                             .background(PhotoDelStyle.accent)
                             .clipShape(RoundedRectangle(cornerRadius: PhotoDelStyle.controlRadius, style: .continuous))
                     }
+                    .buttonStyle(.plain)
                 }
                 .padding(.horizontal, 24)
             }
@@ -193,25 +155,8 @@ struct AlbumsView: View {
     private var albumsList: some View {
         ScrollView {
             LazyVStack(spacing: 12) {
-                // 下拉区域（用于显示搜索框）
-                Rectangle()
-                    .fill(Color.clear)
-                    .frame(height: 20)
-                    .gesture(
-                        DragGesture()
-                            .onEnded { value in
-                                if value.translation.height > 50 && !showSearchBar {
-                                    withAnimation(.easeInOut(duration: 0.3)) {
-                                        showSearchBar = true
-                                    }
-                                } else if value.translation.height < -50 && showSearchBar {
-                                    withAnimation(.easeInOut(duration: 0.3)) {
-                                        showSearchBar = false
-                                        searchText = ""
-                                    }
-                                }
-                            }
-                    )
+                pullSearchArea
+
                 if isLoading {
                     VStack(spacing: 12) {
                         ProgressView()
@@ -268,7 +213,7 @@ struct AlbumsView: View {
                                 .padding(.horizontal, 24)
                                 .padding(.top, 12)
 
-                            ForEach(orderedUserAlbums, id: \.id) { albumInfo in
+                            ForEach(filteredUserAlbums, id: \.id) { albumInfo in
                                 AlbumInfoRow(
                                     albumInfo: albumInfo,
                                     photoLibraryManager: dataManager.photoLibraryManager,
@@ -291,7 +236,6 @@ struct AlbumsView: View {
                                 )
                                 .padding(.horizontal, 24)
                             }
-                            .onMove(perform: moveUserAlbums)
                         }
                     }
 
@@ -320,6 +264,64 @@ struct AlbumsView: View {
         }
     }
 
+    private var pullSearchArea: some View {
+        VStack(spacing: 10) {
+            if showSearchBar {
+                HStack(spacing: 10) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(PhotoDelStyle.secondaryText)
+
+                    TextField("搜索相册", text: $searchText)
+                        .font(.system(size: 15, weight: .regular))
+                        .foregroundColor(PhotoDelStyle.primaryText)
+
+                    Button(action: hideSearch) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(PhotoDelStyle.tertiaryText)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 11)
+                .background(
+                    RoundedRectangle(cornerRadius: PhotoDelStyle.controlRadius, style: .continuous)
+                        .fill(PhotoDelStyle.surface)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: PhotoDelStyle.controlRadius, style: .continuous)
+                                .stroke(PhotoDelStyle.hairline, lineWidth: 1)
+                        )
+                )
+                .transition(.move(edge: .top).combined(with: .opacity))
+            } else {
+                Button(action: showSearch) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text("搜索相册")
+                            .font(.system(size: 13, weight: .medium))
+                    }
+                    .foregroundColor(PhotoDelStyle.tertiaryText)
+                    .padding(.vertical, 8)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 24)
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture(minimumDistance: 16)
+                .onEnded { value in
+                    if value.translation.height > 34 {
+                        showSearch()
+                    } else if value.translation.height < -34 {
+                        hideSearch()
+                    }
+                }
+        )
+    }
+
     // MARK: - 计算属性
     private var filteredSystemAlbums: [AlbumInfo] {
         let albums = dataManager.getSystemAlbums()
@@ -343,34 +345,18 @@ struct AlbumsView: View {
         }
     }
 
-    private var orderedUserAlbums: [AlbumInfo] {
-        let albums = filteredUserAlbums
-        if userAlbumsOrder.isEmpty {
-            return albums
+    // MARK: - 方法
+    private func showSearch() {
+        withAnimation(.easeInOut(duration: 0.22)) {
+            showSearchBar = true
         }
-
-        // 根据保存的顺序重新排列相册
-        var orderedAlbums: [AlbumInfo] = []
-        var remainingAlbums = albums
-
-        // 按照保存的顺序添加相册
-        for albumId in userAlbumsOrder {
-            if let index = remainingAlbums.firstIndex(where: { $0.id == albumId }) {
-                orderedAlbums.append(remainingAlbums.remove(at: index))
-            }
-        }
-
-        // 添加新的相册（不在保存顺序中的）
-        orderedAlbums.append(contentsOf: remainingAlbums)
-
-        return orderedAlbums
     }
 
-    // MARK: - 方法
-    private func moveUserAlbums(from source: IndexSet, to destination: Int) {
-        var newOrder = orderedUserAlbums.map { $0.id }
-        newOrder.move(fromOffsets: source, toOffset: destination)
-        userAlbumsOrder = newOrder
+    private func hideSearch() {
+        withAnimation(.easeInOut(duration: 0.22)) {
+            showSearchBar = false
+            searchText = ""
+        }
     }
 
     private func deleteAlbum(_ album: PHAssetCollection) {
@@ -400,7 +386,6 @@ struct AlbumInfoRow: View {
     let onDelete: () -> Void
     let isCompact: Bool
 
-    @State private var dragOffset: CGSize = .zero
     @State private var thumbnailImage: UIImage?
 
     init(albumInfo: AlbumInfo, photoLibraryManager: PhotoLibraryManager, onTap: @escaping () -> Void, onEdit: @escaping () -> Void, onDelete: @escaping () -> Void, isCompact: Bool = false) {
@@ -413,131 +398,67 @@ struct AlbumInfoRow: View {
     }
 
     var body: some View {
-        ZStack {
-            // 背景操作按钮
-            HStack {
-                // 编辑按钮
-                Button(action: onEdit) {
+        HStack(spacing: isCompact ? 12 : 16) {
+            Group {
+                if let image = thumbnailImage {
+                    Image(uiImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: isCompact ? 50 : 60, height: isCompact ? 50 : 60)
+                        .clipped()
+                        .cornerRadius(8)
+                } else {
                     ZStack {
                         RoundedRectangle(cornerRadius: 8)
-                            .fill(PhotoDelStyle.accent.opacity(0.82))
-                            .frame(width: 60, height: 60)
-
-                        Image(systemName: "pencil")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(.white)
-                    }
-                }
-
-                Spacer()
-
-                // 删除按钮（只有用户创建的相册可以删除）
-                if albumInfo.type == .userCreated {
-                    Button(action: onDelete) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 8)
-                                .fill(PhotoDelStyle.destructive.opacity(0.86))
-                                .frame(width: 60, height: 60)
-
-                            Image(systemName: "trash")
-                                .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(.white)
-                        }
-                    }
-                }
-            }
-            .opacity(abs(dragOffset.width) > 20 ? 1 : 0)
-            .animation(.easeInOut(duration: 0.2), value: dragOffset)
-
-            // 主要内容
-            HStack(spacing: isCompact ? 12 : 16) {
-                // 相册缩略图
-                Group {
-                    if let image = thumbnailImage {
-                        Image(uiImage: image)
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
+                            .fill(PhotoDelStyle.elevatedSurface)
                             .frame(width: isCompact ? 50 : 60, height: isCompact ? 50 : 60)
-                            .clipped()
-                            .cornerRadius(8)
-                    } else {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(PhotoDelStyle.elevatedSurface)
-                                .frame(width: isCompact ? 50 : 60, height: isCompact ? 50 : 60)
 
-                            Image(systemName: albumInfo.type.icon)
-                                .font(.system(size: isCompact ? 16 : 20, weight: .medium))
-                                .foregroundColor(albumIconTint)
-                        }
+                        Image(systemName: albumInfo.type.icon)
+                            .font(.system(size: isCompact ? 16 : 20, weight: .medium))
+                            .foregroundColor(albumIconTint)
                     }
-                }
-
-                // 相册信息
-                VStack(alignment: .leading, spacing: isCompact ? 2 : 4) {
-                    Text(albumInfo.title)
-                        .font(.system(size: isCompact ? 14 : 16, weight: .semibold))
-                        .foregroundColor(PhotoDelStyle.primaryText)
-                        .lineLimit(1)
-
-                    Text("\(albumInfo.photosCount) 张照片")
-                        .font(.system(size: isCompact ? 12 : 14, weight: .regular))
-                        .foregroundColor(PhotoDelStyle.secondaryText)
-                }
-
-                Spacer()
-
-                // 操作按钮
-                HStack(spacing: 16) {
-                    if albumInfo.type == .userCreated {
-                        Button(action: onEdit) {
-                            Image(systemName: "pencil")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(PhotoDelStyle.secondaryText)
-                        }
-
-                        Button(action: {
-                            withAnimation {
-                                onDelete()
-                            }
-                        }) {
-                            Image(systemName: "trash")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(PhotoDelStyle.destructive)
-                        }
-                    }
-
-                    // 进入整理页面箭头
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(PhotoDelStyle.tertiaryText)
                 }
             }
-            .padding(isCompact ? 8 : 12)
-            .photoDelCard(radius: 14)
-            .offset(dragOffset)
-            .contentShape(Rectangle())
-            .onTapGesture(perform: onTap)
-            .simultaneousGesture(
-                DragGesture()
-                    .onChanged { value in
-                        dragOffset = value.translation
-                    }
-                    .onEnded { value in
-                        if abs(value.translation.width) > 100 {
-                            if value.translation.width > 0 {
-                                onEdit()
-                            } else if albumInfo.type == .userCreated {
-                                onDelete()
-                            }
-                        }
 
-                        withAnimation(.spring()) {
-                            dragOffset = .zero
-                        }
+            VStack(alignment: .leading, spacing: isCompact ? 2 : 4) {
+                Text(albumInfo.title)
+                    .font(.system(size: isCompact ? 14 : 16, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.primaryText)
+                    .lineLimit(1)
+
+                Text("\(albumInfo.photosCount) 张照片")
+                    .font(.system(size: isCompact ? 12 : 14, weight: .regular))
+                    .foregroundColor(PhotoDelStyle.secondaryText)
+            }
+
+            Spacer()
+
+            HStack(spacing: 16) {
+                if albumInfo.type == .userCreated {
+                    Button(action: onEdit) {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(PhotoDelStyle.secondaryText)
                     }
-            )
+                    .buttonStyle(.plain)
+
+                    Button(action: onDelete) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(PhotoDelStyle.destructive)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(PhotoDelStyle.tertiaryText)
+            }
         }
+        .padding(isCompact ? 8 : 12)
+        .photoDelCard(radius: 14)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onTap)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
         .onAppear {

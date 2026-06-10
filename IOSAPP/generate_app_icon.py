@@ -36,78 +36,92 @@ def create_app_icon(size=1024):
         )
         draw.line([(0, y), (size, y)], fill=color)
 
-    glow = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    glow_draw = ImageDraw.Draw(glow)
-    glow_draw.ellipse(
-        [size * 0.18, size * 0.02, size * 0.9, size * 0.55],
-        fill=(163, 199, 255, 26),
-    )
-    img = Image.alpha_composite(img.convert("RGBA"), glow)
-
-    cx = size / 2
-    card_w = size * 0.54
-    card_h = size * 0.62
-    radius = int(size * 0.055)
-
-    cards = [
-        (-0.14, -0.05, -8, (42, 47, 53, 245), (255, 255, 255, 38)),
-        (0.12, -0.02, 7, (60, 67, 76, 245), (255, 255, 255, 44)),
-        (0.0, 0.05, 0, (232, 237, 244, 255), (255, 255, 255, 70)),
-    ]
-
-    for dx, dy, angle, fill, outline in cards:
-        x0 = cx - card_w / 2 + size * dx
-        y0 = size * 0.21 + size * dy
-        layer = rounded_layer(
-            size,
-            [x0, y0, x0 + card_w, y0 + card_h],
-            radius,
-            fill,
-            outline=outline,
-            width=max(2, int(size * 0.004)),
-            angle=angle,
-        )
-        img = Image.alpha_composite(img, layer)
-
+    img = img.convert("RGBA")
     overlay = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     od = ImageDraw.Draw(overlay)
 
-    front_x0 = cx - card_w / 2
-    front_y0 = size * 0.26
-    front_x1 = front_x0 + card_w
-    front_y1 = front_y0 + card_h
+    # Back card: a quiet photo stack signal.
+    back_rect = [size * 0.29, size * 0.2, size * 0.77, size * 0.74]
+    back = rounded_layer(
+        size,
+        back_rect,
+        int(size * 0.055),
+        (54, 60, 68, 255),
+        outline=(255, 255, 255, 34),
+        width=max(2, int(size * 0.004)),
+        angle=7,
+    )
+    img = Image.alpha_composite(img, back)
 
+    # Front card: slid left, so the icon reads as gesture-first.
+    front_rect = [size * 0.18, size * 0.25, size * 0.66, size * 0.79]
+    front = rounded_layer(
+        size,
+        front_rect,
+        int(size * 0.06),
+        (235, 239, 245, 255),
+        outline=(255, 255, 255, 64),
+        width=max(2, int(size * 0.004)),
+        angle=-7,
+    )
+    img = Image.alpha_composite(img, front)
+
+    # Minimal photo content lines.
     od.rounded_rectangle(
-        [front_x0 + size * 0.07, front_y0 + size * 0.08, front_x1 - size * 0.07, front_y0 + size * 0.14],
+        [size * 0.29, size * 0.34, size * 0.52, size * 0.39],
         radius=int(size * 0.018),
-        fill=(18, 21, 25, 56),
+        fill=(26, 29, 34, 72),
     )
     od.rounded_rectangle(
-        [front_x0 + size * 0.07, front_y1 - size * 0.16, front_x1 - size * 0.07, front_y1 - size * 0.1],
-        radius=int(size * 0.018),
-        fill=(18, 21, 25, 48),
+        [size * 0.28, size * 0.63, size * 0.56, size * 0.69],
+        radius=int(size * 0.02),
+        fill=(26, 29, 34, 62),
     )
 
-    line_width = max(9, int(size * 0.034))
-    start = (front_x0 + size * 0.13, front_y0 + size * 0.42)
-    mid = (front_x0 + size * 0.28, front_y0 + size * 0.50)
-    end = (front_x1 - size * 0.12, front_y0 + size * 0.36)
+    # Left-swipe track.
+    line_width = max(8, int(size * 0.03))
     accent = (163, 199, 255, 255)
-    shadow = (11, 13, 16, 52)
+    od.line(
+        [(size * 0.64, size * 0.52), (size * 0.49, size * 0.58), (size * 0.36, size * 0.55)],
+        fill=(9, 11, 14, 54),
+        width=line_width + max(4, int(size * 0.008)),
+        joint="curve",
+    )
+    od.line(
+        [(size * 0.64, size * 0.52), (size * 0.49, size * 0.58), (size * 0.36, size * 0.55)],
+        fill=accent,
+        width=line_width,
+        joint="curve",
+    )
+    od.line(
+        [(size * 0.43, size * 0.49), (size * 0.36, size * 0.55), (size * 0.43, size * 0.62)],
+        fill=accent,
+        width=line_width,
+        joint="curve",
+    )
 
-    od.line([start, mid, end], fill=shadow, width=line_width + max(4, int(size * 0.008)), joint="curve")
-    od.line([start, mid, end], fill=accent, width=line_width, joint="curve")
-
-    arrow = [
-        (end[0] - size * 0.075, end[1] - size * 0.045),
-        end,
-        (end[0] - size * 0.055, end[1] + size * 0.066),
-    ]
-    od.line(arrow, fill=accent, width=line_width, joint="curve")
-
-    dot_r = size * 0.024
-    od.ellipse([start[0] - dot_r, start[1] - dot_r, start[0] + dot_r, start[1] + dot_r], fill=(12, 15, 18, 255))
-    od.ellipse([start[0] - dot_r * 0.58, start[1] - dot_r * 0.58, start[0] + dot_r * 0.58, start[1] + dot_r * 0.58], fill=accent)
+    # Tiny delete mark, restrained but unmistakable.
+    red = (255, 97, 90, 255)
+    trash_x = size * 0.68
+    trash_y = size * 0.63
+    trash_w = size * 0.16
+    trash_h = size * 0.18
+    od.rounded_rectangle(
+        [trash_x, trash_y + trash_h * 0.22, trash_x + trash_w, trash_y + trash_h],
+        radius=int(size * 0.018),
+        outline=red,
+        width=max(6, int(size * 0.015)),
+    )
+    od.line(
+        [(trash_x - trash_w * 0.08, trash_y + trash_h * 0.12), (trash_x + trash_w * 1.08, trash_y + trash_h * 0.12)],
+        fill=red,
+        width=max(6, int(size * 0.015)),
+    )
+    od.line(
+        [(trash_x + trash_w * 0.32, trash_y), (trash_x + trash_w * 0.68, trash_y)],
+        fill=red,
+        width=max(5, int(size * 0.012)),
+    )
 
     img = Image.alpha_composite(img, overlay)
     return img.convert("RGB")

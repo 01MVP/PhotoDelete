@@ -104,7 +104,7 @@ struct SplashView: View {
         if dataManager.photoLibraryManager.hasPhotoLibraryAccess {
             // 已授权，显示加载进度
             showProgress = true
-            loadingText = "正在加载照片库..."
+            loadingText = "正在建立本机照片索引..."
             if dataManager.photoLibraryManager.totalPhotosCount == 0 &&
                 !dataManager.photoLibraryManager.isLoading {
                 dataManager.reloadLibraryData()
@@ -145,7 +145,7 @@ struct SplashView: View {
                 // 更新加载文字
                 let progress = dataManager.photoLibraryManager.loadingProgress
                 if progress < 0.3 {
-                    loadingText = "正在扫描照片库..."
+                    loadingText = "正在读取照片信息..."
                 } else if progress < 0.6 {
                     loadingText = "正在分析照片信息..."
                 } else if progress < 0.9 {
