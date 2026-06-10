@@ -5,10 +5,10 @@ struct RealPhotoView: View {
     let asset: PHAsset
     let photoLibraryManager: PhotoLibraryManager
     let size: CGSize
-    
+
     @State private var image: UIImage?
     @State private var isLoading = true
-    
+
     var body: some View {
         Group {
             if let image = image {
@@ -54,11 +54,11 @@ struct RealPhotoView: View {
         .onAppear {
             loadImage()
         }
-        .onChange(of: asset) { _, _ in
+        .onChange(of: asset.localIdentifier) { _ in
             loadImage()
         }
     }
-    
+
     @ViewBuilder
     private var overlayContent: some View {
         VStack(spacing: 4) {
@@ -73,7 +73,7 @@ struct RealPhotoView: View {
                             .frame(width: 24, height: 24)
                     )
             }
-            
+
             // 收藏图标
             if asset.isFavorite {
                 Image(systemName: "heart.fill")
@@ -85,7 +85,7 @@ struct RealPhotoView: View {
                             .frame(width: 20, height: 20)
                     )
             }
-            
+
             // 截图标识
             if isScreenshot {
                 Image(systemName: "camera.viewfinder")
@@ -100,12 +100,12 @@ struct RealPhotoView: View {
         }
         .padding(8)
     }
-    
+
     private var isScreenshot: Bool {
         if #available(iOS 9.0, *) {
             return asset.mediaSubtypes.contains(.photoScreenshot)
         }
-        
+
         // 备用方法：通过尺寸判断
         let screenScale = UIScreen.main.scale
         let screenSize = UIScreen.main.bounds.size
@@ -113,17 +113,17 @@ struct RealPhotoView: View {
             width: screenSize.width * screenScale,
             height: screenSize.height * screenScale
         )
-        
+
         let assetSize = CGSize(width: CGFloat(asset.pixelWidth), height: CGFloat(asset.pixelHeight))
-        
+
         return abs(assetSize.width - screenPixelSize.width) < 10 &&
                abs(assetSize.height - screenPixelSize.height) < 10
     }
-    
+
     private func loadImage() {
         isLoading = true
         image = nil
-        
+
         photoLibraryManager.loadImage(for: asset, size: size) { loadedImage in
             self.image = loadedImage
             self.isLoading = false
@@ -138,7 +138,7 @@ struct PhotoGridView: View {
     let photoLibraryManager: PhotoLibraryManager
     let columns = 3
     let spacing: CGFloat = 2
-    
+
     var body: some View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: spacing), count: columns), spacing: spacing) {
             ForEach(photos, id: \.localIdentifier) { asset in
@@ -151,7 +151,7 @@ struct PhotoGridView: View {
         }
         .padding(.horizontal, 16)
     }
-    
+
     private var itemWidth: CGFloat {
         let screenWidth = UIScreen.main.bounds.width
         let totalSpacing = CGFloat(columns - 1) * spacing + 32 // 32 for horizontal padding
@@ -167,11 +167,11 @@ struct FullScreenPhotoView: View {
     @State private var image: UIImage?
     @State private var isLoading = true
     @Environment(\.dismiss) private var dismiss
-    
+
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            
+
             if let image = image {
                 Image(uiImage: image)
                     .resizable()
@@ -182,7 +182,7 @@ struct FullScreenPhotoView: View {
                     .progressViewStyle(CircularProgressViewStyle(tint: .white))
                     .scaleEffect(1.5)
             }
-            
+
             // 关闭按钮
             VStack {
                 HStack {
@@ -191,7 +191,7 @@ struct FullScreenPhotoView: View {
                     }
                     .foregroundColor(.white)
                     .padding()
-                    
+
                     Spacer()
                 }
                 Spacer()
@@ -201,7 +201,7 @@ struct FullScreenPhotoView: View {
             loadFullImage()
         }
     }
-    
+
     private func loadFullImage() {
         photoLibraryManager.loadFullImage(for: asset) { loadedImage in
             self.image = loadedImage
@@ -220,4 +220,4 @@ struct RealPhotoView_Previews: PreviewProvider {
             .background(Color.gray.opacity(0.2))
             .cornerRadius(8)
     }
-} 
+}

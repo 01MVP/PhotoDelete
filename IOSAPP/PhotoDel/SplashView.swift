@@ -94,7 +94,7 @@ struct SplashView: View {
     }
     
     private func checkPhotoLibraryStatus() {
-        if dataManager.photoLibraryManager.authorizationStatus == .authorized {
+        if dataManager.photoLibraryManager.hasPhotoLibraryAccess {
             // 已授权，显示加载进度
             showProgress = true
             loadingText = "正在加载照片库..."

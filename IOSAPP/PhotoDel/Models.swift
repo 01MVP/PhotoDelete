@@ -15,7 +15,7 @@ enum PhotoCategory: String, CaseIterable {
     case videos = "视频"
     case screenshots = "截图"
     case favorites = "收藏"
-    
+
     var icon: String {
         switch self {
         case .all: return "photo.on.rectangle"
@@ -24,7 +24,7 @@ enum PhotoCategory: String, CaseIterable {
         case .favorites: return "heart.fill"
         }
     }
-    
+
     var color: Color {
         switch self {
         case .all: return .blue
@@ -42,7 +42,7 @@ enum TimeGroup: String, CaseIterable {
     case thisMonth = "本月的照片"
     case lastMonth = "上个月的照片"
     case olderPhotos = "更早的照片"
-    
+
     var icon: String {
         switch self {
         case .today: return "calendar"
@@ -52,7 +52,7 @@ enum TimeGroup: String, CaseIterable {
         case .olderPhotos: return "calendar.badge.exclamationmark"
         }
     }
-    
+
     var color: Color {
         switch self {
         case .today: return .green
@@ -64,15 +64,52 @@ enum TimeGroup: String, CaseIterable {
     }
 }
 
+enum TimeGroupResolver {
+    static func group(for creationDate: Date, now: Date = Date(), calendar: Calendar = .current) -> TimeGroup {
+        if calendar.isDate(creationDate, inSameDayAs: now) {
+            return .today
+        }
+
+        if isSameWeek(creationDate, now, calendar: calendar) {
+            return .thisWeek
+        }
+
+        if isSameMonth(creationDate, now, calendar: calendar) {
+            return .thisMonth
+        }
+
+        if let lastMonth = calendar.date(byAdding: .month, value: -1, to: now),
+           isSameMonth(creationDate, lastMonth, calendar: calendar) {
+            return .lastMonth
+        }
+
+        return .olderPhotos
+    }
+
+    private static func isSameWeek(_ lhs: Date, _ rhs: Date, calendar: Calendar) -> Bool {
+        let lhsComponents = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: lhs)
+        let rhsComponents = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: rhs)
+        return lhsComponents.yearForWeekOfYear == rhsComponents.yearForWeekOfYear &&
+            lhsComponents.weekOfYear == rhsComponents.weekOfYear
+    }
+
+    private static func isSameMonth(_ lhs: Date, _ rhs: Date, calendar: Calendar) -> Bool {
+        let lhsComponents = calendar.dateComponents([.year, .month], from: lhs)
+        let rhsComponents = calendar.dateComponents([.year, .month], from: rhs)
+        return lhsComponents.year == rhsComponents.year &&
+            lhsComponents.month == rhsComponents.month
+    }
+}
+
 // MARK: - 相册类型
 enum AlbumType: String, CaseIterable {
     case all = "全部照片"
-    case recents = "最近项目" 
+    case recents = "最近项目"
     case favorites = "收藏"
     case screenshots = "截图"
     case videos = "视频"
     case userCreated = "用户相册"
-    
+
     var icon: String {
         switch self {
         case .all: return "photo.on.rectangle"
@@ -83,7 +120,7 @@ enum AlbumType: String, CaseIterable {
         case .userCreated: return "folder"
         }
     }
-    
+
     var color: Color {
         switch self {
         case .all: return .blue
@@ -104,7 +141,7 @@ struct AlbumInfo: Identifiable {
     let type: AlbumType
     let photosCount: Int
     let thumbnailAsset: PHAsset?
-    
+
     init(assetCollection: PHAssetCollection?, type: AlbumType, photosCount: Int = 0, thumbnailAsset: PHAsset? = nil) {
         if let collection = assetCollection {
             self.id = collection.localIdentifier
@@ -127,14 +164,14 @@ struct TimeGroupInfo: Identifiable {
     let timeGroup: TimeGroup
     let photosCount: Int
     let progress: Double // 整理进度 0.0-1.0
-    
+
     init(timeGroup: TimeGroup, photosCount: Int, progress: Double = 0.0) {
         self.id = timeGroup.rawValue
         self.timeGroup = timeGroup
         self.photosCount = photosCount
         self.progress = progress
     }
-    
+
     var progressColor: Color {
         if progress >= 0.9 { return .yellow } // 90%以上 - 黄色
         else if progress >= 0.8 { return .green } // 80-90% - 绿色
@@ -151,7 +188,7 @@ struct OrganizeStats {
     var keptPhotos: Int = 0
     var favoritedPhotos: Int = 0
     var spaceSaved: Double = 0.0 // MB
-    
+
     var formattedSpaceSaved: String {
         if spaceSaved < 1000 {
             return String(format: "%.1f MB", spaceSaved)
@@ -159,4 +196,4 @@ struct OrganizeStats {
             return String(format: "%.1f GB", spaceSaved / 1000)
         }
     }
-} 
+}

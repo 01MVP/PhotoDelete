@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PhotoDel - 免费的 iPhone 相册清理工具</title>
+    <meta
+      name="description"
+      content="PhotoDel 是一款免费的 iPhone 相册清理工具，用左右滑快速整理照片，按照片、视频、截图、收藏和时间线归类。照片留在本机处理。"
+    />
+    <meta property="og:title" content="PhotoDel - 免费的 iPhone 相册清理工具" />
+    <meta
+      property="og:description"
+      content="左右滑快速整理照片。基础功能永久免费，照片留在本机处理。"
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/assets/photodel-home.jpg" />
+    <link rel="icon" href="/assets/app-icon.png" />
+    <style>
+      :root {
+        color-scheme: dark;
+        --ink: #050506;
+        --panel: #101113;
+        --line: rgba(255, 255, 255, 0.12);
+        --text: #f7f4ed;
+        --muted: #a7a099;
+        --cyan: #35c7e8;
+        --green: #69db7c;
+        --coral: #ff6b5f;
+        --gold: #ffd166;
+        --max: 1120px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        background: var(--ink);
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100svh;
+        background:
+          linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+          linear-gradient(180deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+          var(--ink);
+        background-size: 72px 72px;
+        color: var(--text);
+        font-family:
+          ui-rounded,
+          "SF Pro Rounded",
+          "Avenir Next",
+          "PingFang SC",
+          "Hiragino Sans GB",
+          sans-serif;
+        letter-spacing: 0;
+      }
+
+      a {
+        color: inherit;
+      }
+
+      .site-header {
+        position: fixed;
+        inset: 0 0 auto;
+        z-index: 10;
+        display: flex;
+        justify-content: center;
+        padding: 14px 18px;
+        background: rgba(5, 5, 6, 0.72);
+        border-bottom: 1px solid var(--line);
+        backdrop-filter: blur(18px);
+      }
+
+      .nav {
+        width: min(100%, var(--max));
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 800;
+        text-decoration: none;
+      }
+
+      .brand img {
+        width: 34px;
+        height: 34px;
+        border-radius: 9px;
+      }
+
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .nav-links a {
+        text-decoration: none;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 42px;
+        padding: 0 18px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: #ffffff;
+        color: #080808;
+        font-weight: 800;
+        text-decoration: none;
+      }
+
+      .hero {
+        position: relative;
+        min-height: 88svh;
+        overflow: hidden;
+        display: grid;
+        align-items: center;
+        padding: 120px 22px 74px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .hero::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          linear-gradient(90deg, rgba(5, 5, 6, 0.96) 0%, rgba(5, 5, 6, 0.78) 43%, rgba(5, 5, 6, 0.28) 100%),
+          image-set(url("/assets/photodel-home.jpg") 1x);
+        background-position: center, right center;
+        background-size: cover, min(46vw, 460px) auto;
+        background-repeat: no-repeat;
+        opacity: 0.98;
+      }
+
+      .hero::after {
+        content: "";
+        position: absolute;
+        inset: auto 0 0;
+        height: 42%;
+        background: linear-gradient(180deg, transparent, var(--ink));
+      }
+
+      .hero-inner {
+        position: relative;
+        z-index: 1;
+        width: min(100%, var(--max));
+        margin: 0 auto;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        width: fit-content;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 11px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--green);
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      h1 {
+        max-width: 720px;
+        margin: 24px 0 0;
+        font-size: clamp(64px, 12vw, 150px);
+        line-height: 0.86;
+        letter-spacing: 0;
+      }
+
+      .hero-copy {
+        max-width: 620px;
+        margin: 24px 0 0;
+        color: #d9d2ca;
+        font-size: clamp(18px, 2.4vw, 25px);
+        line-height: 1.5;
+      }
+
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 34px;
+      }
+
+      .secondary {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 42px;
+        padding: 0 18px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--text);
+        font-weight: 800;
+        text-decoration: none;
+      }
+
+      main {
+        position: relative;
+      }
+
+      section {
+        padding: 74px 22px;
+      }
+
+      .wrap {
+        width: min(100%, var(--max));
+        margin: 0 auto;
+      }
+
+      .section-title {
+        max-width: 760px;
+        margin: 0;
+        font-size: clamp(34px, 6vw, 72px);
+        line-height: 0.98;
+      }
+
+      .section-lede {
+        max-width: 660px;
+        margin: 18px 0 0;
+        color: var(--muted);
+        font-size: 18px;
+        line-height: 1.7;
+      }
+
+      .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 38px;
+      }
+
+      .feature {
+        min-height: 210px;
+        padding: 22px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.055);
+      }
+
+      .feature strong {
+        display: block;
+        margin-top: 32px;
+        font-size: 20px;
+      }
+
+      .feature p {
+        margin: 12px 0 0;
+        color: var(--muted);
+        line-height: 1.6;
+      }
+
+      .mark {
+        display: inline-flex;
+        width: 42px;
+        height: 42px;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        color: #060606;
+        font-weight: 900;
+      }
+
+      .mark.delete {
+        background: var(--coral);
+      }
+
+      .mark.keep {
+        background: var(--green);
+      }
+
+      .mark.sort {
+        background: var(--cyan);
+      }
+
+      .mark.free {
+        background: var(--gold);
+      }
+
+      .proof {
+        display: grid;
+        grid-template-columns: 0.86fr 1.14fr;
+        gap: 42px;
+        align-items: center;
+      }
+
+      .phone {
+        justify-self: center;
+        width: min(300px, 74vw);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 34px;
+        overflow: hidden;
+        background: #050505;
+        box-shadow: 0 34px 90px rgba(0, 0, 0, 0.55);
+      }
+
+      .phone img {
+        display: block;
+        width: 100%;
+      }
+
+      .steps {
+        display: grid;
+        gap: 14px;
+      }
+
+      .step {
+        display: grid;
+        grid-template-columns: 54px 1fr;
+        gap: 16px;
+        align-items: start;
+        padding: 18px 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .step span {
+        color: var(--green);
+        font-size: 12px;
+        font-weight: 900;
+      }
+
+      .step h3 {
+        margin: 0;
+        font-size: 22px;
+      }
+
+      .step p {
+        margin: 8px 0 0;
+        color: var(--muted);
+        line-height: 1.6;
+      }
+
+      .privacy-band {
+        border-top: 1px solid var(--line);
+        border-bottom: 1px solid var(--line);
+        background: #f7f4ed;
+        color: #111;
+      }
+
+      .privacy-band .wrap {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+        align-items: end;
+      }
+
+      .privacy-band h2 {
+        margin: 0;
+        font-size: clamp(36px, 7vw, 88px);
+        line-height: 0.92;
+      }
+
+      .privacy-band p {
+        margin: 0;
+        color: #38332e;
+        font-size: 18px;
+        line-height: 1.7;
+      }
+
+      .download {
+        text-align: center;
+      }
+
+      .download-box {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 36px 28px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.06);
+      }
+
+      .download-box img {
+        width: 70px;
+        height: 70px;
+        border-radius: 18px;
+      }
+
+      .download-box h2 {
+        margin: 18px 0 0;
+        font-size: clamp(32px, 6vw, 58px);
+        line-height: 1;
+      }
+
+      .download-box p {
+        margin: 16px auto 0;
+        max-width: 560px;
+        color: var(--muted);
+        line-height: 1.7;
+      }
+
+      footer {
+        padding: 34px 22px 46px;
+        color: var(--muted);
+        border-top: 1px solid var(--line);
+      }
+
+      .footer-inner {
+        width: min(100%, var(--max));
+        margin: 0 auto;
+        display: flex;
+        justify-content: space-between;
+        gap: 18px;
+        flex-wrap: wrap;
+        font-size: 14px;
+      }
+
+      @media (max-width: 820px) {
+        .nav-links a:not(.pill) {
+          display: none;
+        }
+
+        .hero {
+          min-height: 86svh;
+          padding-top: 96px;
+        }
+
+        .hero::before {
+          background:
+            linear-gradient(180deg, rgba(5, 5, 6, 0.54) 0%, rgba(5, 5, 6, 0.9) 62%, var(--ink) 100%),
+            image-set(url("/assets/photodel-home.jpg") 1x);
+          background-position: center, center 24px;
+          background-size: cover, min(78vw, 340px) auto;
+        }
+
+        .feature-grid,
+        .proof,
+        .privacy-band .wrap {
+          grid-template-columns: 1fr;
+        }
+
+        .feature {
+          min-height: 170px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="site-header">
+      <nav class="nav" aria-label="主导航">
+        <a class="brand" href="#top">
+          <img src="/assets/app-icon.png" alt="" />
+          <span>PhotoDel</span>
+        </a>
+        <div class="nav-links">
+          <a href="#features">功能</a>
+          <a href="#privacy">隐私</a>
+          <a href="#testflight" class="pill">TestFlight</a>
+        </div>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero" aria-label="PhotoDel">
+        <div class="hero-inner">
+          <div class="eyebrow">基础功能免费 · 照片本地处理</div>
+          <h1>PhotoDel</h1>
+          <p class="hero-copy">
+            用左滑、右滑把相册整理成可控的队列。先加入删除或收藏候选，确认后再批量执行，适合清理截图、视频和旧照片。
+          </p>
+          <div class="hero-actions">
+            <a class="pill" href="#testflight">查看 TestFlight 状态</a>
+            <a class="secondary" href="#features">了解功能</a>
+          </div>
+        </div>
+      </section>
+
+      <section id="features">
+        <div class="wrap">
+          <h2 class="section-title">相册清理，只保留几个明确动作。</h2>
+          <p class="section-lede">
+            PhotoDel 不做复杂规则和付费墙。核心流程保持简单：选择分类，逐张浏览，左滑加入删除候选，右滑跳过，上滑加入收藏候选。
+          </p>
+          <div class="feature-grid">
+            <article class="feature">
+              <span class="mark delete">左</span>
+              <strong>左滑待删除</strong>
+              <p>不会立刻删除照片，先进入候选库，最后统一确认。</p>
+            </article>
+            <article class="feature">
+              <span class="mark keep">右</span>
+              <strong>右滑跳过</strong>
+              <p>不想处理的照片直接跳过，不改变照片库。</p>
+            </article>
+            <article class="feature">
+              <span class="mark sort">类</span>
+              <strong>自动归类</strong>
+              <p>按全部照片、视频、截图、收藏和时间线快速进入不同清理范围。</p>
+            </article>
+            <article class="feature">
+              <span class="mark free">免</span>
+              <strong>基础功能免费</strong>
+              <p>当前版本不包含任何付费功能，清理、归类和批量确认都免费可用。</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="wrap proof">
+          <div class="phone">
+            <img src="/assets/photodel-home.jpg" alt="PhotoDel iPhone 首页截图" />
+          </div>
+          <div class="steps">
+            <div class="step">
+              <span>01</span>
+              <div>
+                <h3>选择范围</h3>
+                <p>从全部照片、视频、截图、收藏或时间线进入整理。</p>
+              </div>
+            </div>
+            <div class="step">
+              <span>02</span>
+              <div>
+                <h3>滑动判断</h3>
+                <p>左右滑处理当前照片，也可以用底部按钮撤销、收藏、删除候选或跳过。</p>
+              </div>
+            </div>
+            <div class="step">
+              <span>03</span>
+              <div>
+                <h3>确认执行</h3>
+                <p>离开整理页前会看到批量确认，避免误删。</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="privacy" class="privacy-band">
+        <div class="wrap">
+          <h2>照片不上传。</h2>
+          <p>
+            PhotoDel 使用 iOS Photos 框架读取和整理相册。清理判断、候选列表和批量操作都在设备上完成，不需要账号，也不会把照片传到服务器。
+          </p>
+        </div>
+      </section>
+
+      <section id="testflight" class="download">
+        <div class="wrap">
+          <div class="download-box">
+            <img src="/assets/app-icon.png" alt="" />
+            <h2>TestFlight 内测准备中</h2>
+            <p>
+              当前构建正在进入 TestFlight 发布流程。链接启用后，这里会直接指向 Apple TestFlight。基础整理功能免费开放。
+            </p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="footer-inner">
+        <span>© 2026 PhotoDel</span>
+        <span>photodel.01mvp.com</span>
+      </div>
+    </footer>
+  </body>
+</html>

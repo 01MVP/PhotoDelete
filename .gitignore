@@ -1,6 +1,7 @@
 temp/
 temp.*
 .vscode/
+.wrangler/
 
 # Xcode
 #
