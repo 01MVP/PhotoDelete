@@ -73,7 +73,16 @@ struct SwipePhotoView: View {
         return min(currentPhotoIndex + 1, totalPhotosCount)
     }
 
-    // 是否在相册模式（不显示进度，因为相册内的照片已经整理过）
+    private var organizedProgress: Int {
+        guard totalPhotosCount > 0 else { return 0 }
+        return showCompletionMessage ? totalPhotosCount : min(currentPhotoIndex, totalPhotosCount)
+    }
+
+    private var progressFraction: Double {
+        guard totalPhotosCount > 0 else { return 0 }
+        return Double(organizedProgress) / Double(totalPhotosCount)
+    }
+
     private var isAlbumMode: Bool {
         return selectedAlbumInfo != nil
     }
@@ -152,65 +161,69 @@ struct SwipePhotoView: View {
 
     // MARK: - 导航栏
     private var navigationHeader: some View {
-        HStack {
-            // 返回按钮
-            Button(action: handleBackAction) {
-                ZStack {
-                    Circle()
-                        .fill(PhotoDelStyle.elevatedSurface)
-                        .frame(width: 40, height: 40)
+        VStack(spacing: 10) {
+            HStack {
+                Button(action: handleBackAction) {
+                    ZStack {
+                        Circle()
+                            .fill(PhotoDelStyle.elevatedSurface)
+                            .frame(width: 40, height: 40)
 
-                    Image(systemName: "arrow.left")
-                        .font(.system(size: 16, weight: .medium))
+                        Image(systemName: "arrow.left")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(PhotoDelStyle.primaryText)
+                    }
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
+
+                VStack(spacing: 2) {
+                    Text(isAlbumMode ? "相册整理" : "照片整理")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(PhotoDelStyle.primaryText)
+
+                    Text(progressSubtitle)
+                        .font(.system(size: 14, weight: .regular))
+                        .foregroundColor(PhotoDelStyle.secondaryText)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
+                }
+
+                Spacer()
+
+                HStack(spacing: 7) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(PhotoDelStyle.destructive)
+                    Text("\(dataManager.deleteCandidates.count)")
+                        .font(.system(size: 15, weight: .semibold))
                         .foregroundColor(PhotoDelStyle.primaryText)
                 }
-            }
-            .buttonStyle(.plain)
-
-            Spacer()
-
-            // 标题信息
-            VStack(spacing: 2) {
-                Text(isAlbumMode ? "相册整理" : "照片整理")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(PhotoDelStyle.primaryText)
-
-                if isAlbumMode {
-                    Text("\(getDisplayTitle()) · \(totalPhotosCount) 张照片")
-                        .font(.system(size: 14, weight: .regular))
-                        .foregroundColor(PhotoDelStyle.secondaryText)
-                } else {
-                    Text("\(getDisplayTitle()) · \(currentProgress)/\(totalPhotosCount)")
-                        .font(.system(size: 14, weight: .regular))
-                        .foregroundColor(PhotoDelStyle.secondaryText)
-                }
+                .frame(minWidth: 40)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(PhotoDelStyle.surface)
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .stroke(PhotoDelStyle.hairline, lineWidth: 1)
+                        )
+                )
             }
 
-            Spacer()
-
-            // 候选库统计
-            HStack(spacing: 7) {
-                Image(systemName: "trash")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(PhotoDelStyle.destructive)
-                Text("\(dataManager.deleteCandidates.count)")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(PhotoDelStyle.primaryText)
+            if totalPhotosCount > 0 {
+                ProgressView(value: progressFraction)
+                    .progressViewStyle(LinearProgressViewStyle(tint: PhotoDelStyle.accent))
+                    .frame(height: 4)
+                    .clipShape(Capsule(style: .continuous))
+                    .animation(.easeOut(duration: 0.22), value: organizedProgress)
             }
-            .frame(minWidth: 40)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(PhotoDelStyle.surface)
-                    .overlay(
-                        Capsule(style: .continuous)
-                            .stroke(PhotoDelStyle.hairline, lineWidth: 1)
-                    )
-            )
         }
         .padding(.horizontal, 24)
-        .padding(.vertical, 16)
+        .padding(.top, 16)
+        .padding(.bottom, 12)
         .background(PhotoDelStyle.background.opacity(0.86))
         .overlay(
             Rectangle()
@@ -265,6 +278,7 @@ struct SwipePhotoView: View {
                             displaySize: cardSize,
                             targetSize: imageTargetSize(for: cardSize)
                         )
+                        .id(realPhoto.localIdentifier)
                         .offset(dragOffset)
                         .rotationEffect(.degrees(rotationAngle))
                         .scaleEffect(1.0 - abs(dragOffset.width) / 1000)
@@ -506,9 +520,15 @@ struct SwipePhotoView: View {
                 .foregroundColor(PhotoDelStyle.primaryText)
                 .lineLimit(1)
 
-            Text(isAlbumMode ? "\(totalPhotosCount) 张照片" : "\(currentProgress)/\(totalPhotosCount) 已浏览")
+            Text(progressSubtitle)
                 .font(.system(size: 14, weight: .regular))
                 .foregroundColor(PhotoDelStyle.secondaryText)
+
+            if totalPhotosCount > 0 {
+                ProgressView(value: progressFraction)
+                    .progressViewStyle(LinearProgressViewStyle(tint: PhotoDelStyle.accent))
+                    .clipShape(Capsule(style: .continuous))
+            }
 
             HStack(spacing: 12) {
                 Label("\(dataManager.deleteCandidates.count)", systemImage: "trash")
@@ -618,6 +638,14 @@ struct SwipePhotoView: View {
         !didInitializeSession &&
             sessionPhotos.isEmpty &&
             (dataManager.photoLibraryManager.isLoading || dataManager.isPreparingLibrary)
+    }
+
+    private var progressSubtitle: String {
+        guard totalPhotosCount > 0 else {
+            return "\(getDisplayTitle()) · 0 张照片"
+        }
+
+        return "\(getDisplayTitle()) · 已整理 \(organizedProgress)/\(totalPhotosCount)"
     }
 
     private func initializeSessionIfNeeded() {
@@ -995,6 +1023,7 @@ struct RealPhotoCard: View {
     @State private var image: UIImage?
     @State private var isLoading = true
     @State private var requestID: PHImageRequestID?
+    @State private var loadingAssetIdentifier: String?
 
     var body: some View {
         ZStack {
@@ -1069,6 +1098,7 @@ struct RealPhotoCard: View {
         }
         .onDisappear {
             photoLibraryManager.cancelImageRequest(requestID)
+            loadingAssetIdentifier = nil
         }
     }
 
@@ -1148,12 +1178,14 @@ struct RealPhotoCard: View {
         isLoading = true
         image = nil
         let requestedAssetID = asset.localIdentifier
+        loadingAssetIdentifier = requestedAssetID
 
         requestID = photoLibraryManager.loadSwipePreview(for: asset, size: targetSize) { loadedImage in
-            guard asset.localIdentifier == requestedAssetID else { return }
+            guard loadingAssetIdentifier == requestedAssetID else { return }
             self.image = loadedImage
             self.isLoading = false
             self.requestID = nil
+            self.loadingAssetIdentifier = nil
         }
     }
 }
@@ -1305,15 +1337,23 @@ struct BatchConfirmView: View {
         !dataManager.deleteCandidates.isEmpty || !dataManager.favoriteCandidates.isEmpty
     }
 
+    private var deletePreviewAssets: [PHAsset] {
+        sortedAssets(Array(dataManager.deleteCandidates))
+    }
+
+    private var favoritePreviewAssets: [PHAsset] {
+        sortedAssets(Array(dataManager.favoriteCandidates))
+    }
+
     var body: some View {
         ZStack {
             PhotoDelScreenBackground()
 
-            VStack(spacing: 32) {
+            VStack(spacing: 22) {
                 VStack(spacing: 16) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 56, weight: .medium))
-                        .foregroundColor(PhotoDelStyle.positive)
+                    Image(systemName: dataManager.deleteCandidates.isEmpty ? "checkmark.circle.fill" : "trash.circle.fill")
+                        .font(.system(size: 54, weight: .medium))
+                        .foregroundColor(dataManager.deleteCandidates.isEmpty ? PhotoDelStyle.positive : PhotoDelStyle.destructive)
 
                     Text("执行批量操作")
                         .font(.system(size: 24, weight: .semibold))
@@ -1348,6 +1388,34 @@ struct BatchConfirmView: View {
                     }
                 }
 
+                if hasPendingOperations {
+                    ScrollView(showsIndicators: false) {
+                        VStack(spacing: 18) {
+                            if !deletePreviewAssets.isEmpty {
+                                CandidatePreviewSection(
+                                    title: "将删除",
+                                    assets: deletePreviewAssets,
+                                    color: PhotoDelStyle.destructive,
+                                    icon: "trash.fill",
+                                    photoLibraryManager: dataManager.photoLibraryManager
+                                )
+                            }
+
+                            if !favoritePreviewAssets.isEmpty {
+                                CandidatePreviewSection(
+                                    title: "将收藏",
+                                    assets: favoritePreviewAssets,
+                                    color: PhotoDelStyle.iconTint(for: "favorite"),
+                                    icon: "heart.fill",
+                                    photoLibraryManager: dataManager.photoLibraryManager
+                                )
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+                    .frame(maxHeight: 330)
+                }
+
                 VStack(spacing: 12) {
                     Button(action: executeBatchOperations) {
                         Text(isProcessing ? "正在执行..." : "确认执行")
@@ -1363,7 +1431,7 @@ struct BatchConfirmView: View {
                 }
             }
             .padding(.horizontal, 32)
-            .padding(.vertical, 36)
+            .padding(.vertical, 30)
             .photoDelCard()
             .padding(.horizontal, 24)
         }
@@ -1393,6 +1461,138 @@ struct BatchConfirmView: View {
     private func cancelOperations() {
         dataManager.cancelAllOperations()
         dismiss()
+    }
+
+    private func sortedAssets(_ assets: [PHAsset]) -> [PHAsset] {
+        assets.sorted { lhs, rhs in
+            let lhsDate = lhs.creationDate ?? .distantPast
+            let rhsDate = rhs.creationDate ?? .distantPast
+            if lhsDate == rhsDate {
+                return lhs.localIdentifier < rhs.localIdentifier
+            }
+            return lhsDate > rhsDate
+        }
+    }
+}
+
+private struct CandidatePreviewSection: View {
+    let title: String
+    let assets: [PHAsset]
+    let color: Color
+    let icon: String
+    let photoLibraryManager: PhotoLibraryManager
+
+    private let columns = [
+        GridItem(.adaptive(minimum: 64, maximum: 76), spacing: 8)
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(color)
+
+                Text("\(title) \(assets.count) 张")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.primaryText)
+
+                Spacer()
+            }
+
+            LazyVGrid(columns: columns, spacing: 8) {
+                ForEach(assets, id: \.localIdentifier) { asset in
+                    CandidateThumbnailView(
+                        asset: asset,
+                        photoLibraryManager: photoLibraryManager,
+                        badgeColor: color,
+                        badgeIcon: icon
+                    )
+                }
+            }
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(PhotoDelStyle.surface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(color.opacity(0.24), lineWidth: 1)
+                )
+        )
+    }
+}
+
+private struct CandidateThumbnailView: View {
+    let asset: PHAsset
+    let photoLibraryManager: PhotoLibraryManager
+    let badgeColor: Color
+    let badgeIcon: String
+
+    @State private var image: UIImage?
+    @State private var isLoading = true
+    @State private var requestID: PHImageRequestID?
+    @State private var loadingAssetIdentifier: String?
+
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            Group {
+                if let image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    Rectangle()
+                        .fill(PhotoDelStyle.elevatedSurface)
+                        .overlay {
+                            if isLoading {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: PhotoDelStyle.accent))
+                                    .scaleEffect(0.72)
+                            } else {
+                                Image(systemName: "photo")
+                                    .font(.system(size: 18, weight: .medium))
+                                    .foregroundColor(PhotoDelStyle.secondaryText)
+                            }
+                        }
+                }
+            }
+            .frame(width: 70, height: 70)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+            Image(systemName: badgeIcon)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundColor(.white)
+                .frame(width: 22, height: 22)
+                .background(Circle().fill(badgeColor))
+                .overlay(Circle().stroke(PhotoDelStyle.background.opacity(0.8), lineWidth: 1.5))
+                .offset(x: 3, y: 3)
+        }
+        .frame(width: 76, height: 76)
+        .onAppear(perform: loadImage)
+        .onChange(of: asset.localIdentifier) { _ in
+            loadImage()
+        }
+        .onDisappear {
+            photoLibraryManager.cancelImageRequest(requestID)
+            loadingAssetIdentifier = nil
+        }
+    }
+
+    private func loadImage() {
+        photoLibraryManager.cancelImageRequest(requestID)
+        let requestedAssetID = asset.localIdentifier
+        loadingAssetIdentifier = requestedAssetID
+        image = nil
+        isLoading = true
+
+        requestID = photoLibraryManager.loadSwipePreview(for: asset, size: CGSize(width: 220, height: 220)) { loadedImage in
+            guard loadingAssetIdentifier == requestedAssetID else { return }
+            image = loadedImage
+            isLoading = false
+            requestID = nil
+            loadingAssetIdentifier = nil
+        }
     }
 }
 
