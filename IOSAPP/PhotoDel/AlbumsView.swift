@@ -98,7 +98,7 @@ struct AlbumsView: View {
         HStack(alignment: .center, spacing: 14) {
             VStack(alignment: .leading, spacing: 5) {
                 Text("相册")
-                    .font(.system(size: 34, weight: .semibold, design: .rounded))
+                    .font(.system(size: 34, weight: .bold))
                     .foregroundColor(PhotoDelStyle.primaryText)
 
                 Text(albumHeaderSubtitle)
@@ -147,8 +147,8 @@ struct AlbumsView: View {
                 .accessibilityLabel(L10n.string("创建相册"))
             }
         }
-        .padding(.horizontal, 24)
-        .padding(.top, 22)
+        .padding(.horizontal, PhotoDelStyle.screenHorizontalPadding)
+        .padding(.top, 44)
         .padding(.bottom, 12)
     }
 
@@ -192,7 +192,7 @@ struct AlbumsView: View {
                 }
             }
         }
-        .listStyle(.plain)
+        .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .background(Color.clear)
         .environment(\.defaultMinListRowHeight, 0)
@@ -238,7 +238,7 @@ struct AlbumsView: View {
                         .stroke(PhotoDelStyle.hairline, lineWidth: 1)
                 )
         )
-        .listRowInsets(EdgeInsets(top: 4, leading: 24, bottom: 10, trailing: 24))
+        .listRowInsets(EdgeInsets(top: 4, leading: PhotoDelStyle.screenHorizontalPadding, bottom: 10, trailing: PhotoDelStyle.screenHorizontalPadding))
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
     }
@@ -271,7 +271,7 @@ struct AlbumsView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 48)
-        .listRowInsets(EdgeInsets(top: 0, leading: 24, bottom: 0, trailing: 24))
+        .listRowInsets(EdgeInsets(top: 0, leading: PhotoDelStyle.screenHorizontalPadding, bottom: 0, trailing: PhotoDelStyle.screenHorizontalPadding))
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
     }
@@ -294,7 +294,7 @@ struct AlbumsView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 58)
-        .listRowInsets(EdgeInsets(top: 0, leading: 24, bottom: 0, trailing: 24))
+        .listRowInsets(EdgeInsets(top: 0, leading: PhotoDelStyle.screenHorizontalPadding, bottom: 0, trailing: PhotoDelStyle.screenHorizontalPadding))
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
     }
@@ -307,7 +307,7 @@ struct AlbumsView: View {
             .padding(.top, 8)
             .padding(.bottom, 2)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .listRowInsets(EdgeInsets(top: 0, leading: 24, bottom: 0, trailing: 24))
+            .listRowInsets(EdgeInsets(top: 0, leading: PhotoDelStyle.screenHorizontalPadding, bottom: 0, trailing: PhotoDelStyle.screenHorizontalPadding))
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
     }
@@ -341,9 +341,9 @@ struct AlbumsView: View {
                 .tint(.gray)
             }
         }
-        .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
-        .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
+        .listRowBackground(PhotoDelStyle.surface)
+        .listRowSeparatorTint(PhotoDelStyle.hairline)
     }
 
     private var albumHeaderSubtitle: String {
@@ -644,10 +644,8 @@ struct AlbumInfoRow: View {
                     .foregroundColor(PhotoDelStyle.tertiaryText)
             }
         }
-        .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
-        .photoDelCard(radius: 14)
     }
 
     private func loadAlbumThumbnail() {

@@ -277,26 +277,50 @@ private struct OrganizeIntroVisual: View {
 }
 
 private struct SwipeIntroVisual: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let animate: Bool
 
     var body: some View {
         ZStack {
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(PhotoDelStyle.surface.opacity(0.72))
+                .frame(width: 194, height: 212)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .stroke(PhotoDelStyle.hairline, lineWidth: 1)
+                )
+
+            MiniPhotoCard(symbol: "photo", tint: PhotoDelStyle.primaryText.opacity(0.72), width: 122, height: 162)
+                .overlay(
+                    VStack {
+                        Spacer()
+                        HStack(spacing: 22) {
+                            Image(systemName: "arrow.left")
+                            Image(systemName: "arrow.up")
+                            Image(systemName: "arrow.right")
+                        }
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(PhotoDelStyle.accent)
+                        .padding(.bottom, 17)
+                    }
+                )
+                .rotationEffect(.degrees(animate ? -5 : 4))
+                .offset(x: animate ? -20 : 20, y: animate ? -4 : 5)
+
             swipeDestination(
                 symbol: "arrow.left",
                 direction: L10n.string("左滑"),
                 action: L10n.string("删除"),
                 color: PhotoDelStyle.destructive,
-                x: -108,
-                y: 8
+                x: -118,
+                y: 12
             )
             swipeDestination(
                 symbol: "arrow.right",
                 direction: L10n.string("右滑"),
                 action: L10n.string("跳过"),
                 color: PhotoDelStyle.positive,
-                x: 108,
-                y: 8
+                x: 118,
+                y: 12
             )
             swipeDestination(
                 symbol: "arrow.up",
@@ -304,35 +328,10 @@ private struct SwipeIntroVisual: View {
                 action: L10n.string("收藏"),
                 color: PhotoDelStyle.iconTint(for: "favorite"),
                 x: 0,
-                y: -110
+                y: -106
             )
-
-            RoundedRectangle(cornerRadius: 30, style: .continuous)
-                .fill(PhotoDelStyle.surface)
-                .frame(width: 236, height: 236)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 30, style: .continuous)
-                        .stroke(PhotoDelStyle.hairline, lineWidth: 1)
-                )
-
-            MiniPhotoCard(symbol: "photo", tint: PhotoDelStyle.primaryText.opacity(0.72), width: 132, height: 174)
-                .overlay(
-                    VStack {
-                        Spacer()
-                        HStack(spacing: 28) {
-                            Image(systemName: "arrow.left")
-                            Image(systemName: "arrow.up")
-                            Image(systemName: "arrow.right")
-                        }
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(PhotoDelStyle.accent)
-                        .padding(.bottom, 18)
-                    }
-                )
-                .rotationEffect(.degrees(animate ? -7 : 7))
-                .offset(x: animate ? -38 : 38, y: animate ? -6 : 8)
-                .animation(reduceMotion ? nil : .easeInOut(duration: 1.18).repeatForever(autoreverses: true), value: animate)
         }
+        .animation(.spring(response: 0.72, dampingFraction: 0.84), value: animate)
     }
 
     private func swipeDestination(symbol: String, direction: String, action: String, color: Color, x: CGFloat, y: CGFloat) -> some View {
@@ -365,7 +364,7 @@ private struct SwipeIntroVisual: View {
         .scaleEffect(animate ? 1 : 0.88)
         .opacity(animate ? 1 : 0.52)
         .offset(x: x, y: y)
-        .animation(.spring(response: 0.7, dampingFraction: 0.74), value: animate)
+        .animation(.spring(response: 0.72, dampingFraction: 0.86), value: animate)
     }
 }
 
@@ -416,7 +415,7 @@ private struct PrivacyIntroVisual: View {
                 .foregroundColor(PhotoDelStyle.primaryText.opacity(0.76))
             }
         }
-        .animation(reduceMotion ? nil : .easeInOut(duration: 1.35).repeatForever(autoreverses: true), value: animate)
+        .animation(reduceMotion ? nil : .spring(response: 0.72, dampingFraction: 0.86), value: animate)
     }
 }
 
@@ -448,7 +447,7 @@ private struct MiniPhotoCard: View {
                     .stroke(PhotoDelStyle.hairline, lineWidth: 1)
             )
             .frame(width: width, height: height)
-            .shadow(color: .black.opacity(0.24), radius: 18, x: 0, y: 12)
+            .shadow(color: PhotoDelStyle.floatingShadow, radius: 12, x: 0, y: 7)
     }
 }
 

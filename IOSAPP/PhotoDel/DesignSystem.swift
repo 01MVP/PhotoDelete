@@ -11,7 +11,7 @@ enum PhotoDelStyle {
         dark: UIColor(red: 0.035, green: 0.037, blue: 0.042, alpha: 1)
     ))
     static let backgroundTop = Color(uiColor: dynamicUIColor(
-        light: UIColor.systemBackground,
+        light: UIColor.systemGroupedBackground,
         dark: UIColor(red: 0.058, green: 0.06, blue: 0.068, alpha: 1)
     ))
     static let surface = Color(uiColor: dynamicUIColor(
@@ -23,7 +23,11 @@ enum PhotoDelStyle {
         dark: UIColor(white: 1, alpha: 0.105)
     ))
     static let hairline = Color(uiColor: dynamicUIColor(
-        light: UIColor.separator.withAlphaComponent(0.22),
+        light: UIColor.separator.withAlphaComponent(0.14),
+        dark: UIColor(white: 1, alpha: 0.115)
+    ))
+    static let cardStroke = Color(uiColor: dynamicUIColor(
+        light: UIColor.separator.withAlphaComponent(0.08),
         dark: UIColor(white: 1, alpha: 0.115)
     ))
     static let primaryText = Color(uiColor: dynamicUIColor(
@@ -72,8 +76,12 @@ enum PhotoDelStyle {
         dark: UIColor(white: 1.0, alpha: 0.58)
     )
     static let cardShadow = Color(uiColor: dynamicUIColor(
-        light: UIColor(white: 0, alpha: 0.08),
+        light: UIColor(white: 0, alpha: 0.04),
         dark: UIColor(white: 0, alpha: 0)
+    ))
+    static let floatingShadow = Color(uiColor: dynamicUIColor(
+        light: UIColor(white: 0, alpha: 0.08),
+        dark: UIColor(white: 0, alpha: 0.24)
     ))
     #else
     static let background = Color(red: 0.035, green: 0.037, blue: 0.042)
@@ -81,6 +89,7 @@ enum PhotoDelStyle {
     static let surface = Color.white.opacity(0.075)
     static let elevatedSurface = Color.white.opacity(0.105)
     static let hairline = Color.white.opacity(0.115)
+    static let cardStroke = Color.white.opacity(0.115)
     static let primaryText = Color.white.opacity(0.96)
     static let secondaryText = Color.white.opacity(0.62)
     static let tertiaryText = Color.white.opacity(0.42)
@@ -90,10 +99,15 @@ enum PhotoDelStyle {
     static let warning = Color(red: 1.0, green: 0.79, blue: 0.47)
     static let primaryButtonText = Color.black.opacity(0.88)
     static let cardShadow = Color.clear
+    static let floatingShadow = Color.black.opacity(0.24)
     #endif
 
-    static let cardRadius: CGFloat = 18
+    static let screenHorizontalPadding: CGFloat = 20
+    static let cardRadius: CGFloat = 22
     static let controlRadius: CGFloat = 14
+    static let sectionSpacing: CGFloat = 24
+    static let rowIconSize: CGFloat = 32
+    static let rowMinHeight: CGFloat = 58
 
     static func iconTint(for key: String) -> Color {
         switch key {
@@ -143,10 +157,28 @@ struct PhotoDelCardBackground: ViewModifier {
                     .fill(PhotoDelStyle.surface)
                     .overlay(
                         RoundedRectangle(cornerRadius: radius, style: .continuous)
-                            .stroke(PhotoDelStyle.hairline, lineWidth: 1)
+                            .stroke(PhotoDelStyle.cardStroke, lineWidth: 1)
                     )
             )
-            .shadow(color: PhotoDelStyle.cardShadow, radius: 12, x: 0, y: 5)
+    }
+}
+
+struct PhotoDelIconTile: View {
+    let icon: String
+    let tint: Color
+    var size: CGFloat = PhotoDelStyle.rowIconSize
+    var cornerRadius: CGFloat = 9
+    var filled = true
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(filled ? tint : PhotoDelStyle.elevatedSurface)
+            .frame(width: size, height: size)
+            .overlay(
+                Image(systemName: icon)
+                    .font(.system(size: size * 0.48, weight: .semibold))
+                    .foregroundColor(filled ? .white : tint)
+            )
     }
 }
 
@@ -327,7 +359,7 @@ struct PhotoDelToastView: View {
                         .stroke(toast.style.color.opacity(0.34), lineWidth: 1)
                 )
         )
-        .shadow(color: .black.opacity(0.24), radius: 14, x: 0, y: 8)
+        .shadow(color: PhotoDelStyle.floatingShadow, radius: 10, x: 0, y: 5)
     }
 }
 

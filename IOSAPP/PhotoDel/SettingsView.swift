@@ -35,18 +35,19 @@ struct SettingsView: View {
                 PhotoDelScreenBackground()
 
                 ScrollView {
-                    VStack(spacing: 24) {
+                    VStack(spacing: PhotoDelStyle.sectionSpacing) {
                         // 顶部标题
-                        VStack(spacing: 8) {
+                        VStack(alignment: .leading, spacing: 6) {
                             Text(L10n.string("设置"))
-                                .font(.system(size: 28, weight: .semibold))
+                                .font(.system(size: 34, weight: .bold))
                                 .foregroundColor(PhotoDelStyle.primaryText)
 
                             Text(L10n.string("个人设置与偏好"))
                                 .font(.system(size: 16, weight: .regular))
                                 .foregroundColor(PhotoDelStyle.secondaryText)
                         }
-                        .padding(.top, 20)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 44)
 
                         // 使用统计
                         statsSection
@@ -67,7 +68,7 @@ struct SettingsView: View {
                         Spacer()
                             .frame(height: 100)
                     }
-                    .padding(.horizontal, 24)
+                    .padding(.horizontal, PhotoDelStyle.screenHorizontalPadding)
                 }
 
                 if showingWeChatCopied {
@@ -129,7 +130,7 @@ struct SettingsView: View {
         return VStack(spacing: 16) {
             HStack {
                 Text(L10n.string("使用统计"))
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.system(size: 17, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.primaryText)
                 Spacer()
             }
@@ -179,7 +180,7 @@ struct SettingsView: View {
         VStack(spacing: 16) {
             HStack {
                 Text(L10n.string("购买与恢复"))
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.system(size: 17, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.primaryText)
                 Spacer()
             }
@@ -203,7 +204,7 @@ struct SettingsView: View {
         VStack(spacing: 16) {
             HStack {
                 Text(L10n.string("关于与支持"))
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.system(size: 17, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.primaryText)
                 Spacer()
             }
@@ -282,7 +283,7 @@ struct SettingsView: View {
         VStack(spacing: 16) {
             HStack {
                 Text(L10n.string("应用设置"))
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.system(size: 17, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.primaryText)
                 Spacer()
             }
@@ -427,7 +428,7 @@ struct SettingsView: View {
                             .stroke(PhotoDelStyle.hairline, lineWidth: 1)
                     )
             )
-            .shadow(color: .black.opacity(0.24), radius: 12, x: 0, y: 8)
+            .shadow(color: PhotoDelStyle.floatingShadow, radius: 10, x: 0, y: 5)
             .padding(.bottom, 96)
             .transition(.move(edge: .bottom).combined(with: .opacity))
         }
@@ -648,20 +649,7 @@ struct SettingRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
-                // 图标
-                ZStack {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(PhotoDelStyle.elevatedSurface)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(iconColor.opacity(0.36), lineWidth: 1)
-                        )
-                        .frame(width: 32, height: 32)
-
-                    Image(systemName: icon)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(iconColor)
-                }
+                PhotoDelIconTile(icon: icon, tint: iconColor)
 
                 Text(title.appLocalized)
                     .font(.system(size: 16, weight: .medium))
@@ -686,8 +674,9 @@ struct SettingRow: View {
                         .foregroundColor(PhotoDelStyle.tertiaryText)
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .frame(minHeight: PhotoDelStyle.rowMinHeight)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }
@@ -707,19 +696,7 @@ struct SettingToggleRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(PhotoDelStyle.elevatedSurface)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(iconColor.opacity(0.36), lineWidth: 1)
-                    )
-                    .frame(width: 32, height: 32)
-
-                Image(systemName: icon)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(iconColor)
-            }
+            PhotoDelIconTile(icon: icon, tint: iconColor)
 
             Text(title.appLocalized)
                 .font(.system(size: 16, weight: .medium))
@@ -736,8 +713,9 @@ struct SettingToggleRow: View {
                 .accessibilityLabel(Text(title.appLocalized))
                 .accessibilityHint(Text(subtitle.appLocalized))
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(minHeight: PhotoDelStyle.rowMinHeight)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
     }

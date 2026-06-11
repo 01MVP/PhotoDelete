@@ -187,6 +187,20 @@ enum PhotoReviewMode: String, CaseIterable, Identifiable {
         }
     }
 
+    var toggleButtonTitle: String {
+        switch self {
+        case .card: return L10n.string("双行")
+        case .browser: return L10n.string("卡片")
+        }
+    }
+
+    var toggleButtonIcon: String {
+        switch self {
+        case .card: return "rectangle.grid.2x2"
+        case .browser: return "rectangle.portrait"
+        }
+    }
+
     var icon: String {
         switch self {
         case .card: return "rectangle.portrait"

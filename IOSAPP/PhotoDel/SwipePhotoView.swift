@@ -41,6 +41,7 @@ struct SwipePhotoView: View {
     @State private var pendingDeleteCount = 0
     @State private var pendingFavoriteCount = 0
     @State private var pendingSwipeMutations: [String: PendingSwipeMutation] = [:]
+    @State private var browserRows = BrowserPhotoRows.empty
 
     init(
         selectedCategory: PhotoCategory?,
@@ -70,6 +71,23 @@ struct SwipePhotoView: View {
         let asset: PHAsset
         let action: SwipeGestureAction
         let token: UUID
+    }
+
+    private struct BrowserPhotoRows {
+        var top: [BrowserPhotoItem]
+        var bottom: [BrowserPhotoItem]
+
+        static let empty = BrowserPhotoRows(top: [], bottom: [])
+    }
+
+    private struct BrowserPhotoItem: Identifiable {
+        let index: Int
+        let asset: PHAsset
+        let aspectRatio: CGFloat
+        let isScreenshot: Bool
+        let isVideo: Bool
+
+        var id: String { asset.localIdentifier }
     }
 
     private var currentRealPhoto: PHAsset? {
@@ -176,7 +194,7 @@ struct SwipePhotoView: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
-        .sheet(isPresented: $showBatchConfirm, onDismiss: {
+        .fullScreenCover(isPresented: $showBatchConfirm, onDismiss: {
             didInitializeSession = false
             syncPendingOperationCounts()
         }) {
@@ -247,15 +265,25 @@ struct SwipePhotoView: View {
 
                 HStack(spacing: 8) {
                     Button(action: toggleReviewMode) {
-                        ZStack {
-                            Circle()
-                                .fill(PhotoDelStyle.elevatedSurface)
-                                .frame(width: 40, height: 40)
+                        HStack(spacing: 5) {
+                            Image(systemName: reviewMode.toggleButtonIcon)
+                                .font(.system(size: 13, weight: .bold))
 
-                            Image(systemName: reviewMode.icon)
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundColor(PhotoDelStyle.accent)
+                            Text(reviewMode.toggleButtonTitle)
+                                .font(.system(size: 13, weight: .bold))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.78)
                         }
+                        .foregroundColor(PhotoDelStyle.accent)
+                        .frame(width: 68, height: 40)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(PhotoDelStyle.accent.opacity(0.14))
+                                .overlay(
+                                    Capsule(style: .continuous)
+                                        .stroke(PhotoDelStyle.accent.opacity(0.42), lineWidth: 1)
+                                )
+                        )
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(L10n.string("切换整理模式"))
@@ -410,12 +438,15 @@ struct SwipePhotoView: View {
                 isInDeleteCandidates: isAssetQueuedForDelete(asset),
                 isInFavoriteCandidates: isAssetQueuedForFavorite(asset),
                 displaySize: cardSize,
-                targetSize: imageTargetSize(for: cardSize),
-                leftAction: configuredAction(for: SwipeGestureDirection.left),
-                rightAction: configuredAction(for: SwipeGestureDirection.right),
-                upAction: configuredAction(for: SwipeGestureDirection.up)
+                targetSize: imageTargetSize(for: cardSize)
             )
             .id(asset.localIdentifier)
+            .overlay {
+                if let feedback = dragFeedback(for: dragOffset) {
+                    PhotoSwipeDragFeedbackView(feedback: feedback)
+                        .allowsHitTesting(false)
+                }
+            }
             .offset(dragOffset)
             .rotationEffect(.degrees(rotationAngle))
             .scaleEffect(1.0 - abs(dragOffset.width) / 1000)
@@ -442,6 +473,32 @@ struct SwipePhotoView: View {
         }
     }
 
+    private func dragFeedback(for translation: CGSize) -> PhotoSwipeDragFeedbackState? {
+        let previewStart: CGFloat = 14
+        let commitDistance: CGFloat = 100
+        guard let direction = dominantSwipeDirection(for: translation, threshold: previewStart) else {
+            return nil
+        }
+        guard direction != .down else { return nil }
+
+        let distance: CGFloat
+        switch direction {
+        case .left, .right:
+            distance = abs(translation.width)
+        case .up, .down:
+            distance = abs(translation.height)
+        }
+
+        let progress = min(max((distance - previewStart) / (commitDistance - previewStart), 0), 1)
+        guard progress > 0 else { return nil }
+
+        return PhotoSwipeDragFeedbackState(
+            direction: direction,
+            action: configuredAction(for: direction),
+            progress: progress
+        )
+    }
+
     private func browserPhotoArea(in containerSize: CGSize) -> some View {
         let tileHeight = browserTileHeight(in: containerSize)
         let rowSpacing: CGFloat = 12
@@ -453,13 +510,13 @@ struct SwipePhotoView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     VStack(alignment: .leading, spacing: rowSpacing) {
                         browserPhotoRow(
-                            indices: browserRowIndices(startingAt: 0),
+                            items: browserRows.top,
                             tileHeight: tileHeight,
                             containerWidth: containerSize.width
                         )
 
                         browserPhotoRow(
-                            indices: browserRowIndices(startingAt: 1),
+                            items: browserRows.bottom,
                             tileHeight: tileHeight,
                             containerWidth: containerSize.width
                         )
@@ -481,35 +538,33 @@ struct SwipePhotoView: View {
         .padding(.top, 12)
     }
 
-    private func browserPhotoRow(indices: [Int], tileHeight: CGFloat, containerWidth: CGFloat) -> some View {
+    private func browserPhotoRow(items: [BrowserPhotoItem], tileHeight: CGFloat, containerWidth: CGFloat) -> some View {
         LazyHStack(alignment: .center, spacing: 12) {
-            ForEach(indices, id: \.self) { index in
-                let asset = sessionPhotos[index]
-                let tileSize = browserTileSize(for: asset, baseHeight: tileHeight, containerWidth: containerWidth)
+            ForEach(items) { item in
+                let asset = item.asset
+                let tileSize = browserTileSize(for: item, baseHeight: tileHeight, containerWidth: containerWidth)
 
                 BrowserPhotoTile(
                     asset: asset,
                     photoLibraryManager: dataManager.photoLibraryManager,
-                    isSelected: index == currentPhotoIndex,
+                    isSelected: item.index == currentPhotoIndex,
                     isReviewed: isAssetLocallyReviewed(asset),
                     isInDeleteCandidates: isAssetQueuedForDelete(asset),
                     isInFavoriteCandidates: isAssetQueuedForFavorite(asset),
+                    isScreenshot: item.isScreenshot,
+                    isVideo: item.isVideo,
                     displaySize: tileSize,
                     targetSize: browserImageTargetSize(for: tileSize),
                     onSelect: {
-                        selectBrowserPhoto(at: index)
+                        selectBrowserPhoto(at: item.index)
                     },
                     onSwipeUpToDelete: {
-                        handleBrowserSwipeUpDelete(asset, at: index)
+                        handleBrowserSwipeUpDelete(asset, at: item.index)
                     }
                 )
                 .id(asset.localIdentifier)
             }
         }
-    }
-
-    private func browserRowIndices(startingAt startIndex: Int) -> [Int] {
-        stride(from: startIndex, to: sessionPhotos.count, by: 2).map { $0 }
     }
 
     private var browserStatusStrip: some View {
@@ -892,6 +947,7 @@ struct SwipePhotoView: View {
     private func refreshSessionPhotos(_ photos: [PHAsset]? = nil) {
         let photos = photos ?? filteredRealPhotos
         sessionPhotos = photos
+        rebuildBrowserRows(for: photos)
         sessionReviewedCount = dataManager.reviewedCount(in: photos)
         if didInitializeSession {
             currentPhotoIndex = min(currentPhotoIndex, max(photos.count - 1, 0))
@@ -902,6 +958,38 @@ struct SwipePhotoView: View {
             showCompletionMessage = !photos.isEmpty
         }
         preloadUpcomingImages(from: currentPhotoIndex)
+    }
+
+    private func rebuildBrowserRows(for photos: [PHAsset]) {
+        guard !photos.isEmpty else {
+            browserRows = .empty
+            return
+        }
+
+        let screenshotIDs = Set(dataManager.photoLibraryManager.screenshots.map(\.localIdentifier))
+        var top: [BrowserPhotoItem] = []
+        var bottom: [BrowserPhotoItem] = []
+        top.reserveCapacity((photos.count + 1) / 2)
+        bottom.reserveCapacity(photos.count / 2)
+
+        for (index, asset) in photos.enumerated() {
+            let aspectRatio = asset.pixelHeight > 0 ? CGFloat(asset.pixelWidth) / CGFloat(asset.pixelHeight) : 0.78
+            let item = BrowserPhotoItem(
+                index: index,
+                asset: asset,
+                aspectRatio: aspectRatio,
+                isScreenshot: screenshotIDs.contains(asset.localIdentifier) || asset.mediaSubtypes.contains(.photoScreenshot),
+                isVideo: asset.mediaType == .video
+            )
+
+            if index.isMultiple(of: 2) {
+                top.append(item)
+            } else {
+                bottom.append(item)
+            }
+        }
+
+        browserRows = BrowserPhotoRows(top: top, bottom: bottom)
     }
 
     private func preloadUpcomingImages(from index: Int) {
@@ -958,17 +1046,16 @@ struct SwipePhotoView: View {
         return min(232, max(126, (availableHeight - rowSpacing) / 2))
     }
 
-    private func browserTileSize(for asset: PHAsset, baseHeight: CGFloat, containerWidth: CGFloat) -> CGSize {
-        let aspectRatio = asset.pixelHeight > 0 ? CGFloat(asset.pixelWidth) / CGFloat(asset.pixelHeight) : 0.78
-        let normalizedAspect = min(max(aspectRatio, 0.56), 1.72)
+    private func browserTileSize(for item: BrowserPhotoItem, baseHeight: CGFloat, containerWidth: CGFloat) -> CGSize {
+        let normalizedAspect = min(max(item.aspectRatio, 0.56), 1.72)
         let width = min(max(baseHeight * normalizedAspect, baseHeight * 0.58), min(containerWidth * 0.72, baseHeight * 1.72))
         return CGSize(width: width, height: baseHeight)
     }
 
     private func browserImageTargetSize(for displaySize: CGSize) -> CGSize {
-        let scale = min(displayScale, 2)
-        let width = min(displaySize.width * scale, 520)
-        let height = min(displaySize.height * scale, 520)
+        let scale = min(displayScale, 1.45)
+        let width = min(displaySize.width * scale, 380)
+        let height = min(displaySize.height * scale, 380)
         return CGSize(width: width, height: height)
     }
 
@@ -1487,6 +1574,8 @@ private struct BrowserPhotoTile: View {
     let isReviewed: Bool
     let isInDeleteCandidates: Bool
     let isInFavoriteCandidates: Bool
+    let isScreenshot: Bool
+    let isVideo: Bool
     let displaySize: CGSize
     let targetSize: CGSize
     let onSelect: () -> Void
@@ -1521,7 +1610,7 @@ private struct BrowserPhotoTile: View {
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .stroke(isSelected ? PhotoDelStyle.accent : PhotoDelStyle.hairline, lineWidth: isSelected ? 2 : 1)
         )
-        .shadow(color: .black.opacity(0.2), radius: isSelected ? 10 : 5, x: 0, y: isSelected ? 6 : 3)
+        .shadow(color: isSelected ? .black.opacity(0.18) : .clear, radius: isSelected ? 6 : 0, x: 0, y: isSelected ? 3 : 0)
         .offset(y: verticalOffset)
         .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .onTapGesture(perform: onSelect)
@@ -1564,15 +1653,9 @@ private struct BrowserPhotoTile: View {
                     )
                 )
                 .overlay {
-                    if isLoading {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: PhotoDelStyle.accent))
-                            .scaleEffect(0.9)
-                    } else {
-                        Image(systemName: "photo")
-                            .font(.system(size: 24, weight: .medium))
-                            .foregroundColor(PhotoDelStyle.secondaryText)
-                    }
+                    Image(systemName: "photo")
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundColor(PhotoDelStyle.secondaryText.opacity(isLoading ? 0.34 : 0.7))
                 }
         }
     }
@@ -1584,11 +1667,11 @@ private struct BrowserPhotoTile: View {
                 BrowserPhotoBadge(icon: "checkmark", color: PhotoDelStyle.positive)
             }
 
-            if asset.mediaType == .video {
+            if isVideo {
                 BrowserPhotoBadge(icon: "play.fill", color: .black.opacity(0.56))
             }
 
-            if photoLibraryManager.isScreenshot(asset) {
+            if isScreenshot {
                 BrowserPhotoBadge(icon: "camera.viewfinder", color: .black.opacity(0.56))
             }
         }
@@ -1658,13 +1741,13 @@ private struct BrowserPhotoTile: View {
 
     private var accessibilityValue: String {
         var values: [String] = []
-        values.append(asset.mediaType == .video ? L10n.string("视频") : L10n.string("照片"))
+        values.append(isVideo ? L10n.string("视频") : L10n.string("照片"))
 
         if isSelected {
             values.append(L10n.string("当前照片"))
         }
 
-        if photoLibraryManager.isScreenshot(asset) {
+        if isScreenshot {
             values.append(L10n.string("截图"))
         }
 
@@ -1718,9 +1801,6 @@ private struct SwipePhotoCardFrame: View {
     let isInFavoriteCandidates: Bool
     let displaySize: CGSize
     let targetSize: CGSize
-    let leftAction: SwipeGestureAction
-    let rightAction: SwipeGestureAction
-    let upAction: SwipeGestureAction
 
     var body: some View {
         RealPhotoCard(
@@ -1731,81 +1811,128 @@ private struct SwipePhotoCardFrame: View {
             displaySize: displaySize,
             targetSize: targetSize
         )
-        .overlay {
-            PhotoSwipeEdgeGlow(
-                leftColor: leftAction.tint,
-                rightColor: rightAction.tint,
-                topColor: upAction.tint
-            )
-            .allowsHitTesting(false)
-        }
-        .overlay(alignment: .top) {
-            SwipeEdgeHint(
-                icon: SwipeGestureDirection.up.icon,
-                title: "\(SwipeGestureDirection.up.title)\(upAction.title)",
-                color: upAction.tint
-            )
-            .padding(.top, 16)
-        }
-        .overlay(alignment: .bottomLeading) {
-            SwipeEdgeHint(
-                icon: SwipeGestureDirection.left.icon,
-                title: "\(SwipeGestureDirection.left.title)\(leftAction.title)",
-                color: leftAction.tint
-            )
-            .padding(.leading, 14)
-            .padding(.bottom, 16)
-        }
-        .overlay(alignment: .bottomTrailing) {
-            SwipeEdgeHint(
-                icon: SwipeGestureDirection.right.icon,
-                title: "\(SwipeGestureDirection.right.title)\(rightAction.title)",
-                color: rightAction.tint,
-                iconPlacement: .trailing
-            )
-            .padding(.trailing, 14)
-            .padding(.bottom, 16)
-        }
     }
 }
 
-private struct PhotoSwipeEdgeGlow: View {
-    let leftColor: Color
-    let rightColor: Color
-    let topColor: Color
+private struct PhotoSwipeDragFeedbackState {
+    let direction: SwipePhotoView.SwipeDirection
+    let action: SwipeGestureAction
+    let progress: CGFloat
+}
+
+private struct PhotoSwipeDragFeedbackView: View {
+    let feedback: PhotoSwipeDragFeedbackState
 
     var body: some View {
         ZStack {
+            feedbackGlow
+            hint
+        }
+        .opacity(0.18 + feedback.progress * 0.82)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    @ViewBuilder
+    private var feedbackGlow: some View {
+        switch feedback.direction {
+        case .left:
             HStack(spacing: 0) {
                 LinearGradient(
-                    colors: [leftColor.opacity(0.52), leftColor.opacity(0.18), .clear],
+                    colors: glowColors,
                     startPoint: .leading,
                     endPoint: .trailing
                 )
-                .frame(width: 52)
+                .frame(width: glowWidth)
 
+                Spacer(minLength: 0)
+            }
+        case .right:
+            HStack(spacing: 0) {
                 Spacer(minLength: 0)
 
                 LinearGradient(
-                    colors: [.clear, rightColor.opacity(0.18), rightColor.opacity(0.52)],
+                    colors: glowColors.reversed(),
                     startPoint: .leading,
                     endPoint: .trailing
                 )
-                .frame(width: 52)
+                .frame(width: glowWidth)
             }
-
+        case .up:
             VStack(spacing: 0) {
                 LinearGradient(
-                    colors: [topColor.opacity(0.24), .clear],
+                    colors: glowColors,
                     startPoint: .top,
                     endPoint: .bottom
                 )
-                .frame(height: 86)
+                .frame(height: 72 + feedback.progress * 34)
 
                 Spacer(minLength: 0)
             }
+        case .down:
+            EmptyView()
         }
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    @ViewBuilder
+    private var hint: some View {
+        switch feedback.direction {
+        case .left:
+            VStack {
+                Spacer()
+                HStack {
+                    SwipeEdgeHint(
+                        icon: SwipeGestureDirection.left.icon,
+                        title: "\(SwipeGestureDirection.left.title)\(feedback.action.title)",
+                        color: feedback.action.tint
+                    )
+                    .padding(.leading, 14)
+                    .padding(.bottom, 16)
+                    .offset(x: -10 + feedback.progress * 10)
+                    Spacer()
+                }
+            }
+        case .right:
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    SwipeEdgeHint(
+                        icon: SwipeGestureDirection.right.icon,
+                        title: "\(SwipeGestureDirection.right.title)\(feedback.action.title)",
+                        color: feedback.action.tint,
+                        iconPlacement: .trailing
+                    )
+                    .padding(.trailing, 14)
+                    .padding(.bottom, 16)
+                    .offset(x: 10 - feedback.progress * 10)
+                }
+            }
+        case .up:
+            VStack {
+                SwipeEdgeHint(
+                    icon: SwipeGestureDirection.up.icon,
+                    title: "\(SwipeGestureDirection.up.title)\(feedback.action.title)",
+                    color: feedback.action.tint
+                )
+                .padding(.top, 16)
+                .offset(y: -10 + feedback.progress * 10)
+                Spacer()
+            }
+        case .down:
+            EmptyView()
+        }
+    }
+
+    private var glowColors: [Color] {
+        [
+            feedback.action.tint.opacity(0.16 + feedback.progress * 0.36),
+            feedback.action.tint.opacity(0.06 + feedback.progress * 0.16),
+            .clear
+        ]
+    }
+
+    private var glowWidth: CGFloat {
+        36 + feedback.progress * 36
     }
 }
 

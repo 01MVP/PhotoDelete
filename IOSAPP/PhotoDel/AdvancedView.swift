@@ -43,35 +43,39 @@ struct AdvancedView: View {
                             )
                         }
 
-                        AdvancedTimeScopePicker(selectedScope: $selectedScope)
+                        if isPreparingRealAdvancedData {
+                            AdvancedLibraryPreparingCard(progress: advancedLoadingProgress)
+                        } else {
+                            AdvancedTimeScopePicker(selectedScope: $selectedScope)
 
-                        AdvancedPeriodNavigator(
-                            summary: selectedPeriod,
-                            canGoForward: canAdvance(from: selectedPeriod),
-                            onPrevious: { moveSelectedPeriod(by: -1) },
-                            onNext: { moveSelectedPeriod(by: 1) }
-                        )
+                            AdvancedPeriodNavigator(
+                                summary: selectedPeriod,
+                                canGoForward: canAdvance(from: selectedPeriod),
+                                onPrevious: { moveSelectedPeriod(by: -1) },
+                                onNext: { moveSelectedPeriod(by: 1) }
+                            )
 
-                        AdvancedPeriodProgressCard(summary: selectedPeriod, isDemo: isLocked)
+                            AdvancedPeriodProgressCard(summary: selectedPeriod, isDemo: isLocked)
 
-                        periodProgressSection(
-                            summaries: periodSummaries,
-                            selectedPeriod: selectedPeriod,
-                            isLocked: isLocked
-                        )
+                            periodProgressSection(
+                                summaries: periodSummaries,
+                                selectedPeriod: selectedPeriod,
+                                isLocked: isLocked
+                            )
 
-                        periodActionCard(summary: selectedPeriod, isLocked: isLocked)
+                            periodActionCard(summary: selectedPeriod, isLocked: isLocked)
 
-                        cleanupEntrySection(
-                            queues: snapshot.cleanupQueues,
-                            isLocked: isLocked
-                        )
+                            cleanupEntrySection(
+                                queues: snapshot.cleanupQueues,
+                                isLocked: isLocked
+                            )
+                        }
 
                         Spacer()
                             .frame(height: isLocked ? 220 : 96)
                     }
-                    .padding(.horizontal, 24)
-                    .padding(.top, 20)
+                    .padding(.horizontal, PhotoDelStyle.screenHorizontalPadding)
+                    .padding(.top, 44)
                     .opacity(isLocked ? 0.42 : 1)
                     .allowsHitTesting(!isLocked)
                 }
@@ -103,7 +107,13 @@ struct AdvancedView: View {
         .onChange(of: dataManager.latestCleanupCelebration) { _ in
             scheduleAdvancedDashboardRefresh()
         }
+        .onReceive(dataManager.photoLibraryManager.$isLoading) { isLoading in
+            if !isLoading {
+                scheduleAdvancedDashboardRefresh()
+            }
+        }
         .onReceive(dataManager.photoLibraryManager.$allPhotos) { _ in
+            guard !isPreparingRealAdvancedData else { return }
             scheduleAdvancedDashboardRefresh()
         }
         .task {
@@ -119,6 +129,22 @@ struct AdvancedView: View {
             return summaries
         }
         return demoPeriodSummaries(for: selectedScope)
+    }
+
+    private var isPreparingRealAdvancedData: Bool {
+        !isLocked &&
+            dataManager.photoLibraryManager.hasPhotoLibraryAccess &&
+            (
+                dataManager.isPreparingLibrary ||
+                dataManager.photoLibraryManager.isLoading ||
+                !dataManager.photoLibraryManager.hasLoadedPhotoLibrary
+            )
+    }
+
+    private var advancedLoadingProgress: Double {
+        let progress = dataManager.photoLibraryManager.loadingProgress
+        guard progress > 0 else { return 0.04 }
+        return min(max(progress, 0.04), 1)
     }
 
     private var isShowingActivePeriodRoute: Binding<Bool> {
@@ -137,7 +163,7 @@ struct AdvancedView: View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
                     Text(L10n.string("进阶"))
-                        .font(.system(size: 30, weight: .semibold))
+                        .font(.system(size: 34, weight: .bold))
                         .foregroundColor(PhotoDelStyle.primaryText)
 
                     if isLocked {
@@ -154,14 +180,18 @@ struct AdvancedView: View {
 
             Spacer()
 
-            Button(action: isLocked ? purchaseSupporter : {}) {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(PhotoDelStyle.primaryText)
-                    .frame(width: 38, height: 38)
-                    .background(Circle().fill(PhotoDelStyle.elevatedSurface))
+            if !isLocked && dataManager.photoLibraryManager.hasPhotoLibraryAccess {
+                Button(action: refreshAdvancedDataFromHeader) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(isPreparingRealAdvancedData ? PhotoDelStyle.tertiaryText : PhotoDelStyle.primaryText)
+                        .frame(width: 38, height: 38)
+                        .background(Circle().fill(PhotoDelStyle.elevatedSurface))
+                }
+                .buttonStyle(.plain)
+                .disabled(isPreparingRealAdvancedData)
+                .accessibilityLabel(L10n.string("刷新进阶数据"))
             }
-            .buttonStyle(.plain)
         }
     }
 
@@ -173,7 +203,7 @@ struct AdvancedView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text(L10n.string("时间进度"))
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.system(size: 17, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.primaryText)
 
                 Spacer()
@@ -247,7 +277,7 @@ struct AdvancedView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text(L10n.string("清理入口"))
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.system(size: 17, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.primaryText)
 
                 Spacer()
@@ -377,6 +407,12 @@ struct AdvancedView: View {
         Task { await purchaseManager.restorePurchases() }
     }
 
+    private func refreshAdvancedDataFromHeader() {
+        HapticManager.impact(.light)
+        dataManager.reloadLibraryData(showPreparing: true)
+        scheduleAdvancedDashboardRefresh()
+    }
+
     private func scheduleAdvancedDashboardRefresh() {
         advancedRefreshWorkItem?.cancel()
         let workItem = DispatchWorkItem {
@@ -390,6 +426,8 @@ struct AdvancedView: View {
         if resetSelectedPeriod {
             selectedPeriodDate = Date()
         }
+
+        guard !isPreparingRealAdvancedData else { return }
 
         if isLocked || !dataManager.photoLibraryManager.hasPhotoLibraryAccess {
             dashboardSnapshot = AdvancedLibrarySnapshot.demo(referenceDate: Date())
@@ -735,7 +773,7 @@ private struct AdvancedBottomPaywall: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(.horizontal, 24)
+        .padding(.horizontal, PhotoDelStyle.screenHorizontalPadding)
         .padding(.top, 16)
         .padding(.bottom, 28)
         .frame(maxWidth: .infinity)
@@ -748,6 +786,43 @@ private struct AdvancedBottomPaywall: View {
                 )
                 .ignoresSafeArea(edges: .bottom)
         )
+    }
+}
+
+private struct AdvancedLibraryPreparingCard: View {
+    let progress: Double
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .center, spacing: 13) {
+                ZStack {
+                    Circle()
+                        .fill(PhotoDelStyle.accent.opacity(0.14))
+                        .frame(width: 42, height: 42)
+
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: PhotoDelStyle.accent))
+                        .scaleEffect(0.82)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(L10n.string("正在整理照片数据"))
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundColor(PhotoDelStyle.primaryText)
+
+                    Text(L10n.string("首次打开会在本机扫描照片、截图和视频，完成后自动显示真实进阶入口。"))
+                        .font(.system(size: 13, weight: .regular))
+                        .foregroundColor(PhotoDelStyle.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            ProgressView(value: progress)
+                .progressViewStyle(LinearProgressViewStyle(tint: PhotoDelStyle.accent))
+                .accessibilityLabel(L10n.string("照片数据整理进度"))
+        }
+        .padding(16)
+        .photoDelCard(radius: 16)
     }
 }
 
@@ -792,7 +867,7 @@ private struct AdvancedPeriodListView: View {
                     Spacer()
                         .frame(height: 72)
                 }
-                .padding(24)
+                .padding(PhotoDelStyle.screenHorizontalPadding)
             }
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -894,7 +969,7 @@ private struct AdvancedAssetListView: View {
                     Spacer()
                         .frame(height: selectedAssetIDs.isEmpty ? 86 : 146)
                 }
-                .padding(24)
+                .padding(PhotoDelStyle.screenHorizontalPadding)
             }
 
             if !selectedAssetIDs.isEmpty {
@@ -1487,7 +1562,7 @@ private struct AdvancedSelectionActionBar: View {
             )
         }
         .buttonStyle(.plain)
-        .padding(.horizontal, 24)
+        .padding(.horizontal, PhotoDelStyle.screenHorizontalPadding)
         .padding(.bottom, 24)
         .background(
             PhotoDelStyle.background.opacity(0.92)
@@ -1556,7 +1631,7 @@ private struct AdvancedFeatureHeader: View {
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(title)
-                    .font(.system(size: 28, weight: .semibold))
+                    .font(.system(size: 30, weight: .bold))
                     .foregroundColor(PhotoDelStyle.primaryText)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)

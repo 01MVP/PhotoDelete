@@ -55,8 +55,8 @@ struct HomeView: View {
 
                     ScrollView {
                         homeContent(isLandscape: isLandscape)
-                            .padding(.horizontal, isLandscape ? 32 : 24)
-                            .padding(.top, isLandscape ? 18 : 24)
+                            .padding(.horizontal, isLandscape ? 32 : PhotoDelStyle.screenHorizontalPadding)
+                            .padding(.top, isLandscape ? 18 : 44)
                             .padding(.bottom, 112)
                             .frame(maxWidth: isLandscape ? 900 : 520)
                             .frame(maxWidth: .infinity)
@@ -99,7 +99,7 @@ struct HomeView: View {
                     .frame(maxWidth: .infinity)
                 }
             } else {
-                VStack(spacing: 22) {
+                VStack(spacing: PhotoDelStyle.sectionSpacing) {
                     titleSection
                     introSection(isCompact: false)
                     primaryOrganizeSection(isCompact: false)
@@ -108,7 +108,7 @@ struct HomeView: View {
                 }
             }
         } else {
-            VStack(spacing: 22) {
+            VStack(spacing: PhotoDelStyle.sectionSpacing) {
                 titleSection
                 introSection(isCompact: false)
                 authorizationSection
@@ -170,7 +170,7 @@ struct HomeView: View {
                 )
             }
             .padding(isCompact ? 16 : 18)
-            .photoDelCard(radius: 18)
+            .photoDelCard()
             .transition(.opacity.combined(with: .move(edge: .top)))
         }
     }
@@ -180,15 +180,16 @@ struct HomeView: View {
     }
 
     private var titleSection: some View {
-        VStack(spacing: 7) {
+        VStack(alignment: .leading, spacing: 6) {
             Text("PhotoDel")
-                .font(.system(size: 34, weight: .semibold, design: .rounded))
+                .font(.system(size: 34, weight: .bold))
                 .foregroundColor(PhotoDelStyle.primaryText)
 
             Text(titleSubtitle)
                 .font(.system(size: 15, weight: .regular))
                 .foregroundColor(dataManager.photoLibraryManager.hasPhotoLibraryAccess ? PhotoDelStyle.secondaryText : PhotoDelStyle.accent)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var titleSubtitle: String {
@@ -256,19 +257,33 @@ struct HomeView: View {
     }
 
     private var categorySkeletonSection: some View {
-        VStack(spacing: 16) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("快速入口")
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.system(size: 17, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.primaryText)
                 Spacer()
             }
+            .padding(.horizontal, 2)
 
-            VStack(spacing: 12) {
-                CategorySkeletonCard(title: PhotoCategory.all.title, icon: "photo.on.rectangle")
-                CategorySkeletonCard(title: PhotoCategory.videos.title, icon: "video")
-                CategorySkeletonCard(title: PhotoCategory.screenshots.title, icon: "iphone")
+            VStack(spacing: 0) {
+                let skeletons: [(String, String)] = [
+                    (PhotoCategory.all.title, "photo.on.rectangle"),
+                    (PhotoCategory.videos.title, "video"),
+                    (PhotoCategory.screenshots.title, "iphone")
+                ]
+
+                ForEach(Array(skeletons.enumerated()), id: \.offset) { index, item in
+                    CategorySkeletonCard(title: item.0, icon: item.1)
+
+                    if index != skeletons.count - 1 {
+                        Divider()
+                            .background(PhotoDelStyle.hairline)
+                            .padding(.leading, 62)
+                    }
+                }
             }
+            .photoDelCard()
         }
     }
 
@@ -295,21 +310,19 @@ struct HomeView: View {
 
     // MARK: - 主整理入口
     private func startOrganizingSection(isCompact: Bool) -> some View {
-        VStack(alignment: .leading, spacing: isCompact ? 16 : 22) {
+        VStack(alignment: .leading, spacing: isCompact ? 16 : 18) {
             HStack(alignment: .top, spacing: 14) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(PhotoDelStyle.elevatedSurface)
-                        .frame(width: isCompact ? 46 : 54, height: isCompact ? 46 : 54)
-
-                    Image(systemName: "photo.on.rectangle.angled")
-                        .font(.system(size: isCompact ? 19 : 23, weight: .semibold))
-                        .foregroundColor(PhotoDelStyle.accent)
-                }
+                PhotoDelIconTile(
+                    icon: "photo.on.rectangle.angled",
+                    tint: PhotoDelStyle.accent,
+                    size: isCompact ? 44 : 52,
+                    cornerRadius: 14,
+                    filled: false
+                )
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text("开始整理照片")
-                        .font(.system(size: isCompact ? 22 : 26, weight: .semibold))
+                        .font(.system(size: isCompact ? 21 : 24, weight: .semibold))
                         .foregroundColor(PhotoDelStyle.primaryText)
 
                     Text("滑动整理照片，完成前不会真正删除。手势可在设置里调整。")
@@ -349,8 +362,8 @@ struct HomeView: View {
                 .padding(.vertical, 3)
             }
         }
-        .padding(isCompact ? 18 : 22)
-        .photoDelCard(radius: 20)
+        .padding(isCompact ? 18 : 20)
+        .photoDelCard()
     }
 
     // MARK: - 快速入口区域
@@ -359,16 +372,17 @@ struct HomeView: View {
         if isLibraryPreparing {
             categorySkeletonSection
         } else {
-            VStack(spacing: 14) {
+            VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text("快速入口")
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(.system(size: 17, weight: .semibold))
                         .foregroundColor(PhotoDelStyle.primaryText)
                     Spacer()
                 }
+                .padding(.horizontal, 2)
 
-                VStack(spacing: 10) {
-                    ForEach(PhotoCategory.allCases, id: \.rawValue) { category in
+                VStack(spacing: 0) {
+                    ForEach(Array(PhotoCategory.allCases.enumerated()), id: \.element.rawValue) { index, category in
                         HomeEntryRow(
                             icon: category.icon,
                             title: category.title,
@@ -377,8 +391,15 @@ struct HomeView: View {
                         ) {
                             navigationPath.append(SwipeViewDestination.category(category))
                         }
+
+                        if index != PhotoCategory.allCases.count - 1 {
+                            Divider()
+                                .background(PhotoDelStyle.hairline)
+                                .padding(.leading, 62)
+                        }
                     }
                 }
+                .photoDelCard()
             }
         }
     }
@@ -387,16 +408,17 @@ struct HomeView: View {
     @ViewBuilder
     private var timelineSection: some View {
         if !isLibraryPreparing && !dataManager.timeGroups.isEmpty {
-            VStack(spacing: 14) {
+            VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text("按时间整理")
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(.system(size: 17, weight: .semibold))
                         .foregroundColor(PhotoDelStyle.primaryText)
                     Spacer()
                 }
+                .padding(.horizontal, 2)
 
-                VStack(spacing: 10) {
-                    ForEach(dataManager.timeGroups) { timeGroupInfo in
+                VStack(spacing: 0) {
+                    ForEach(Array(dataManager.timeGroups.enumerated()), id: \.element.id) { index, timeGroupInfo in
                         HomeEntryRow(
                             icon: timeGroupInfo.timeGroup.icon,
                             title: timeGroupInfo.timeGroup.title,
@@ -405,8 +427,15 @@ struct HomeView: View {
                         ) {
                             navigationPath.append(SwipeViewDestination.timeGroup(timeGroupInfo.timeGroup.rawValue))
                         }
+
+                        if index != dataManager.timeGroups.count - 1 {
+                            Divider()
+                                .background(PhotoDelStyle.hairline)
+                                .padding(.leading, 62)
+                        }
                     }
                 }
+                .photoDelCard()
             }
         }
     }
@@ -493,18 +522,10 @@ struct HomeEntryRow: View {
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(PhotoDelStyle.elevatedSurface)
-                        .frame(width: 38, height: 38)
-
-                    Image(systemName: icon)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(tint)
-                }
+                PhotoDelIconTile(icon: icon, tint: tint)
 
                 Text(title.appLocalized)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 16, weight: .medium))
                     .foregroundColor(PhotoDelStyle.primaryText)
                     .lineLimit(1)
 
@@ -521,9 +542,9 @@ struct HomeEntryRow: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
+            .frame(minHeight: PhotoDelStyle.rowMinHeight)
         }
         .buttonStyle(.plain)
-        .photoDelCard(radius: 15)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
     }
@@ -591,14 +612,7 @@ struct CategorySkeletonCard: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Circle()
-                .fill(PhotoDelStyle.elevatedSurface)
-                .frame(width: 42, height: 42)
-                .overlay(
-                    Image(systemName: icon)
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(PhotoDelStyle.secondaryText)
-                )
+            PhotoDelIconTile(icon: icon, tint: PhotoDelStyle.secondaryText, filled: false)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(title.appLocalized)
@@ -617,7 +631,7 @@ struct CategorySkeletonCard: View {
                 .foregroundColor(PhotoDelStyle.tertiaryText)
         }
         .padding(14)
-        .photoDelCard()
+        .frame(minHeight: PhotoDelStyle.rowMinHeight)
     }
 }
 
