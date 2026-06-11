@@ -13,7 +13,7 @@ PhotoDel is an iOS app for photo organization and deletion with intuitive swipe 
 cd IOSAPP
 open PhotoDel.xcodeproj
 # Build and run through Xcode interface
-# Target: iOS 15.0+
+# Target: iOS 16.0+
 ```
 
 ### Project Cleanup
@@ -39,12 +39,12 @@ xcodebuild clean -project PhotoDel.xcodeproj -scheme PhotoDel
 **View Layer:**
 - `PhotoDelApp.swift`: App entry point with dark mode configuration
 - `ContentView.swift` + `MainTabView.swift`: Navigation structure
-- `SplashView.swift`: Loading and permissions
 - `HomeView.swift`: Photo categories and time groups with progress indicators
 - `SwipePhotoView.swift`: Core swipe gesture interface
+- `SwipePhotoView.swift` also contains `RealPhotoCard` and `BatchConfirmView`
 - `AlbumsView.swift`: Album management
 - `SettingsView.swift`: Statistics and configuration
-- `DeleteConfirmView.swift`: Batch operation confirmation
+- `SupporterView.swift`: Supporter features and long-term statistics
 
 ### Key Architecture Patterns
 
@@ -64,7 +64,7 @@ xcodebuild clean -project PhotoDel.xcodeproj -scheme PhotoDel
 - Down swipe: Skip photo
 
 ### Batch Operations
-All real deletions and favorites are queued and executed via `executeBatchOperations()` when user confirms in DeleteConfirmView.
+All real deletions and favorites are queued and executed via `executeBatchOperations()` when user confirms in `BatchConfirmView`.
 
 ## Photos Framework Integration
 
@@ -79,7 +79,7 @@ All real deletions and favorites are queued and executed via `executeBatchOperat
 <key>NSPhotoLibraryUsageDescription</key>
 <string>这个应用需要访问您的照片库来帮助您整理和管理照片</string>
 <key>NSPhotoLibraryAddUsageDescription</key>
-<string>这个应用需要访问您的照片库来保存整理后的照片</string>
+<string>这个应用需要访问您的照片库来把照片加入您选择的相册</string>
 ```
 
 ### Authorization States

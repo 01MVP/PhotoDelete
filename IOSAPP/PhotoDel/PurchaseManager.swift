@@ -121,11 +121,9 @@ final class PurchaseManager: ObservableObject {
             }
         }
 
+        setSupporter(hasCurrentSupporterEntitlement)
         if hasCurrentSupporterEntitlement {
-            setSupporter(true)
             errorMessage = nil
-        } else if !isSupporter {
-            setSupporter(false)
         }
     }
 
@@ -139,6 +137,8 @@ final class PurchaseManager: ObservableObject {
 
             if transaction.revocationDate == nil {
                 setSupporter(true)
+            } else {
+                setSupporter(false)
             }
             await transaction.finish()
         }

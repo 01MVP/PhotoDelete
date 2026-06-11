@@ -52,7 +52,7 @@ struct SupporterView: View {
             .navigationTitle(L10n.string("支持者版"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button(L10n.string("完成")) {
                         dismiss()
                     }

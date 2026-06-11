@@ -17,6 +17,7 @@ struct SettingsView: View {
     @EnvironmentObject var dataManager: DataManager
     @EnvironmentObject var purchaseManager: PurchaseManager
     @AppStorage("hasSeenPhotoDelIntro") private var hasSeenPhotoDelIntro = false
+    @AppStorage("hasCompletedPhotoDelOnboarding") private var hasCompletedOnboarding = false
     @AppStorage(AppConstants.hapticsEnabledKey) private var hapticsEnabled = true
     @AppStorage(AppConstants.appLanguageKey) private var appLanguageValue = AppLanguage.system.rawValue
     @AppStorage(AppConstants.leftSwipeActionKey) private var leftSwipeActionValue = SwipeGesturePreset.standard.leftAction.rawValue
@@ -30,6 +31,7 @@ struct SettingsView: View {
     @State private var showingGestureSettings = false
     @State private var showingLanguageSettings = false
     @State private var showingWeChatCopied = false
+    @State private var showingClearLocalDataConfirmation = false
     @State private var settingsToast: PhotoDelToast?
 
     var body: some View {
@@ -82,7 +84,7 @@ struct SettingsView: View {
                 }
             }
         }
-        .navigationBarHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $showingMailCompose) {
             #if canImport(MessageUI)
             if MFMailComposeViewController.canSendMail() {
@@ -118,6 +120,18 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $showingLanguageSettings) {
             LanguageSettingsView()
+        }
+        .confirmationDialog(
+            L10n.string("清空本机整理记录？"),
+            isPresented: $showingClearLocalDataConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button(L10n.string("清空"), role: .destructive) {
+                clearLocalOrganizeData()
+            }
+            Button(L10n.string("取消"), role: .cancel) {}
+        } message: {
+            Text(L10n.string("待删除、待收藏和已整理进度会被清空，不会删除照片库中的任何照片。"))
         }
     }
 
@@ -300,7 +314,7 @@ struct SettingsView: View {
                     title: L10n.string("照片访问权限"),
                     subtitle: photoAccessSubtitle,
                     action: {
-                        dataManager.openPhotoLibrarySettings()
+                        dataManager.managePhotoLibraryAccessSettings()
                     }
                 )
 
@@ -342,7 +356,9 @@ struct SettingsView: View {
                     title: L10n.string("本机整理数据"),
                     subtitle: localDataSubtitle,
                     showsChevron: false,
-                    action: clearLocalOrganizeData
+                    action: {
+                        showingClearLocalDataConfirmation = true
+                    }
                 )
 
                 Divider()
@@ -434,7 +450,7 @@ struct SettingsView: View {
         case .authorized:
             return L10n.string("已允许访问全部照片")
         case .limited:
-            return L10n.string("当前仅可访问 \(dataManager.photoLibraryManager.totalPhotosCount) 张照片")
+            return L10n.string("当前仅可访问 \(dataManager.photoLibraryManager.totalPhotosCount) 张照片，点击管理")
         case .denied, .restricted:
             return L10n.string("未授权，点击前往系统设置")
         case .notDetermined:
@@ -521,6 +537,7 @@ struct SettingsView: View {
 
     private func resetIntro() {
         hasSeenPhotoDelIntro = false
+        hasCompletedOnboarding = false
         showSettingsToast(L10n.string("已恢复开屏引导"), icon: "sparkles", style: .positive)
     }
 
@@ -687,7 +704,7 @@ struct GestureSettingsView: View {
             .navigationTitle(L10n.string("手势控制"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button(L10n.string("完成")) {
                         dismiss()
                     }
@@ -1015,7 +1032,7 @@ private struct LanguageSettingsView: View {
             .navigationTitle(L10n.string("语言"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button(L10n.string("完成")) {
                         dismiss()
                     }
@@ -1136,7 +1153,7 @@ struct AuthorView: View {
             .navigationTitle(L10n.string("了解作者"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button(L10n.string("完成")) {
                         dismiss()
                     }
@@ -1223,7 +1240,7 @@ struct PrivacyInfoView: View {
             .navigationTitle(L10n.string("隐私"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button(L10n.string("完成")) {
                         dismiss()
                     }
@@ -1319,7 +1336,7 @@ struct AboutView: View {
             .navigationTitle(L10n.string("关于"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button(L10n.string("完成")) {
                         dismiss()
                     }

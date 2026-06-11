@@ -8,7 +8,7 @@
 
 在我们的项目中，`Info.plist` 文件通常位于：
 ```
-IOSAPP/PhotoDel/Info.plist
+IOSAPP/Config/PhotoDel-Info.plist
 ```
 
 **注意**：在较新版本的 Xcode 中，`Info.plist` 的一些设置可能会被集成到项目的 Target 设置中，但文件本身仍然存在。
@@ -29,7 +29,7 @@ IOSAPP/PhotoDel/Info.plist
 <string>PhotoDel需要访问您的照片库来帮助您整理和管理照片。我们不会上传或分享您的照片。</string>
 
 <key>NSPhotoLibraryAddUsageDescription</key>
-<string>PhotoDel需要此权限来保存整理后的照片到您的照片库。</string>
+<string>PhotoDel需要权限来把照片加入您选择的相册。</string>
 ```
 
 ### 3. 应用图标和启动画面
@@ -52,7 +52,7 @@ IOSAPP/PhotoDel/Info.plist
 
 <!-- 添加照片到照片库权限 -->
 <key>NSPhotoLibraryAddUsageDescription</key>
-<string>PhotoDel需要此权限来保存整理后的照片到您的照片库。</string>
+<string>PhotoDel需要权限来把照片加入您选择的相册。</string>
 ```
 
 ### 应用基本信息

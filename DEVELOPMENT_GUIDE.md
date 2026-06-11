@@ -98,8 +98,8 @@ xcrun simctl erase "iPhone 16"
 - 照片库访问权限（NSPhotoLibraryUsageDescription）
 
 ### 支持的iOS版本
-- 最低支持：iOS 14.0
-- 推荐测试：iOS 18.5
+- 最低支持：iOS 16.0
+- 推荐测试：当前可用的最新 iOS 模拟器和一台真机
 
 ## 常见问题解决
 

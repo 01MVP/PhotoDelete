@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/iOS-15.0%2B-blue" alt="iOS 15.0+" />
+  <img src="https://img.shields.io/badge/iOS-16.0%2B-blue" alt="iOS 16.0+" />
   <img src="https://img.shields.io/badge/SwiftUI-✓-orange" alt="SwiftUI" />
   <img src="https://img.shields.io/badge/License-Free-green" alt="Free" />
   <img src="https://img.shields.io/badge/Privacy-On--Device-brightgreen" alt="On-Device" />
@@ -75,8 +75,8 @@ Create, edit, and delete custom albums. Quick-sort buttons appear in the swipe v
 
 ### Requirements
 
-- Xcode 14.0+
-- iOS 15.0+ deployment target
+- Xcode 16.4+
+- iOS 16.0+ deployment target
 - A physical device recommended for Photos framework testing
 
 ### Build & Run
@@ -93,7 +93,7 @@ Select a simulator or device target, then build and run (Cmd+R).
 ```bash
 cd IOSAPP
 xcodebuild -project PhotoDel.xcodeproj -scheme PhotoDel \
-  -destination 'platform=iOS Simulator,name=iPhone 16' clean build
+  -destination 'platform=iOS Simulator,name=iPhone 17' clean build
 ```
 
 ---
@@ -113,10 +113,12 @@ IOSAPP/PhotoDel/
 ├── SwipePhotoView.swift        # Core swipe gesture interface
 ├── AlbumsView.swift            # Album CRUD
 ├── SettingsView.swift          # Stats & configuration
-├── DeleteConfirmView.swift     # Batch delete confirmation
-├── RealPhotoView.swift         # Real photo display
-└── SplashView.swift            # Loading & permissions
+├── SupporterView.swift         # Supporter features and long-term stats
+├── PurchaseManager.swift       # StoreKit supporter entitlement handling
+└── Localizable.xcstrings       # Localized user-facing strings
 ```
+
+`SwipePhotoView.swift` also contains `RealPhotoCard` and `BatchConfirmView`, which are kept with the core swipe workflow.
 
 ### Key Patterns
 

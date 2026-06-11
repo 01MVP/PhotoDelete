@@ -26,13 +26,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "PhotoDel needs permission to save processed photos to your library."
+            "value": "PhotoDel needs permission to add photos to albums you choose."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "PhotoDel需要权限来保存处理后的照片到您的相册。"
+            "value": "PhotoDel需要权限来把照片加入您选择的相册。"
           }
         }
       }

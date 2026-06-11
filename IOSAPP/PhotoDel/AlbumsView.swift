@@ -22,6 +22,8 @@ struct AlbumsView: View {
     @State private var showSearchBar = false
     @State private var sortMode: AlbumSortMode = .custom
     @State private var editMode: EditMode = .inactive
+    @State private var pendingAlbumToDelete: PHAssetCollection?
+    @State private var showingDeleteAlbumConfirmation = false
     @State private var albumToast: PhotoDelToast?
 
     var body: some View {
@@ -44,7 +46,7 @@ struct AlbumsView: View {
                 }
             }
         }
-        .navigationBarHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $showingCreateAlbum) {
             CreateAlbumView()
                 .environmentObject(dataManager)
@@ -58,6 +60,22 @@ struct AlbumsView: View {
         .sheet(item: $selectedAlbumInfo) { albumInfo in
             SwipePhotoView(selectedCategory: nil, selectedTimeGroup: nil, selectedAlbumInfo: albumInfo)
                 .environmentObject(dataManager)
+        }
+        .confirmationDialog(
+            L10n.string("删除这个相册？"),
+            isPresented: $showingDeleteAlbumConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button(L10n.string("删除相册"), role: .destructive) {
+                guard let pendingAlbumToDelete else { return }
+                deleteAlbum(pendingAlbumToDelete)
+                self.pendingAlbumToDelete = nil
+            }
+            Button(L10n.string("取消"), role: .cancel) {
+                pendingAlbumToDelete = nil
+            }
+        } message: {
+            Text(L10n.string("只会删除相册，不会删除相册里的照片。"))
         }
         .onChange(of: sortMode) { mode in
             guard mode != .custom else { return }
@@ -297,7 +315,7 @@ struct AlbumsView: View {
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             if allowsActions, let collection = albumInfo.assetCollection {
                 Button(role: .destructive) {
-                    deleteAlbum(collection)
+                    confirmDeleteAlbum(collection)
                 } label: {
                     Label("删除", systemImage: "trash")
                 }
@@ -451,6 +469,12 @@ struct AlbumsView: View {
 
         HapticManager.impact(.light)
         selectedAlbumInfo = albumInfo
+    }
+
+    private func confirmDeleteAlbum(_ album: PHAssetCollection) {
+        guard album.assetCollectionType == .album else { return }
+        pendingAlbumToDelete = album
+        showingDeleteAlbumConfirmation = true
     }
 
     private func deleteAlbum(_ album: PHAssetCollection) {
@@ -708,7 +732,7 @@ struct CreateAlbumView: View {
             .navigationTitle("创建相册")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button("取消") {
                         dismiss()
                     }
@@ -833,7 +857,7 @@ struct EditAlbumView: View {
             .navigationTitle("编辑相册")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button("取消") {
                         dismiss()
                     }

@@ -1,6 +1,8 @@
 import Foundation
 import Photos
+import PhotosUI
 import SwiftUI
+import UIKit
 
 class PhotoLibraryManager: NSObject, ObservableObject {
     @Published var authorizationStatus: PHAuthorizationStatus = .notDetermined
@@ -22,9 +24,14 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     private var isRestoringSnapshot = false
 
     private var isObserverRegistered = false
+    var onLibraryDataChanged: (() -> Void)?
 
     var hasPhotoLibraryAccess: Bool {
         authorizationStatus == .authorized || authorizationStatus == .limited
+    }
+
+    var hasLimitedPhotoLibraryAccess: Bool {
+        authorizationStatus == .limited
     }
 
     var hasCachedPhotoLibrarySnapshot: Bool {
@@ -76,6 +83,15 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         }
     }
 
+    func presentLimitedLibraryPicker() {
+        guard hasLimitedPhotoLibraryAccess,
+              let presentingViewController = UIApplication.shared.topMostViewController else {
+            return
+        }
+
+        PHPhotoLibrary.shared().presentLimitedLibraryPicker(from: presentingViewController)
+    }
+
     // MARK: - Load Photos
 
     func restoreCachedPhotoLibrary(completion: @escaping (Bool) -> Void) {
@@ -123,14 +139,14 @@ class PhotoLibraryManager: NSObject, ObservableObject {
 
         DispatchQueue.global(qos: .utility).async { [weak self] in
             guard let self else { return }
-            let countsChanged =
-                PHAsset.fetchAssets(with: self.defaultPhotoFetchOptions()).count != self.allPhotos.count ||
-                self.fetchAssetCount(mediaType: .video) != self.videos.count ||
-                self.fetchFavoriteAssetCount() != self.favorites.count ||
-                self.fetchSmartAlbumAssetCount(.smartAlbumScreenshots) != self.screenshots.count
+            let identifiersChanged =
+                self.assetIdentifiers(from: PHAsset.fetchAssets(with: self.defaultPhotoFetchOptions())) != self.allPhotos.map(\.localIdentifier) ||
+                self.assetIdentifiers(from: self.fetchAssets(mediaType: .video)) != self.videos.map(\.localIdentifier) ||
+                self.assetIdentifiers(from: self.fetchFavoriteAssets()) != self.favorites.map(\.localIdentifier) ||
+                self.assetIdentifiers(from: self.fetchSmartAlbumAssets(.smartAlbumScreenshots)) != self.screenshots.map(\.localIdentifier)
 
             DispatchQueue.main.async {
-                if countsChanged {
+                if identifiersChanged {
                     self.loadPhotos(preserveExistingData: true) {
                         completion?(true)
                     }
@@ -162,6 +178,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             loadingProgress = 0
         }
 
+        let screenPixelSize = Self.currentScreenPixelSize()
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
 
@@ -190,6 +207,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                     self.hasLoadedPhotoLibrary = true
                     self.saveSnapshot(allPhotos: [], videos: [], screenshots: [], favorites: [])
                     self.finishLoadingPhotos()
+                    self.onLibraryDataChanged?()
                 }
                 return
             }
@@ -219,7 +237,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             }
 
             // 异步分类照片，避免阻塞
-            self.categorizePhotos(allPhotosArray) { videos, screenshots, favorites in
+            self.categorizePhotos(allPhotosArray, screenPixelSize: screenPixelSize) { videos, screenshots, favorites in
                 DispatchQueue.main.async {
                     self.allPhotos = allPhotosArray
                     self.videos = videos
@@ -235,6 +253,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                         favorites: favorites
                     )
                     self.finishLoadingPhotos()
+                    self.onLibraryDataChanged?()
                 }
             }
         }
@@ -246,7 +265,11 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         completions.forEach { $0() }
     }
 
-    private func categorizePhotos(_ photos: [PHAsset], completion: @escaping ([PHAsset], [PHAsset], [PHAsset]) -> Void) {
+    private func categorizePhotos(
+        _ photos: [PHAsset],
+        screenPixelSize: CGSize,
+        completion: @escaping ([PHAsset], [PHAsset], [PHAsset]) -> Void
+    ) {
         DispatchQueue.global(qos: .utility).async { [weak self] in
             guard let self = self else { return }
 
@@ -262,7 +285,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                 for asset in batch {
                     if asset.mediaType == .video {
                         videos.append(asset)
-                    } else if self.isScreenshot(asset) {
+                    } else if self.isScreenshot(asset, screenPixelSize: screenPixelSize) {
                         screenshots.append(asset)
                     }
                 }
@@ -292,6 +315,10 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     // MARK: - Photo Classification
 
     func isScreenshot(_ asset: PHAsset) -> Bool {
+        isScreenshot(asset, screenPixelSize: Self.currentScreenPixelSize())
+    }
+
+    private func isScreenshot(_ asset: PHAsset, screenPixelSize: CGSize) -> Bool {
         // 检查截图的特征
         if #available(iOS 9.0, *) {
             // 通过资源子类型判断
@@ -301,11 +328,9 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         }
 
         // 备用方法：通过设备尺寸判断
-        let screenScale = UIScreen.main.scale
-        let screenSize = UIScreen.main.bounds.size
         let assetSize = CGSize(width: CGFloat(asset.pixelWidth), height: CGFloat(asset.pixelHeight))
-        let screenLongSide = max(screenSize.width, screenSize.height) * screenScale
-        let screenShortSide = min(screenSize.width, screenSize.height) * screenScale
+        let screenLongSide = max(screenPixelSize.width, screenPixelSize.height)
+        let screenShortSide = min(screenPixelSize.width, screenPixelSize.height)
         let assetLongSide = max(assetSize.width, assetSize.height)
         let assetShortSide = min(assetSize.width, assetSize.height)
 
@@ -331,6 +356,24 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         expectLocalLibraryChange()
         PHPhotoLibrary.shared().performChanges({
             for asset in assets {
+                let request = PHAssetChangeRequest(for: asset)
+                request.isFavorite = true
+            }
+        }) { success, error in
+            DispatchQueue.main.async {
+                completion(success, error)
+            }
+        }
+    }
+
+    func commitBatchChanges(deleteAssets: [PHAsset], favoriteAssets: [PHAsset], completion: @escaping (Bool, Error?) -> Void) {
+        expectLocalLibraryChange()
+        PHPhotoLibrary.shared().performChanges({
+            if !deleteAssets.isEmpty {
+                PHAssetChangeRequest.deleteAssets(deleteAssets as NSArray)
+            }
+
+            for asset in favoriteAssets {
                 let request = PHAssetChangeRequest(for: asset)
                 request.isFavorite = true
             }
@@ -367,12 +410,12 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             DispatchQueue.main.async {
                 let isCancelled = (info?[PHImageCancelledKey] as? Bool) == true
                 let isInCloud = (info?[PHImageResultIsInCloudKey] as? Bool) == true
+                let isDegraded = (info?[PHImageResultIsDegradedKey] as? Bool) == true
                 guard !isCancelled else { return }
 
                 // 缓存图片
                 if let image = image {
-                    let cost = Int(image.size.width * image.size.height * 4) // 估算内存使用
-                    self?.imageCache.setObject(image, forKey: cacheKey, cost: cost)
+                    self?.cacheImage(image, forKey: cacheKey, isDegraded: isDegraded)
                 } else if isInCloud {
                     return
                 }
@@ -405,11 +448,11 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             DispatchQueue.main.async {
                 let isCancelled = (info?[PHImageCancelledKey] as? Bool) == true
                 let isInCloud = (info?[PHImageResultIsInCloudKey] as? Bool) == true
+                let isDegraded = (info?[PHImageResultIsDegradedKey] as? Bool) == true
                 guard !isCancelled else { return }
 
                 if let image {
-                    let cost = Int(image.size.width * image.size.height * 4)
-                    self?.imageCache.setObject(image, forKey: cacheKey, cost: cost)
+                    self?.cacheImage(image, forKey: cacheKey, isDegraded: isDegraded)
                 } else if isInCloud {
                     return
                 }
@@ -443,12 +486,12 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             DispatchQueue.main.async {
                 let isCancelled = (info?[PHImageCancelledKey] as? Bool) == true
                 let isInCloud = (info?[PHImageResultIsInCloudKey] as? Bool) == true
+                let isDegraded = (info?[PHImageResultIsDegradedKey] as? Bool) == true
                 let error = info?[PHImageErrorKey] as? Error
                 guard !isCancelled else { return }
 
                 if let image {
-                    let cost = Int(image.size.width * image.size.height * 4)
-                    self?.imageCache.setObject(image, forKey: cacheKey, cost: cost)
+                    self?.cacheImage(image, forKey: cacheKey, isDegraded: isDegraded)
                     completion(image)
                 } else if isInCloud && error == nil {
                     return
@@ -481,6 +524,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         isLoading = false
         hasLoadedPhotoLibrary = true
         saveSnapshot(allPhotos: allPhotos, videos: videos, screenshots: screenshots, favorites: favorites)
+        onLibraryDataChanged?()
     }
 
     func preloadImagesForAssets(_ assets: [PHAsset], size: CGSize, maxCount: Int = 10) {
@@ -542,11 +586,11 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             DispatchQueue.main.async {
                 let isCancelled = (info?[PHImageCancelledKey] as? Bool) == true
                 let isInCloud = (info?[PHImageResultIsInCloudKey] as? Bool) == true
+                let isDegraded = (info?[PHImageResultIsDegradedKey] as? Bool) == true
                 guard !isCancelled else { return }
 
                 if let image {
-                    let cost = Int(image.size.width * image.size.height * 4)
-                    self?.imageCache.setObject(image, forKey: cacheKey, cost: cost)
+                    self?.cacheImage(image, forKey: cacheKey, isDegraded: isDegraded)
                 } else if isInCloud {
                     return
                 }
@@ -622,6 +666,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         hasLoadedPhotoLibrary = true
         saveSnapshot(allPhotos: allPhotos, videos: videos, screenshots: screenshots, favorites: favorites)
         finishLoadingPhotos()
+        onLibraryDataChanged?()
     }
 
     private func rebuildCachedAssets(from fetchResult: PHFetchResult<PHAsset>) {
@@ -633,7 +678,8 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                 photos.append(asset)
             }
 
-            self.categorizePhotos(photos) { videos, screenshots, favorites in
+            let screenPixelSize = Self.currentScreenPixelSize()
+            self.categorizePhotos(photos, screenPixelSize: screenPixelSize) { videos, screenshots, favorites in
                 DispatchQueue.main.async {
                     self.allPhotos = photos
                     self.videos = videos
@@ -644,6 +690,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                     self.hasLoadedPhotoLibrary = true
                     self.saveSnapshot(allPhotos: photos, videos: videos, screenshots: screenshots, favorites: favorites)
                     self.finishLoadingPhotos()
+                    self.onLibraryDataChanged?()
                 }
             }
         }
@@ -701,6 +748,12 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         }
     }
 
+    private func cacheImage(_ image: UIImage, forKey cacheKey: NSString, isDegraded: Bool) {
+        guard !isDegraded else { return }
+        let cost = Int(image.size.width * image.size.height * 4)
+        imageCache.setObject(image, forKey: cacheKey, cost: cost)
+    }
+
     private func defaultPhotoFetchOptions() -> PHFetchOptions {
         let fetchOptions = PHFetchOptions()
         fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
@@ -719,26 +772,41 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         return identifiers.compactMap { assetsByID[$0] }
     }
 
-    private func fetchAssetCount(mediaType: PHAssetMediaType) -> Int {
+    private func fetchAssets(mediaType: PHAssetMediaType) -> PHFetchResult<PHAsset> {
         let options = PHFetchOptions()
         options.predicate = NSPredicate(format: "mediaType == %d", mediaType.rawValue)
-        return PHAsset.fetchAssets(with: options).count
+        options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+        return PHAsset.fetchAssets(with: options)
     }
 
-    private func fetchFavoriteAssetCount() -> Int {
+    private func fetchFavoriteAssets() -> PHFetchResult<PHAsset> {
         let options = PHFetchOptions()
         options.predicate = NSPredicate(format: "isFavorite == YES")
-        return PHAsset.fetchAssets(with: options).count
+        options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+        return PHAsset.fetchAssets(with: options)
     }
 
-    private func fetchSmartAlbumAssetCount(_ subtype: PHAssetCollectionSubtype) -> Int {
+    private func fetchSmartAlbumAssets(_ subtype: PHAssetCollectionSubtype) -> PHFetchResult<PHAsset> {
         let collections = PHAssetCollection.fetchAssetCollections(
             with: .smartAlbum,
             subtype: subtype,
             options: nil
         )
-        guard let collection = collections.firstObject else { return 0 }
-        return PHAsset.fetchAssets(in: collection, options: nil).count
+        guard let collection = collections.firstObject else {
+            return PHAsset.fetchAssets(withLocalIdentifiers: [], options: nil)
+        }
+        let options = PHFetchOptions()
+        options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+        return PHAsset.fetchAssets(in: collection, options: options)
+    }
+
+    private func assetIdentifiers(from fetchResult: PHFetchResult<PHAsset>) -> [String] {
+        var identifiers: [String] = []
+        identifiers.reserveCapacity(fetchResult.count)
+        fetchResult.enumerateObjects { asset, _, _ in
+            identifiers.append(asset.localIdentifier)
+        }
+        return identifiers
     }
 
     private func saveSnapshot(allPhotos: [PHAsset], videos: [PHAsset], screenshots: [PHAsset], favorites: [PHAsset]) {
@@ -797,5 +865,58 @@ extension PhotoLibraryManager: PHPhotoLibraryChangeObserver {
                 self.rebuildCachedAssets(from: changes.fetchResultAfterChanges)
             }
         }
+    }
+}
+
+private extension PhotoLibraryManager {
+    static func currentScreenPixelSize() -> CGSize {
+        if Thread.isMainThread {
+            return readCurrentScreenPixelSize()
+        }
+
+        var pixelSize = CGSize(width: 390 * 3, height: 844 * 3)
+        DispatchQueue.main.sync {
+            pixelSize = readCurrentScreenPixelSize()
+        }
+        return pixelSize
+    }
+
+    static func readCurrentScreenPixelSize() -> CGSize {
+        let screen = UIScreen.main
+        return CGSize(
+            width: screen.bounds.width * screen.scale,
+            height: screen.bounds.height * screen.scale
+        )
+    }
+}
+
+private extension UIApplication {
+    var topMostViewController: UIViewController? {
+        connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+            .first { $0.isKeyWindow }?
+            .rootViewController?
+            .topMostPresentedViewController
+    }
+}
+
+private extension UIViewController {
+    var topMostPresentedViewController: UIViewController {
+        if let presentedViewController {
+            return presentedViewController.topMostPresentedViewController
+        }
+
+        if let navigationController = self as? UINavigationController,
+           let visibleViewController = navigationController.visibleViewController {
+            return visibleViewController.topMostPresentedViewController
+        }
+
+        if let tabBarController = self as? UITabBarController,
+           let selectedViewController = tabBarController.selectedViewController {
+            return selectedViewController.topMostPresentedViewController
+        }
+
+        return self
     }
 }

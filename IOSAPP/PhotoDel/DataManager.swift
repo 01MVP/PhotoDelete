@@ -8,6 +8,7 @@
 import SwiftUI
 import Photos
 import UIKit
+import Combine
 
 class DataManager: ObservableObject {
     @Published var organizeStats = OrganizeStats()
@@ -37,6 +38,8 @@ class DataManager: ObservableObject {
     private var isFetchingAlbums = false
     private var timeGroupCache: [TimeGroup: [PHAsset]] = [:]
     private var progressRefreshWorkItem: DispatchWorkItem?
+    private var libraryDataRefreshWorkItem: DispatchWorkItem?
+    private var cancellables: Set<AnyCancellable> = []
     private let reviewedAssetIDsKey = "photoDelReviewedAssetIDs"
 
     init(cleanupStatsStore: CleanupStatsStore = CleanupStatsStore()) {
@@ -46,6 +49,17 @@ class DataManager: ObservableObject {
     }
 
     private func setupPhotoLibraryManager() {
+        photoLibraryManager.objectWillChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+            .store(in: &cancellables)
+
+        photoLibraryManager.onLibraryDataChanged = { [weak self] in
+            self?.scheduleLibraryDataRefresh()
+        }
+
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             self.syncPhotoLibraryAuthorization()
@@ -111,6 +125,14 @@ class DataManager: ObservableObject {
         UIApplication.shared.open(settingsURL)
     }
 
+    func managePhotoLibraryAccessSettings() {
+        if photoLibraryManager.hasLimitedPhotoLibraryAccess {
+            photoLibraryManager.presentLimitedLibraryPicker()
+        } else {
+            openPhotoLibrarySettings()
+        }
+    }
+
     func reloadLibraryData(showPreparing: Bool = true) {
         guard photoLibraryManager.hasPhotoLibraryAccess else {
             isPreparingLibrary = false
@@ -124,6 +146,7 @@ class DataManager: ObservableObject {
 
         photoLibraryManager.loadPhotos(preserveExistingData: !showPreparing) { [weak self] in
             guard let self else { return }
+            self.pruneReviewedAssetIDs()
             self.loadTimeGroups()
             self.loadAlbums(showLoading: !self.hasLoadedAlbums)
             self.updateStats()
@@ -146,12 +169,14 @@ class DataManager: ObservableObject {
                 return
             }
 
+            self.pruneReviewedAssetIDs()
             self.loadTimeGroups()
             _ = self.restoreCachedAlbums()
             self.updateStats()
 
             self.photoLibraryManager.refreshPhotoLibraryIfNeeded { [weak self] didRefreshLibrary in
                 guard let self else { return }
+                self.pruneReviewedAssetIDs()
                 self.loadTimeGroups()
                 if didRefreshLibrary {
                     self.hasLoadedAlbums = false
@@ -216,85 +241,43 @@ class DataManager: ObservableObject {
         let originalDeleteCandidates = deleteCandidates
         let originalFavoriteCandidates = favoriteCandidates
 
-        let group = DispatchGroup()
-        var hasError = false
-        var lastError: Error?
-        var completedOperations: [(() -> Void)] = []
-
-        // 批量删除
-        if !deleteCandidates.isEmpty {
-            group.enter()
-            let assetsToDelete = Array(deleteCandidates)
-            photoLibraryManager.deletePhotos(assetsToDelete) { success, error in
-                if success {
-                    // 记录成功的操作以便回滚
-                    completedOperations.append {
-                        // 删除操作无法回滚，但可以记录
-                        print("删除操作已完成，无法回滚")
-                    }
-                } else {
-                    hasError = true
-                    lastError = error
-                }
-                group.leave()
-            }
-        }
-
-        // 批量收藏
-        if !favoriteCandidates.isEmpty {
-            group.enter()
-            let assetsToFavorite = Array(favoriteCandidates)
-            photoLibraryManager.addToFavorites(assetsToFavorite) { success, error in
-                if success {
-                    // 记录成功的操作以便回滚
-                    completedOperations.append {
-                        // 可以回滚收藏操作
-                        for asset in assetsToFavorite {
-                            self.toggleFavoriteStatus(asset, shouldFavorite: false)
-                        }
-                    }
-                } else {
-                    hasError = true
-                    lastError = error
-                }
-                group.leave()
-            }
-        }
-
-        group.notify(queue: .main) {
-            if !hasError {
-                // 操作成功后先做本地增量更新，避免重新跑整库索引。
-                self.photoLibraryManager.applyCommittedBatchChanges(
-                    deletedAssets: Array(originalDeleteCandidates),
-                    favoritedAssets: Array(originalFavoriteCandidates)
-                )
-                self.cleanupStatsStore.recordSession(
-                    deletedPhotos: originalDeleteCandidates.count,
-                    favoritedPhotos: originalFavoriteCandidates.count,
-                    organizedPhotos: originalDeleteCandidates.count + originalFavoriteCandidates.count,
-                    estimatedSpaceSavedMB: Double(originalDeleteCandidates.count) * 3.0
-                )
-                self.deleteCandidates.removeAll()
-                self.favoriteCandidates.removeAll()
-                self.refreshDerivedLibraryData()
-                completion(true, nil)
-            } else {
-                // 操作失败，恢复原始状态
+        photoLibraryManager.commitBatchChanges(
+            deleteAssets: Array(originalDeleteCandidates),
+            favoriteAssets: Array(originalFavoriteCandidates)
+        ) { success, error in
+            guard success else {
                 self.deleteCandidates = originalDeleteCandidates
                 self.favoriteCandidates = originalFavoriteCandidates
                 self.updateStats()
 
-                // 如果部分操作成功，可以选择回滚（这里简化处理）
                 let enhancedError = NSError(domain: "PhotoDelError", code: 1002, userInfo: [
-                    NSLocalizedDescriptionKey: L10n.string("批量操作失败: \(lastError?.localizedDescription ?? L10n.string("未知错误"))"),
-                    NSLocalizedFailureReasonErrorKey: L10n.string("部分操作可能已完成，请检查照片状态")
+                    NSLocalizedDescriptionKey: L10n.string("批量操作失败: \(error?.localizedDescription ?? L10n.string("未知错误"))"),
+                    NSLocalizedFailureReasonErrorKey: L10n.string("真实照片库未完成这次批量操作，请稍后重试")
                 ])
                 completion(false, enhancedError)
+                return
             }
+
+            // 操作成功后先做本地增量更新，避免重新跑整库索引。
+            self.photoLibraryManager.applyCommittedBatchChanges(
+                deletedAssets: Array(originalDeleteCandidates),
+                favoritedAssets: Array(originalFavoriteCandidates)
+            )
+            self.cleanupStatsStore.recordSession(
+                deletedPhotos: originalDeleteCandidates.count,
+                favoritedPhotos: originalFavoriteCandidates.count,
+                organizedPhotos: originalDeleteCandidates.count + originalFavoriteCandidates.count,
+                estimatedSpaceSavedMB: Double(originalDeleteCandidates.count) * 3.0
+            )
+            self.deleteCandidates.removeAll()
+            self.favoriteCandidates.removeAll()
+            self.refreshDerivedLibraryData()
+            completion(true, nil)
         }
     }
 
     private func refreshDerivedLibraryData() {
+        pruneReviewedAssetIDs()
         loadTimeGroups()
         updateStats()
     }
@@ -401,20 +384,6 @@ class DataManager: ObservableObject {
         return photoLibraryManager.videosCount
     }
 
-    // MARK: - 收藏操作
-    func toggleFavoriteStatus(_ asset: PHAsset, shouldFavorite: Bool) {
-        PHPhotoLibrary.shared().performChanges({
-            let request = PHAssetChangeRequest(for: asset)
-            request.isFavorite = shouldFavorite
-        }) { success, error in
-            if let error = error {
-                print("Failed to toggle favorite status: \(error)")
-            } else {
-                print("Successfully \(shouldFavorite ? "favorited" : "unfavorited") photo")
-            }
-        }
-    }
-
     // MARK: - 时间组数据加载
     func loadTimeGroups() {
         guard photoLibraryManager.hasPhotoLibraryAccess else { return }
@@ -461,10 +430,34 @@ class DataManager: ObservableObject {
         UserDefaults.standard.set(Array(reviewedAssetIDs), forKey: reviewedAssetIDsKey)
     }
 
+    private func pruneReviewedAssetIDs() {
+        let validAssetIDs = Set(photoLibraryManager.allPhotos.map(\.localIdentifier))
+        guard !validAssetIDs.isEmpty else { return }
+
+        let prunedAssetIDs = reviewedAssetIDs.intersection(validAssetIDs)
+        guard prunedAssetIDs.count != reviewedAssetIDs.count else { return }
+        reviewedAssetIDs = prunedAssetIDs
+        saveReviewedAssetIDs()
+    }
+
+    private func scheduleLibraryDataRefresh() {
+        libraryDataRefreshWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self, self.photoLibraryManager.hasPhotoLibraryAccess else { return }
+            self.refreshDerivedLibraryData()
+            self.loadAlbums(showLoading: false)
+        }
+        libraryDataRefreshWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: workItem)
+    }
+
     // MARK: - 相册数据加载
     func loadAlbumsIfNeeded() {
         guard !hasLoadedAlbums, !isFetchingAlbums else { return }
-        if restoreCachedAlbums() { return }
+        if restoreCachedAlbums() {
+            loadAlbums(showLoading: false)
+            return
+        }
         loadAlbums(showLoading: true)
     }
 

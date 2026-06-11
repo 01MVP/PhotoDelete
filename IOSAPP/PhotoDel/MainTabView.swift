@@ -44,7 +44,7 @@ struct MainTabView: View {
                 }
                 .tag(2)
         }
-        .accentColor(PhotoDelStyle.accent)
+        .tint(PhotoDelStyle.accent)
         .preferredColorScheme(.dark)
         .onAppear {
             // 自定义TabBar外观

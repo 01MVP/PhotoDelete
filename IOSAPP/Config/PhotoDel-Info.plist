@@ -23,7 +23,7 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>PhotoDel需要权限来保存处理后的照片到您的相册。</string>
+	<string>PhotoDel需要权限来把照片加入您选择的相册。</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>PhotoDel需要访问您的照片库来帮助您整理和管理照片。我们不会上传或分享您的照片。</string>
 	<key>PHPhotoLibraryPreventAutomaticLimitedAccessAlert</key>

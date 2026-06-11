@@ -63,7 +63,7 @@ struct HomeView: View {
                     }
                 }
             }
-            .navigationBarHidden(true)
+            .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: SwipeViewDestination.self) { destination in
                 switch destination {
                 case .category(let category):

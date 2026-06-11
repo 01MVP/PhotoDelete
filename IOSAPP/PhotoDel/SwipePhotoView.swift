@@ -33,15 +33,16 @@ struct SwipePhotoView: View {
     @State private var shouldDismissAfterBatch = false
     @State private var feedbackToast: PhotoDelToast?
     @State private var didInitializeSession = false
+    @State private var preloadedAssets: [PHAsset] = []
 
     enum SwipeDirection {
         case left, right, up, down
     }
 
     private enum SwipeAction {
-        case delete(PHAsset, wasReviewed: Bool)
-        case favorite(PHAsset, wasReviewed: Bool)
-        case skip(PHAsset, wasReviewed: Bool)
+        case delete(PHAsset, originalIndex: Int, wasReviewed: Bool)
+        case favorite(PHAsset, originalIndex: Int, wasReviewed: Bool)
+        case skip(PHAsset, originalIndex: Int, wasReviewed: Bool)
     }
 
     private var currentRealPhoto: PHAsset? {
@@ -134,7 +135,7 @@ struct SwipePhotoView: View {
                 }
             }
         }
-        .navigationBarHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
         .sheet(isPresented: $showBatchConfirm, onDismiss: {
             didInitializeSession = false
@@ -148,9 +149,10 @@ struct SwipePhotoView: View {
         }
         .onDisappear {
             dataManager.photoLibraryManager.stopCachingImages(
-                Array(sessionPhotos.prefix(6)),
+                preloadedAssets,
                 size: swipeImageTargetSize
             )
+            preloadedAssets.removeAll()
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
             // 处理内存警告
@@ -270,6 +272,18 @@ struct SwipePhotoView: View {
                         .rotationEffect(.degrees(rotationAngle))
                         .scaleEffect(1.0 - abs(dragOffset.width) / 1000)
                         .gesture(createDragGesture())
+                        .accessibilityAction(named: Text(L10n.string("加入待删除"))) {
+                            handleDeleteAction()
+                            resetCardPosition()
+                        }
+                        .accessibilityAction(named: Text(isCurrentPhotoFavorited ? L10n.string("已收藏") : L10n.string("加入收藏"))) {
+                            handleFavoriteAction()
+                            resetCardPosition()
+                        }
+                        .accessibilityAction(named: Text(L10n.string("跳过"))) {
+                            handleSkipAction()
+                            resetCardPosition()
+                        }
 
                         if let previewDirection = dominantSwipeDirection(for: dragOffset, threshold: 50) {
                             SwipeIndicator(
@@ -301,14 +315,16 @@ struct SwipePhotoView: View {
                                             .foregroundColor(PhotoDelStyle.secondaryText)
 
                                         HStack(spacing: 12) {
-                                            Button("继续整理") {
-                                                showCompletionMessage = false
+                                            if hasUnreviewedPhotos {
+                                                Button("继续整理") {
+                                                    continueToNextUnreviewedPhoto()
+                                                    showCompletionMessage = false
+                                                }
+                                                .photoDelSecondaryButton()
                                             }
-                                            .photoDelSecondaryButton()
 
                                             Button("完成整理") {
-                                                shouldDismissAfterBatch = true
-                                                showBatchConfirm = true
+                                                handleFinishAction()
                                                 showCompletionMessage = false
                                             }
                                             .photoDelPrimaryButton()
@@ -631,6 +647,10 @@ struct SwipePhotoView: View {
         return L10n.string("\(getDisplayTitle()) · 已整理 \(organizedProgress)/\(totalPhotosCount)")
     }
 
+    private var hasUnreviewedPhotos: Bool {
+        sessionPhotos.contains { !dataManager.isReviewed($0) }
+    }
+
     private var gestureHintStrip: some View {
         HStack(spacing: 8) {
             ForEach(SwipeGestureDirection.allCases) { direction in
@@ -653,12 +673,12 @@ struct SwipePhotoView: View {
             return
         }
 
-        refreshSessionPhotos()
+        refreshSessionPhotos(photos)
         didInitializeSession = true
     }
 
-    private func refreshSessionPhotos() {
-        let photos = filteredRealPhotos
+    private func refreshSessionPhotos(_ photos: [PHAsset]? = nil) {
+        let photos = photos ?? filteredRealPhotos
         sessionPhotos = photos
         if didInitializeSession {
             currentPhotoIndex = min(currentPhotoIndex, max(photos.count - 1, 0))
@@ -674,11 +694,20 @@ struct SwipePhotoView: View {
     private func preloadUpcomingImages(from index: Int) {
         guard index < sessionPhotos.count else { return }
         let upcomingPhotos = Array(sessionPhotos.dropFirst(index).prefix(6))
+        let currentIDs = preloadedAssets.map(\.localIdentifier)
+        let nextIDs = upcomingPhotos.map(\.localIdentifier)
+        guard currentIDs != nextIDs else { return }
+
+        dataManager.photoLibraryManager.stopCachingImages(
+            preloadedAssets,
+            size: swipeImageTargetSize
+        )
         dataManager.photoLibraryManager.preloadImagesForAssets(
             upcomingPhotos,
             size: swipeImageTargetSize,
             maxCount: 6
         )
+        preloadedAssets = upcomingPhotos
     }
 
     private var swipeImageTargetSize: CGSize {
@@ -813,6 +842,27 @@ struct SwipePhotoView: View {
         currentPhotoIndex -= 1
     }
 
+    private func restorePhotoPosition(_ asset: PHAsset, preferredIndex: Int) {
+        if isValidPhotoIndex(preferredIndex),
+           sessionPhotos[preferredIndex].localIdentifier == asset.localIdentifier {
+            currentPhotoIndex = preferredIndex
+        } else if let index = sessionPhotos.firstIndex(where: { $0.localIdentifier == asset.localIdentifier }) {
+            currentPhotoIndex = index
+        } else {
+            moveToPreviousPhoto()
+        }
+        showCompletionMessage = false
+        preloadUpcomingImages(from: currentPhotoIndex)
+    }
+
+    private func continueToNextUnreviewedPhoto() {
+        guard let nextIndex = sessionPhotos.firstIndex(where: { !dataManager.isReviewed($0) }) else {
+            return
+        }
+        currentPhotoIndex = nextIndex
+        preloadUpcomingImages(from: nextIndex)
+    }
+
     private func isValidPhotoIndex(_ index: Int) -> Bool {
         return index >= 0 && index < sessionPhotos.count
     }
@@ -852,24 +902,27 @@ struct SwipePhotoView: View {
         }
 
         switch lastAction {
-        case .delete(let asset, let wasReviewed):
+        case .delete(let asset, let originalIndex, let wasReviewed):
             dataManager.removeFromDeleteCandidates(asset)
             dataManager.restoreReviewedState(asset, wasReviewed: wasReviewed)
-        case .favorite(let asset, let wasReviewed):
+            restorePhotoPosition(asset, preferredIndex: originalIndex)
+        case .favorite(let asset, let originalIndex, let wasReviewed):
             dataManager.removeFromFavoriteCandidates(asset)
             dataManager.restoreReviewedState(asset, wasReviewed: wasReviewed)
-        case .skip(let asset, let wasReviewed):
+            restorePhotoPosition(asset, preferredIndex: originalIndex)
+        case .skip(let asset, let originalIndex, let wasReviewed):
             dataManager.restoreReviewedState(asset, wasReviewed: wasReviewed)
+            restorePhotoPosition(asset, preferredIndex: originalIndex)
         }
-        moveToPreviousPhoto()
         HapticManager.notify(.success)
         showFeedback(L10n.string("已撤销上一步"), icon: "arrow.uturn.backward", style: .positive)
     }
 
     private func markDeleteCandidate(_ asset: PHAsset) {
+        let originalIndex = currentPhotoIndex
         let wasReviewed = dataManager.markReviewed(asset)
         dataManager.addToDeleteCandidates(asset)
-        actionHistory.append(.delete(asset, wasReviewed: wasReviewed))
+        actionHistory.append(.delete(asset, originalIndex: originalIndex, wasReviewed: wasReviewed))
         HapticManager.impact(.medium)
         showFeedback(L10n.string("已加入待删除"), icon: "trash", style: .destructive, showsUndo: true)
     }
@@ -880,16 +933,18 @@ struct SwipePhotoView: View {
             return
         }
 
+        let originalIndex = currentPhotoIndex
         let wasReviewed = dataManager.markReviewed(asset)
         dataManager.addToFavoriteCandidates(asset)
-        actionHistory.append(.favorite(asset, wasReviewed: wasReviewed))
+        actionHistory.append(.favorite(asset, originalIndex: originalIndex, wasReviewed: wasReviewed))
         HapticManager.impact(.light)
         showFeedback(L10n.string("已加入待收藏"), icon: "heart.fill", style: .favorite, showsUndo: true)
     }
 
     private func markSkip(_ asset: PHAsset, message: String? = nil) {
+        let originalIndex = currentPhotoIndex
         let wasReviewed = dataManager.markReviewed(asset)
-        actionHistory.append(.skip(asset, wasReviewed: wasReviewed))
+        actionHistory.append(.skip(asset, originalIndex: originalIndex, wasReviewed: wasReviewed))
         HapticManager.impact(.light)
         showFeedback(message ?? L10n.string("已跳过"), icon: "arrow.right", style: .neutral)
     }
@@ -1055,6 +1110,10 @@ struct RealPhotoCard: View {
                 .stroke(PhotoDelStyle.hairline, lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.35), radius: 26, x: 0, y: 18)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(L10n.string("当前照片"))
+        .accessibilityValue(accessibilityValue)
+        .accessibilityHint(L10n.string("可使用可访问性操作加入待删除、加入收藏或跳过。"))
         .onAppear {
             loadImage()
         }
@@ -1157,6 +1216,31 @@ struct RealPhotoCard: View {
             guard loadingAssetIdentifier == requestedAssetID, image == nil else { return }
             loadFallbackImage(for: requestedAssetID)
         }
+    }
+
+    private var accessibilityValue: String {
+        var values: [String] = []
+        if asset.mediaType == .video {
+            values.append(L10n.string("视频"))
+        } else {
+            values.append(L10n.string("照片"))
+        }
+
+        if photoLibraryManager.isScreenshot(asset) {
+            values.append(L10n.string("截图"))
+        }
+
+        if asset.isFavorite || isInFavoriteCandidates {
+            values.append(L10n.string("收藏"))
+        }
+
+        if isInDeleteCandidates {
+            values.append(L10n.string("待删除"))
+        } else if isInFavoriteCandidates {
+            values.append(L10n.string("待收藏"))
+        }
+
+        return values.joined(separator: "，")
     }
 
     private func loadFallbackImage(for requestedAssetID: String) {

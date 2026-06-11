@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/iOS-15.0%2B-blue" alt="iOS 15.0+" />
+  <img src="https://img.shields.io/badge/iOS-16.0%2B-blue" alt="iOS 16.0+" />
   <img src="https://img.shields.io/badge/SwiftUI-✓-orange" alt="SwiftUI" />
   <img src="https://img.shields.io/badge/免费-永久-green" alt="免费" />
   <img src="https://img.shields.io/badge/隐私-本地处理-brightgreen" alt="本地处理" />
@@ -75,8 +75,8 @@
 
 ### 环境要求
 
-- Xcode 14.0+
-- iOS 15.0+ 部署目标
+- Xcode 16.4+
+- iOS 16.0+ 部署目标
 - 建议使用真机测试 Photos 框架功能
 
 ### 构建运行
@@ -93,7 +93,7 @@ open PhotoDel.xcodeproj
 ```bash
 cd IOSAPP
 xcodebuild -project PhotoDel.xcodeproj -scheme PhotoDel \
-  -destination 'platform=iOS Simulator,name=iPhone 16' clean build
+  -destination 'platform=iOS Simulator,name=iPhone 17' clean build
 ```
 
 ---
@@ -113,10 +113,12 @@ IOSAPP/PhotoDel/
 ├── SwipePhotoView.swift        # 核心滑动手势界面
 ├── AlbumsView.swift            # 相册管理
 ├── SettingsView.swift          # 统计与设置
-├── DeleteConfirmView.swift     # 批量删除确认
-├── RealPhotoView.swift         # 真实照片展示
-└── SplashView.swift            # 启动页与权限申请
+├── SupporterView.swift         # 支持者功能与长期统计
+├── PurchaseManager.swift       # StoreKit 支持者权益管理
+└── Localizable.xcstrings       # 用户可见文案本地化
 ```
+
+`SwipePhotoView.swift` 内同时包含 `RealPhotoCard` 和 `BatchConfirmView`，它们属于核心滑动整理流程。
 
 ### 核心设计模式
 

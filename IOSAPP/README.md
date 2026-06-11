@@ -36,16 +36,17 @@ IOSAPP/PhotoDel/
 ├── SwipePhotoView.swift      # 照片整理页面
 ├── AlbumsView.swift          # 相册管理页面
 ├── SettingsView.swift        # 设置页面
-├── DeleteConfirmView.swift   # 删除确认页面
-├── PhotoPlaceholderView.swift # 照片占位符组件
+├── PhotoLibraryManager.swift # Photos 框架访问与缓存
+├── DesignSystem.swift        # 视觉样式与常量
 └── Assets.xcassets/          # 资源文件
 ```
 
 ### 🏗️ 架构设计
 
 #### 数据层
-- **Models.swift**: 定义Photo、Album、PhotoCategory等核心数据结构
-- **DataManager.swift**: 管理照片数据、相册数据和操作统计
+- **Models.swift**: 定义 PhotoCategory、AlbumInfo、TimeGroup 等核心数据结构
+- **PhotoLibraryManager.swift**: 负责 Photos 框架授权、读取、缓存、删除、收藏与相册写入
+- **DataManager.swift**: 管理候选库、相册列表、时间分组、操作统计和派生 UI 状态
 
 #### 视图层
 - **MainTabView**: 底部标签导航（整理、相册、设置）
@@ -53,7 +54,8 @@ IOSAPP/PhotoDel/
 - **SwipePhotoView**: 核心功能页面，支持滑动手势整理照片
 - **AlbumsView**: 相册管理，支持创建、编辑、删除相册
 - **SettingsView**: 设置页面，显示使用统计和应用信息
-- **DeleteConfirmView**: 删除确认页面，显示整理结果
+- **BatchConfirmView**: 位于 `SwipePhotoView.swift` 内，负责批量操作确认
+- **RealPhotoCard**: 位于 `SwipePhotoView.swift` 内，负责真实照片展示
 
 ## 使用指南
 
@@ -105,7 +107,7 @@ IOSAPP/PhotoDel/
 - **动画效果**: 流畅的过渡和反馈动画
 
 ### 📱 兼容性
-- **iOS版本**: iOS 15.0+
+- **iOS版本**: iOS 16.0+
 - **设备支持**: iPhone（优化为主）、iPad（兼容）
 - **屏幕适配**: 支持不同尺寸的iPhone屏幕
 
@@ -113,17 +115,14 @@ IOSAPP/PhotoDel/
 
 ### 🚀 运行项目
 
-1. 使用Xcode 13.0+打开项目
+1. 使用 Xcode 16.4+ 打开项目
 2. 选择目标设备（模拟器或真机）
 3. 点击运行按钮开始调试
 
 ### 🔧 自定义配置
 
-#### 虚拟数据
-项目使用虚拟数据进行演示，包括：
-- 1234张模拟照片
-- 8个预设相册
-- 随机生成的照片属性（时间、位置、类型等）
+#### 真实照片库
+项目当前使用 Photos 框架访问真实照片库。模拟器调试时可以把测试图片拖入模拟器，真机测试时需要在系统权限弹窗中授权照片访问。
 
 #### 样式定制
 在`Models.swift`中可以调整：
@@ -133,17 +132,11 @@ IOSAPP/PhotoDel/
 
 ### 📝 待优化功能
 
-- [ ] 集成真实照片库访问
-- [ ] 添加照片权限管理
-- [ ] 实现真实的删除操作
-- [ ] 添加iCloud同步支持
-- [ ] 增加更多手势操作
-- [ ] 优化大量照片的性能
+- [ ] 增加更完整的 UI smoke tests
+- [ ] 为 CI simulator 准备测试照片种子
+- [ ] 继续优化超大照片库的首屏加载和缓存策略
+- [ ] 评估 iCloud 照片网络状态提示
 
 ## 许可证
 
 Copyright © 2025 PhotoDel Team. All rights reserved.
-
----
-
-**注意**: 这是一个演示项目，使用虚拟数据进行功能展示。在实际部署前需要集成真实的照片库访问权限和删除功能。
