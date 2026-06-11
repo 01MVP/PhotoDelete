@@ -121,7 +121,9 @@ struct SettingsView: View {
 
     // MARK: - 使用统计
     private var statsSection: some View {
-        VStack(spacing: 16) {
+        let stats = dataManager.makeSettingsStatsSummary()
+
+        return VStack(spacing: 16) {
             HStack {
                 Text(L10n.string("使用统计"))
                     .font(.system(size: 18, weight: .semibold))
@@ -132,31 +134,38 @@ struct SettingsView: View {
             VStack(spacing: 0) {
                 HStack(spacing: 0) {
                     StatCard(
-                        value: "\(dataManager.organizeStats.totalPhotos)",
-                        label: L10n.string("总照片"),
+                        value: "\(stats.totalAssets)",
+                        label: L10n.string("照片"),
                         color: PhotoDelStyle.accent
                     )
 
                     StatCard(
-                        value: "\(dataManager.organizeStats.deletedPhotos)",
+                        value: "\(stats.organizedAssets)",
+                        label: L10n.string("已整理"),
+                        color: PhotoDelStyle.positive
+                    )
+
+                    StatCard(
+                        value: "\(stats.deletedAssets)",
                         label: L10n.string("已删除"),
                         color: PhotoDelStyle.destructive
                     )
 
                     StatCard(
-                        value: "\(dataManager.getVideosCount())",
-                        label: L10n.string("视频"),
-                        color: PhotoDelStyle.iconTint(for: "video")
-                    )
-
-                    StatCard(
-                        value: dataManager.organizeStats.formattedSpaceSaved,
-                        label: L10n.string("节省空间"),
-                        color: PhotoDelStyle.positive
+                        value: stats.formattedSpaceSaved,
+                        label: L10n.string("节省"),
+                        color: PhotoDelStyle.warning
                     )
                 }
                 .padding(20)
 
+                Divider()
+                    .background(PhotoDelStyle.hairline)
+                    .padding(.horizontal, 16)
+
+                SettingsStorageSummaryRow(storage: stats.storageSnapshot)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
             }
             .photoDelCard()
         }
@@ -568,6 +577,43 @@ struct StatCard: View {
                 .foregroundColor(PhotoDelStyle.secondaryText)
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+private struct SettingsStorageSummaryRow: View {
+    let storage: DeviceStorageSnapshot
+
+    var body: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 10) {
+                Image(systemName: "internaldrive")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.accent)
+                    .frame(width: 22)
+
+                Text(L10n.string("手机存储空间"))
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.primaryText)
+
+                Spacer()
+
+                Text("\(Int(storage.usedFraction * 100))%")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.secondaryText)
+            }
+
+            ProgressView(value: storage.usedFraction)
+                .progressViewStyle(LinearProgressViewStyle(tint: PhotoDelStyle.accent))
+                .clipShape(Capsule(style: .continuous))
+
+            HStack {
+                Text(L10n.string("已用 \(storage.formattedUsed)"))
+                Spacer()
+                Text(L10n.string("可用 \(storage.formattedFree)"))
+            }
+            .font(.system(size: 12, weight: .medium))
+            .foregroundColor(PhotoDelStyle.tertiaryText)
+        }
     }
 }
 

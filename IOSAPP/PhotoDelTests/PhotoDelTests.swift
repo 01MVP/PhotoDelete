@@ -320,6 +320,27 @@ struct PhotoDelTests {
         #expect(dm.favoriteCandidates.isEmpty)
     }
 
+    @Test func settingsStatsSummaryUsesPersistedCleanupStats() async throws {
+        let fileURL = temporaryStatsURL()
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+
+        let store = CleanupStatsStore(fileURL: fileURL)
+        store.recordSession(
+            deletedPhotos: 2,
+            favoritedPhotos: 1,
+            organizedPhotos: 4,
+            estimatedSpaceSavedMB: 6
+        )
+
+        let dm = DataManager(cleanupStatsStore: store)
+        let summary = dm.makeSettingsStatsSummary()
+
+        #expect(summary.deletedAssets == 2)
+        #expect(summary.organizedAssets == 4)
+        #expect(summary.estimatedSpaceSavedMB == 6)
+        #expect(summary.formattedSpaceSaved == "6.0 MB")
+    }
+
     // MARK: - DataManager candidate operations
     //
     // PHAsset does not support direct instantiation — it's a fetch-only type.

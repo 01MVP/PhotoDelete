@@ -174,14 +174,12 @@ struct AlbumsView: View {
                 loadingRow
             } else {
                 if !userAlbums.isEmpty {
-                    Section {
-                        ForEach(userAlbums) { albumInfo in
-                            albumRow(albumInfo, allowsActions: true)
-                        }
-                        .onMove(perform: moveUserAlbums)
-                    } header: {
-                        sectionHeader(L10n.string("我的相册"), count: userAlbums.count)
+                    sectionHeaderRow(L10n.string("我的相册"), count: userAlbums.count)
+
+                    ForEach(userAlbums) { albumInfo in
+                        albumRow(albumInfo, allowsActions: true)
                     }
+                    .onMove(perform: moveUserAlbums)
                 }
 
                 if userAlbums.isEmpty {
@@ -296,12 +294,17 @@ struct AlbumsView: View {
         .listRowSeparator(.hidden)
     }
 
-    private func sectionHeader(_ title: String, count: Int) -> some View {
+    private func sectionHeaderRow(_ title: String, count: Int) -> some View {
         Text("\(title) (\(count))")
             .font(.system(size: 13, weight: .semibold))
             .foregroundColor(PhotoDelStyle.tertiaryText)
             .textCase(nil)
             .padding(.top, 8)
+            .padding(.bottom, 2)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .listRowInsets(EdgeInsets(top: 0, leading: 24, bottom: 0, trailing: 24))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
     }
 
     private func albumRow(_ albumInfo: AlbumInfo, allowsActions: Bool) -> some View {

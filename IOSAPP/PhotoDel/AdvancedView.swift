@@ -46,34 +46,18 @@ struct AdvancedView: View {
                             )
                         }
 
-                        AdvancedStatsStrip(stats: snapshot.stats, isDemo: isLocked)
-
-                        AdvancedStorageCard(
-                            storage: snapshot.stats.storageSnapshot,
-                            isDemo: isLocked
-                        )
-
                         AdvancedCalendarCard(
                             summaries: snapshot.daySummaries,
                             displayedMonth: $displayedMonth,
                             selectedDate: $selectedDate,
                             isDemo: isLocked,
-                            onMoveMonth: moveDisplayedMonth
-                        )
-
-                        selectedDayCard(
-                            snapshot: snapshot,
-                            isDemo: isLocked
+                            onMoveMonth: moveDisplayedMonth,
+                            onJumpToday: jumpToToday,
+                            onPurchase: purchaseSupporter
                         )
 
                         cleanupSection(
                             queues: snapshot.cleanupQueues,
-                            isDemo: isLocked
-                        )
-
-                        AdvancedAchievementSection(
-                            stats: snapshot.stats,
-                            activeDays: snapshot.daySummaries.count,
                             isDemo: isLocked
                         )
 
@@ -127,72 +111,6 @@ struct AdvancedView: View {
         }
     }
 
-    @ViewBuilder
-    private func selectedDayCard(
-        snapshot: AdvancedLibrarySnapshot,
-        isDemo: Bool
-    ) -> some View {
-        let summary = selectedSummary(in: snapshot.daySummaries)
-        let photoCount = summary?.photoCount ?? 0
-
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(AdvancedDateFormatters.dayTitle.string(from: selectedDate))
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(PhotoDelStyle.primaryText)
-
-                    Text(isDemo ? L10n.string("示例日期详情") : L10n.string("点击整理会直接进入这一天的照片"))
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(PhotoDelStyle.tertiaryText)
-                }
-
-                Spacer()
-
-                Text(L10n.shortPhotoCount(photoCount))
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(PhotoDelStyle.accent)
-            }
-
-            HStack(spacing: 10) {
-                AdvancedDayMetric(icon: "photo", title: L10n.string("照片"), value: "\(summary?.photoCount ?? 0)", tint: PhotoDelStyle.accent)
-                AdvancedDayMetric(icon: "iphone", title: L10n.string("截图"), value: "\(summary?.screenshotCount ?? 0)", tint: PhotoDelStyle.positive)
-                AdvancedDayMetric(icon: "video", title: L10n.string("视频"), value: "\(summary?.videoCount ?? 0)", tint: PhotoDelStyle.iconTint(for: "video"))
-                AdvancedDayMetric(icon: "internaldrive", title: L10n.string("占用"), value: summary?.formattedEstimatedSize ?? "0 MB", tint: PhotoDelStyle.warning)
-            }
-
-            if isDemo {
-                Button(action: purchaseSupporter) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "lock.open")
-                        Text(L10n.string("解锁后整理这一天"))
-                    }
-                }
-                .photoDelPrimaryButton()
-            } else {
-                NavigationLink {
-                    SwipePhotoView(
-                        selectedCategory: nil,
-                        selectedTimeGroup: nil,
-                        selectedAlbumInfo: nil,
-                        selectedDate: selectedDate,
-                        selectedAdvancedCleanup: nil
-                    )
-                    .environmentObject(dataManager)
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "calendar.badge.checkmark")
-                        Text(L10n.string("整理这一天"))
-                    }
-                }
-                .photoDelPrimaryButton()
-                .disabled(photoCount == 0)
-            }
-        }
-        .padding(18)
-        .photoDelCard()
-    }
-
     private func cleanupSection(
         queues: [AdvancedCleanupQueue],
         isDemo: Bool
@@ -241,14 +159,16 @@ struct AdvancedView: View {
         }
     }
 
-    private func selectedSummary(in summaries: [PhotoDaySummary]) -> PhotoDaySummary? {
-        summaries.first { Calendar.current.isDate($0.date, inSameDayAs: selectedDate) }
-    }
-
     private func moveDisplayedMonth(by value: Int) {
         guard let nextMonth = Calendar.current.date(byAdding: .month, value: value, to: displayedMonth) else { return }
         displayedMonth = nextMonth
         selectedDate = Calendar.current.dateInterval(of: .month, for: nextMonth)?.start ?? nextMonth
+    }
+
+    private func jumpToToday() {
+        let today = Date()
+        displayedMonth = today
+        selectedDate = today
     }
 
     private func purchaseSupporter() {
@@ -326,124 +246,15 @@ private struct AdvancedPaywallCard: View {
     }
 }
 
-private struct AdvancedStatsStrip: View {
-    let stats: AdvancedLibraryStats
-    let isDemo: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text(L10n.string("统计概览"))
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(PhotoDelStyle.primaryText)
-                Spacer()
-                if isDemo {
-                    Text(L10n.string("示例"))
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(PhotoDelStyle.warning)
-                }
-            }
-
-            HStack(spacing: 8) {
-                AdvancedMiniStat(value: "\(stats.totalAssets)", label: L10n.string("图片"), tint: PhotoDelStyle.accent)
-                AdvancedMiniStat(value: "\(stats.organizedAssets)", label: L10n.string("已整理"), tint: PhotoDelStyle.positive)
-                AdvancedMiniStat(value: "\(stats.deletedAssets)", label: L10n.string("已删除"), tint: PhotoDelStyle.destructive)
-                AdvancedMiniStat(value: stats.formattedSpaceSaved, label: L10n.string("节省"), tint: PhotoDelStyle.warning)
-            }
-        }
-        .padding(18)
-        .photoDelCard()
-    }
-}
-
-private struct AdvancedMiniStat: View {
-    let value: String
-    let label: String
-    let tint: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(value)
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundColor(tint)
-                .lineLimit(1)
-                .minimumScaleFactor(0.65)
-
-            Text(label)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(PhotoDelStyle.secondaryText)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 12)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(PhotoDelStyle.elevatedSurface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(tint.opacity(0.22), lineWidth: 1)
-                )
-        )
-    }
-}
-
-private struct AdvancedStorageCard: View {
-    let storage: DeviceStorageSnapshot
-    let isDemo: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Label(L10n.string("手机存储空间"), systemImage: "internaldrive")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(PhotoDelStyle.primaryText)
-
-                Spacer()
-
-                Text("\(Int(storage.usedFraction * 100))%")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(PhotoDelStyle.accent)
-            }
-
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    Capsule(style: .continuous)
-                        .fill(PhotoDelStyle.elevatedSurface)
-
-                    Capsule(style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [PhotoDelStyle.accent, PhotoDelStyle.positive, PhotoDelStyle.warning],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .frame(width: max(geometry.size.width * storage.usedFraction, 8))
-                }
-            }
-            .frame(height: 10)
-
-            HStack {
-                Text(L10n.string("已用 \(storage.formattedUsed) / \(storage.formattedTotal)"))
-                Spacer()
-                Text(L10n.string("可用 \(storage.formattedFree)"))
-            }
-            .font(.system(size: 13, weight: .medium))
-            .foregroundColor(PhotoDelStyle.secondaryText)
-        }
-        .padding(18)
-        .photoDelCard()
-    }
-}
-
 private struct AdvancedCalendarCard: View {
+    @EnvironmentObject var dataManager: DataManager
     let summaries: [PhotoDaySummary]
     @Binding var displayedMonth: Date
     @Binding var selectedDate: Date
     let isDemo: Bool
     let onMoveMonth: (Int) -> Void
+    let onJumpToday: () -> Void
+    let onPurchase: () -> Void
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 7)
 
@@ -461,6 +272,19 @@ private struct AdvancedCalendarCard: View {
                 }
 
                 Spacer()
+
+                Button(action: onJumpToday) {
+                    Text(L10n.string("今天"))
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(PhotoDelStyle.accent)
+                        .padding(.horizontal, 11)
+                        .padding(.vertical, 8)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(PhotoDelStyle.elevatedSurface)
+                        )
+                }
+                .buttonStyle(.plain)
 
                 HStack(spacing: 8) {
                     Button(action: { onMoveMonth(-1) }) {
@@ -484,6 +308,8 @@ private struct AdvancedCalendarCard: View {
                         .foregroundColor(PhotoDelStyle.warning)
                 }
             }
+
+            selectedDayInlineSummary
 
             HStack(spacing: 0) {
                 ForEach(weekdaySymbols, id: \.self) { symbol in
@@ -526,6 +352,78 @@ private struct AdvancedCalendarCard: View {
         }
         .padding(18)
         .photoDelCard()
+    }
+
+    private var selectedDayInlineSummary: some View {
+        let summary = summary(for: selectedDate)
+        let photoCount = summary?.photoCount ?? 0
+
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(AdvancedDateFormatters.dayTitle.string(from: selectedDate))
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(PhotoDelStyle.primaryText)
+
+                    Text(isDemo ? L10n.string("示例日期详情") : L10n.string("这一天可以直接进入滑动整理"))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(PhotoDelStyle.tertiaryText)
+                }
+
+                Spacer()
+
+                Text(L10n.shortPhotoCount(photoCount))
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.accent)
+            }
+
+            HStack(spacing: 8) {
+                AdvancedDayMetric(icon: "photo", title: L10n.string("照片"), value: "\(summary?.photoCount ?? 0)", tint: PhotoDelStyle.accent)
+                AdvancedDayMetric(icon: "iphone", title: L10n.string("截图"), value: "\(summary?.screenshotCount ?? 0)", tint: PhotoDelStyle.positive)
+                AdvancedDayMetric(icon: "video", title: L10n.string("视频"), value: "\(summary?.videoCount ?? 0)", tint: PhotoDelStyle.iconTint(for: "video"))
+            }
+
+            if isDemo {
+                Button(action: onPurchase) {
+                    HStack(spacing: 7) {
+                        Image(systemName: "lock.open")
+                        Text(L10n.string("解锁后整理这一天"))
+                    }
+                    .font(.system(size: 14, weight: .semibold))
+                    .frame(maxWidth: .infinity)
+                }
+                .photoDelSecondaryButton()
+            } else {
+                NavigationLink {
+                    SwipePhotoView(
+                        selectedCategory: nil,
+                        selectedTimeGroup: nil,
+                        selectedAlbumInfo: nil,
+                        selectedDate: selectedDate,
+                        selectedAdvancedCleanup: nil
+                    )
+                    .environmentObject(dataManager)
+                } label: {
+                    HStack(spacing: 7) {
+                        Image(systemName: "calendar.badge.checkmark")
+                        Text(L10n.string("整理这一天"))
+                    }
+                    .font(.system(size: 14, weight: .semibold))
+                    .frame(maxWidth: .infinity)
+                }
+                .photoDelSecondaryButton()
+                .disabled(photoCount == 0)
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(PhotoDelStyle.elevatedSurface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(PhotoDelStyle.hairline, lineWidth: 1)
+                )
+        )
     }
 
     private var maxPhotoCount: Int {
@@ -781,94 +679,6 @@ private struct AdvancedCleanupTile: View {
         .frame(maxWidth: .infinity, minHeight: 172, alignment: .topLeading)
         .padding(14)
         .photoDelCard(radius: 16)
-    }
-}
-
-private struct AdvancedAchievementSection: View {
-    let stats: AdvancedLibraryStats
-    let activeDays: Int
-    let isDemo: Bool
-
-    private var progress: Double {
-        guard stats.totalAssets > 0 else { return 0 }
-        return min(Double(stats.organizedAssets) / Double(stats.totalAssets), 1)
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text(L10n.string("整理进度"))
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(PhotoDelStyle.primaryText)
-                Spacer()
-                if isDemo {
-                    Text(L10n.string("示例"))
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(PhotoDelStyle.warning)
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 9) {
-                HStack {
-                    Text(L10n.string("照片库进度"))
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(PhotoDelStyle.primaryText)
-                    Spacer()
-                    Text("\(Int(progress * 100))%")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(PhotoDelStyle.positive)
-                }
-
-                ProgressView(value: progress)
-                    .progressViewStyle(LinearProgressViewStyle(tint: PhotoDelStyle.positive))
-                    .clipShape(Capsule(style: .continuous))
-            }
-
-            HStack(spacing: 10) {
-                AdvancedAchievementChip(icon: "calendar", title: L10n.string("本月活跃"), value: L10n.string("\(activeDays) 天"), tint: PhotoDelStyle.accent)
-                AdvancedAchievementChip(icon: "checkmark.seal", title: L10n.string("已整理"), value: "\(stats.organizedAssets)", tint: PhotoDelStyle.positive)
-                AdvancedAchievementChip(icon: "trash", title: L10n.string("已清理"), value: "\(stats.deletedAssets)", tint: PhotoDelStyle.destructive)
-            }
-        }
-        .padding(18)
-        .photoDelCard()
-    }
-}
-
-private struct AdvancedAchievementChip: View {
-    let icon: String
-    let title: String
-    let value: String
-    let tint: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            Image(systemName: icon)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(tint)
-
-            Text(value)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundColor(PhotoDelStyle.primaryText)
-                .lineLimit(1)
-                .minimumScaleFactor(0.72)
-
-            Text(title)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(PhotoDelStyle.tertiaryText)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(11)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(PhotoDelStyle.elevatedSurface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(tint.opacity(0.18), lineWidth: 1)
-                )
-        )
     }
 }
 

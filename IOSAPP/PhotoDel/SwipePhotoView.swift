@@ -37,6 +37,9 @@ struct SwipePhotoView: View {
     @State private var feedbackToast: PhotoDelToast?
     @State private var didInitializeSession = false
     @State private var preloadedAssets: [PHAsset] = []
+    @State private var pendingDeleteCount = 0
+    @State private var pendingFavoriteCount = 0
+    @State private var pendingSwipeMutations: [String: PendingSwipeMutation] = [:]
 
     init(
         selectedCategory: PhotoCategory?,
@@ -60,6 +63,12 @@ struct SwipePhotoView: View {
         case delete(PHAsset, originalIndex: Int, wasReviewed: Bool)
         case favorite(PHAsset, originalIndex: Int, wasReviewed: Bool)
         case skip(PHAsset, originalIndex: Int, wasReviewed: Bool)
+    }
+
+    private struct PendingSwipeMutation {
+        let asset: PHAsset
+        let action: SwipeGestureAction
+        let token: UUID
     }
 
     private var currentRealPhoto: PHAsset? {
@@ -164,6 +173,7 @@ struct SwipePhotoView: View {
         .toolbar(.hidden, for: .tabBar)
         .sheet(isPresented: $showBatchConfirm, onDismiss: {
             didInitializeSession = false
+            syncPendingOperationCounts()
         }) {
             BatchConfirmView(albumInfo: selectedAlbumInfo) {
                 if shouldDismissAfterBatch {
@@ -173,6 +183,7 @@ struct SwipePhotoView: View {
                 .environmentObject(dataManager)
         }
         .onDisappear {
+            flushPendingSwipeMutations()
             dataManager.photoLibraryManager.stopCachingImages(
                 preloadedAssets,
                 size: swipeImageTargetSize
@@ -184,6 +195,7 @@ struct SwipePhotoView: View {
             dataManager.photoLibraryManager.handleMemoryWarning()
         }
         .onAppear {
+            syncPendingOperationCounts()
             initializeSessionIfNeeded()
         }
         .onChange(of: dataManager.photoLibraryManager.isLoading) { _ in
@@ -231,7 +243,7 @@ struct SwipePhotoView: View {
                     Image(systemName: "trash")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(PhotoDelStyle.destructive)
-                    Text("\(dataManager.deleteCandidates.count)")
+                    Text("\(pendingDeleteCount)")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundColor(PhotoDelStyle.primaryText)
                 }
@@ -539,9 +551,9 @@ struct SwipePhotoView: View {
             }
 
             HStack(spacing: 12) {
-                Label("\(dataManager.deleteCandidates.count)", systemImage: "trash")
+                Label("\(pendingDeleteCount)", systemImage: "trash")
                     .foregroundColor(PhotoDelStyle.destructive)
-                Label("\(dataManager.favoriteCandidates.count)", systemImage: "heart")
+                Label("\(pendingFavoriteCount)", systemImage: "heart")
                     .foregroundColor(PhotoDelStyle.iconTint(for: "favorite"))
             }
             .font(.system(size: 13, weight: .semibold))
@@ -777,7 +789,7 @@ struct SwipePhotoView: View {
             if abs(translation.width) > threshold {
                 if translation.width < 0 {
                     // 左滑：显示批量确认
-                    showBatchConfirm = true
+                    presentBatchConfirmation(dismissAfter: false)
                     showCompletionMessage = false
                 } else {
                     // 右滑：关闭完成提示
@@ -886,6 +898,7 @@ struct SwipePhotoView: View {
     }
 
     private func continueToNextUnreviewedPhoto() {
+        flushPendingSwipeMutations()
         guard let nextIndex = sessionPhotos.firstIndex(where: { !dataManager.isReviewed($0) }) else {
             return
         }
@@ -916,9 +929,9 @@ struct SwipePhotoView: View {
     }
 
     private func handleFinishAction() {
+        flushPendingSwipeMutations()
         if hasPendingOperations {
-            shouldDismissAfterBatch = true
-            showBatchConfirm = true
+            presentBatchConfirmation(dismissAfter: true)
         } else {
             dismiss()
         }
@@ -933,16 +946,21 @@ struct SwipePhotoView: View {
 
         switch lastAction {
         case .delete(let asset, let originalIndex, let wasReviewed):
+            cancelPendingSwipeMutation(for: asset)
+            pendingDeleteCount = max(pendingDeleteCount - 1, 0)
             dataManager.removeFromDeleteCandidates(asset)
             dataManager.restoreReviewedState(asset, wasReviewed: wasReviewed)
             restoreSessionReviewedCount(wasReviewed: wasReviewed)
             restorePhotoPosition(asset, preferredIndex: originalIndex)
         case .favorite(let asset, let originalIndex, let wasReviewed):
+            cancelPendingSwipeMutation(for: asset)
+            pendingFavoriteCount = max(pendingFavoriteCount - 1, 0)
             dataManager.removeFromFavoriteCandidates(asset)
             dataManager.restoreReviewedState(asset, wasReviewed: wasReviewed)
             restoreSessionReviewedCount(wasReviewed: wasReviewed)
             restorePhotoPosition(asset, preferredIndex: originalIndex)
         case .skip(let asset, let originalIndex, let wasReviewed):
+            cancelPendingSwipeMutation(for: asset)
             dataManager.restoreReviewedState(asset, wasReviewed: wasReviewed)
             restoreSessionReviewedCount(wasReviewed: wasReviewed)
             restorePhotoPosition(asset, preferredIndex: originalIndex)
@@ -953,9 +971,10 @@ struct SwipePhotoView: View {
 
     private func markDeleteCandidate(_ asset: PHAsset) {
         let originalIndex = currentPhotoIndex
-        let wasReviewed = dataManager.markReviewed(asset)
+        let wasReviewed = dataManager.isReviewed(asset)
         recordSessionReviewedChange(wasReviewed: wasReviewed)
-        dataManager.addToDeleteCandidates(asset)
+        updateLocalPendingCountsForDelete(asset)
+        scheduleSwipeMutation(asset, action: .delete)
         actionHistory.append(.delete(asset, originalIndex: originalIndex, wasReviewed: wasReviewed))
         HapticManager.impact(.medium)
         showFeedback(L10n.string("已加入待删除"), icon: "trash", style: .destructive, showsUndo: true)
@@ -968,9 +987,10 @@ struct SwipePhotoView: View {
         }
 
         let originalIndex = currentPhotoIndex
-        let wasReviewed = dataManager.markReviewed(asset)
+        let wasReviewed = dataManager.isReviewed(asset)
         recordSessionReviewedChange(wasReviewed: wasReviewed)
-        dataManager.addToFavoriteCandidates(asset)
+        updateLocalPendingCountsForFavorite(asset)
+        scheduleSwipeMutation(asset, action: .favorite)
         actionHistory.append(.favorite(asset, originalIndex: originalIndex, wasReviewed: wasReviewed))
         HapticManager.impact(.light)
         showFeedback(L10n.string("已加入待收藏"), icon: "heart.fill", style: .favorite, showsUndo: true)
@@ -978,8 +998,9 @@ struct SwipePhotoView: View {
 
     private func markSkip(_ asset: PHAsset, message: String? = nil) {
         let originalIndex = currentPhotoIndex
-        let wasReviewed = dataManager.markReviewed(asset)
+        let wasReviewed = dataManager.isReviewed(asset)
         recordSessionReviewedChange(wasReviewed: wasReviewed)
+        scheduleSwipeMutation(asset, action: .keep)
         actionHistory.append(.skip(asset, originalIndex: originalIndex, wasReviewed: wasReviewed))
         HapticManager.impact(.light)
         showFeedback(message ?? L10n.string("已跳过"), icon: "arrow.right", style: .neutral)
@@ -1034,18 +1055,113 @@ struct SwipePhotoView: View {
         sessionReviewedCount = max(sessionReviewedCount - 1, 0)
     }
 
+    private func syncPendingOperationCounts() {
+        let committedDeleteIDs = Set(dataManager.deleteCandidates.map(\.localIdentifier))
+        let committedFavoriteIDs = Set(dataManager.favoriteCandidates.map(\.localIdentifier))
+        let pendingDeleteIDs = Set(
+            pendingSwipeMutations.values
+                .filter { $0.action == .delete }
+                .map { $0.asset.localIdentifier }
+        )
+        let pendingFavoriteIDs = Set(
+            pendingSwipeMutations.values
+                .filter { $0.action == .favorite }
+                .map { $0.asset.localIdentifier }
+        )
+
+        pendingDeleteCount = committedDeleteIDs.union(pendingDeleteIDs).count
+        pendingFavoriteCount = committedFavoriteIDs.union(pendingFavoriteIDs).count
+    }
+
+    private func updateLocalPendingCountsForDelete(_ asset: PHAsset) {
+        let assetID = asset.localIdentifier
+        let currentPendingAction = pendingSwipeMutations[assetID]?.action
+        let alreadyPendingDelete = currentPendingAction == .delete || dataManager.isInDeleteCandidates(asset)
+        let wasPendingFavorite = currentPendingAction == .favorite || dataManager.isInFavoriteCandidates(asset)
+
+        if !alreadyPendingDelete {
+            pendingDeleteCount += 1
+        }
+        if wasPendingFavorite {
+            pendingFavoriteCount = max(pendingFavoriteCount - 1, 0)
+        }
+    }
+
+    private func updateLocalPendingCountsForFavorite(_ asset: PHAsset) {
+        let assetID = asset.localIdentifier
+        let currentPendingAction = pendingSwipeMutations[assetID]?.action
+        let alreadyPendingFavorite = currentPendingAction == .favorite || dataManager.isInFavoriteCandidates(asset)
+        let wasPendingDelete = currentPendingAction == .delete || dataManager.isInDeleteCandidates(asset)
+
+        if !alreadyPendingFavorite {
+            pendingFavoriteCount += 1
+        }
+        if wasPendingDelete {
+            pendingDeleteCount = max(pendingDeleteCount - 1, 0)
+        }
+    }
+
+    private func scheduleSwipeMutation(_ asset: PHAsset, action: SwipeGestureAction) {
+        let assetID = asset.localIdentifier
+        let token = UUID()
+        pendingSwipeMutations[assetID] = PendingSwipeMutation(asset: asset, action: action, token: token)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+            guard let mutation = pendingSwipeMutations[assetID], mutation.token == token else { return }
+            applySwipeMutation(mutation)
+            pendingSwipeMutations.removeValue(forKey: assetID)
+            syncPendingOperationCounts()
+        }
+    }
+
+    private func cancelPendingSwipeMutation(for asset: PHAsset) {
+        pendingSwipeMutations.removeValue(forKey: asset.localIdentifier)
+    }
+
+    private func flushPendingSwipeMutations() {
+        guard !pendingSwipeMutations.isEmpty else { return }
+        let mutations = Array(pendingSwipeMutations.values)
+        pendingSwipeMutations.removeAll()
+        for mutation in mutations {
+            applySwipeMutation(mutation)
+        }
+        syncPendingOperationCounts()
+    }
+
+    private func applySwipeMutation(_ mutation: PendingSwipeMutation) {
+        _ = dataManager.markReviewed(mutation.asset)
+        switch mutation.action {
+        case .delete:
+            dataManager.addToDeleteCandidates(mutation.asset)
+        case .favorite:
+            dataManager.addToFavoriteCandidates(mutation.asset)
+        case .keep:
+            break
+        }
+    }
+
+    private func presentBatchConfirmation(dismissAfter: Bool) {
+        flushPendingSwipeMutations()
+        syncPendingOperationCounts()
+        shouldDismissAfterBatch = dismissAfter
+        showBatchConfirm = true
+    }
+
     private func handleBackAction() {
+        flushPendingSwipeMutations()
         // 如果有待处理的删除操作，显示确认对话框
         if hasPendingOperations {
-            shouldDismissAfterBatch = true
-            showBatchConfirm = true
+            presentBatchConfirmation(dismissAfter: true)
         } else {
             dismiss()
         }
     }
 
     private var hasPendingOperations: Bool {
-        !dataManager.deleteCandidates.isEmpty || !dataManager.favoriteCandidates.isEmpty
+        pendingDeleteCount > 0 ||
+            pendingFavoriteCount > 0 ||
+            !dataManager.deleteCandidates.isEmpty ||
+            !dataManager.favoriteCandidates.isEmpty
     }
 
     private var sessionModeTitle: String {

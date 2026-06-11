@@ -447,25 +447,30 @@ class DataManager: ObservableObject {
         return photoLibraryManager.videosCount
     }
 
+    func makeSettingsStatsSummary() -> AdvancedLibraryStats {
+        let cleanupSummary = cleanupStatsStore.summary
+        let reviewedCount = min(reviewedAssetIDs.count, photoLibraryManager.allPhotos.count)
+
+        return AdvancedLibraryStats(
+            totalAssets: photoLibraryManager.totalPhotosCount,
+            reviewedAssets: reviewedCount,
+            deletedAssets: cleanupSummary.deletedPhotos,
+            organizedAssets: max(reviewedCount, cleanupSummary.organizedPhotos),
+            estimatedSpaceSavedMB: cleanupSummary.estimatedSpaceSavedMB,
+            pendingDeleteAssets: deleteCandidates.count,
+            storageSnapshot: Self.currentDeviceStorageSnapshot()
+        )
+    }
+
     // MARK: - 进阶功能数据
     func makeAdvancedLibrarySnapshot(
         referenceDate: Date = Date(),
         calendar: Calendar = .current
     ) -> AdvancedLibrarySnapshot {
-        let cleanupSummary = cleanupStatsStore.summary
-        let reviewedCount = min(reviewedAssetIDs.count, photoLibraryManager.allPhotos.count)
-        let organizedCount = max(reviewedCount, cleanupSummary.organizedPhotos)
+        let stats = makeSettingsStatsSummary()
 
         return AdvancedLibrarySnapshot(
-            stats: AdvancedLibraryStats(
-                totalAssets: photoLibraryManager.totalPhotosCount,
-                reviewedAssets: reviewedCount,
-                deletedAssets: cleanupSummary.deletedPhotos,
-                organizedAssets: organizedCount,
-                estimatedSpaceSavedMB: cleanupSummary.estimatedSpaceSavedMB + organizeStats.spaceSaved,
-                pendingDeleteAssets: deleteCandidates.count,
-                storageSnapshot: Self.currentDeviceStorageSnapshot()
-            ),
+            stats: stats,
             daySummaries: makePhotoDaySummaries(referenceDate: referenceDate, calendar: calendar),
             cleanupQueues: makeAdvancedCleanupQueues()
         )
