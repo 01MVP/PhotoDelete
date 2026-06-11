@@ -603,6 +603,40 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         }
     }
 
+    @discardableResult
+    func loadGridThumbnail(for asset: PHAsset, size: CGSize, completion: @escaping (UIImage?) -> Void) -> PHImageRequestID? {
+        let cacheKey = imageCacheKey(for: asset, purpose: "grid", size: size)
+
+        if let cachedImage = imageCache.object(forKey: cacheKey) {
+            completion(cachedImage)
+            return nil
+        }
+
+        let options = PHImageRequestOptions()
+        options.deliveryMode = .fastFormat
+        options.resizeMode = .fast
+        options.isNetworkAccessAllowed = false
+        options.isSynchronous = false
+
+        return imageManager.requestImage(
+            for: asset,
+            targetSize: size,
+            contentMode: .aspectFill,
+            options: options
+        ) { [weak self] image, info in
+            DispatchQueue.main.async {
+                let isCancelled = (info?[PHImageCancelledKey] as? Bool) == true
+                let isDegraded = (info?[PHImageResultIsDegradedKey] as? Bool) == true
+                guard !isCancelled else { return }
+
+                if let image {
+                    self?.cacheImage(image, forKey: cacheKey, isDegraded: isDegraded)
+                }
+                completion(image)
+            }
+        }
+    }
+
     private func expectLocalLibraryChange() {
         let updateCounter = { [weak self] in
             guard let self else { return }

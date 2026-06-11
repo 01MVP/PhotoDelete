@@ -7,12 +7,17 @@
 
 import SwiftUI
 import Photos
+import Combine
 
 struct AdvancedView: View {
     @EnvironmentObject var dataManager: DataManager
     @EnvironmentObject var purchaseManager: PurchaseManager
     @State private var selectedScope: AdvancedTimeScope = .month
     @State private var selectedPeriodDate = Date()
+    @State private var dashboardSnapshot = AdvancedLibrarySnapshot.demo(referenceDate: Date())
+    @State private var periodSummariesByScope: [AdvancedTimeScope: [PhotoPeriodSummary]] = [:]
+    @State private var activePeriodRoute: AdvancedPeriodRoute?
+    @State private var advancedRefreshWorkItem: DispatchWorkItem?
 
     private var isLocked: Bool {
         !purchaseManager.isSupporter
@@ -24,12 +29,8 @@ struct AdvancedView: View {
                 PhotoDelScreenBackground()
 
                 ScrollView(showsIndicators: false) {
-                    let snapshot = isLocked ?
-                        AdvancedLibrarySnapshot.demo(referenceDate: Date()) :
-                        dataManager.makeAdvancedLibrarySnapshot()
-                    let periodSummaries = isLocked ?
-                        demoPeriodSummaries(for: selectedScope) :
-                        dataManager.makePhotoPeriodSummaries(for: selectedScope)
+                    let snapshot = dashboardSnapshot
+                    let periodSummaries = visiblePeriodSummaries
                     let selectedPeriod = selectedPeriodSummary(in: periodSummaries)
 
                     VStack(spacing: 18) {
@@ -87,14 +88,48 @@ struct AdvancedView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        .navigationDestination(isPresented: isShowingActivePeriodRoute) {
+            if let activePeriodRoute {
+                AdvancedAssetListView(mode: .period(activePeriodRoute.scope, activePeriodRoute.intervalStart))
+                    .environmentObject(dataManager)
+            }
+        }
         .onChange(of: selectedScope) { _ in
             selectedPeriodDate = Date()
+        }
+        .onChange(of: purchaseManager.isSupporter) { _ in
+            refreshAdvancedDashboard(resetSelectedPeriod: true)
+        }
+        .onChange(of: dataManager.latestCleanupCelebration) { _ in
+            scheduleAdvancedDashboardRefresh()
+        }
+        .onReceive(dataManager.photoLibraryManager.$allPhotos) { _ in
+            scheduleAdvancedDashboardRefresh()
         }
         .task {
             await purchaseManager.loadProducts()
             await purchaseManager.refreshEntitlements()
             dataManager.syncPhotoLibraryAuthorization()
+            refreshAdvancedDashboard(resetSelectedPeriod: true)
         }
+    }
+
+    private var visiblePeriodSummaries: [PhotoPeriodSummary] {
+        if let summaries = periodSummariesByScope[selectedScope] {
+            return summaries
+        }
+        return demoPeriodSummaries(for: selectedScope)
+    }
+
+    private var isShowingActivePeriodRoute: Binding<Bool> {
+        Binding(
+            get: { activePeriodRoute != nil },
+            set: { isPresented in
+                if !isPresented {
+                    activePeriodRoute = nil
+                }
+            }
+        )
     }
 
     private var header: some View {
@@ -165,6 +200,10 @@ struct AdvancedView: View {
                     ForEach(summaries.prefix(18)) { summary in
                         Button {
                             selectedPeriodDate = summary.intervalStart
+                            activePeriodRoute = AdvancedPeriodRoute(
+                                scope: summary.scope,
+                                intervalStart: summary.intervalStart
+                            )
                         } label: {
                             AdvancedPeriodChip(
                                 summary: summary,
@@ -336,6 +375,48 @@ struct AdvancedView: View {
 
     private func restorePurchases() {
         Task { await purchaseManager.restorePurchases() }
+    }
+
+    private func scheduleAdvancedDashboardRefresh() {
+        advancedRefreshWorkItem?.cancel()
+        let workItem = DispatchWorkItem {
+            refreshAdvancedDashboard(resetSelectedPeriod: false)
+        }
+        advancedRefreshWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: workItem)
+    }
+
+    private func refreshAdvancedDashboard(resetSelectedPeriod: Bool) {
+        if resetSelectedPeriod {
+            selectedPeriodDate = Date()
+        }
+
+        if isLocked || !dataManager.photoLibraryManager.hasPhotoLibraryAccess {
+            dashboardSnapshot = AdvancedLibrarySnapshot.demo(referenceDate: Date())
+            periodSummariesByScope = Dictionary(
+                uniqueKeysWithValues: AdvancedTimeScope.allCases.map { scope in
+                    (scope, demoPeriodSummaries(for: scope))
+                }
+            )
+            return
+        }
+
+        dashboardSnapshot = AdvancedLibrarySnapshot(
+            stats: dataManager.makeSettingsStatsSummary(),
+            daySummaries: [],
+            monthSummaries: [],
+            cleanupQueues: dataManager.makeAdvancedCleanupQueues()
+        )
+        periodSummariesByScope = dataManager.makePhotoPeriodSummariesByScope()
+    }
+}
+
+private struct AdvancedPeriodRoute: Identifiable, Hashable {
+    let scope: AdvancedTimeScope
+    let intervalStart: Date
+
+    var id: String {
+        PhotoPeriodSummary.empty(scope: scope, containing: intervalStart).id
     }
 }
 
@@ -755,18 +836,11 @@ private struct AdvancedAssetListView: View {
     @Environment(\.dismiss) private var dismiss
     let mode: AdvancedAssetListMode
 
+    @State private var assets: [PHAsset] = []
+    @State private var totalSizeMB: Double = 0
     @State private var selectedAssetIDs: Set<String> = []
     @State private var showBatchConfirm = false
     @State private var previewAsset: AdvancedPreviewAsset?
-
-    private var assets: [PHAsset] {
-        switch mode {
-        case .cleanup(let kind):
-            return dataManager.getPhotosForAdvancedCleanup(kind)
-        case .period(let scope, let date):
-            return dataManager.getPhotosForPeriod(scope, containing: date)
-        }
-    }
 
     private var selectedAssets: [PHAsset] {
         assets.filter { selectedAssetIDs.contains($0.localIdentifier) }
@@ -844,6 +918,9 @@ private struct AdvancedAssetListView: View {
                 photoLibraryManager: dataManager.photoLibraryManager
             )
         }
+        .task(id: mode.id) {
+            reloadAssets()
+        }
     }
 
     private var summaryTitle: String {
@@ -862,18 +939,33 @@ private struct AdvancedAssetListView: View {
     }
 
     private var summarySubtitle: String {
-        let totalSize = assets.reduce(0) { $0 + dataManager.estimatedSizeMB(for: $1) }
         switch mode {
         case .cleanup(.largeFiles):
-            return L10n.string("按占用空间从大到小排序，合计约 \(CleanupStatsFormatter.space(totalSize))。")
+            return L10n.string("按占用空间从大到小排序，合计约 \(CleanupStatsFormatter.space(totalSizeMB))。")
         case .cleanup(.screenshots):
-            return L10n.string("像相册一样浏览截图，合计约 \(CleanupStatsFormatter.space(totalSize))。")
+            return L10n.string("像相册一样浏览截图，合计约 \(CleanupStatsFormatter.space(totalSizeMB))。")
         case .cleanup(.videos):
-            return L10n.string("按视频占用优先处理，合计约 \(CleanupStatsFormatter.space(totalSize))。")
+            return L10n.string("按视频占用优先处理，合计约 \(CleanupStatsFormatter.space(totalSizeMB))。")
         case .cleanup(.similarPhotos):
-            return L10n.string("建议优先处理相似组，合计约 \(CleanupStatsFormatter.space(totalSize))。")
+            return L10n.string("建议优先处理相似组，合计约 \(CleanupStatsFormatter.space(totalSizeMB))。")
         case .period(let scope, _):
-            return L10n.string("按时间浏览这个\(scope.title)，合计约 \(CleanupStatsFormatter.space(totalSize))。")
+            return L10n.string("按时间浏览这个\(scope.title)，合计约 \(CleanupStatsFormatter.space(totalSizeMB))。")
+        }
+    }
+
+    private func reloadAssets() {
+        let loadedAssets: [PHAsset]
+        switch mode {
+        case .cleanup(let kind):
+            loadedAssets = dataManager.getPhotosForAdvancedCleanup(kind)
+        case .period(let scope, let date):
+            loadedAssets = dataManager.getPhotosForPeriod(scope, containing: date)
+        }
+
+        assets = loadedAssets
+        totalSizeMB = loadedAssets.reduce(0) { $0 + dataManager.estimatedSizeMB(for: $1) }
+        selectedAssetIDs = selectedAssetIDs.filter { selectedID in
+            loadedAssets.contains { $0.localIdentifier == selectedID }
         }
     }
 
@@ -911,13 +1003,10 @@ private struct AdvancedAssetListView: View {
 private struct AdvancedSimilarPhotoGroupsView: View {
     @EnvironmentObject var dataManager: DataManager
     @Environment(\.dismiss) private var dismiss
+    @State private var groups: [AdvancedSimilarPhotoGroup] = []
     @State private var selectedAssetIDs: Set<String> = []
     @State private var showBatchConfirm = false
     @State private var previewAsset: AdvancedPreviewAsset?
-
-    private var groups: [AdvancedSimilarPhotoGroup] {
-        dataManager.makeSimilarPhotoGroups(maxGroups: 80)
-    }
 
     private var selectedAssets: [PHAsset] {
         groups.flatMap(\.assets).filter { selectedAssetIDs.contains($0.localIdentifier) }
@@ -993,6 +1082,9 @@ private struct AdvancedSimilarPhotoGroupsView: View {
                 photoLibraryManager: dataManager.photoLibraryManager
             )
         }
+        .task {
+            reloadGroups()
+        }
     }
 
     private func toggleRecommendedSelection() {
@@ -1030,6 +1122,15 @@ private struct AdvancedSimilarPhotoGroupsView: View {
         }
         HapticManager.notify(.success)
         showBatchConfirm = true
+    }
+
+    private func reloadGroups() {
+        groups = dataManager.makeSimilarPhotoGroups(maxGroups: 80)
+        selectedAssetIDs = selectedAssetIDs.filter { selectedID in
+            groups.contains { group in
+                group.assets.contains { $0.localIdentifier == selectedID }
+            }
+        }
     }
 }
 
@@ -1542,6 +1643,16 @@ private struct AdvancedEmptyState: View {
 private enum AdvancedAssetListMode {
     case cleanup(AdvancedCleanupKind)
     case period(AdvancedTimeScope, Date)
+
+    var id: String {
+        switch self {
+        case .cleanup(let kind):
+            return "cleanup-\(kind.rawValue)"
+        case .period(let scope, let date):
+            let interval = Calendar.current.dateInterval(for: scope, containing: date)
+            return "period-\(scope.rawValue)-\(Int(interval.start.timeIntervalSince1970))"
+        }
+    }
 
     var title: String {
         switch self {

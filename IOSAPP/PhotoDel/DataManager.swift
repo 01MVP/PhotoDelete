@@ -264,8 +264,17 @@ class DataManager: ObservableObject {
 
     // MARK: - 批量操作（离开页面时执行）
     func executeBatchOperations(completion: @escaping (Bool, Error?) -> Void) {
+        executeBatchOperations(publishCelebration: true) { success, error, _ in
+            completion(success, error)
+        }
+    }
+
+    func executeBatchOperations(
+        publishCelebration: Bool,
+        completion: @escaping (Bool, Error?, CleanupCelebration?) -> Void
+    ) {
         guard !deleteCandidates.isEmpty || !favoriteCandidates.isEmpty else {
-            completion(true, nil)
+            completion(true, nil, nil)
             return
         }
 
@@ -274,7 +283,7 @@ class DataManager: ObservableObject {
             let error = NSError(domain: "PhotoDelError", code: 1001, userInfo: [
                 NSLocalizedDescriptionKey: L10n.string("系统未准备就绪，请检查网络连接和存储空间")
             ])
-            completion(false, error)
+            completion(false, error, nil)
             return
         }
 
@@ -298,7 +307,7 @@ class DataManager: ObservableObject {
                     NSLocalizedDescriptionKey: L10n.string("批量操作失败: \(error?.localizedDescription ?? L10n.string("未知错误"))"),
                     NSLocalizedFailureReasonErrorKey: L10n.string("真实照片库未完成这次批量操作，请稍后重试")
                 ])
-                completion(false, enhancedError)
+                completion(false, enhancedError, nil)
                 return
             }
 
@@ -314,20 +323,21 @@ class DataManager: ObservableObject {
                 estimatedSpaceSavedMB: estimatedSpaceSaved
             )
             let summary = self.cleanupStatsStore.summary
-            if originalDeleteCandidates.count > 0 {
-                self.latestCleanupCelebration = CleanupCelebration(
-                    deletedPhotos: originalDeleteCandidates.count,
-                    favoritedPhotos: originalFavoriteCandidates.count,
-                    organizedPhotos: originalDeleteCandidates.count + originalFavoriteCandidates.count,
-                    estimatedSpaceSavedMB: estimatedSpaceSaved,
-                    totalDeletedPhotos: summary.deletedPhotos,
-                    totalSpaceSavedMB: summary.estimatedSpaceSavedMB
-                )
+            let celebration = CleanupCelebration(
+                deletedPhotos: originalDeleteCandidates.count,
+                favoritedPhotos: originalFavoriteCandidates.count,
+                organizedPhotos: originalDeleteCandidates.count + originalFavoriteCandidates.count,
+                estimatedSpaceSavedMB: estimatedSpaceSaved,
+                totalDeletedPhotos: summary.deletedPhotos,
+                totalSpaceSavedMB: summary.estimatedSpaceSavedMB
+            )
+            if publishCelebration && originalDeleteCandidates.count > 0 {
+                self.latestCleanupCelebration = celebration
             }
             self.deleteCandidates.removeAll()
             self.favoriteCandidates.removeAll()
             self.refreshDerivedLibraryData()
-            completion(true, nil)
+            completion(true, nil, celebration)
         }
     }
 
@@ -640,7 +650,115 @@ class DataManager: ObservableObject {
         .sorted { $0.intervalStart > $1.intervalStart }
     }
 
-    private func makeAdvancedCleanupQueues() -> [AdvancedCleanupQueue] {
+    func makePhotoPeriodSummariesByScope(
+        calendar: Calendar = .current
+    ) -> [AdvancedTimeScope: [PhotoPeriodSummary]] {
+        let screenshotIDs = Set(photoLibraryManager.screenshots.map(\.localIdentifier))
+        let reviewedIDs = reviewedAssetIDs
+        let deleteCandidateIDs = Set(deleteCandidates.map(\.localIdentifier))
+        let favoriteCandidateIDs = Set(favoriteCandidates.map(\.localIdentifier))
+        var dayBuckets: [Date: DaySummaryAccumulator] = [:]
+        var weekBuckets: [Date: DaySummaryAccumulator] = [:]
+        var monthBuckets: [Date: DaySummaryAccumulator] = [:]
+        var yearBuckets: [Date: DaySummaryAccumulator] = [:]
+
+        func add(
+            asset: PHAsset,
+            creationDate: Date,
+            isScreenshot: Bool,
+            isReviewed: Bool,
+            estimatedSize: Double,
+            to buckets: inout [Date: DaySummaryAccumulator],
+            scope: AdvancedTimeScope
+        ) {
+            let interval = calendar.dateInterval(for: scope, containing: creationDate)
+            var accumulator = buckets[interval.start] ?? DaySummaryAccumulator()
+            accumulator.add(
+                asset: asset,
+                isScreenshot: isScreenshot,
+                isReviewed: isReviewed,
+                estimatedSizeMB: estimatedSize
+            )
+            buckets[interval.start] = accumulator
+        }
+
+        for asset in photoLibraryManager.allPhotos {
+            guard let creationDate = asset.creationDate else { continue }
+            let identifier = asset.localIdentifier
+            let isReviewed = reviewedIDs.contains(identifier) ||
+                deleteCandidateIDs.contains(identifier) ||
+                favoriteCandidateIDs.contains(identifier) ||
+                asset.isFavorite
+            let isScreenshot = screenshotIDs.contains(identifier)
+            let estimatedSize = estimatedAssetSizeMB(asset)
+
+            add(
+                asset: asset,
+                creationDate: creationDate,
+                isScreenshot: isScreenshot,
+                isReviewed: isReviewed,
+                estimatedSize: estimatedSize,
+                to: &dayBuckets,
+                scope: .day
+            )
+            add(
+                asset: asset,
+                creationDate: creationDate,
+                isScreenshot: isScreenshot,
+                isReviewed: isReviewed,
+                estimatedSize: estimatedSize,
+                to: &weekBuckets,
+                scope: .week
+            )
+            add(
+                asset: asset,
+                creationDate: creationDate,
+                isScreenshot: isScreenshot,
+                isReviewed: isReviewed,
+                estimatedSize: estimatedSize,
+                to: &monthBuckets,
+                scope: .month
+            )
+            add(
+                asset: asset,
+                creationDate: creationDate,
+                isScreenshot: isScreenshot,
+                isReviewed: isReviewed,
+                estimatedSize: estimatedSize,
+                to: &yearBuckets,
+                scope: .year
+            )
+        }
+
+        func summaries(
+            from buckets: [Date: DaySummaryAccumulator],
+            scope: AdvancedTimeScope
+        ) -> [PhotoPeriodSummary] {
+            buckets.map { periodStart, accumulator in
+                let interval = calendar.dateInterval(for: scope, containing: periodStart)
+                return PhotoPeriodSummary(
+                    scope: scope,
+                    intervalStart: interval.start,
+                    intervalEnd: interval.end,
+                    assetCount: accumulator.photoCount,
+                    screenshotCount: accumulator.screenshotCount,
+                    videoCount: accumulator.videoCount,
+                    reviewedCount: accumulator.reviewedCount,
+                    estimatedSizeMB: accumulator.estimatedSizeMB
+                )
+            }
+            .sorted { $0.intervalStart > $1.intervalStart }
+        }
+
+        return [
+            .day: summaries(from: dayBuckets, scope: .day),
+            .week: summaries(from: weekBuckets, scope: .week),
+            .month: summaries(from: monthBuckets, scope: .month),
+            .year: summaries(from: yearBuckets, scope: .year)
+        ]
+    }
+
+    func makeAdvancedCleanupQueues() -> [AdvancedCleanupQueue] {
         let similarGroups = makeSimilarPhotoGroups(maxGroups: Int.max)
         let largeFiles = largeFileCandidates(maxCount: Int.max)
         let screenshots = photoLibraryManager.screenshots
