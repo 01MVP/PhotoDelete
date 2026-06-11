@@ -16,6 +16,11 @@ open PhotoDel.xcodeproj
 # Target: iOS 16.0+
 ```
 
+### TestFlight Release
+- TestFlight build numbers must use UTC+8 time in `yyyyMMddHHmm` format, matching Beijing/Shanghai local time. Do not generate release build numbers from UTC time.
+- Before uploading, make sure the new `CFBundleVersion` is numerically greater than the highest build already visible in App Store Connect/TestFlight; otherwise testers may not receive it as an update even if the upload succeeds.
+- The release script accepts an explicit override, for example `BUILD_NUMBER=202606111630 scripts/release-testflight.sh`.
+
 ### Project Cleanup
 ```bash
 rm -rf IOSAPP/DerivedData
