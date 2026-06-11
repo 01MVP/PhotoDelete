@@ -24,7 +24,7 @@ final class PurchaseManager: ObservableObject {
     }
 
     var supporterPriceText: String {
-        supporterProduct?.displayPrice ?? "¥9.90"
+        supporterProduct?.displayPrice ?? L10n.string("读取价格中")
     }
 
     init(userDefaults: UserDefaults = .standard) {
@@ -46,6 +46,11 @@ final class PurchaseManager: ObservableObject {
     }
 
     func loadProducts() async {
+        guard products.isEmpty else {
+            errorMessage = nil
+            return
+        }
+
         isLoading = true
         defer { isLoading = false }
 

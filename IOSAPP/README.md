@@ -97,7 +97,7 @@ IOSAPP/PhotoDel/
 ### 🛠️ 开发技术
 - **SwiftUI**: 现代化的声明式UI框架
 - **Combine**: 响应式编程和数据绑定
-- **Core Data**: 本地数据持久化（如需要）
+- **JSON / UserDefaults**: 本机快照、整理进度和统计记录
 - **Photos Framework**: 照片库访问和管理
 
 ### 🎨 设计规范

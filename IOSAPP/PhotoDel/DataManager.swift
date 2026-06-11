@@ -9,6 +9,12 @@ import SwiftUI
 import Photos
 import UIKit
 import Combine
+import OSLog
+
+private let dataManagerLogger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "PhotoDel",
+    category: "DataManager"
+)
 
 class DataManager: ObservableObject {
     @Published var organizeStats = OrganizeStats()
@@ -39,8 +45,8 @@ class DataManager: ObservableObject {
     private var timeGroupCache: [TimeGroup: [PHAsset]] = [:]
     private var progressRefreshWorkItem: DispatchWorkItem?
     private var libraryDataRefreshWorkItem: DispatchWorkItem?
+    private var reviewedAssetIDsSaveWorkItem: DispatchWorkItem?
     private var cancellables: Set<AnyCancellable> = []
-    private let reviewedAssetIDsKey = "photoDelReviewedAssetIDs"
 
     init(cleanupStatsStore: CleanupStatsStore = CleanupStatsStore()) {
         self.cleanupStatsStore = cleanupStatsStore
@@ -59,6 +65,13 @@ class DataManager: ObservableObject {
         photoLibraryManager.onLibraryDataChanged = { [weak self] in
             self?.scheduleLibraryDataRefresh()
         }
+
+        NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.saveReviewedAssetIDsNow()
+            }
+            .store(in: &cancellables)
 
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
@@ -298,7 +311,7 @@ class DataManager: ObservableObject {
                 return freeSpaceInBytes > minimumRequired
             }
         } catch {
-            print("无法检查存储空间: \(error)")
+            dataManagerLogger.error("Unable to check free disk space: \(error.localizedDescription, privacy: .public)")
         }
 
         return true
@@ -314,7 +327,7 @@ class DataManager: ObservableObject {
     func markReviewed(_ asset: PHAsset) -> Bool {
         let wasReviewed = reviewedAssetIDs.contains(asset.localIdentifier)
         reviewedAssetIDs.insert(asset.localIdentifier)
-        saveReviewedAssetIDs()
+        scheduleReviewedAssetIDsSave()
         scheduleProgressRefresh()
         return wasReviewed
     }
@@ -325,7 +338,7 @@ class DataManager: ObservableObject {
         } else {
             reviewedAssetIDs.remove(asset.localIdentifier)
         }
-        saveReviewedAssetIDs()
+        scheduleReviewedAssetIDsSave()
         scheduleProgressRefresh()
     }
 
@@ -343,7 +356,7 @@ class DataManager: ObservableObject {
         deleteCandidates.removeAll()
         favoriteCandidates.removeAll()
         reviewedAssetIDs.removeAll()
-        saveReviewedAssetIDs()
+        saveReviewedAssetIDsNow()
         loadTimeGroups()
         updateStats()
     }
@@ -422,12 +435,27 @@ class DataManager: ObservableObject {
     }
 
     private func loadReviewedAssetIDs() {
-        let identifiers = UserDefaults.standard.stringArray(forKey: reviewedAssetIDsKey) ?? []
+        let identifiers = UserDefaults.standard.stringArray(forKey: AppConstants.reviewedAssetIDsKey) ?? []
         reviewedAssetIDs = Set(identifiers)
     }
 
     private func saveReviewedAssetIDs() {
-        UserDefaults.standard.set(Array(reviewedAssetIDs), forKey: reviewedAssetIDsKey)
+        UserDefaults.standard.set(Array(reviewedAssetIDs), forKey: AppConstants.reviewedAssetIDsKey)
+    }
+
+    private func scheduleReviewedAssetIDsSave() {
+        reviewedAssetIDsSaveWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.saveReviewedAssetIDs()
+        }
+        reviewedAssetIDsSaveWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: workItem)
+    }
+
+    private func saveReviewedAssetIDsNow() {
+        reviewedAssetIDsSaveWorkItem?.cancel()
+        reviewedAssetIDsSaveWorkItem = nil
+        saveReviewedAssetIDs()
     }
 
     private func pruneReviewedAssetIDs() {
@@ -437,7 +465,7 @@ class DataManager: ObservableObject {
         let prunedAssetIDs = reviewedAssetIDs.intersection(validAssetIDs)
         guard prunedAssetIDs.count != reviewedAssetIDs.count else { return }
         reviewedAssetIDs = prunedAssetIDs
-        saveReviewedAssetIDs()
+        saveReviewedAssetIDsNow()
     }
 
     private func scheduleLibraryDataRefresh() {
@@ -587,7 +615,7 @@ class DataManager: ObservableObject {
     }
 
     private func restoreAlbumInfo(_ record: CachedAlbumRecord) -> AlbumInfo? {
-        guard let albumType = AlbumType(rawValue: record.typeRawValue) else { return nil }
+        guard let albumType = AlbumType.fromStoredValue(record.typeRawValue) else { return nil }
         let collection = fetchAssetCollection(withIdentifier: record.id)
         if albumType == .userCreated && collection == nil { return nil }
 
@@ -668,6 +696,7 @@ class DataManager: ObservableObject {
         }
 
         let fetchOptions = PHFetchOptions()
+        fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
         let assets = PHAsset.fetchAssets(in: assetCollection, options: fetchOptions)
 
         var result: [PHAsset] = []
@@ -748,29 +777,41 @@ class DataManager: ObservableObject {
     }
 
     func recordAddedPhotoToAlbum(_ asset: PHAsset, albumID: String) {
+        if refreshUserAlbumFromLibrary(id: albumID) {
+            return
+        }
         updateUserAlbumCount(id: albumID, delta: 1, replacementThumbnail: asset)
     }
 
     func recordDeletedPhotosFromAlbum(albumID: String?, deletedAssets: [PHAsset]) {
         guard let albumID, !deletedAssets.isEmpty else { return }
-        guard let index = userAlbums.firstIndex(where: { $0.id == albumID }) else { return }
-        let album = userAlbums[index]
 
-        if let collection = album.assetCollection {
-            let assets = PHAsset.fetchAssets(in: collection, options: nil)
-            userAlbums[index] = AlbumInfo(
-                id: album.id,
-                title: album.title,
-                assetCollection: album.assetCollection,
-                type: album.type,
-                photosCount: assets.count,
-                thumbnailAsset: assets.firstObject
-            )
-            saveAlbumSnapshot()
+        if refreshUserAlbumFromLibrary(id: albumID) {
             return
         }
 
         updateUserAlbumCount(id: albumID, delta: -deletedAssets.count, replacementThumbnail: nil)
+    }
+
+    @discardableResult
+    private func refreshUserAlbumFromLibrary(id: String) -> Bool {
+        guard let index = userAlbums.firstIndex(where: { $0.id == id }) else { return false }
+        let album = userAlbums[index]
+        guard let collection = album.assetCollection else { return false }
+
+        let fetchOptions = PHFetchOptions()
+        fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+        let assets = PHAsset.fetchAssets(in: collection, options: fetchOptions)
+        userAlbums[index] = AlbumInfo(
+            id: album.id,
+            title: album.title,
+            assetCollection: album.assetCollection,
+            type: album.type,
+            photosCount: assets.count,
+            thumbnailAsset: assets.firstObject
+        )
+        saveAlbumSnapshot()
+        return true
     }
 
     private func upsertUserAlbum(_ albumInfo: AlbumInfo) {
@@ -802,7 +843,7 @@ class DataManager: ObservableObject {
     func addPhotoToAlbum(_ asset: PHAsset, album: PHAssetCollection, completion: @escaping (Bool) -> Void) {
         photoLibraryManager.addPhotosToAlbum([asset], album: album) { success, error in
             if let error = error {
-                print("添加照片到相册失败: \(error.localizedDescription)")
+                dataManagerLogger.error("Failed to add photo to album: \(error.localizedDescription, privacy: .public)")
             }
             if success {
                 self.recordAddedPhotoToAlbum(asset, albumID: album.localIdentifier)

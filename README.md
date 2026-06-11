@@ -91,9 +91,9 @@ Select a simulator or device target, then build and run (Cmd+R).
 ### Build from CLI
 
 ```bash
-cd IOSAPP
-xcodebuild -project PhotoDel.xcodeproj -scheme PhotoDel \
-  -destination 'platform=iOS Simulator,name=iPhone 17' clean build
+SIMULATOR_DESTINATION="$(scripts/resolve-ios-simulator-destination.sh)"
+xcodebuild -project IOSAPP/PhotoDel.xcodeproj -scheme PhotoDel \
+  -destination "$SIMULATOR_DESTINATION" clean build
 ```
 
 ---

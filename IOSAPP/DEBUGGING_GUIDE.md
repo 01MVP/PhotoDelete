@@ -83,9 +83,9 @@ open PhotoDel.xcodeproj
 **Info.plist 配置：**
 ```xml
 <key>NSPhotoLibraryUsageDescription</key>
-<string>这个应用需要访问您的照片库来帮助您整理和管理照片</string>
+<string>PhotoDel需要访问您的照片库来帮助您整理和管理照片。我们不会上传或分享您的照片。</string>
 <key>NSPhotoLibraryAddUsageDescription</key>
-<string>这个应用需要访问您的照片库来把照片加入您选择的相册</string>
+<string>PhotoDel需要权限来把照片加入您选择的相册。</string>
 ```
 
 **权限请求流程：**
@@ -197,7 +197,7 @@ print("授权状态: \(photoLibraryManager.authorizationStatus)")
 
 **性能分析：**
 - Time Profiler检查CPU使用
-- Core Data分析照片数据访问
+- Time Profiler 分析 Photos fetch、时间分组和图片缓存路径
 - Network检查iCloud照片同步
 
 ### 3. 照片库工具

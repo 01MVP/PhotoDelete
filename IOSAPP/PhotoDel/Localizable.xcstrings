@@ -1,7 +1,6 @@
 {
   "sourceLanguage": "zh-Hans",
   "strings": {
-    "": {},
     "%@ %lld 张": {
       "localizations": {
         "en": {
@@ -989,6 +988,16 @@
         }
       }
     },
+    "当前照片权限不可用": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo access is not available"
+          }
+        }
+      }
+    },
     "当前授权范围内没有照片。您可以在系统设置里调整 PhotoDel 的照片访问范围。": {
       "localizations": {
         "en": {
@@ -1293,6 +1302,16 @@
         }
       }
     },
+    "关闭搜索": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close search"
+          }
+        }
+      }
+    },
     "撤销": {
       "localizations": {
         "en": {
@@ -1410,6 +1429,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Could not add to this album"
+          }
+        }
+      }
+    },
+    "有照片无法删除，请先在系统照片中检查权限或来源。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Some photos cannot be deleted. Check their permissions or source in Photos."
+          }
+        }
+      }
+    },
+    "有照片无法收藏，请先在系统照片中检查权限或来源。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Some photos cannot be favorited. Check their permissions or source in Photos."
           }
         }
       }
@@ -2138,6 +2177,16 @@
         }
       }
     },
+    "读取价格中": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading price"
+          }
+        }
+      }
+    },
     "读取中 %@": {
       "localizations": {
         "en": {
@@ -2244,6 +2293,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "This album has no photos yet"
+          }
+        }
+      }
+    },
+    "这个相册不支持添加照片。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This album does not support adding photos."
           }
         }
       }

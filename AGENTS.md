@@ -18,9 +18,8 @@ open PhotoDel.xcodeproj
 
 ### Project Cleanup
 ```bash
-cd IOSAPP
-rm -rf DerivedData
-xcodebuild clean -project PhotoDel.xcodeproj -scheme PhotoDel
+rm -rf IOSAPP/DerivedData
+xcodebuild clean -project IOSAPP/PhotoDel.xcodeproj -scheme PhotoDel
 ```
 
 ### Testing Options
@@ -77,9 +76,9 @@ All real deletions and favorites are queued and executed via `executeBatchOperat
 ### Permissions Required
 ```xml
 <key>NSPhotoLibraryUsageDescription</key>
-<string>这个应用需要访问您的照片库来帮助您整理和管理照片</string>
+<string>PhotoDel需要访问您的照片库来帮助您整理和管理照片。我们不会上传或分享您的照片。</string>
 <key>NSPhotoLibraryAddUsageDescription</key>
-<string>这个应用需要访问您的照片库来把照片加入您选择的相册</string>
+<string>PhotoDel需要权限来把照片加入您选择的相册。</string>
 ```
 
 ### Authorization States

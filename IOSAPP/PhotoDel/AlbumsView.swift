@@ -7,18 +7,21 @@
 
 import SwiftUI
 import Photos
+import OSLog
 #if canImport(UIKit)
 import UIKit
 #endif
+
+private let albumsLogger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "PhotoDel",
+    category: "Albums"
+)
 
 struct AlbumsView: View {
     @EnvironmentObject var dataManager: DataManager
     @AppStorage(AppConstants.customAlbumOrderKey) private var customAlbumOrderData = "[]"
     @State private var searchText = ""
-    @State private var showingCreateAlbum = false
-    @State private var editingAlbum: PHAssetCollection?
-    @State private var showingEditAlbum = false
-    @State private var selectedAlbumInfo: AlbumInfo?
+    @State private var activeSheet: AlbumSheet?
     @State private var showSearchBar = false
     @State private var sortMode: AlbumSortMode = .custom
     @State private var editMode: EditMode = .inactive
@@ -47,19 +50,18 @@ struct AlbumsView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
-        .sheet(isPresented: $showingCreateAlbum) {
-            CreateAlbumView()
-                .environmentObject(dataManager)
-        }
-        .sheet(isPresented: $showingEditAlbum) {
-            if let album = editingAlbum {
+        .sheet(item: $activeSheet) { sheet in
+            switch sheet {
+            case .create:
+                CreateAlbumView()
+                    .environmentObject(dataManager)
+            case .edit(let album):
                 EditAlbumView(album: album)
                     .environmentObject(dataManager)
+            case .swipe(let albumInfo):
+                SwipePhotoView(selectedCategory: nil, selectedTimeGroup: nil, selectedAlbumInfo: albumInfo)
+                    .environmentObject(dataManager)
             }
-        }
-        .sheet(item: $selectedAlbumInfo) { albumInfo in
-            SwipePhotoView(selectedCategory: nil, selectedTimeGroup: nil, selectedAlbumInfo: albumInfo)
-                .environmentObject(dataManager)
         }
         .confirmationDialog(
             L10n.string("删除这个相册？"),
@@ -124,10 +126,11 @@ struct AlbumsView: View {
                         .background(Circle().fill(PhotoDelStyle.elevatedSurface))
                 }
                 .menuStyle(.button)
+                .accessibilityLabel(L10n.string("排序"))
 
                 Button(action: {
                     HapticManager.impact(.light)
-                    showingCreateAlbum = true
+                    activeSheet = .create
                 }) {
                     Image(systemName: "plus")
                         .font(.system(size: 18, weight: .semibold))
@@ -136,6 +139,7 @@ struct AlbumsView: View {
                         .background(Circle().fill(PhotoDelStyle.accent))
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(L10n.string("创建相册"))
             }
         }
         .padding(.horizontal, 24)
@@ -219,6 +223,7 @@ struct AlbumsView: View {
                     .foregroundColor(PhotoDelStyle.tertiaryText)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(L10n.string("关闭搜索"))
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 11)
@@ -321,8 +326,7 @@ struct AlbumsView: View {
                 }
 
                 Button {
-                    editingAlbum = collection
-                    showingEditAlbum = true
+                    activeSheet = .edit(collection)
                 } label: {
                     Label("编辑", systemImage: "pencil")
                 }
@@ -468,7 +472,7 @@ struct AlbumsView: View {
         }
 
         HapticManager.impact(.light)
-        selectedAlbumInfo = albumInfo
+        activeSheet = .swipe(albumInfo)
     }
 
     private func confirmDeleteAlbum(_ album: PHAssetCollection) {
@@ -492,7 +496,7 @@ struct AlbumsView: View {
                 } else if let error = error {
                     HapticManager.notify(.error)
                     self.showAlbumToast(L10n.string("删除失败，请再试一次"), icon: "exclamationmark.triangle", style: .warning)
-                    print("删除相册失败: \(error.localizedDescription)")
+                    albumsLogger.error("Failed to delete album: \(error.localizedDescription, privacy: .public)")
                 }
             }
         }
@@ -521,6 +525,23 @@ struct AlbumsView: View {
         }
     }
 
+}
+
+private enum AlbumSheet: Identifiable {
+    case create
+    case edit(PHAssetCollection)
+    case swipe(AlbumInfo)
+
+    var id: String {
+        switch self {
+        case .create:
+            return "create"
+        case .edit(let album):
+            return "edit-\(album.localIdentifier)"
+        case .swipe(let albumInfo):
+            return "swipe-\(albumInfo.id)"
+        }
+    }
 }
 
 private enum AlbumSortMode: String, CaseIterable, Identifiable {
@@ -759,7 +780,7 @@ struct CreateAlbumView: View {
                     self.dataManager.insertCreatedUserAlbum(withIdentifier: createdAlbumIdentifier)
                     self.dismiss()
                 } else if let error = error {
-                    print("创建相册失败: \(error.localizedDescription)")
+                    albumsLogger.error("Failed to create album: \(error.localizedDescription, privacy: .public)")
                     self.errorMessage = L10n.string("创建相册失败，请再试一次")
                 }
             }
@@ -884,7 +905,7 @@ struct EditAlbumView: View {
                     self.dataManager.renameUserAlbum(id: albumID, title: trimmedName)
                     self.dismiss()
                 } else if let error = error {
-                    print("更新相册失败: \(error.localizedDescription)")
+                    albumsLogger.error("Failed to update album: \(error.localizedDescription, privacy: .public)")
                     self.errorMessage = L10n.string("更新相册失败，请再试一次")
                 }
             }

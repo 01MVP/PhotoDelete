@@ -231,10 +231,23 @@ struct PhotoDelTests {
         for albumType in AlbumType.allCases {
             let album = AlbumInfo(assetCollection: nil, type: albumType)
             #expect(album.id == albumType.rawValue, "id should be type.rawValue for type \(albumType)")
-            #expect(album.title == albumType.rawValue, "title should be type.rawValue for type \(albumType)")
+            #expect(album.title == albumType.title, "title should use localized title for type \(albumType)")
             #expect(album.assetCollection == nil)
             #expect(album.type == albumType)
         }
+    }
+
+    @Test func albumTypeRestoresLegacyChineseRawValues() async throws {
+        #expect(AlbumType.fromStoredValue("全部照片") == .all)
+        #expect(AlbumType.fromStoredValue("最近项目") == .recents)
+        #expect(AlbumType.fromStoredValue("用户相册") == .userCreated)
+        #expect(AlbumType.fromStoredValue("favorites") == .favorites)
+    }
+
+    @Test func timeGroupRestoresLegacyChineseIdentifiers() async throws {
+        #expect(TimeGroup.fromIdentifier("今天的照片") == .today)
+        #expect(TimeGroup.fromIdentifier("本周的照片") == .thisWeek)
+        #expect(TimeGroup.fromIdentifier("olderPhotos") == .olderPhotos)
     }
 
     @Test func albumInfoDefaults() async throws {
@@ -339,7 +352,7 @@ struct PhotoDelTests {
 
     @Test func reviewedStateCanBeRestored() async throws {
         guard let asset = fetchFirstAsset() else { return }
-        UserDefaults.standard.removeObject(forKey: "photoDelReviewedAssetIDs")
+        UserDefaults.standard.removeObject(forKey: AppConstants.reviewedAssetIDsKey)
         let dm = DataManager()
 
         let wasReviewed = dm.markReviewed(asset)
@@ -352,7 +365,7 @@ struct PhotoDelTests {
 
     @Test func clearLocalOrganizeDataClearsCandidatesAndReviewedState() async throws {
         guard let asset = fetchFirstAsset() else { return }
-        UserDefaults.standard.removeObject(forKey: "photoDelReviewedAssetIDs")
+        UserDefaults.standard.removeObject(forKey: AppConstants.reviewedAssetIDsKey)
         let dm = DataManager()
 
         dm.addToDeleteCandidates(asset)

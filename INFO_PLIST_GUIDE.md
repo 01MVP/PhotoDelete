@@ -64,10 +64,10 @@ IOSAPP/Config/PhotoDel-Info.plist
 <string>com.01MVP.PhotoDel</string>
 
 <key>CFBundleVersion</key>
-<string>1.0</string>
+<string>$(CURRENT_PROJECT_VERSION)</string>
 
 <key>CFBundleShortVersionString</key>
-<string>1.0</string>
+<string>$(MARKETING_VERSION)</string>
 ```
 
 ## 为什么 Info.plist 很重要？

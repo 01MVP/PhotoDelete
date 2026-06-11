@@ -162,11 +162,11 @@ enum SwipeGesturePreferences {
 
 // MARK: - 时间分组
 enum TimeGroup: String, CaseIterable {
-    case today = "今天的照片"
-    case thisWeek = "本周的照片"
-    case thisMonth = "本月的照片"
-    case lastMonth = "上个月的照片"
-    case olderPhotos = "更早的照片"
+    case today
+    case thisWeek
+    case thisMonth
+    case lastMonth
+    case olderPhotos
 
     var title: String {
         switch self {
@@ -186,6 +186,20 @@ enum TimeGroup: String, CaseIterable {
         case .lastMonth: return "calendar.badge.minus"
         case .olderPhotos: return "calendar.badge.exclamationmark"
         }
+    }
+
+    var legacyRawValue: String {
+        switch self {
+        case .today: return "今天的照片"
+        case .thisWeek: return "本周的照片"
+        case .thisMonth: return "本月的照片"
+        case .lastMonth: return "上个月的照片"
+        case .olderPhotos: return "更早的照片"
+        }
+    }
+
+    static func fromIdentifier(_ identifier: String) -> TimeGroup? {
+        TimeGroup(rawValue: identifier) ?? TimeGroup.allCases.first { $0.legacyRawValue == identifier }
     }
 }
 
@@ -228,12 +242,12 @@ enum TimeGroupResolver {
 
 // MARK: - 相册类型
 enum AlbumType: String, CaseIterable {
-    case all = "全部照片"
-    case recents = "最近项目"
-    case favorites = "收藏"
-    case screenshots = "截图"
-    case videos = "视频"
-    case userCreated = "用户相册"
+    case all
+    case recents
+    case favorites
+    case screenshots
+    case videos
+    case userCreated
 
     var title: String {
         switch self {
@@ -255,6 +269,21 @@ enum AlbumType: String, CaseIterable {
         case .videos: return "video"
         case .userCreated: return "folder"
         }
+    }
+
+    var legacyRawValue: String {
+        switch self {
+        case .all: return "全部照片"
+        case .recents: return "最近项目"
+        case .favorites: return "收藏"
+        case .screenshots: return "截图"
+        case .videos: return "视频"
+        case .userCreated: return "用户相册"
+        }
+    }
+
+    static func fromStoredValue(_ value: String) -> AlbumType? {
+        AlbumType(rawValue: value) ?? AlbumType.allCases.first { $0.legacyRawValue == value }
     }
 }
 
@@ -314,10 +343,6 @@ struct OrganizeStats {
     var spaceSaved: Double = 0.0 // MB
 
     var formattedSpaceSaved: String {
-        if spaceSaved < 1000 {
-            return String(format: "%.1f MB", spaceSaved)
-        } else {
-            return String(format: "%.1f GB", spaceSaved / 1000)
-        }
+        CleanupStatsFormatter.space(spaceSaved)
     }
 }

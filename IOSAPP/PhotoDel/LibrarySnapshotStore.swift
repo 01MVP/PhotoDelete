@@ -1,4 +1,10 @@
 import Foundation
+import OSLog
+
+private let snapshotStoreLogger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "PhotoDel",
+    category: "SnapshotStore"
+)
 
 struct PhotoLibrarySnapshot: Codable {
     let createdAt: Date
@@ -23,6 +29,7 @@ struct AlbumListSnapshot: Codable {
 }
 
 final class PhotoLibrarySnapshotStore {
+    private static let writeQueue = DispatchQueue(label: "com.01mvp.PhotoDel.photo-library-snapshot")
     private let fileURL: URL
 
     init(filename: String = "photo-library-snapshot.json") {
@@ -39,12 +46,18 @@ final class PhotoLibrarySnapshotStore {
     }
 
     func save(_ snapshot: PhotoLibrarySnapshot) {
-        do {
-            try Self.ensureDirectoryExists(for: fileURL)
-            let data = try JSONEncoder().encode(snapshot)
-            try data.write(to: fileURL, options: [.atomic])
-        } catch {
-            print("保存照片索引缓存失败: \(error.localizedDescription)")
+        Self.writeQueue.sync {
+            if let currentSnapshot = load(), currentSnapshot.createdAt > snapshot.createdAt {
+                return
+            }
+
+            do {
+                try Self.ensureDirectoryExists(for: fileURL)
+                let data = try JSONEncoder().encode(snapshot)
+                try data.write(to: fileURL, options: [.atomic])
+            } catch {
+                snapshotStoreLogger.error("Failed to save photo library snapshot: \(error.localizedDescription, privacy: .public)")
+            }
         }
     }
 
@@ -67,6 +80,7 @@ final class PhotoLibrarySnapshotStore {
 }
 
 final class AlbumListSnapshotStore {
+    private static let writeQueue = DispatchQueue(label: "com.01mvp.PhotoDel.album-list-snapshot")
     private let fileURL: URL
 
     init(filename: String = "album-list-snapshot.json") {
@@ -79,12 +93,18 @@ final class AlbumListSnapshotStore {
     }
 
     func save(_ snapshot: AlbumListSnapshot) {
-        do {
-            try Self.ensureDirectoryExists(for: fileURL)
-            let data = try JSONEncoder().encode(snapshot)
-            try data.write(to: fileURL, options: [.atomic])
-        } catch {
-            print("保存相册缓存失败: \(error.localizedDescription)")
+        Self.writeQueue.sync {
+            if let currentSnapshot = load(), currentSnapshot.createdAt > snapshot.createdAt {
+                return
+            }
+
+            do {
+                try Self.ensureDirectoryExists(for: fileURL)
+                let data = try JSONEncoder().encode(snapshot)
+                try data.write(to: fileURL, options: [.atomic])
+            } catch {
+                snapshotStoreLogger.error("Failed to save album list snapshot: \(error.localizedDescription, privacy: .public)")
+            }
         }
     }
 

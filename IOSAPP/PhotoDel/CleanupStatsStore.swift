@@ -7,6 +7,12 @@
 
 import Foundation
 import Combine
+import OSLog
+
+private let cleanupStatsLogger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "PhotoDel",
+    category: "CleanupStats"
+)
 
 struct CleanupSession: Codable, Identifiable, Equatable {
     let id: UUID
@@ -182,7 +188,7 @@ final class CleanupStatsStore: ObservableObject {
             let data = try encoder.encode(sessions)
             try data.write(to: fileURL, options: [.atomic])
         } catch {
-            print("保存清理统计失败: \(error.localizedDescription)")
+            cleanupStatsLogger.error("Failed to save cleanup stats: \(error.localizedDescription, privacy: .public)")
         }
     }
 

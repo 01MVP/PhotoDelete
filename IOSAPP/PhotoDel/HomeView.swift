@@ -42,7 +42,7 @@ enum SwipeViewDestination: Hashable {
 
 struct HomeView: View {
     @EnvironmentObject var dataManager: DataManager
-    @AppStorage("hasSeenPhotoDelIntro") private var hasSeenPhotoDelIntro = false
+    @AppStorage(AppConstants.hasSeenIntroKey) private var hasSeenPhotoDelIntro = false
     @State private var navigationPath = NavigationPath()
 
     var body: some View {
@@ -531,6 +531,7 @@ struct HomeEntryRow: View {
 
 // MARK: - 扫描态组件
 struct ScanningSwipeGlyph: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var animate = false
 
     var body: some View {
@@ -573,6 +574,10 @@ struct ScanningSwipeGlyph: View {
         }
         .frame(height: 108)
         .onAppear {
+            guard !reduceMotion else {
+                animate = true
+                return
+            }
             withAnimation(.easeInOut(duration: 1.35).repeatForever(autoreverses: true)) {
                 animate = true
             }

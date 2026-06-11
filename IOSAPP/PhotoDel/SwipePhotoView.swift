@@ -62,7 +62,7 @@ struct SwipePhotoView: View {
         } else if let category = selectedCategory {
             return dataManager.getRealPhotos(for: category)
         } else if let timeGroupString = selectedTimeGroup,
-                  let timeGroup = TimeGroup.allCases.first(where: { $0.rawValue == timeGroupString }) {
+                  let timeGroup = TimeGroup.fromIdentifier(timeGroupString) {
             return dataManager.getPhotosForTimeGroup(timeGroup)
         } else {
             return dataManager.photoLibraryManager.allPhotos
@@ -94,6 +94,10 @@ struct SwipePhotoView: View {
     private var isCurrentPhotoFavorited: Bool {
         guard let asset = currentRealPhoto else { return false }
         return asset.isFavorite || dataManager.isInFavoriteCandidates(asset)
+    }
+
+    private var canPerformPhotoAction: Bool {
+        currentRealPhoto != nil && !showCompletionMessage
     }
 
     var body: some View {
@@ -485,6 +489,8 @@ struct SwipePhotoView: View {
                     }
                 }
             }
+            .disabled(!canPerformPhotoAction)
+            .opacity(canPerformPhotoAction ? 1 : 0.45)
         }
         .padding(.horizontal, 22)
         .padding(.vertical, 18)
@@ -545,7 +551,7 @@ struct SwipePhotoView: View {
 
     @ViewBuilder
     private func albumShortcutStrip(horizontalPadding: CGFloat) -> some View {
-        if !isAlbumMode && !dataManager.userAlbums.isEmpty {
+        if !isAlbumMode && canPerformPhotoAction && !dataManager.userAlbums.isEmpty {
             let rows = [
                 GridItem(.fixed(32), spacing: 8),
                 GridItem(.fixed(32), spacing: 8)
@@ -618,6 +624,8 @@ struct SwipePhotoView: View {
             Spacer()
         }
         .padding(.horizontal, 24)
+        .disabled(!canPerformPhotoAction)
+        .opacity(canPerformPhotoAction ? 1 : 0.45)
     }
 
     // MARK: - 手势处理
@@ -868,19 +876,19 @@ struct SwipePhotoView: View {
     }
 
     private func handleFavoriteAction() {
-        guard let asset = currentRealPhoto else { return }
+        guard !showCompletionMessage, let asset = currentRealPhoto else { return }
         markFavoriteCandidate(asset)
         moveToNextPhoto()
     }
 
     private func handleDeleteAction() {
-        guard let asset = currentRealPhoto else { return }
+        guard !showCompletionMessage, let asset = currentRealPhoto else { return }
         markDeleteCandidate(asset)
         moveToNextPhoto()
     }
 
     private func handleSkipAction() {
-        guard let asset = currentRealPhoto else { return }
+        guard !showCompletionMessage, let asset = currentRealPhoto else { return }
         markSkip(asset)
         moveToNextPhoto()
     }
@@ -950,7 +958,8 @@ struct SwipePhotoView: View {
     }
 
     private func handleAddToAlbum(_ albumInfo: AlbumInfo) {
-        guard let asset = currentRealPhoto,
+        guard !showCompletionMessage,
+              let asset = currentRealPhoto,
               let assetCollection = albumInfo.assetCollection else {
             showFeedback(L10n.string("无法归类到这个相册"), icon: "exclamationmark.triangle", style: .warning)
             return
@@ -1005,7 +1014,7 @@ struct SwipePhotoView: View {
         } else if let category = selectedCategory {
             return category.title
         } else if let timeGroup = selectedTimeGroup {
-            return TimeGroup.allCases.first(where: { $0.rawValue == timeGroup })?.title ?? timeGroup
+            return TimeGroup.fromIdentifier(timeGroup)?.title ?? timeGroup
         } else {
             return PhotoCategory.all.title
         }
@@ -1491,15 +1500,10 @@ struct BatchConfirmView: View {
         !dataManager.deleteCandidates.isEmpty || !dataManager.favoriteCandidates.isEmpty
     }
 
-    private var deletePreviewAssets: [PHAsset] {
-        sortedAssets(Array(dataManager.deleteCandidates))
-    }
-
-    private var favoritePreviewAssets: [PHAsset] {
-        sortedAssets(Array(dataManager.favoriteCandidates))
-    }
-
     var body: some View {
+        let deleteAssets = sortedAssets(Array(dataManager.deleteCandidates))
+        let favoriteAssets = sortedAssets(Array(dataManager.favoriteCandidates))
+
         ZStack {
             PhotoDelScreenBackground()
 
@@ -1545,20 +1549,20 @@ struct BatchConfirmView: View {
                 if hasPendingOperations {
                     ScrollView(showsIndicators: false) {
                         VStack(spacing: 18) {
-                            if !deletePreviewAssets.isEmpty {
+                            if !deleteAssets.isEmpty {
                                 CandidatePreviewSection(
                                     title: L10n.string("将删除"),
-                                    assets: deletePreviewAssets,
+                                    assets: deleteAssets,
                                     color: PhotoDelStyle.destructive,
                                     icon: "trash.fill",
                                     photoLibraryManager: dataManager.photoLibraryManager
                                 )
                             }
 
-                            if !favoritePreviewAssets.isEmpty {
+                            if !favoriteAssets.isEmpty {
                                 CandidatePreviewSection(
                                     title: L10n.string("将收藏"),
-                                    assets: favoritePreviewAssets,
+                                    assets: favoriteAssets,
                                     color: PhotoDelStyle.iconTint(for: "favorite"),
                                     icon: "heart.fill",
                                     photoLibraryManager: dataManager.photoLibraryManager

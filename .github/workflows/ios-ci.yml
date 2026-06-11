@@ -1,0 +1,52 @@
+name: iOS CI
+
+on:
+  pull_request:
+    paths:
+      - IOSAPP/**
+      - scripts/**
+      - .github/workflows/ios-ci.yml
+  push:
+    branches: [main]
+    paths:
+      - IOSAPP/**
+      - scripts/**
+      - .github/workflows/ios-ci.yml
+  workflow_dispatch:
+
+jobs:
+  build-test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          sudo xcode-select -s /Applications/Xcode_16.4.app || true
+          xcodebuild -version
+
+      - name: Resolve simulator
+        id: simulator
+        run: |
+          destination="$(scripts/resolve-ios-simulator-destination.sh)"
+          echo "destination=$destination" >> "$GITHUB_OUTPUT"
+          echo "$destination"
+
+      - name: Build for testing
+        run: |
+          xcodebuild build-for-testing \
+            -project IOSAPP/PhotoDel.xcodeproj \
+            -scheme PhotoDel \
+            -destination "${{ steps.simulator.outputs.destination }}" \
+            -derivedDataPath IOSAPP/DerivedData \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Run unit tests
+        run: |
+          xcodebuild test-without-building \
+            -project IOSAPP/PhotoDel.xcodeproj \
+            -scheme PhotoDel \
+            -destination "${{ steps.simulator.outputs.destination }}" \
+            -derivedDataPath IOSAPP/DerivedData \
+            -only-testing:PhotoDelTests \
+            CODE_SIGNING_ALLOWED=NO

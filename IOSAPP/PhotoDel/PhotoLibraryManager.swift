@@ -137,13 +137,18 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             return
         }
 
+        let currentAllPhotoIDs = allPhotos.map(\.localIdentifier)
+        let currentVideoIDs = videos.map(\.localIdentifier)
+        let currentFavoriteIDs = favorites.map(\.localIdentifier)
+        let currentScreenshotIDs = screenshots.map(\.localIdentifier)
+
         DispatchQueue.global(qos: .utility).async { [weak self] in
             guard let self else { return }
             let identifiersChanged =
-                self.assetIdentifiers(from: PHAsset.fetchAssets(with: self.defaultPhotoFetchOptions())) != self.allPhotos.map(\.localIdentifier) ||
-                self.assetIdentifiers(from: self.fetchAssets(mediaType: .video)) != self.videos.map(\.localIdentifier) ||
-                self.assetIdentifiers(from: self.fetchFavoriteAssets()) != self.favorites.map(\.localIdentifier) ||
-                self.assetIdentifiers(from: self.fetchSmartAlbumAssets(.smartAlbumScreenshots)) != self.screenshots.map(\.localIdentifier)
+                self.assetIdentifiers(from: PHAsset.fetchAssets(with: self.defaultPhotoFetchOptions())) != currentAllPhotoIDs ||
+                self.assetIdentifiers(from: self.fetchAssets(mediaType: .video)) != currentVideoIDs ||
+                self.assetIdentifiers(from: self.fetchFavoriteAssets()) != currentFavoriteIDs ||
+                self.assetIdentifiers(from: self.fetchSmartAlbumAssets(.smartAlbumScreenshots)) != currentScreenshotIDs
 
             DispatchQueue.main.async {
                 if identifiersChanged {
@@ -158,7 +163,10 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     }
 
     func loadPhotos(preserveExistingData: Bool = false, completion: (() -> Void)? = nil) {
-        guard hasPhotoLibraryAccess else { return }
+        guard hasPhotoLibraryAccess else {
+            completion?()
+            return
+        }
         guard !isLoading else {
             if let completion {
                 pendingLoadCompletions.append(completion)
@@ -341,39 +349,34 @@ class PhotoLibraryManager: NSObject, ObservableObject {
 
     // MARK: - Photo Operations
 
-    func deletePhotos(_ assets: [PHAsset], completion: @escaping (Bool, Error?) -> Void) {
-        expectLocalLibraryChange()
-        PHPhotoLibrary.shared().performChanges({
-            PHAssetChangeRequest.deleteAssets(assets as NSArray)
-        }) { success, error in
-            DispatchQueue.main.async {
-                completion(success, error)
-            }
-        }
-    }
-
-    func addToFavorites(_ assets: [PHAsset], completion: @escaping (Bool, Error?) -> Void) {
-        expectLocalLibraryChange()
-        PHPhotoLibrary.shared().performChanges({
-            for asset in assets {
-                let request = PHAssetChangeRequest(for: asset)
-                request.isFavorite = true
-            }
-        }) { success, error in
-            DispatchQueue.main.async {
-                completion(success, error)
-            }
-        }
-    }
-
     func commitBatchChanges(deleteAssets: [PHAsset], favoriteAssets: [PHAsset], completion: @escaping (Bool, Error?) -> Void) {
+        guard hasPhotoLibraryAccess else {
+            completion(false, PhotoLibraryWriteError.noLibraryAccess)
+            return
+        }
+
+        let uniqueDeleteAssets = uniqueAssets(deleteAssets)
+        let deletedIDs = Set(uniqueDeleteAssets.map(\.localIdentifier))
+        let uniqueFavoriteAssets = uniqueAssets(favoriteAssets)
+            .filter { !deletedIDs.contains($0.localIdentifier) }
+
+        guard uniqueDeleteAssets.allSatisfy({ $0.canPerform(.delete) }) else {
+            completion(false, PhotoLibraryWriteError.unsupportedDelete)
+            return
+        }
+
+        guard uniqueFavoriteAssets.allSatisfy({ $0.canPerform(.properties) }) else {
+            completion(false, PhotoLibraryWriteError.unsupportedFavorite)
+            return
+        }
+
         expectLocalLibraryChange()
         PHPhotoLibrary.shared().performChanges({
-            if !deleteAssets.isEmpty {
-                PHAssetChangeRequest.deleteAssets(deleteAssets as NSArray)
+            if !uniqueDeleteAssets.isEmpty {
+                PHAssetChangeRequest.deleteAssets(uniqueDeleteAssets as NSArray)
             }
 
-            for asset in favoriteAssets {
+            for asset in uniqueFavoriteAssets {
                 let request = PHAssetChangeRequest(for: asset)
                 request.isFavorite = true
             }
@@ -388,7 +391,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
 
     @discardableResult
     func loadImage(for asset: PHAsset, size: CGSize, completion: @escaping (UIImage?) -> Void) -> PHImageRequestID? {
-        let cacheKey = "\(asset.localIdentifier)_\(Int(size.width))x\(Int(size.height))" as NSString
+        let cacheKey = imageCacheKey(for: asset, purpose: "image", size: size)
 
         // 检查缓存
         if let cachedImage = imageCache.object(forKey: cacheKey) {
@@ -426,7 +429,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
 
     @discardableResult
     func loadSwipePreview(for asset: PHAsset, size: CGSize, completion: @escaping (UIImage?) -> Void) -> PHImageRequestID? {
-        let cacheKey = "\(asset.localIdentifier)_swipe_\(Int(size.width))x\(Int(size.height))" as NSString
+        let cacheKey = imageCacheKey(for: asset, purpose: "swipe", size: size)
 
         if let cachedImage = imageCache.object(forKey: cacheKey) {
             completion(cachedImage)
@@ -463,7 +466,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
 
     @discardableResult
     func loadHighQualityPreview(for asset: PHAsset, size: CGSize, completion: @escaping (UIImage?) -> Void) -> PHImageRequestID? {
-        let cacheKey = "\(asset.localIdentifier)_hq_\(Int(size.width))x\(Int(size.height))" as NSString
+        let cacheKey = imageCacheKey(for: asset, purpose: "hq", size: size)
 
         if let cachedImage = imageCache.object(forKey: cacheKey) {
             completion(cachedImage)
@@ -514,6 +517,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             removeAssets(with: deletedIDs, from: &videos)
             removeAssets(with: deletedIDs, from: &screenshots)
             removeAssets(with: deletedIDs, from: &favorites)
+            imageCache.removeAllObjects()
         }
 
         for asset in favoritedAssets {
@@ -565,7 +569,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
 
     @discardableResult
     func loadFastThumbnail(for asset: PHAsset, size: CGSize, completion: @escaping (UIImage?) -> Void) -> PHImageRequestID? {
-        let cacheKey = "\(asset.localIdentifier)_thumb_\(Int(size.width))x\(Int(size.height))" as NSString
+        let cacheKey = imageCacheKey(for: asset, purpose: "thumb", size: size)
 
         if let cachedImage = imageCache.object(forKey: cacheKey) {
             completion(cachedImage)
@@ -632,7 +636,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     }
 
     private func applyIncrementalPhotoChanges(_ changes: PHFetchResultChangeDetails<PHAsset>) {
-        guard changes.hasIncrementalChanges else {
+        guard changes.hasIncrementalChanges, !changes.hasMoves else {
             rebuildCachedAssets(from: changes.fetchResultAfterChanges)
             return
         }
@@ -645,16 +649,12 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             removeAssets(with: removedIDs, from: &favorites)
         }
 
-        for changedAsset in changes.changedObjects {
-            replaceAsset(changedAsset, in: &allPhotos)
-            replaceAsset(changedAsset, in: &videos)
-            replaceAsset(changedAsset, in: &screenshots)
+        if !removedIDs.isEmpty || !changes.changedObjects.isEmpty {
+            imageCache.removeAllObjects()
+        }
 
-            if changedAsset.isFavorite {
-                upsertFavorite(changedAsset)
-            } else {
-                favorites.removeAll { $0.localIdentifier == changedAsset.localIdentifier }
-            }
+        for changedAsset in changes.changedObjects {
+            upsertPhotoAsset(changedAsset)
         }
 
         for insertedAsset in changes.insertedObjects {
@@ -700,11 +700,6 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         assets.removeAll { identifiers.contains($0.localIdentifier) }
     }
 
-    private func replaceAsset(_ asset: PHAsset, in assets: inout [PHAsset]) {
-        guard let index = assets.firstIndex(where: { $0.localIdentifier == asset.localIdentifier }) else { return }
-        assets[index] = asset
-    }
-
     private func upsertPhotoAsset(_ asset: PHAsset) {
         upsertAsset(asset, in: &allPhotos)
 
@@ -741,17 +736,23 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     }
 
     private func upsertFavorite(_ asset: PHAsset) {
-        if let index = favorites.firstIndex(where: { $0.localIdentifier == asset.localIdentifier }) {
-            favorites[index] = asset
-        } else {
-            favorites.insert(asset, at: 0)
-        }
+        upsertAsset(asset, in: &favorites)
     }
 
     private func cacheImage(_ image: UIImage, forKey cacheKey: NSString, isDegraded: Bool) {
         guard !isDegraded else { return }
-        let cost = Int(image.size.width * image.size.height * 4)
+        let cost: Int
+        if let cgImage = image.cgImage {
+            cost = cgImage.bytesPerRow * cgImage.height
+        } else {
+            cost = Int(image.size.width * image.scale * image.size.height * image.scale * 4)
+        }
         imageCache.setObject(image, forKey: cacheKey, cost: cost)
+    }
+
+    private func imageCacheKey(for asset: PHAsset, purpose: String, size: CGSize) -> NSString {
+        let modifiedAt = Int((asset.modificationDate ?? asset.creationDate ?? .distantPast).timeIntervalSinceReferenceDate)
+        return "\(purpose)_\(asset.localIdentifier)_\(asset.pixelWidth)x\(asset.pixelHeight)_\(modifiedAt)_\(Int(size.width))x\(Int(size.height))" as NSString
     }
 
     private func defaultPhotoFetchOptions() -> PHFetchOptions {
@@ -826,9 +827,25 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     // MARK: - Albums
 
     func addPhotosToAlbum(_ assets: [PHAsset], album: PHAssetCollection, completion: @escaping (Bool, Error?) -> Void) {
+        guard hasPhotoLibraryAccess else {
+            completion(false, PhotoLibraryWriteError.noLibraryAccess)
+            return
+        }
+
+        guard album.canPerform(.addContent) else {
+            completion(false, PhotoLibraryWriteError.unsupportedAlbumAdd)
+            return
+        }
+
+        let uniqueAssets = uniqueAssets(assets)
+        guard !uniqueAssets.isEmpty else {
+            completion(true, nil)
+            return
+        }
+
         PHPhotoLibrary.shared().performChanges({
             if let addAssetRequest = PHAssetCollectionChangeRequest(for: album) {
-                addAssetRequest.addAssets(assets as NSArray)
+                addAssetRequest.addAssets(uniqueAssets as NSArray)
             }
         }) { success, error in
             DispatchQueue.main.async {
@@ -844,6 +861,33 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     var screenshotsCount: Int { screenshots.count }
     var favoritesCount: Int { favorites.count }
 
+    private func uniqueAssets(_ assets: [PHAsset]) -> [PHAsset] {
+        var seenIdentifiers = Set<String>()
+        return assets.filter { asset in
+            seenIdentifiers.insert(asset.localIdentifier).inserted
+        }
+    }
+
+}
+
+private enum PhotoLibraryWriteError: LocalizedError {
+    case noLibraryAccess
+    case unsupportedDelete
+    case unsupportedFavorite
+    case unsupportedAlbumAdd
+
+    var errorDescription: String? {
+        switch self {
+        case .noLibraryAccess:
+            return L10n.string("当前照片权限不可用")
+        case .unsupportedDelete:
+            return L10n.string("有照片无法删除，请先在系统照片中检查权限或来源。")
+        case .unsupportedFavorite:
+            return L10n.string("有照片无法收藏，请先在系统照片中检查权限或来源。")
+        case .unsupportedAlbumAdd:
+            return L10n.string("这个相册不支持添加照片。")
+        }
+    }
 }
 
 // MARK: - PHPhotoLibraryChangeObserver

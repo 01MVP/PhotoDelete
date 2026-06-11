@@ -19,26 +19,31 @@ PhotoDelAPP/
 
 ### 1. 构建应用
 ```bash
-cd IOSAPP
-xcodebuild -project PhotoDel.xcodeproj -scheme PhotoDel -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.5' build
+SIMULATOR_DESTINATION="$(scripts/resolve-ios-simulator-destination.sh)"
+xcodebuild -project IOSAPP/PhotoDel.xcodeproj -scheme PhotoDel \
+  -destination "$SIMULATOR_DESTINATION" \
+  -derivedDataPath IOSAPP/DerivedData \
+  build
 ```
 
 ### 2. 启动模拟器
 ```bash
-# 启动iPhone 16模拟器
-xcrun simctl boot "iPhone 16"
-
 # 查看可用的模拟器
 xcrun simctl list devices
+
+# 启动一个可用的 iPhone 模拟器
+xcrun simctl boot "$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ {gsub(/^[[:space:]]+|[[:space:]]+$/, "", $1); print $1; exit}')"
 ```
 
 ### 3. 安装和运行应用
 ```bash
+SIMULATOR_NAME="$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ {gsub(/^[[:space:]]+|[[:space:]]+$/, "", $1); print $1; exit}')"
+
 # 安装应用到模拟器
-xcrun simctl install "iPhone 16" /Users/jackiexiao/Library/Developer/Xcode/DerivedData/PhotoDel-*/Build/Products/Debug-iphonesimulator/PhotoDel.app
+xcrun simctl install "$SIMULATOR_NAME" IOSAPP/DerivedData/Build/Products/Debug-iphonesimulator/PhotoDel.app
 
 # 启动应用
-xcrun simctl launch "iPhone 16" com.01MVP.PhotoDel
+xcrun simctl launch "$SIMULATOR_NAME" com.01MVP.PhotoDel
 
 # 打开模拟器界面
 open -a Simulator
@@ -47,10 +52,11 @@ open -a Simulator
 ### 4. 清理和重置
 ```bash
 # 清理构建缓存
-xcodebuild clean
+xcodebuild clean -project IOSAPP/PhotoDel.xcodeproj -scheme PhotoDel
 
 # 重置模拟器
-xcrun simctl erase "iPhone 16"
+SIMULATOR_NAME="$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ {gsub(/^[[:space:]]+|[[:space:]]+$/, "", $1); print $1; exit}')"
+xcrun simctl erase "$SIMULATOR_NAME"
 ```
 
 ## 测试方法
@@ -96,6 +102,8 @@ xcrun simctl erase "iPhone 16"
 ### 权限配置
 应用需要以下权限：
 - 照片库访问权限（NSPhotoLibraryUsageDescription）
+- 照片库添加权限（NSPhotoLibraryAddUsageDescription）
+- 有限照片库自动提示控制（PHPhotoLibraryPreventAutomaticLimitedAccessAlert）
 
 ### 支持的iOS版本
 - 最低支持：iOS 16.0
@@ -110,7 +118,7 @@ xcrun simctl erase "iPhone 16"
 
 ### 2. 模拟器启动失败
 - 确认模拟器名称正确
-- 重置模拟器：`xcrun simctl erase "iPhone 16"`
+- 重置模拟器：先用 `xcrun simctl list devices` 找到设备名，再执行 `xcrun simctl erase "<设备名>"`
 - 重启Xcode和模拟器
 
 ### 3. 应用无法启动

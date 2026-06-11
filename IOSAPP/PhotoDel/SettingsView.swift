@@ -16,20 +16,14 @@ import MessageUI
 struct SettingsView: View {
     @EnvironmentObject var dataManager: DataManager
     @EnvironmentObject var purchaseManager: PurchaseManager
-    @AppStorage("hasSeenPhotoDelIntro") private var hasSeenPhotoDelIntro = false
-    @AppStorage("hasCompletedPhotoDelOnboarding") private var hasCompletedOnboarding = false
+    @AppStorage(AppConstants.hasSeenIntroKey) private var hasSeenPhotoDelIntro = false
+    @AppStorage(AppConstants.hasCompletedOnboardingKey) private var hasCompletedOnboarding = false
     @AppStorage(AppConstants.hapticsEnabledKey) private var hapticsEnabled = true
     @AppStorage(AppConstants.appLanguageKey) private var appLanguageValue = AppLanguage.system.rawValue
     @AppStorage(AppConstants.leftSwipeActionKey) private var leftSwipeActionValue = SwipeGesturePreset.standard.leftAction.rawValue
     @AppStorage(AppConstants.rightSwipeActionKey) private var rightSwipeActionValue = SwipeGesturePreset.standard.rightAction.rawValue
     @AppStorage(AppConstants.upSwipeActionKey) private var upSwipeActionValue = SwipeGesturePreset.standard.upAction.rawValue
-    @State private var showingMailCompose = false
-    @State private var showingAbout = false
-    @State private var showingAuthor = false
-    @State private var showingPrivacyInfo = false
-    @State private var showingSupporter = false
-    @State private var showingGestureSettings = false
-    @State private var showingLanguageSettings = false
+    @State private var activeSheet: SettingsSheet?
     @State private var showingWeChatCopied = false
     @State private var showingClearLocalDataConfirmation = false
     @State private var settingsToast: PhotoDelToast?
@@ -85,41 +79,31 @@ struct SettingsView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
-        .sheet(isPresented: $showingMailCompose) {
+        .sheet(item: $activeSheet) { sheet in
+            switch sheet {
+            case .mail:
             #if canImport(MessageUI)
-            if MFMailComposeViewController.canSendMail() {
                 MailComposeView()
-            } else {
-                // 如果设备不支持邮件，显示替代方案
+            #else
                 Text(L10n.string("此设备不支持发送邮件"))
                     .foregroundColor(PhotoDelStyle.primaryText)
                     .padding()
-            }
-            #else
-            Text(L10n.string("此设备不支持发送邮件"))
-                .foregroundColor(PhotoDelStyle.primaryText)
-                .padding()
             #endif
-        }
-        .sheet(isPresented: $showingAbout) {
-            AboutView()
-        }
-        .sheet(isPresented: $showingAuthor) {
-            AuthorView()
-        }
-        .sheet(isPresented: $showingPrivacyInfo) {
-            PrivacyInfoView()
-        }
-        .sheet(isPresented: $showingSupporter) {
-            SupporterView()
-                .environmentObject(dataManager)
-                .environmentObject(purchaseManager)
-        }
-        .sheet(isPresented: $showingGestureSettings) {
-            GestureSettingsView()
-        }
-        .sheet(isPresented: $showingLanguageSettings) {
-            LanguageSettingsView()
+            case .about:
+                AboutView()
+            case .author:
+                AuthorView()
+            case .privacy:
+                PrivacyInfoView()
+            case .supporter:
+                SupporterView()
+                    .environmentObject(dataManager)
+                    .environmentObject(purchaseManager)
+            case .gestureSettings:
+                GestureSettingsView()
+            case .languageSettings:
+                LanguageSettingsView()
+            }
         }
         .confirmationDialog(
             L10n.string("清空本机整理记录？"),
@@ -183,7 +167,7 @@ struct SettingsView: View {
                     title: purchaseManager.isSupporter ? L10n.string("查看长期统计") : L10n.string("长期统计"),
                     subtitle: purchaseManager.isSupporter ? L10n.string("月度记录、清理历史和节省空间") : L10n.string("支持者版解锁月度记录和清理历史"),
                     action: {
-                        showingSupporter = true
+                        activeSheet = .supporter
                     }
                 )
             }
@@ -208,7 +192,7 @@ struct SettingsView: View {
                     title: L10n.string("PhotoDel 支持者版"),
                     subtitle: purchaseManager.isSupporter ? L10n.string("已解锁长期统计和支持者功能") : L10n.string("长期统计、月度记录和徽章"),
                     action: {
-                        showingSupporter = true
+                        activeSheet = .supporter
                     }
                 )
             }
@@ -233,7 +217,7 @@ struct SettingsView: View {
                     title: L10n.string("隐私说明"),
                     subtitle: L10n.string("本机整理，不上传照片"),
                     action: {
-                        showingPrivacyInfo = true
+                        activeSheet = .privacy
                     }
                 )
 
@@ -247,7 +231,7 @@ struct SettingsView: View {
                     title: L10n.string("了解作者"),
                     subtitle: L10n.string("01MVP 与小产品创作"),
                     action: {
-                        showingAuthor = true
+                        activeSheet = .author
                     }
                 )
 
@@ -289,7 +273,7 @@ struct SettingsView: View {
                     title: L10n.string("关于 PhotoDel"),
                     subtitle: L10n.string("版本 \(AppConstants.displayVersion)"),
                     action: {
-                        showingAbout = true
+                        activeSheet = .about
                     }
                 )
             }
@@ -328,7 +312,7 @@ struct SettingsView: View {
                     title: L10n.string("手势控制"),
                     subtitle: gestureSettingsSubtitle,
                     action: {
-                        showingGestureSettings = true
+                        activeSheet = .gestureSettings
                     }
                 )
 
@@ -342,7 +326,7 @@ struct SettingsView: View {
                     title: L10n.string("语言"),
                     subtitle: selectedLanguage.title,
                     action: {
-                        showingLanguageSettings = true
+                        activeSheet = .languageSettings
                     }
                 )
 
@@ -490,7 +474,7 @@ struct SettingsView: View {
     private func handleMailAction() {
         #if canImport(MessageUI)
         if MFMailComposeViewController.canSendMail() {
-            showingMailCompose = true
+            activeSheet = .mail
         } else {
             openFeedbackMailURL()
         }
@@ -552,6 +536,28 @@ struct SettingsView: View {
             withAnimation(.easeOut(duration: 0.18)) {
                 settingsToast = nil
             }
+        }
+    }
+}
+
+private enum SettingsSheet: Identifiable {
+    case mail
+    case about
+    case author
+    case privacy
+    case supporter
+    case gestureSettings
+    case languageSettings
+
+    var id: String {
+        switch self {
+        case .mail: return "mail"
+        case .about: return "about"
+        case .author: return "author"
+        case .privacy: return "privacy"
+        case .supporter: return "supporter"
+        case .gestureSettings: return "gestureSettings"
+        case .languageSettings: return "languageSettings"
         }
     }
 }
@@ -668,9 +674,13 @@ struct SettingToggleRow: View {
 
             Spacer()
 
-            Toggle("", isOn: $isOn)
+            Toggle(isOn: $isOn) {
+                EmptyView()
+            }
                 .labelsHidden()
                 .tint(PhotoDelStyle.accent)
+                .accessibilityLabel(Text(title.appLocalized))
+                .accessibilityHint(Text(subtitle.appLocalized))
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)

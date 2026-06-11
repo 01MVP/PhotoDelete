@@ -130,6 +130,9 @@ enum AppConstants {
     static let websiteURL = "https://01mvp.com"
     static let landscapeBreakpoint: CGFloat = 700
     static let hapticsEnabledKey = "photoDelHapticsEnabled"
+    static let hasSeenIntroKey = "hasSeenPhotoDelIntro"
+    static let hasCompletedOnboardingKey = "hasCompletedPhotoDelOnboarding"
+    static let reviewedAssetIDsKey = "photoDelReviewedAssetIDs"
     static let customAlbumOrderKey = "photoDelCustomAlbumOrder"
     static let appLanguageKey = "photoDelAppLanguage"
     static let anonymousUserIDKey = "photoDelAnonymousUserID"

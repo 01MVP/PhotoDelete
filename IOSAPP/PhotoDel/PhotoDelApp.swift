@@ -11,6 +11,12 @@ import SwiftUI
 struct PhotoDelApp: App {
     @AppStorage(AppConstants.appLanguageKey) private var appLanguageValue = AppLanguage.system.rawValue
 
+    init() {
+        #if DEBUG
+        PhotoDelUITestDefaults.applyIfNeeded()
+        #endif
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()
@@ -24,3 +30,47 @@ struct PhotoDelApp: App {
         AppLanguage(rawValue: appLanguageValue) ?? .system
     }
 }
+
+#if DEBUG
+private enum PhotoDelUITestDefaults {
+    static func applyIfNeeded() {
+        let environment = ProcessInfo.processInfo.environment
+        guard environment["PHOTO_DEL_UI_TEST"] == "1" else { return }
+
+        let defaults = UserDefaults.standard
+        reset(defaults)
+
+        if let appLanguage = environment["PHOTO_DEL_UI_TEST_APP_LANGUAGE"] {
+            defaults.set(appLanguage, forKey: AppConstants.appLanguageKey)
+        }
+
+        setBool(
+            environment["PHOTO_DEL_UI_TEST_HAS_COMPLETED_ONBOARDING"],
+            forKey: AppConstants.hasCompletedOnboardingKey,
+            defaults: defaults
+        )
+        setBool(
+            environment["PHOTO_DEL_UI_TEST_HAS_SEEN_INTRO"],
+            forKey: AppConstants.hasSeenIntroKey,
+            defaults: defaults
+        )
+    }
+
+    private static func reset(_ defaults: UserDefaults) {
+        [
+            AppConstants.appLanguageKey,
+            AppConstants.hasCompletedOnboardingKey,
+            AppConstants.hasSeenIntroKey,
+            AppConstants.leftSwipeActionKey,
+            AppConstants.rightSwipeActionKey,
+            AppConstants.upSwipeActionKey,
+            AppConstants.customAlbumOrderKey
+        ].forEach(defaults.removeObject)
+    }
+
+    private static func setBool(_ rawValue: String?, forKey key: String, defaults: UserDefaults) {
+        guard let rawValue else { return }
+        defaults.set(rawValue == "1", forKey: key)
+    }
+}
+#endif

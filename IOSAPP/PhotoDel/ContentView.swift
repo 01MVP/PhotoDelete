@@ -8,8 +8,8 @@
 import SwiftUI
 
 struct ContentView: View {
-    @AppStorage("hasCompletedPhotoDelOnboarding") private var hasCompletedOnboarding = false
-    @AppStorage("hasSeenPhotoDelIntro") private var hasSeenHomeIntro = false
+    @AppStorage(AppConstants.hasCompletedOnboardingKey) private var hasCompletedOnboarding = false
+    @AppStorage(AppConstants.hasSeenIntroKey) private var hasSeenHomeIntro = false
     @StateObject private var dataManager = DataManager()
     @StateObject private var purchaseManager = PurchaseManager()
 
@@ -28,6 +28,7 @@ struct ContentView: View {
 }
 
 private struct OnboardingFlowView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectedPage = 0
     @State private var animateVisual = false
 
@@ -108,11 +109,19 @@ private struct OnboardingFlowView: View {
             }
         }
         .onAppear {
+            guard !reduceMotion else {
+                animateVisual = true
+                return
+            }
             withAnimation(.spring(response: 0.7, dampingFraction: 0.78).delay(0.12)) {
                 animateVisual = true
             }
         }
         .onChange(of: selectedPage) { _ in
+            guard !reduceMotion else {
+                animateVisual = true
+                return
+            }
             animateVisual = false
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                 withAnimation(.spring(response: 0.7, dampingFraction: 0.78)) {
@@ -270,6 +279,7 @@ private struct OrganizeIntroVisual: View {
 }
 
 private struct SwipeIntroVisual: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let animate: Bool
 
     var body: some View {
@@ -323,7 +333,7 @@ private struct SwipeIntroVisual: View {
                 )
                 .rotationEffect(.degrees(animate ? -7 : 7))
                 .offset(x: animate ? -38 : 38, y: animate ? -6 : 8)
-                .animation(.easeInOut(duration: 1.18).repeatForever(autoreverses: true), value: animate)
+                .animation(reduceMotion ? nil : .easeInOut(duration: 1.18).repeatForever(autoreverses: true), value: animate)
         }
     }
 
@@ -362,6 +372,7 @@ private struct SwipeIntroVisual: View {
 }
 
 private struct PrivacyIntroVisual: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let animate: Bool
 
     var body: some View {
@@ -407,7 +418,7 @@ private struct PrivacyIntroVisual: View {
                 .foregroundColor(PhotoDelStyle.primaryText.opacity(0.76))
             }
         }
-        .animation(.easeInOut(duration: 1.35).repeatForever(autoreverses: true), value: animate)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 1.35).repeatForever(autoreverses: true), value: animate)
     }
 }
 
