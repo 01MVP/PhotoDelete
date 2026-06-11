@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PhotoDel - 洞察 Tab 原型</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg: #050506;
+            --panel: #101114;
+            --panel-2: #17191f;
+            --line: rgba(255, 255, 255, 0.09);
+            --text: #f7f7f8;
+            --muted: #a5a7af;
+            --faint: #666a75;
+            --blue: #4da3ff;
+            --green: #51d88a;
+            --red: #ff5d6c;
+            --pink: #ff8ab3;
+            --yellow: #ffd166;
+            --purple: #a78bfa;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: #1b1d22;
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+            letter-spacing: 0;
+        }
+
+        .stage {
+            min-height: 100vh;
+            display: grid;
+            grid-template-columns: minmax(420px, 1fr) 360px;
+            gap: 28px;
+            align-items: center;
+            justify-content: center;
+            padding: 32px;
+        }
+
+        .phone {
+            width: 393px;
+            height: 852px;
+            margin: 0 auto;
+            border-radius: 44px;
+            padding: 8px;
+            background: #000;
+            box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+        }
+
+        .screen {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            border-radius: 36px;
+            background: var(--bg);
+        }
+
+        .status-bar {
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 22px;
+            font-size: 14px;
+            font-weight: 650;
+            color: var(--text);
+        }
+
+        .status-icons {
+            display: flex;
+            gap: 7px;
+            align-items: center;
+        }
+
+        .content {
+            height: calc(100% - 44px - 80px);
+            overflow-y: auto;
+            padding: 0 20px 24px;
+            scrollbar-width: none;
+        }
+
+        .content::-webkit-scrollbar {
+            display: none;
+        }
+
+        .topbar {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            padding: 8px 0 16px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 30px;
+            line-height: 1.05;
+            font-weight: 760;
+        }
+
+        .subtitle {
+            margin-top: 7px;
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            height: 30px;
+            padding: 0 11px;
+            border-radius: 999px;
+            border: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 650;
+            white-space: nowrap;
+        }
+
+        .switcher {
+            display: flex;
+            gap: 6px;
+            padding: 4px;
+            margin-bottom: 16px;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .switcher button {
+            flex: 1;
+            border: 0;
+            color: var(--muted);
+            background: transparent;
+            border-radius: 10px;
+            padding: 9px 8px;
+            font: inherit;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .switcher button.active {
+            color: var(--text);
+            background: var(--panel-2);
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+        }
+
+        .card {
+            border: 1px solid var(--line);
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.04));
+            border-radius: 18px;
+            padding: 16px;
+            margin-bottom: 14px;
+        }
+
+        .hero-card {
+            padding: 18px;
+            background:
+                linear-gradient(135deg, rgba(77, 163, 255, 0.18), rgba(81, 216, 138, 0.08)),
+                var(--panel);
+        }
+
+        .hero-row {
+            display: grid;
+            grid-template-columns: 1fr 92px;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .hero-title {
+            font-size: 22px;
+            line-height: 1.12;
+            font-weight: 760;
+        }
+
+        .hero-copy {
+            margin-top: 8px;
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.45;
+        }
+
+        .photo-stack {
+            position: relative;
+            height: 104px;
+        }
+
+        .photo-tile {
+            position: absolute;
+            width: 66px;
+            height: 82px;
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            background-size: cover;
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+        }
+
+        .tile-a {
+            right: 24px;
+            top: 10px;
+            transform: rotate(-9deg);
+            background:
+                radial-gradient(circle at 68% 24%, rgba(255, 255, 255, 0.85) 0 7px, transparent 8px),
+                linear-gradient(145deg, #2d6cdf, #40c9a2 52%, #f6d365);
+        }
+
+        .tile-b {
+            right: 2px;
+            top: 20px;
+            transform: rotate(8deg);
+            background:
+                radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.85) 0 8px, transparent 9px),
+                linear-gradient(145deg, #ff7a7a, #7f5af0 58%, #151515);
+        }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        .metric {
+            min-height: 78px;
+            border-radius: 16px;
+            padding: 13px;
+            background: rgba(255, 255, 255, 0.055);
+            border: 1px solid rgba(255, 255, 255, 0.075);
+        }
+
+        .metric-value {
+            font-size: 23px;
+            font-weight: 760;
+            line-height: 1;
+        }
+
+        .metric-label {
+            margin-top: 8px;
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 620;
+        }
+
+        .section-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            font-size: 17px;
+            font-weight: 740;
+        }
+
+        .section-caption {
+            color: var(--faint);
+            font-size: 12px;
+            font-weight: 620;
+        }
+
+        .calendar {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 7px;
+        }
+
+        .day {
+            aspect-ratio: 1;
+            border: 0;
+            border-radius: 9px;
+            background: rgba(255, 255, 255, 0.055);
+            color: var(--muted);
+            font: inherit;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .day[data-level="1"] { background: rgba(77, 163, 255, 0.22); }
+        .day[data-level="2"] { background: rgba(77, 163, 255, 0.38); color: #fff; }
+        .day[data-level="3"] { background: rgba(81, 216, 138, 0.48); color: #fff; }
+        .day[data-level="4"] { background: rgba(255, 209, 102, 0.64); color: #151515; }
+
+        .day.selected {
+            outline: 2px solid #fff;
+            outline-offset: 2px;
+        }
+
+        .bars {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 8px;
+            align-items: end;
+            height: 128px;
+            padding-top: 8px;
+        }
+
+        .bar-wrap {
+            display: grid;
+            grid-template-rows: 1fr 18px;
+            gap: 8px;
+            justify-items: center;
+            min-width: 0;
+        }
+
+        .bar {
+            width: 100%;
+            max-width: 24px;
+            align-self: end;
+            border-radius: 999px;
+            background: linear-gradient(180deg, var(--blue), rgba(77, 163, 255, 0.22));
+        }
+
+        .bar.delete {
+            background: linear-gradient(180deg, var(--red), rgba(255, 93, 108, 0.18));
+        }
+
+        .bar-label {
+            color: var(--faint);
+            font-size: 11px;
+            font-weight: 650;
+        }
+
+        .detail-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .detail-pill {
+            border-radius: 13px;
+            padding: 10px 8px;
+            background: rgba(255, 255, 255, 0.055);
+            text-align: center;
+        }
+
+        .detail-pill strong {
+            display: block;
+            font-size: 17px;
+            line-height: 1;
+        }
+
+        .detail-pill span {
+            display: block;
+            margin-top: 6px;
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 620;
+        }
+
+        .category-list {
+            display: grid;
+            gap: 12px;
+        }
+
+        .category-row {
+            display: grid;
+            grid-template-columns: 32px 1fr 42px;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .category-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 10px;
+            display: grid;
+            place-items: center;
+            background: rgba(255, 255, 255, 0.065);
+        }
+
+        .track {
+            height: 8px;
+            margin-top: 7px;
+            overflow: hidden;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.075);
+        }
+
+        .fill {
+            height: 100%;
+            border-radius: inherit;
+        }
+
+        .timeline {
+            display: grid;
+            gap: 10px;
+        }
+
+        .event {
+            display: grid;
+            grid-template-columns: 34px 1fr auto;
+            gap: 10px;
+            align-items: center;
+            padding: 11px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .event:last-child {
+            border-bottom: 0;
+        }
+
+        .event-icon {
+            width: 34px;
+            height: 34px;
+            border-radius: 12px;
+            display: grid;
+            place-items: center;
+            background: rgba(255, 255, 255, 0.065);
+        }
+
+        .event-title {
+            font-size: 14px;
+            font-weight: 720;
+        }
+
+        .event-sub {
+            margin-top: 3px;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .event-value {
+            font-size: 13px;
+            color: var(--green);
+            font-weight: 740;
+        }
+
+        .paywall {
+            position: sticky;
+            bottom: 0;
+            z-index: 4;
+            margin: 8px -20px -24px;
+            padding: 14px 20px 16px;
+            background: linear-gradient(180deg, rgba(5, 5, 6, 0), rgba(5, 5, 6, 0.96) 18%, var(--bg));
+        }
+
+        .primary {
+            width: 100%;
+            border: 0;
+            border-radius: 15px;
+            padding: 14px 16px;
+            color: #06110b;
+            background: linear-gradient(135deg, #b7ffcf, #67d9ff);
+            font: inherit;
+            font-size: 16px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .restore {
+            width: 100%;
+            margin-top: 10px;
+            border: 0;
+            background: transparent;
+            color: var(--muted);
+            font: inherit;
+            font-size: 13px;
+            font-weight: 650;
+            cursor: pointer;
+        }
+
+        .demo-watermark {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--yellow);
+            font-size: 12px;
+            font-weight: 760;
+        }
+
+        .demo .real-only {
+            display: none;
+        }
+
+        .unlocked .demo-only {
+            display: none;
+        }
+
+        .demo .demo-fade {
+            position: relative;
+        }
+
+        .demo .demo-fade::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            border-radius: inherit;
+            background: linear-gradient(180deg, rgba(5, 5, 6, 0), rgba(5, 5, 6, 0.25));
+        }
+
+        .tabbar {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: 80px;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            align-items: center;
+            padding: 8px 16px 16px;
+            border-top: 1px solid var(--line);
+            background: rgba(5, 5, 6, 0.94);
+            backdrop-filter: blur(18px);
+        }
+
+        .tab {
+            display: grid;
+            gap: 5px;
+            justify-items: center;
+            color: var(--faint);
+            font-size: 11px;
+            font-weight: 680;
+        }
+
+        .tab i {
+            font-size: 19px;
+        }
+
+        .tab.active {
+            color: var(--blue);
+        }
+
+        .notes {
+            color: #e9ebf0;
+        }
+
+        .notes h2 {
+            margin: 0 0 12px;
+            font-size: 26px;
+        }
+
+        .notes p {
+            margin: 0 0 16px;
+            color: #b8bbc5;
+            line-height: 1.65;
+            font-size: 15px;
+        }
+
+        .note-card {
+            margin-top: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 18px;
+            padding: 16px;
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .note-card h3 {
+            margin: 0 0 10px;
+            font-size: 17px;
+        }
+
+        .note-card ul {
+            margin: 0;
+            padding-left: 18px;
+            color: #c8cbd3;
+            line-height: 1.7;
+            font-size: 14px;
+        }
+
+        @media (max-width: 860px) {
+            .stage {
+                grid-template-columns: 1fr;
+                padding: 24px 14px;
+            }
+
+            .notes {
+                max-width: 393px;
+                margin: 0 auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="stage">
+        <section class="phone" aria-label="PhotoDel 洞察 Tab 原型">
+            <div class="screen demo" id="appScreen">
+                <div class="status-bar">
+                    <span>9:41</span>
+                    <div class="status-icons">
+                        <i class="fa-solid fa-signal"></i>
+                        <i class="fa-solid fa-wifi"></i>
+                        <i class="fa-solid fa-battery-three-quarters"></i>
+                    </div>
+                </div>
+
+                <div class="content">
+                    <div class="topbar">
+                        <div>
+                            <h1>照片洞察</h1>
+                            <div class="subtitle demo-only">示例数据预览</div>
+                            <div class="subtitle real-only">本机真实统计</div>
+                        </div>
+                        <div class="badge demo-only"><i class="fa-solid fa-lock"></i> 未解锁</div>
+                        <div class="badge real-only"><i class="fa-solid fa-seal"></i> 已解锁</div>
+                    </div>
+
+                    <div class="switcher" aria-label="原型状态切换">
+                        <button class="active" id="demoButton" type="button">未解锁 Demo</button>
+                        <button id="unlockButton" type="button">已解锁</button>
+                    </div>
+
+                    <section class="card hero-card">
+                        <div class="hero-row">
+                            <div>
+                                <div class="demo-watermark demo-only">
+                                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                                    解锁后替换为真实数据
+                                </div>
+                                <div class="hero-title" style="margin-top: 8px;">本月整理节奏</div>
+                                <div class="hero-copy demo-only">先看完整效果。真实数据只在本机计算，不上传照片。</div>
+                                <div class="hero-copy real-only">你这个月已经整理 214 张照片，节省约 642 MB。</div>
+                            </div>
+                            <div class="photo-stack" aria-hidden="true">
+                                <div class="photo-tile tile-a"></div>
+                                <div class="photo-tile tile-b"></div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="metric-grid">
+                        <div class="metric">
+                            <div class="metric-value" style="color: var(--blue);">1,286</div>
+                            <div class="metric-label demo-only">示例：本月新增</div>
+                            <div class="metric-label real-only">本月新增</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value" style="color: var(--green);">214</div>
+                            <div class="metric-label demo-only">示例：已整理</div>
+                            <div class="metric-label real-only">已整理</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value" style="color: var(--red);">76</div>
+                            <div class="metric-label demo-only">示例：待删除</div>
+                            <div class="metric-label real-only">已删除</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value" style="color: var(--yellow);">642 MB</div>
+                            <div class="metric-label demo-only">示例：可释放</div>
+                            <div class="metric-label real-only">已节省</div>
+                        </div>
+                    </section>
+
+                    <section class="card demo-fade">
+                        <div class="section-title">
+                            <span>照片日历</span>
+                            <span class="section-caption">2026 年 6 月</span>
+                        </div>
+                        <div class="calendar" id="calendar"></div>
+                        <div class="detail-row" id="dayDetail">
+                            <div class="detail-pill"><strong>42</strong><span>当天新增</span></div>
+                            <div class="detail-pill"><strong>11</strong><span>截图</span></div>
+                            <div class="detail-pill"><strong>8</strong><span>已整理</span></div>
+                        </div>
+                    </section>
+
+                    <section class="card">
+                        <div class="section-title">
+                            <span>最近 7 天</span>
+                            <span class="section-caption">新增 / 删除</span>
+                        </div>
+                        <div class="bars">
+                            <div class="bar-wrap"><div class="bar" style="height: 48px;"></div><span class="bar-label">五</span></div>
+                            <div class="bar-wrap"><div class="bar delete" style="height: 36px;"></div><span class="bar-label">六</span></div>
+                            <div class="bar-wrap"><div class="bar" style="height: 92px;"></div><span class="bar-label">日</span></div>
+                            <div class="bar-wrap"><div class="bar" style="height: 54px;"></div><span class="bar-label">一</span></div>
+                            <div class="bar-wrap"><div class="bar delete" style="height: 70px;"></div><span class="bar-label">二</span></div>
+                            <div class="bar-wrap"><div class="bar" style="height: 108px;"></div><span class="bar-label">三</span></div>
+                            <div class="bar-wrap"><div class="bar" style="height: 64px;"></div><span class="bar-label">四</span></div>
+                        </div>
+                    </section>
+
+                    <section class="card">
+                        <div class="section-title">
+                            <span>分类洞察</span>
+                            <span class="section-caption">本月</span>
+                        </div>
+                        <div class="category-list">
+                            <div class="category-row">
+                                <div class="category-icon" style="color: var(--blue);"><i class="fa-solid fa-image"></i></div>
+                                <div>
+                                    <div class="event-title">普通照片</div>
+                                    <div class="track"><div class="fill" style="width: 68%; background: var(--blue);"></div></div>
+                                </div>
+                                <div class="event-value">872</div>
+                            </div>
+                            <div class="category-row">
+                                <div class="category-icon" style="color: var(--purple);"><i class="fa-solid fa-mobile-screen"></i></div>
+                                <div>
+                                    <div class="event-title">截图</div>
+                                    <div class="track"><div class="fill" style="width: 42%; background: var(--purple);"></div></div>
+                                </div>
+                                <div class="event-value">318</div>
+                            </div>
+                            <div class="category-row">
+                                <div class="category-icon" style="color: var(--pink);"><i class="fa-solid fa-video"></i></div>
+                                <div>
+                                    <div class="event-title">视频</div>
+                                    <div class="track"><div class="fill" style="width: 18%; background: var(--pink);"></div></div>
+                                </div>
+                                <div class="event-value">96</div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="card">
+                        <div class="section-title">
+                            <span>整理时间线</span>
+                            <span class="section-caption">最近记录</span>
+                        </div>
+                        <div class="timeline">
+                            <div class="event">
+                                <div class="event-icon" style="color: var(--green);"><i class="fa-solid fa-check"></i></div>
+                                <div>
+                                    <div class="event-title">完成周末照片整理</div>
+                                    <div class="event-sub">删除 24 张 · 收藏 6 张</div>
+                                </div>
+                                <div class="event-value">72 MB</div>
+                            </div>
+                            <div class="event">
+                                <div class="event-icon" style="color: var(--red);"><i class="fa-solid fa-trash"></i></div>
+                                <div>
+                                    <div class="event-title">清理截图相册</div>
+                                    <div class="event-sub">删除 38 张截图</div>
+                                </div>
+                                <div class="event-value">114 MB</div>
+                            </div>
+                            <div class="event">
+                                <div class="event-icon" style="color: var(--pink);"><i class="fa-solid fa-heart"></i></div>
+                                <div>
+                                    <div class="event-title">整理旅行照片</div>
+                                    <div class="event-sub">收藏 12 张 · 跳过 41 张</div>
+                                </div>
+                                <div class="event-value">36 MB</div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <div class="paywall demo-only">
+                        <button class="primary" type="button">永久解锁 ¥9.90</button>
+                        <button class="restore" type="button">恢复购买</button>
+                    </div>
+                </div>
+
+                <nav class="tabbar" aria-label="PhotoDel 底部导航">
+                    <div class="tab"><i class="fa-solid fa-layer-group"></i><span>整理</span></div>
+                    <div class="tab"><i class="fa-solid fa-images"></i><span>相册</span></div>
+                    <div class="tab active"><i class="fa-solid fa-chart-simple"></i><span>洞察</span></div>
+                    <div class="tab"><i class="fa-solid fa-gear"></i><span>设置</span></div>
+                </nav>
+            </div>
+        </section>
+
+        <aside class="notes">
+            <h2>PhotoDel 高阶功能方向</h2>
+            <p>我建议把这个能力叫「照片洞察」，它不只是长期统计，而是把照片增长、整理行为、截图/视频结构、清理历史合成一个可持续看的高级 Tab。</p>
+            <div class="note-card">
+                <h3>信息架构</h3>
+                <ul>
+                    <li>底部 Tab 增加「洞察」，设置页去掉重复统计入口。</li>
+                    <li>未解锁时显示完整 demo，所有示例数据明确标记。</li>
+                    <li>解锁后同一页面直接替换为本机真实数据。</li>
+                </ul>
+            </div>
+            <div class="note-card">
+                <h3>功能价值</h3>
+                <ul>
+                    <li>日历热力图让用户看到每天照片负担。</li>
+                    <li>趋势和分类洞察解释为什么值得整理。</li>
+                    <li>整理时间线把每次批量确认沉淀为成果记录。</li>
+                </ul>
+            </div>
+            <div class="note-card">
+                <h3>付费逻辑</h3>
+                <ul>
+                    <li>免费用户可看 demo，不暴露真实长期统计。</li>
+                    <li>已购买用户不再看到购买页。</li>
+                    <li>恢复购买只用于找回以前买过的权益，不重复扣费。</li>
+                </ul>
+            </div>
+        </aside>
+    </main>
+
+    <script>
+        const appScreen = document.getElementById('appScreen');
+        const demoButton = document.getElementById('demoButton');
+        const unlockButton = document.getElementById('unlockButton');
+        const calendar = document.getElementById('calendar');
+        const dayDetail = document.getElementById('dayDetail');
+
+        const dayData = [
+            0, 1, 2, 1, 3, 4, 2,
+            1, 0, 2, 3, 2, 4, 1,
+            0, 1, 1, 2, 3, 2, 1,
+            4, 3, 2, 0, 1, 2, 3,
+            2, 1
+        ];
+
+        function renderCalendar() {
+            calendar.innerHTML = '';
+            dayData.forEach((level, index) => {
+                const day = document.createElement('button');
+                day.className = 'day';
+                day.type = 'button';
+                day.dataset.level = String(level);
+                day.textContent = String(index + 1);
+                if (index === 10) day.classList.add('selected');
+                day.addEventListener('click', () => {
+                    document.querySelectorAll('.day').forEach(item => item.classList.remove('selected'));
+                    day.classList.add('selected');
+                    const added = 18 + level * 8 + (index % 5);
+                    const screenshots = Math.max(2, Math.round(added * 0.28));
+                    const reviewed = Math.max(0, level * 3 + (index % 4));
+                    dayDetail.innerHTML = `
+                        <div class="detail-pill"><strong>${added}</strong><span>当天新增</span></div>
+                        <div class="detail-pill"><strong>${screenshots}</strong><span>截图</span></div>
+                        <div class="detail-pill"><strong>${reviewed}</strong><span>已整理</span></div>
+                    `;
+                });
+                calendar.appendChild(day);
+            });
+        }
+
+        function setMode(mode) {
+            const isDemo = mode === 'demo';
+            appScreen.classList.toggle('demo', isDemo);
+            appScreen.classList.toggle('unlocked', !isDemo);
+            demoButton.classList.toggle('active', isDemo);
+            unlockButton.classList.toggle('active', !isDemo);
+        }
+
+        demoButton.addEventListener('click', () => setMode('demo'));
+        unlockButton.addEventListener('click', () => setMode('unlocked'));
+        renderCalendar();
+    </script>
+</body>
+</html>
