@@ -70,7 +70,7 @@ struct AlbumsView: View {
             editMode = .inactive
         }
         .onAppear {
-            dataManager.loadAlbums(showLoading: false)
+            dataManager.loadAlbumsIfNeeded()
         }
     }
 
@@ -91,7 +91,7 @@ struct AlbumsView: View {
 
             if dataManager.photoLibraryManager.hasPhotoLibraryAccess {
                 Menu {
-                    Picker("排序", selection: $sortMode) {
+                    Picker(L10n.string("排序"), selection: $sortMode) {
                         ForEach(AlbumSortMode.allCases) { mode in
                             Label(mode.title, systemImage: mode.icon).tag(mode)
                         }
@@ -101,7 +101,7 @@ struct AlbumsView: View {
                         Button {
                             toggleReordering()
                         } label: {
-                            Label(editMode == .active ? "完成排序" : "调整顺序", systemImage: "line.3.horizontal")
+                            Label(editMode == .active ? L10n.string("完成排序") : L10n.string("调整顺序"), systemImage: "line.3.horizontal")
                         }
                     }
                 } label: {
@@ -136,7 +136,7 @@ struct AlbumsView: View {
         VStack {
             Spacer()
             PhotoAuthorizationCard(
-                subtitle: "需要访问您的照片库来管理相册。\(AppConstants.privacyShortText)",
+                subtitle: L10n.string("需要访问您的照片库来管理相册。\(AppConstants.privacyShortText)"),
                 onRequestAccess: { dataManager.requestPhotoLibraryAccess() }
             )
             .padding(.horizontal, 32)
@@ -164,7 +164,7 @@ struct AlbumsView: View {
                         }
                         .onMove(perform: moveUserAlbums)
                     } header: {
-                        sectionHeader("我的相册", count: userAlbums.count)
+                        sectionHeader(L10n.string("我的相册"), count: userAlbums.count)
                     }
                 }
 
@@ -224,13 +224,35 @@ struct AlbumsView: View {
     }
 
     private var loadingRow: some View {
-        VStack(spacing: 12) {
-            ProgressView()
-                .progressViewStyle(CircularProgressViewStyle(tint: PhotoDelStyle.accent))
+        let progress = activeAlbumLoadingProgress
 
-            Text("加载相册中")
-                .font(.system(size: 15, weight: .regular))
-                .foregroundColor(PhotoDelStyle.secondaryText)
+        return VStack(spacing: 14) {
+            if progress > 0.01 {
+                VStack(spacing: 8) {
+                    ProgressView(value: progress)
+                        .progressViewStyle(LinearProgressViewStyle(tint: PhotoDelStyle.accent))
+                        .frame(maxWidth: 220)
+                        .clipShape(Capsule(style: .continuous))
+
+                    Text(L10n.percent(Int(progress * 100)))
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(PhotoDelStyle.tertiaryText)
+                }
+            } else {
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: PhotoDelStyle.accent))
+            }
+
+            VStack(spacing: 5) {
+                Text(albumLoadingTitle)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.primaryText)
+
+                Text(albumLoadingMessage)
+                    .font(.system(size: 14, weight: .regular))
+                    .foregroundColor(PhotoDelStyle.secondaryText)
+                    .multilineTextAlignment(.center)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 48)
@@ -307,19 +329,45 @@ struct AlbumsView: View {
 
     private var albumHeaderSubtitle: String {
         if !dataManager.photoLibraryManager.hasPhotoLibraryAccess {
-            return "需要访问照片库权限"
+            return L10n.string("需要访问照片库权限")
         }
 
         let albumCount = dataManager.getUserAlbums().count
-        if dataManager.isLoadingAlbums && albumCount == 0 {
-            return "正在读取相册"
+        if isLoadingPhotoLibraryForAlbums {
+            return L10n.string("正在读取照片库")
         }
-        return "\(albumCount) 个我的相册"
+        if dataManager.isLoadingAlbums && albumCount == 0 {
+            return L10n.string("正在读取相册")
+        }
+        return L10n.string("\(albumCount) 个我的相册")
     }
 
     // MARK: - 计算属性
     private var isLoadingAlbums: Bool {
-        dataManager.isLoadingAlbums && dataManager.getUserAlbums().isEmpty
+        dataManager.getUserAlbums().isEmpty &&
+            (dataManager.isLoadingAlbums || isLoadingPhotoLibraryForAlbums)
+    }
+
+    private var isLoadingPhotoLibraryForAlbums: Bool {
+        dataManager.photoLibraryManager.isLoading &&
+            !dataManager.photoLibraryManager.hasLoadedPhotoLibrary
+    }
+
+    private var activeAlbumLoadingProgress: Double {
+        let progress = isLoadingPhotoLibraryForAlbums
+            ? dataManager.photoLibraryManager.loadingProgress
+            : dataManager.albumLoadingProgress
+        return min(max(progress, 0), 1)
+    }
+
+    private var albumLoadingTitle: String {
+        isLoadingPhotoLibraryForAlbums ? L10n.string("正在读取照片库") : L10n.string("正在读取相册")
+    }
+
+    private var albumLoadingMessage: String {
+        isLoadingPhotoLibraryForAlbums
+            ? L10n.string("首次读取完成后会自动显示相册。")
+            : L10n.string("正在整理相册列表和照片数量。")
     }
 
     private func filteredAlbums(_ albums: [AlbumInfo]) -> [AlbumInfo] {
@@ -395,7 +443,7 @@ struct AlbumsView: View {
 
     private func moveUserAlbums(from source: IndexSet, to destination: Int) {
         guard sortMode == .custom, searchText.isEmpty else {
-            showAlbumToast("请先清除搜索再调整顺序", icon: "magnifyingglass", style: .warning)
+            showAlbumToast(L10n.string("请先清除搜索再调整顺序"), icon: "magnifyingglass", style: .warning)
             return
         }
 
@@ -408,7 +456,7 @@ struct AlbumsView: View {
     private func openAlbum(_ albumInfo: AlbumInfo) {
         guard albumInfo.photosCount > 0 else {
             HapticManager.impact(.light)
-            showAlbumToast("这个相册还没有照片", icon: "photo", style: .warning)
+            showAlbumToast(L10n.string("这个相册还没有照片"), icon: "photo", style: .warning)
             return
         }
 
@@ -425,11 +473,11 @@ struct AlbumsView: View {
             DispatchQueue.main.async {
                 if success {
                     HapticManager.notify(.success)
-                    self.showAlbumToast("相册已删除", icon: "trash", style: .positive)
+                    self.showAlbumToast(L10n.string("相册已删除"), icon: "trash", style: .positive)
                     self.dataManager.loadAlbums(showLoading: false)
                 } else if let error = error {
                     HapticManager.notify(.error)
-                    self.showAlbumToast("删除失败，请再试一次", icon: "exclamationmark.triangle", style: .warning)
+                    self.showAlbumToast(L10n.string("删除失败，请再试一次"), icon: "exclamationmark.triangle", style: .warning)
                     print("删除相册失败: \(error.localizedDescription)")
                 }
             }
@@ -471,11 +519,11 @@ private enum AlbumSortMode: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .custom:
-            return "自定义"
+            return L10n.string("自定义")
         case .name:
-            return "名称"
+            return L10n.string("名称")
         case .count:
-            return "数量"
+            return L10n.string("数量")
         }
     }
 
@@ -694,7 +742,7 @@ struct CreateAlbumView: View {
                     self.dismiss()
                 } else if let error = error {
                     print("创建相册失败: \(error.localizedDescription)")
-                    self.errorMessage = "创建相册失败，请再试一次"
+                    self.errorMessage = L10n.string("创建相册失败，请再试一次")
                 }
             }
         }
@@ -816,7 +864,7 @@ struct EditAlbumView: View {
                     self.dismiss()
                 } else if let error = error {
                     print("更新相册失败: \(error.localizedDescription)")
-                    self.errorMessage = "更新相册失败，请再试一次"
+                    self.errorMessage = L10n.string("更新相册失败，请再试一次")
                 }
             }
         }

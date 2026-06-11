@@ -193,12 +193,12 @@ struct HomeView: View {
 
     private var titleSubtitle: String {
         if !dataManager.photoLibraryManager.hasPhotoLibraryAccess {
-            return "需要访问照片库权限"
+            return L10n.string("需要访问照片库权限")
         }
         if isLibraryPreparing {
-            return "正在读取照片信息"
+            return L10n.string("正在读取照片信息")
         }
-        return "轻扫判断照片去留"
+        return L10n.string("轻扫判断照片去留")
     }
 
     @ViewBuilder
@@ -215,7 +215,7 @@ struct HomeView: View {
     // MARK: - 权限授权区域
     private var authorizationSection: some View {
         PhotoAuthorizationCard(
-            subtitle: "PhotoDel 需要照片库权限来整理相册。\(AppConstants.privacyShortText)",
+            subtitle: L10n.string("PhotoDel 需要照片库权限来整理相册。\(AppConstants.privacyShortText)"),
             onRequestAccess: { dataManager.requestPhotoLibraryAccess() }
         )
     }
@@ -231,7 +231,7 @@ struct HomeView: View {
                     .foregroundColor(PhotoDelStyle.primaryText)
 
                 if dataManager.photoLibraryManager.loadingProgress > 0.01 {
-                    Text("\(Int(dataManager.photoLibraryManager.loadingProgress * 100))%")
+                    Text(L10n.percent(Int(dataManager.photoLibraryManager.loadingProgress * 100)))
                         .font(.system(size: 15, weight: .medium))
                         .foregroundColor(PhotoDelStyle.secondaryText)
                 }
@@ -265,9 +265,9 @@ struct HomeView: View {
             }
 
             VStack(spacing: 12) {
-                CategorySkeletonCard(title: "全部照片", icon: "photo.on.rectangle")
-                CategorySkeletonCard(title: "视频", icon: "video")
-                CategorySkeletonCard(title: "截图", icon: "iphone")
+                CategorySkeletonCard(title: PhotoCategory.all.title, icon: "photo.on.rectangle")
+                CategorySkeletonCard(title: PhotoCategory.videos.title, icon: "video")
+                CategorySkeletonCard(title: PhotoCategory.screenshots.title, icon: "iphone")
             }
         }
     }
@@ -340,11 +340,11 @@ struct HomeView: View {
                     Divider()
                         .frame(height: 28)
                         .background(PhotoDelStyle.hairline)
-                    HomeStatPill(value: "\(dataManager.deleteCandidates.count)", label: "待删除")
+                    HomeStatPill(value: "\(dataManager.deleteCandidates.count)", label: L10n.string("待删除"))
                     Divider()
                         .frame(height: 28)
                         .background(PhotoDelStyle.hairline)
-                    HomeStatPill(value: dataManager.organizeStats.formattedSpaceSaved, label: "可释放")
+                    HomeStatPill(value: dataManager.organizeStats.formattedSpaceSaved, label: L10n.string("可释放"))
                 }
                 .padding(.vertical, 3)
             }
@@ -371,7 +371,7 @@ struct HomeView: View {
                     ForEach(PhotoCategory.allCases, id: \.rawValue) { category in
                         HomeEntryRow(
                             icon: category.icon,
-                            title: category.rawValue,
+                            title: category.title,
                             detail: getPhotoCountDetail(for: category),
                             tint: PhotoDelStyle.iconTint(for: category == .videos ? "video" : category == .favorites ? "favorite" : "photo")
                         ) {
@@ -399,8 +399,8 @@ struct HomeView: View {
                     ForEach(dataManager.timeGroups) { timeGroupInfo in
                         HomeEntryRow(
                             icon: timeGroupInfo.timeGroup.icon,
-                            title: timeGroupInfo.timeGroup.rawValue,
-                            detail: "\(timeGroupInfo.photosCount) 张",
+                            title: timeGroupInfo.timeGroup.title,
+                            detail: L10n.shortPhotoCount(timeGroupInfo.photosCount),
                             tint: PhotoDelStyle.accent
                         ) {
                             navigationPath.append(SwipeViewDestination.timeGroup(timeGroupInfo.timeGroup.rawValue))
@@ -427,31 +427,37 @@ struct HomeView: View {
 
     private var primarySummaryText: String {
         if dataManager.photoLibraryManager.totalPhotosCount == 0 && dataManager.photoLibraryManager.isLoading {
-            return "正在同步照片信息 · 可先进入整理"
+            return L10n.string("正在读取照片信息 \(libraryLoadingProgressText) · 可先进入整理")
         }
-        return "\(dataManager.photoLibraryManager.totalPhotosCount) 张待整理 · \(dataManager.deleteCandidates.count) 张待删除"
+        return L10n.string("\(dataManager.photoLibraryManager.totalPhotosCount) 张待整理 · \(dataManager.deleteCandidates.count) 张待删除")
     }
 
     private var primaryPhotoCountValue: String {
         if dataManager.photoLibraryManager.totalPhotosCount == 0 && dataManager.photoLibraryManager.isLoading {
-            return "..."
+            return libraryLoadingProgressText
         }
         return "\(dataManager.photoLibraryManager.totalPhotosCount)"
     }
 
     private var primaryPhotoCountLabel: String {
         if dataManager.photoLibraryManager.totalPhotosCount == 0 && dataManager.photoLibraryManager.isLoading {
-            return "同步中"
+            return L10n.string("读取中")
         }
-        return "待整理"
+        return L10n.string("待整理")
     }
 
     private func getPhotoCountDetail(for category: PhotoCategory) -> String {
         let count = getPhotoCount(for: category)
         if count == 0 && dataManager.photoLibraryManager.isLoading {
-            return "同步中"
+            return L10n.string("读取中 \(libraryLoadingProgressText)")
         }
-        return "\(count) 张"
+        return L10n.shortPhotoCount(count)
+    }
+
+    private var libraryLoadingProgressText: String {
+        let progress = min(max(dataManager.photoLibraryManager.loadingProgress, 0), 1)
+        guard progress > 0.01 else { return "..." }
+        return L10n.percent(Int(progress * 100))
     }
 
 }
@@ -469,7 +475,7 @@ struct HomeStatPill: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.72)
 
-            Text(label)
+            Text(label.appLocalized)
                 .font(.system(size: 12, weight: .regular))
                 .foregroundColor(PhotoDelStyle.tertiaryText)
         }
@@ -497,14 +503,14 @@ struct HomeEntryRow: View {
                         .foregroundColor(tint)
                 }
 
-                Text(title)
+                Text(title.appLocalized)
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.primaryText)
                     .lineLimit(1)
 
                 Spacer()
 
-                Text(detail)
+                Text(detail.appLocalized)
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(PhotoDelStyle.secondaryText)
                     .lineLimit(1)
@@ -590,7 +596,7 @@ struct CategorySkeletonCard: View {
                 )
 
             VStack(alignment: .leading, spacing: 6) {
-                Text(title)
+                Text(title.appLocalized)
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.primaryText)
 
@@ -601,7 +607,7 @@ struct CategorySkeletonCard: View {
 
             Spacer()
 
-            Text("准备中")
+            Text(L10n.string("准备中"))
                 .font(.system(size: 12, weight: .medium))
                 .foregroundColor(PhotoDelStyle.tertiaryText)
         }

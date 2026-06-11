@@ -87,12 +87,12 @@ struct SettingsView: View {
                 MailComposeView()
             } else {
                 // 如果设备不支持邮件，显示替代方案
-                Text("此设备不支持发送邮件")
+                Text(L10n.string("此设备不支持发送邮件"))
                     .foregroundColor(PhotoDelStyle.primaryText)
                     .padding()
             }
             #else
-            Text("此设备不支持发送邮件")
+            Text(L10n.string("此设备不支持发送邮件"))
                 .foregroundColor(PhotoDelStyle.primaryText)
                 .padding()
             #endif
@@ -252,7 +252,7 @@ struct SettingsView: View {
                     icon: "info.circle.fill",
                     iconColor: PhotoDelStyle.secondaryText,
                     title: "关于 PhotoDel",
-                    subtitle: "版本 \(AppConstants.version)",
+                    subtitle: L10n.string("版本 \(AppConstants.version)"),
                     action: {
                         showingAbout = true
                     }
@@ -393,15 +393,15 @@ struct SettingsView: View {
     private var photoAccessSubtitle: String {
         switch dataManager.photoLibraryManager.authorizationStatus {
         case .authorized:
-            return "已允许访问全部照片"
+            return L10n.string("已允许访问全部照片")
         case .limited:
-            return "当前仅可访问 \(dataManager.photoLibraryManager.totalPhotosCount) 张照片"
+            return L10n.string("当前仅可访问 \(dataManager.photoLibraryManager.totalPhotosCount) 张照片")
         case .denied, .restricted:
-            return "未授权，点击前往系统设置"
+            return L10n.string("未授权，点击前往系统设置")
         case .notDetermined:
-            return "尚未选择照片访问范围"
+            return L10n.string("尚未选择照片访问范围")
         @unknown default:
-            return "点击查看系统照片权限"
+            return L10n.string("点击查看系统照片权限")
         }
     }
 
@@ -409,16 +409,16 @@ struct SettingsView: View {
         let reviewedCount = dataManager.reviewedAssetIDs.count
         let pendingCount = dataManager.deleteCandidates.count + dataManager.favoriteCandidates.count
         if reviewedCount == 0 && pendingCount == 0 {
-            return "没有本机整理记录"
+            return L10n.string("没有本机整理记录")
         }
-        return "已整理 \(reviewedCount) 张 · 候选 \(pendingCount) 张"
+        return L10n.string("已整理 \(reviewedCount) 张 · 候选 \(pendingCount) 张")
     }
 
     private var gestureSettingsSubtitle: String {
         let left = currentGestureAction(for: .left)
         let right = currentGestureAction(for: .right)
         let up = currentGestureAction(for: .up)
-        return "左滑\(left.title) · 右滑\(right.title) · 上滑\(up.title)"
+        return L10n.string("左滑\(left.title) · 右滑\(right.title) · 上滑\(up.title)")
     }
 
     private func currentGestureAction(for direction: SwipeGestureDirection) -> SwipeGestureAction {
@@ -446,7 +446,7 @@ struct SettingsView: View {
     
     // MARK: - 方法
     private func openFeedbackMailURL() {
-        let subject = "PhotoDel App 反馈".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        let subject = L10n.string("PhotoDel App 反馈").addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         if let url = URL(string: "mailto:\(AppConstants.feedbackEmail)?subject=\(subject)") {
             #if canImport(UIKit)
             UIApplication.shared.open(url)
@@ -470,12 +470,12 @@ struct SettingsView: View {
 
     private func clearLocalOrganizeData() {
         dataManager.clearLocalOrganizeData()
-        showSettingsToast("已清空本机整理记录", icon: "checkmark.circle.fill", style: .positive)
+        showSettingsToast(L10n.string("已清空本机整理记录"), icon: "checkmark.circle.fill", style: .positive)
     }
 
     private func resetIntro() {
         hasSeenPhotoDelIntro = false
-        showSettingsToast("已恢复开屏引导", icon: "sparkles", style: .positive)
+        showSettingsToast(L10n.string("已恢复开屏引导"), icon: "sparkles", style: .positive)
     }
 
     private func showSettingsToast(_ message: String, icon: String, style: PhotoDelToastStyle) {
@@ -507,7 +507,7 @@ struct StatCard: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
             
-            Text(label)
+            Text(label.appLocalized)
                 .font(.system(size: 12, weight: .regular))
                 .foregroundColor(PhotoDelStyle.secondaryText)
         }
@@ -544,11 +544,11 @@ struct SettingRow: View {
                 
                 // 文字信息
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
+                    Text(title.appLocalized)
                         .font(.system(size: 16, weight: .medium))
                         .foregroundColor(PhotoDelStyle.primaryText)
                     
-                    Text(subtitle)
+                    Text(subtitle.appLocalized)
                         .font(.system(size: 14, weight: .regular))
                         .foregroundColor(PhotoDelStyle.secondaryText)
                 }
@@ -593,11 +593,11 @@ struct SettingToggleRow: View {
             }
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
+                Text(title.appLocalized)
                     .font(.system(size: 16, weight: .medium))
                     .foregroundColor(PhotoDelStyle.primaryText)
 
-                Text(subtitle)
+                Text(subtitle.appLocalized)
                     .font(.system(size: 14, weight: .regular))
                     .foregroundColor(PhotoDelStyle.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -784,11 +784,11 @@ private struct GesturePreviewTile: View {
                 )
 
             VStack(spacing: 3) {
-                Text(direction.title)
+                Text(direction.title.appLocalized)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.primaryText)
 
-                Text(action.title)
+                Text(action.title.appLocalized)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(PhotoDelStyle.secondaryText)
             }
@@ -808,11 +808,11 @@ private struct GesturePresetButton: View {
         Button(action: action) {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(preset.title)
+                    Text(preset.title.appLocalized)
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(PhotoDelStyle.primaryText)
 
-                    Text(preset.subtitle)
+                    Text(preset.subtitle.appLocalized)
                         .font(.system(size: 13, weight: .regular))
                         .foregroundColor(PhotoDelStyle.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -859,11 +859,11 @@ private struct GestureActionPickerRow: View {
                 )
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(direction.title)
+                Text(direction.title.appLocalized)
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.primaryText)
 
-                Text(selectedAction.detailTitle)
+                Text(selectedAction.detailTitle.appLocalized)
                     .font(.system(size: 13, weight: .regular))
                     .foregroundColor(PhotoDelStyle.secondaryText)
             }
@@ -880,7 +880,7 @@ private struct GestureActionPickerRow: View {
                 }
             } label: {
                 HStack(spacing: 6) {
-                    Text(selectedAction.title)
+                    Text(selectedAction.title.appLocalized)
                         .font(.system(size: 14, weight: .semibold))
                     Image(systemName: "chevron.down")
                         .font(.system(size: 10, weight: .bold))
@@ -910,10 +910,10 @@ struct MailComposeView: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> MFMailComposeViewController {
         let composer = MFMailComposeViewController()
         composer.mailComposeDelegate = context.coordinator
-        composer.setSubject("PhotoDel App 反馈")
+        composer.setSubject(L10n.string("PhotoDel App 反馈"))
         composer.setToRecipients([AppConstants.feedbackEmail])
         
-        let body = """
+        let body = L10n.string("""
         请在此处写下您的反馈和建议：
         
         
@@ -921,7 +921,7 @@ struct MailComposeView: UIViewControllerRepresentable {
         ---
         App版本: \(AppConstants.version)
         设备信息: \(UIDevice.current.systemName) \(UIDevice.current.systemVersion)
-        """
+        """)
         composer.setMessageBody(body, isHTML: false)
         
         return composer
@@ -963,7 +963,7 @@ struct AuthorView: View {
                                 AuthorAvatar()
 
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text("Created by Michael Jackie")
+                                    Text(AppConstants.authorName)
                                         .font(.system(size: 24, weight: .semibold))
                                         .foregroundColor(PhotoDelStyle.primaryText)
 
@@ -1053,7 +1053,7 @@ struct AuthorAvatar: View {
         }
         .frame(width: 62, height: 62)
         .shadow(color: PhotoDelStyle.accent.opacity(0.2), radius: 18, x: 0, y: 10)
-        .accessibilityLabel("Michael Jackie")
+        .accessibilityLabel(AppConstants.authorName)
     }
 }
 
@@ -1133,11 +1133,11 @@ struct PrivacyInfoRow: View {
                 )
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(title)
+                Text(title.appLocalized)
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.primaryText)
 
-                Text(detail)
+                Text(detail.appLocalized)
                     .font(.system(size: 14, weight: .regular))
                     .foregroundColor(PhotoDelStyle.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1195,7 +1195,7 @@ struct AboutView: View {
                     Spacer()
                     
                     // 版权信息
-                    Text("Created by Michael Jackie")
+                    Text("Created by \(AppConstants.authorName)")
                         .font(.system(size: 12, weight: .regular))
                         .foregroundColor(PhotoDelStyle.tertiaryText)
                 }

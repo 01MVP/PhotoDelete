@@ -52,12 +52,12 @@ final class PurchaseManager: ObservableObject {
         do {
             products = try await Product.products(for: productIDs)
             if products.isEmpty {
-                errorMessage = "暂时无法读取支持者版商品。"
+                errorMessage = L10n.string("暂时无法读取支持者版商品。")
             } else {
                 errorMessage = nil
             }
         } catch {
-            errorMessage = "暂时无法读取支持者版商品。"
+            errorMessage = L10n.string("暂时无法读取支持者版商品。")
         }
     }
 
@@ -67,7 +67,7 @@ final class PurchaseManager: ObservableObject {
         }
 
         guard let product = supporterProduct else {
-            errorMessage = "暂时无法读取支持者版商品。"
+            errorMessage = L10n.string("暂时无法读取支持者版商品。")
             return
         }
 
@@ -83,14 +83,14 @@ final class PurchaseManager: ObservableObject {
                 setSupporter(true)
                 errorMessage = nil
             case .pending:
-                errorMessage = "购买正在处理中，完成后会自动解锁。"
+                errorMessage = L10n.string("购买正在处理中，完成后会自动解锁。")
             case .userCancelled:
                 errorMessage = nil
             @unknown default:
-                errorMessage = "购买未完成，请稍后再试。"
+                errorMessage = L10n.string("购买未完成，请稍后再试。")
             }
         } catch {
-            errorMessage = "购买未完成，请稍后再试。"
+            errorMessage = L10n.string("购买未完成，请稍后再试。")
         }
     }
 
@@ -102,10 +102,10 @@ final class PurchaseManager: ObservableObject {
             try await AppStore.sync()
             await refreshEntitlements()
             if !isSupporter {
-                errorMessage = "没有找到可恢复的支持者版购买。"
+                errorMessage = L10n.string("没有找到可恢复的支持者版购买。")
             }
         } catch {
-            errorMessage = "恢复购买失败，请稍后再试。"
+            errorMessage = L10n.string("恢复购买失败，请稍后再试。")
         }
     }
 

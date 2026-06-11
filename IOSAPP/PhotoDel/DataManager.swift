@@ -26,11 +26,13 @@ class DataManager: ObservableObject {
     @Published var systemAlbums: [AlbumInfo] = []
     @Published var userAlbums: [AlbumInfo] = []
     @Published var isLoadingAlbums = false
+    @Published var albumLoadingProgress: Double = 0
     @Published private(set) var reviewedAssetIDs: Set<String> = []
     let cleanupStatsStore: CleanupStatsStore
 
     private var isReloadingLibrary = false
     private var hasLoadedAlbums = false
+    private var isFetchingAlbums = false
     private var timeGroupCache: [TimeGroup: [PHAsset]] = [:]
     private var progressRefreshWorkItem: DispatchWorkItem?
     private let reviewedAssetIDsKey = "photoDelReviewedAssetIDs"
@@ -83,6 +85,9 @@ class DataManager: ObservableObject {
             systemAlbums = []
             userAlbums = []
             hasLoadedAlbums = false
+            isLoadingAlbums = false
+            isFetchingAlbums = false
+            albumLoadingProgress = 0
             return
         }
 
@@ -163,7 +168,7 @@ class DataManager: ObservableObject {
         // 检查网络状态和iCloud同步状态
         guard checkSystemReadiness() else {
             let error = NSError(domain: "PhotoDelError", code: 1001, userInfo: [
-                NSLocalizedDescriptionKey: "系统未准备就绪，请检查网络连接和存储空间"
+                NSLocalizedDescriptionKey: L10n.string("系统未准备就绪，请检查网络连接和存储空间")
             ])
             completion(false, error)
             return
@@ -243,8 +248,8 @@ class DataManager: ObservableObject {
 
                 // 如果部分操作成功，可以选择回滚（这里简化处理）
                 let enhancedError = NSError(domain: "PhotoDelError", code: 1002, userInfo: [
-                    NSLocalizedDescriptionKey: "批量操作失败: \(lastError?.localizedDescription ?? "未知错误")",
-                    NSLocalizedFailureReasonErrorKey: "部分操作可能已完成，请检查照片状态"
+                    NSLocalizedDescriptionKey: L10n.string("批量操作失败: \(lastError?.localizedDescription ?? L10n.string("未知错误"))"),
+                    NSLocalizedFailureReasonErrorKey: L10n.string("部分操作可能已完成，请检查照片状态")
                 ])
                 completion(false, enhancedError)
             }
@@ -420,16 +425,32 @@ class DataManager: ObservableObject {
     }
 
     // MARK: - 相册数据加载
+    func loadAlbumsIfNeeded() {
+        guard !hasLoadedAlbums, !isFetchingAlbums else { return }
+        loadAlbums(showLoading: true)
+    }
+
     func loadAlbums(showLoading: Bool? = nil) {
         guard photoLibraryManager.hasPhotoLibraryAccess else {
             isLoadingAlbums = false
             hasLoadedAlbums = false
+            isFetchingAlbums = false
+            albumLoadingProgress = 0
             return
         }
 
         let shouldShowLoading = showLoading ?? (!hasLoadedAlbums && systemAlbums.isEmpty && userAlbums.isEmpty)
+        guard !isFetchingAlbums else {
+            if shouldShowLoading {
+                isLoadingAlbums = true
+            }
+            return
+        }
+
+        isFetchingAlbums = true
         if shouldShowLoading {
             isLoadingAlbums = true
+            albumLoadingProgress = 0
         }
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -446,6 +467,24 @@ class DataManager: ObservableObject {
                 .smartAlbumScreenshots,  // 截图
                 .smartAlbumVideos        // 视频
             ]
+
+            let userCollections = PHAssetCollection.fetchAssetCollections(
+                with: .album,
+                subtype: .any,
+                options: nil
+            )
+            let totalSteps = max(smartAlbumTypes.count + userCollections.count, 1)
+            var completedSteps = 0
+
+            func publishProgress() {
+                completedSteps += 1
+                let progress = min(Double(completedSteps) / Double(totalSteps), 0.98)
+                DispatchQueue.main.async {
+                    if shouldShowLoading {
+                        self.albumLoadingProgress = max(self.albumLoadingProgress, progress)
+                    }
+                }
+            }
 
             for subtype in smartAlbumTypes {
                 let collections = PHAssetCollection.fetchAssetCollections(
@@ -470,15 +509,10 @@ class DataManager: ObservableObject {
                         systemAlbums.append(albumInfo)
                     }
                 }
+                publishProgress()
             }
 
             // 用户创建的相册
-            let userCollections = PHAssetCollection.fetchAssetCollections(
-                with: .album,
-                subtype: .any,
-                options: nil
-            )
-
             userCollections.enumerateObjects { collection, _, _ in
                 let fetchOptions = PHFetchOptions()
                 let assets = PHAsset.fetchAssets(in: collection, options: fetchOptions)
@@ -491,12 +525,15 @@ class DataManager: ObservableObject {
                     thumbnailAsset: thumbnailAsset
                 )
                 userAlbums.append(albumInfo)
+                publishProgress()
             }
 
             DispatchQueue.main.async {
                 self.systemAlbums = systemAlbums
                 self.userAlbums = userAlbums
                 self.hasLoadedAlbums = true
+                self.isFetchingAlbums = false
+                self.albumLoadingProgress = 1
                 self.isLoadingAlbums = false
             }
         }

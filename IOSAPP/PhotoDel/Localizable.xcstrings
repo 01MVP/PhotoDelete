@@ -1,0 +1,2535 @@
+{
+  "sourceLanguage": "zh-Hans",
+  "strings": {
+    "": {},
+    "%@ %lld 张": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ %2$lld photos"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ %2$lld 张"
+          }
+        }
+      }
+    },
+    "%@ (%lld)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ (%2$lld)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ (%2$lld)"
+          }
+        }
+      }
+    },
+    "%@ · 0 张照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · 0 photos"
+          }
+        }
+      }
+    },
+    "%@ · 已整理 %lld/%lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · Reviewed %2$lld/%3$lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ · 已整理 %2$lld/%3$lld"
+          }
+        }
+      }
+    },
+    "%lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld"
+          }
+        }
+      }
+    },
+    "%lld 个我的相册": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld albums"
+          }
+        }
+      }
+    },
+    "%lld 张": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld photos"
+          }
+        }
+      }
+    },
+    "%lld 张待整理 · %lld 张待删除": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld to review · %2$lld to delete"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld 张待整理 · %2$lld 张待删除"
+          }
+        }
+      }
+    },
+    "%lld 张照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld photos"
+          }
+        }
+      }
+    },
+    "%lld 次 · 整理 %lld 张": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld sessions · %2$lld reviewed"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld 次 · 整理 %2$lld 张"
+          }
+        }
+      }
+    },
+    "%lld%%": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld%%"
+          }
+        }
+      }
+    },
+    "01MVP": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "01MVP"
+          }
+        }
+      }
+    },
+    "01MVP 与小产品创作": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "01MVP and small product building"
+          }
+        }
+      }
+    },
+    "Created by %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Created by %@"
+          }
+        }
+      }
+    },
+    "MJ": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MJ"
+          }
+        }
+      }
+    },
+    "PhotoDel": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PhotoDel"
+          }
+        }
+      }
+    },
+    "PhotoDel App 反馈": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PhotoDel App Feedback"
+          }
+        }
+      }
+    },
+    "PhotoDel v%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PhotoDel v%@"
+          }
+        }
+      }
+    },
+    "PhotoDel 不接入自己的云端服务，也不会把照片发到服务器。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PhotoDel does not use its own cloud service and never sends photos to a server."
+          }
+        }
+      }
+    },
+    "PhotoDel 支持者版": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PhotoDel Supporter"
+          }
+        }
+      }
+    },
+    "PhotoDel 是一个免费的相册整理小工具，目标是把删照片、归类照片这件事做得足够直接。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PhotoDel is a free photo cleanup tool built to make deleting and sorting photos feel direct."
+          }
+        }
+      }
+    },
+    "PhotoDel 需要照片库权限来整理相册。%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PhotoDel needs photo library access to organize your photos. %@"
+          }
+        }
+      }
+    },
+    "一个免费的相册整理工具。滑动判断照片去留，完成后再统一确认。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A free photo cleanup tool. Swipe to decide what stays, then confirm everything at the end."
+          }
+        }
+      }
+    },
+    "上个月的照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last month"
+          }
+        }
+      }
+    },
+    "上滑": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swipe up"
+          }
+        }
+      }
+    },
+    "上滑删除": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swipe up to delete"
+          }
+        }
+      }
+    },
+    "上滑删除，左滑保留，右滑收藏": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swipe up to delete, left to keep, right to favorite"
+          }
+        }
+      }
+    },
+    "下次打开 App 时显示使用说明": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show the guide next time the app opens"
+          }
+        }
+      }
+    },
+    "不上传照片": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No photo uploads"
+          }
+        }
+      }
+    },
+    "不需要账号": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No account needed"
+          }
+        }
+      }
+    },
+    "个人设置与偏好": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Personal settings and preferences"
+          }
+        }
+      }
+    },
+    "主题色": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Theme color"
+          }
+        }
+      }
+    },
+    "了解作者": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "About the creator"
+          }
+        }
+      }
+    },
+    "今天的照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Today"
+          }
+        }
+      }
+    },
+    "估算节省": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estimated Saved"
+          }
+        }
+      }
+    },
+    "使用统计": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usage stats"
+          }
+        }
+      }
+    },
+    "保存更改": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save Changes"
+          }
+        }
+      }
+    },
+    "保留": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep"
+          }
+        }
+      }
+    },
+    "保留跳过": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep and skip"
+          }
+        }
+      }
+    },
+    "候选列表": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Candidate list"
+          }
+        }
+      }
+    },
+    "免费的小相册整理工具": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Free photo cleanup tool"
+          }
+        }
+      }
+    },
+    "全部照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All Photos"
+          }
+        }
+      }
+    },
+    "关于": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "About"
+          }
+        }
+      }
+    },
+    "关于 PhotoDel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "About PhotoDel"
+          }
+        }
+      }
+    },
+    "关于与支持": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "About and Support"
+          }
+        }
+      }
+    },
+    "准备中": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparing"
+          }
+        }
+      }
+    },
+    "准备完成后会自动显示分类和数量。整理过程只在本机完成。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Categories and counts will appear when preparation finishes. Cleanup stays on this device."
+          }
+        }
+      }
+    },
+    "创建中...": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Creating..."
+          }
+        }
+      }
+    },
+    "创建新相册": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create New Album"
+          }
+        }
+      }
+    },
+    "创建相册": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create Album"
+          }
+        }
+      }
+    },
+    "创建相册失败，请再试一次": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not create the album. Try again."
+          }
+        }
+      }
+    },
+    "删除": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete"
+          }
+        }
+      }
+    },
+    "删除 %lld 张 · 收藏 %lld 张": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete %1$lld · Favorite %2$lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "删除 %1$lld 张 · 收藏 %2$lld 张"
+          }
+        }
+      }
+    },
+    "删除 %lld 张照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete %lld photos"
+          }
+        }
+      }
+    },
+    "删除候选": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete candidate"
+          }
+        }
+      }
+    },
+    "删除失败，请再试一次": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete failed. Try again."
+          }
+        }
+      }
+    },
+    "加入收藏": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add to favorites"
+          }
+        }
+      }
+    },
+    "取消": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        }
+      }
+    },
+    "取消操作": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel Operations"
+          }
+        }
+      }
+    },
+    "只会清空 PhotoDel 的本机统计，不会影响照片。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This only clears PhotoDel's local stats. Your photos are not affected."
+          }
+        }
+      }
+    },
+    "可以点右上角加号创建一个新相册。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap the plus button in the top-right corner to create a new album."
+          }
+        }
+      }
+    },
+    "可释放": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To free"
+          }
+        }
+      }
+    },
+    "右滑": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swipe right"
+          }
+        }
+      }
+    },
+    "名称": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name"
+          }
+        }
+      }
+    },
+    "在手机上完成": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done on your phone"
+          }
+        }
+      }
+    },
+    "基础清理功能始终免费。支持者版解锁长期统计，并支持 PhotoDel 继续维护。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Core cleanup features are always free. Supporter unlocks long-term stats and helps keep PhotoDel maintained."
+          }
+        }
+      }
+    },
+    "处理中...": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Processing..."
+          }
+        }
+      }
+    },
+    "天蓝": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sky"
+          }
+        }
+      }
+    },
+    "如果你也想用 AI 开发类似的小 App，可以看看 01mvp.com 的实战教程。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "If you want to build small apps like this with AI, take a look at the hands-on guides at 01mvp.com."
+          }
+        }
+      }
+    },
+    "完成": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
+          }
+        }
+      }
+    },
+    "完成一次整理后，这里会出现月度记录。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monthly records appear here after your first cleanup."
+          }
+        }
+      }
+    },
+    "完成排序": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done Sorting"
+          }
+        }
+      }
+    },
+    "完成整理": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finish Cleanup"
+          }
+        }
+      }
+    },
+    "尚未选择照片访问范围": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo access has not been selected yet"
+          }
+        }
+      }
+    },
+    "左删右留": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete left, keep right"
+          }
+        }
+      }
+    },
+    "左滑": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swipe left"
+          }
+        }
+      }
+    },
+    "左滑%@ · 右滑%@ · 上滑%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Left: %@ · Right: %@ · Up: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "左滑%1$@ · 右滑%2$@ · 上滑%3$@"
+          }
+        }
+      }
+    },
+    "左滑保留，右滑删除，上滑收藏": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swipe left to keep, right to delete, up to favorite"
+          }
+        }
+      }
+    },
+    "左滑删除，右滑保留，上滑收藏": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swipe left to delete, right to keep, up to favorite"
+          }
+        }
+      }
+    },
+    "左留右删": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep left, delete right"
+          }
+        }
+      }
+    },
+    "已允许访问全部照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Full photo access allowed"
+          }
+        }
+      }
+    },
+    "已删除": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deleted"
+          }
+        }
+      }
+    },
+    "已加入删除候选": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Added to delete candidates"
+          }
+        }
+      }
+    },
+    "已加入收藏候选": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Added to favorite candidates"
+          }
+        }
+      }
+    },
+    "已复制微信号 %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copied WeChat ID %@"
+          }
+        }
+      }
+    },
+    "已归类到 %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Added to %@"
+          }
+        }
+      }
+    },
+    "已恢复开屏引导": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intro will be shown again"
+          }
+        }
+      }
+    },
+    "已撤销上一步": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Undid the last action"
+          }
+        }
+      }
+    },
+    "已整理 %lld 张 · 候选 %lld 张": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld reviewed · %2$lld candidates"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "已整理 %1$lld 张 · 候选 %2$lld 张"
+          }
+        }
+      }
+    },
+    "已清空本机整理记录": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Local cleanup records cleared"
+          }
+        }
+      }
+    },
+    "已经是收藏": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Already a favorite"
+          }
+        }
+      }
+    },
+    "已跳过": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skipped"
+          }
+        }
+      }
+    },
+    "应用设置": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Settings"
+          }
+        }
+      }
+    },
+    "开始整理": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start Cleanup"
+          }
+        }
+      }
+    },
+    "开始整理照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start Cleaning Photos"
+          }
+        }
+      }
+    },
+    "归类失败，请再试一次": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not add to the album. Try again."
+          }
+        }
+      }
+    },
+    "当前仅可访问 %lld 张照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Limited access to %lld photos"
+          }
+        }
+      }
+    },
+    "当前手势": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Current Gestures"
+          }
+        }
+      }
+    },
+    "当前授权范围内没有照片。您可以在系统设置里调整 PhotoDel 的照片访问范围。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "There are no photos in the current access scope. You can adjust PhotoDel's photo access in Settings."
+          }
+        }
+      }
+    },
+    "待删除": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To delete"
+          }
+        }
+      }
+    },
+    "待整理": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To review"
+          }
+        }
+      }
+    },
+    "微信反馈": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WeChat Feedback"
+          }
+        }
+      }
+    },
+    "微信反馈：%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WeChat feedback: %@"
+          }
+        }
+      }
+    },
+    "快速上手": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quick Start"
+          }
+        }
+      }
+    },
+    "快速入口": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quick Entries"
+          }
+        }
+      }
+    },
+    "快速整理相册": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clean Up Photos Fast"
+          }
+        }
+      }
+    },
+    "快速方案": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Presets"
+          }
+        }
+      }
+    },
+    "总照片": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Total Photos"
+          }
+        }
+      }
+    },
+    "恢复购买": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore Purchase"
+          }
+        }
+      }
+    },
+    "恢复购买失败，请稍后再试。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not restore purchases. Try again later."
+          }
+        }
+      }
+    },
+    "恢复默认": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reset to Default"
+          }
+        }
+      }
+    },
+    "您可以返回选择其他分类，或稍后在系统照片中添加更多照片后再回来。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go back and choose another category, or add more photos in Photos and come back later."
+          }
+        }
+      }
+    },
+    "您已经整理完所有照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You have finished all photos"
+          }
+        }
+      }
+    },
+    "您已经浏览完所有照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You have reviewed all photos"
+          }
+        }
+      }
+    },
+    "我的相册": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "My Albums"
+          }
+        }
+      }
+    },
+    "截图": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Screenshots"
+          }
+        }
+      }
+    },
+    "手势": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gestures"
+          }
+        }
+      }
+    },
+    "手势很简单": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Simple Gestures"
+          }
+        }
+      }
+    },
+    "手势控制": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gesture Controls"
+          }
+        }
+      }
+    },
+    "打开 01mvp.com": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open 01mvp.com"
+          }
+        }
+      }
+    },
+    "执行批量操作": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Run Batch Operations"
+          }
+        }
+      }
+    },
+    "批量操作失败: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Batch operation failed: %@"
+          }
+        }
+      }
+    },
+    "按时间整理": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "By Date"
+          }
+        }
+      }
+    },
+    "按月份查看清理成果": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View cleanup results by month"
+          }
+        }
+      }
+    },
+    "换个关键词试试。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try another keyword."
+          }
+        }
+      }
+    },
+    "授权照片后即可使用，不需要注册或登录。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grant photo access and start using it. No sign-up or login required."
+          }
+        }
+      }
+    },
+    "排序": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sort"
+          }
+        }
+      }
+    },
+    "搜索相册": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search albums"
+          }
+        }
+      }
+    },
+    "撤销": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Undo"
+          }
+        }
+      }
+    },
+    "操作失败，请稍后重试。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Operation failed. Try again later."
+          }
+        }
+      }
+    },
+    "支持者徽章与主题色": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supporter badge and theme color"
+          }
+        }
+      }
+    },
+    "支持者版": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supporter"
+          }
+        }
+      }
+    },
+    "支持者版已解锁": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supporter Unlocked"
+          }
+        }
+      }
+    },
+    "收藏": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Favorite"
+          }
+        }
+      }
+    },
+    "收藏 %lld 张照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Favorite %lld photos"
+          }
+        }
+      }
+    },
+    "收藏候选": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Favorite candidate"
+          }
+        }
+      }
+    },
+    "数量": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Count"
+          }
+        }
+      }
+    },
+    "整理": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clean Up"
+          }
+        }
+      }
+    },
+    "整理全部照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clean Up All Photos"
+          }
+        }
+      }
+    },
+    "整理完成！": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cleanup Complete"
+          }
+        }
+      }
+    },
+    "无法归类到这个相册": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not add to this album"
+          }
+        }
+      }
+    },
+    "暂时无法读取支持者版商品。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supporter product is not available right now."
+          }
+        }
+      }
+    },
+    "更新中...": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updating..."
+          }
+        }
+      }
+    },
+    "更新相册失败，请再试一次": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not update the album. Try again."
+          }
+        }
+      }
+    },
+    "更早的照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Older Photos"
+          }
+        }
+      }
+    },
+    "最近项目": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recents"
+          }
+        }
+      }
+    },
+    "月度统计": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monthly Stats"
+          }
+        }
+      }
+    },
+    "未授权，点击前往系统设置": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not authorized. Tap to open Settings"
+          }
+        }
+      }
+    },
+    "未知错误": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unknown error"
+          }
+        }
+      }
+    },
+    "本周的照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This Week"
+          }
+        }
+      }
+    },
+    "本月的照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This Month"
+          }
+        }
+      }
+    },
+    "本机整理": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On-device cleanup"
+          }
+        }
+      }
+    },
+    "本机整理数据": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Local Cleanup Data"
+          }
+        }
+      }
+    },
+    "本机整理，不上传照片": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On-device cleanup, no uploads"
+          }
+        }
+      }
+    },
+    "正在归类到 %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adding to %@"
+          }
+        }
+      }
+    },
+    "正在执行...": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Running..."
+          }
+        }
+      }
+    },
+    "正在整理相册列表和照片数量。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparing album lists and photo counts."
+          }
+        }
+      }
+    },
+    "正在读取照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading Photos"
+          }
+        }
+      }
+    },
+    "正在读取照片信息": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading photo info"
+          }
+        }
+      }
+    },
+    "正在读取照片信息 %@ · 可先进入整理": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading photo info %@ · You can start cleaning now"
+          }
+        }
+      }
+    },
+    "正在读取照片库": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading Photo Library"
+          }
+        }
+      }
+    },
+    "正在读取相册": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading Albums"
+          }
+        }
+      }
+    },
+    "此设备不支持发送邮件": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This device cannot send email"
+          }
+        }
+      }
+    },
+    "每次确认后的本机记录": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Local records after each confirmation"
+          }
+        }
+      }
+    },
+    "永久解锁 %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlock Forever %@"
+          }
+        }
+      }
+    },
+    "没有可撤销的操作": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing to undo"
+          }
+        }
+      }
+    },
+    "没有可整理的照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Photos to Clean Up"
+          }
+        }
+      }
+    },
+    "没有待执行的操作": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No pending operations"
+          }
+        }
+      }
+    },
+    "没有找到可恢复的支持者版购买。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No restorable Supporter purchase was found."
+          }
+        }
+      }
+    },
+    "没有找到相册": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No albums found"
+          }
+        }
+      }
+    },
+    "没有本机整理记录": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No local cleanup records"
+          }
+        }
+      }
+    },
+    "清理历史": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cleanup History"
+          }
+        }
+      }
+    },
+    "清理次数": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cleanup Sessions"
+          }
+        }
+      }
+    },
+    "清空本机统计记录？": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear local stats?"
+          }
+        }
+      }
+    },
+    "清空统计记录": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear Stats"
+          }
+        }
+      }
+    },
+    "滑动、撤销和归类时提供轻微反馈": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Light feedback while swiping, undoing, and sorting"
+          }
+        }
+      }
+    },
+    "滑动整理照片，完成前不会真正删除。手势可在设置里调整。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swipe to clean up photos. Nothing is deleted until you confirm. Gestures can be changed in Settings."
+          }
+        }
+      }
+    },
+    "滑动时可以执行删除、保留或收藏。点完成后再统一确认。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swipe to delete, keep, or favorite. Tap Done to confirm everything together."
+          }
+        }
+      }
+    },
+    "滑动时可以执行删除、保留或收藏。默认手势够直接，也可以在设置里调整。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swipe to delete, keep, or favorite. The default gestures are direct, and you can change them in Settings."
+          }
+        }
+      }
+    },
+    "点击查看系统照片权限": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap to view system photo permissions"
+          }
+        }
+      }
+    },
+    "照片整理": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo Cleanup"
+          }
+        }
+      }
+    },
+    "照片整理只在本机完成。不需要账号，也不会上传你的照片。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo cleanup happens only on this device. No account is required, and your photos are never uploaded."
+          }
+        }
+      }
+    },
+    "照片访问权限": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo Access"
+          }
+        }
+      }
+    },
+    "版本 %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version %@"
+          }
+        }
+      }
+    },
+    "玫瑰": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rose"
+          }
+        }
+      }
+    },
+    "用户相册": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "User Albums"
+          }
+        }
+      }
+    },
+    "用滑动浏览照片，把想删除的先放进候选列表。完成前不会真正删除。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swipe through photos and add the ones you want to delete to a candidate list. Nothing is deleted before you finish."
+          }
+        }
+      }
+    },
+    "相册": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Albums"
+          }
+        }
+      }
+    },
+    "相册名称": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Album Name"
+          }
+        }
+      }
+    },
+    "相册已删除": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Album deleted"
+          }
+        }
+      }
+    },
+    "相册整理": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Album Cleanup"
+          }
+        }
+      }
+    },
+    "知道了": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Got it"
+          }
+        }
+      }
+    },
+    "确认删除或收藏后，会在本机留下清理记录。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Local cleanup records appear after you confirm deletions or favorites."
+          }
+        }
+      }
+    },
+    "确认执行": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confirm"
+          }
+        }
+      }
+    },
+    "简洁的相册名称，如\"旅行\"、\"家庭\"等": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use a simple album name, such as \"Travel\" or \"Family\"."
+          }
+        }
+      }
+    },
+    "系统未准备就绪，请检查网络连接和存储空间": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The system is not ready. Check your network connection and storage space."
+          }
+        }
+      }
+    },
+    "累计删除": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Total Deleted"
+          }
+        }
+      }
+    },
+    "累计整理": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Total Reviewed"
+          }
+        }
+      }
+    },
+    "累计整理、删除和节省空间": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Total reviewed, deleted, and space saved"
+          }
+        }
+      }
+    },
+    "给自己的整理报告一点个人标记": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add a personal mark to your cleanup reports"
+          }
+        }
+      }
+    },
+    "继续": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continue"
+          }
+        }
+      }
+    },
+    "继续整理": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continue Cleaning"
+          }
+        }
+      }
+    },
+    "编辑": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit"
+          }
+        }
+      }
+    },
+    "编辑相册": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit Album"
+          }
+        }
+      }
+    },
+    "自定义": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Custom"
+          }
+        }
+      }
+    },
+    "节省空间": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Space Saved"
+          }
+        }
+      }
+    },
+    "薄荷": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mint"
+          }
+        }
+      }
+    },
+    "视频": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Videos"
+          }
+        }
+      }
+    },
+    "触感反馈": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Haptic Feedback"
+          }
+        }
+      }
+    },
+    "让照片整理变得简单": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Make photo cleanup simple"
+          }
+        }
+      }
+    },
+    "设置": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Settings"
+          }
+        }
+      }
+    },
+    "请先清除搜索再调整顺序": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear search before reordering"
+          }
+        }
+      }
+    },
+    "请在此处写下您的反馈和建议：\n\n\n\n---\nApp版本: %@\n设备信息: %@ %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Write your feedback here:\n\n\n\n---\nApp version: %@\nDevice: %@ %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "请在此处写下您的反馈和建议：\n\n\n\n---\nApp版本: %1$@\n设备信息: %2$@ %3$@"
+          }
+        }
+      }
+    },
+    "读取中": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading"
+          }
+        }
+      }
+    },
+    "读取中 %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading %@"
+          }
+        }
+      }
+    },
+    "调整顺序": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reorder"
+          }
+        }
+      }
+    },
+    "谢谢你支持这个免费的小工具继续维护。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thanks for supporting ongoing maintenance of this free tool."
+          }
+        }
+      }
+    },
+    "购买未完成，请稍后再试。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Purchase did not complete. Try again later."
+          }
+        }
+      }
+    },
+    "购买正在处理中，完成后会自动解锁。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Purchase is pending and will unlock automatically when it completes."
+          }
+        }
+      }
+    },
+    "跳过": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skip"
+          }
+        }
+      }
+    },
+    "轻扫判断照片去留": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swipe to decide what stays"
+          }
+        }
+      }
+    },
+    "输入相册名称": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter album name"
+          }
+        }
+      }
+    },
+    "返回主页": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back to Home"
+          }
+        }
+      }
+    },
+    "还没有相册": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No albums yet"
+          }
+        }
+      }
+    },
+    "这个相册还没有照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This album has no photos yet"
+          }
+        }
+      }
+    },
+    "这里还没有可整理的照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No photos to clean up here yet"
+          }
+        }
+      }
+    },
+    "邮件反馈": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Email Feedback"
+          }
+        }
+      }
+    },
+    "邮件反馈：%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Email feedback: %@"
+          }
+        }
+      }
+    },
+    "部分操作可能已完成，请检查照片状态": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Some operations may have completed. Check photo status."
+          }
+        }
+      }
+    },
+    "重新查看引导": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Intro Again"
+          }
+        }
+      }
+    },
+    "长期清理统计": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Long-term cleanup stats"
+          }
+        }
+      }
+    },
+    "长期统计、月度记录和徽章": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Long-term stats, monthly records, and badges"
+          }
+        }
+      }
+    },
+    "隐私": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Privacy"
+          }
+        }
+      }
+    },
+    "隐私优先": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Privacy First"
+          }
+        }
+      }
+    },
+    "隐私优先：%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Privacy first: %@"
+          }
+        }
+      }
+    },
+    "隐私说明": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Privacy Notes"
+          }
+        }
+      }
+    },
+    "需要访问您的照片库来管理相册。%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PhotoDel needs photo library access to manage albums. %@"
+          }
+        }
+      }
+    },
+    "需要访问照片库": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo Library Access Needed"
+          }
+        }
+      }
+    },
+    "需要访问照片库权限": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo library access needed"
+          }
+        }
+      }
+    },
+    "预览、候选列表和删除确认都保存在你的设备上。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Previews, candidate lists, and delete confirmations stay on your device."
+          }
+        }
+      }
+    },
+    "首次读取完成后会自动显示相册。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Albums will appear automatically after the first scan finishes."
+          }
+        }
+      }
+    },
+    "将删除": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Will delete"
+          }
+        }
+      }
+    },
+    "将收藏": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Will favorite"
+          }
+        }
+      }
+    },
+    "已收藏": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Already favorite"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.2"
+}

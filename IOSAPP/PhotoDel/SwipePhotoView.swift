@@ -325,13 +325,15 @@ struct SwipePhotoView: View {
                 } else if shouldShowInitialPreparingState {
                     PhotoSelectionLoadingCard(
                         title: "正在读取照片",
-                        message: "读取完成后会直接进入当前整理。"
+                        message: "读取完成后会直接进入当前整理。",
+                        progress: activeLibraryLoadingProgress
                     )
                     .padding(.horizontal, 24)
                 } else if shouldShowBackgroundLoadingState {
                     PhotoSelectionLoadingCard(
                         title: "正在读取当前相册",
-                        message: "照片很多时可能需要几秒，完成后会自动开始。"
+                        message: "照片很多时可能需要几秒，完成后会自动开始。",
+                        progress: activeLibraryLoadingProgress
                     )
                     .padding(.horizontal, 24)
                 } else {
@@ -420,7 +422,7 @@ struct SwipePhotoView: View {
             VStack(spacing: 10) {
                 SidebarActionButton(
                     icon: "heart",
-                    title: isCurrentPhotoFavorited ? "已收藏" : "收藏",
+                    title: isCurrentPhotoFavorited ? L10n.string("已收藏") : "收藏",
                     color: PhotoDelStyle.iconTint(for: "favorite")
                 ) {
                     handleFavoriteAction()
@@ -617,12 +619,16 @@ struct SwipePhotoView: View {
             !dataManager.photoLibraryManager.hasLoadedPhotoLibrary
     }
 
+    private var activeLibraryLoadingProgress: Double {
+        min(max(dataManager.photoLibraryManager.loadingProgress, 0), 1)
+    }
+
     private var progressSubtitle: String {
         guard totalPhotosCount > 0 else {
-            return "\(getDisplayTitle()) · 0 张照片"
+            return L10n.string("\(getDisplayTitle()) · 0 张照片")
         }
 
-        return "\(getDisplayTitle()) · 已整理 \(organizedProgress)/\(totalPhotosCount)"
+        return L10n.string("\(getDisplayTitle()) · 已整理 \(organizedProgress)/\(totalPhotosCount)")
     }
 
     private var gestureHintStrip: some View {
@@ -841,7 +847,7 @@ struct SwipePhotoView: View {
     private func handleUndoAction() {
         guard let lastAction = actionHistory.popLast() else {
             HapticManager.impact(.light)
-            showFeedback("没有可撤销的操作", icon: "arrow.uturn.backward", style: .neutral)
+            showFeedback(L10n.string("没有可撤销的操作"), icon: "arrow.uturn.backward", style: .neutral)
             return
         }
 
@@ -857,7 +863,7 @@ struct SwipePhotoView: View {
         }
         moveToPreviousPhoto()
         HapticManager.notify(.success)
-        showFeedback("已撤销上一步", icon: "arrow.uturn.backward", style: .positive)
+        showFeedback(L10n.string("已撤销上一步"), icon: "arrow.uturn.backward", style: .positive)
     }
 
     private func markDeleteCandidate(_ asset: PHAsset) {
@@ -865,12 +871,12 @@ struct SwipePhotoView: View {
         dataManager.addToDeleteCandidates(asset)
         actionHistory.append(.delete(asset, wasReviewed: wasReviewed))
         HapticManager.impact(.medium)
-        showFeedback("已加入删除候选", icon: "trash", style: .destructive, showsUndo: true)
+        showFeedback(L10n.string("已加入删除候选"), icon: "trash", style: .destructive, showsUndo: true)
     }
 
     private func markFavoriteCandidate(_ asset: PHAsset) {
         guard !asset.isFavorite else {
-            markSkip(asset, message: "已经是收藏")
+            markSkip(asset, message: L10n.string("已经是收藏"))
             return
         }
 
@@ -878,38 +884,38 @@ struct SwipePhotoView: View {
         dataManager.addToFavoriteCandidates(asset)
         actionHistory.append(.favorite(asset, wasReviewed: wasReviewed))
         HapticManager.impact(.light)
-        showFeedback("已加入收藏候选", icon: "heart.fill", style: .favorite, showsUndo: true)
+        showFeedback(L10n.string("已加入收藏候选"), icon: "heart.fill", style: .favorite, showsUndo: true)
     }
 
-    private func markSkip(_ asset: PHAsset, message: String = "已跳过") {
+    private func markSkip(_ asset: PHAsset, message: String? = nil) {
         let wasReviewed = dataManager.markReviewed(asset)
         actionHistory.append(.skip(asset, wasReviewed: wasReviewed))
         HapticManager.impact(.light)
-        showFeedback(message, icon: "arrow.right", style: .neutral)
+        showFeedback(message ?? L10n.string("已跳过"), icon: "arrow.right", style: .neutral)
     }
 
     private func handleAddToAlbum(_ albumInfo: AlbumInfo) {
         guard let asset = currentRealPhoto,
               let assetCollection = albumInfo.assetCollection else {
-            showFeedback("无法归类到这个相册", icon: "exclamationmark.triangle", style: .warning)
+            showFeedback(L10n.string("无法归类到这个相册"), icon: "exclamationmark.triangle", style: .warning)
             return
         }
 
         // 将照片添加到指定相册
         let wasReviewed = dataManager.markReviewed(asset)
         HapticManager.impact(.light)
-        showFeedback("正在归类到 \(albumInfo.title)", icon: "folder", style: .neutral, duration: 1.0)
+        showFeedback(L10n.string("正在归类到 \(albumInfo.title)"), icon: "folder", style: .neutral, duration: 1.0)
         dataManager.addPhotoToAlbum(asset, album: assetCollection) { success in
             DispatchQueue.main.async {
                 if success {
                     // 添加成功后移动到下一张照片
                     HapticManager.notify(.success)
-                    self.showFeedback("已归类到 \(albumInfo.title)", icon: "checkmark.circle.fill", style: .positive)
+                    self.showFeedback(L10n.string("已归类到 \(albumInfo.title)"), icon: "checkmark.circle.fill", style: .positive)
                     self.moveToNextPhoto()
                 } else {
                     self.dataManager.restoreReviewedState(asset, wasReviewed: wasReviewed)
                     HapticManager.notify(.error)
-                    self.showFeedback("归类失败，请再试一次", icon: "exclamationmark.triangle", style: .warning)
+                    self.showFeedback(L10n.string("归类失败，请再试一次"), icon: "exclamationmark.triangle", style: .warning)
                 }
             }
         }
@@ -942,11 +948,11 @@ struct SwipePhotoView: View {
         if let albumInfo = selectedAlbumInfo {
             return albumInfo.title
         } else if let category = selectedCategory {
-            return category.rawValue
+            return category.title
         } else if let timeGroup = selectedTimeGroup {
-            return timeGroup
+            return TimeGroup.allCases.first(where: { $0.rawValue == timeGroup })?.title ?? timeGroup
         } else {
-            return "全部照片"
+            return PhotoCategory.all.title
         }
     }
 
@@ -1170,19 +1176,33 @@ struct RealPhotoCard: View {
 private struct PhotoSelectionLoadingCard: View {
     let title: String
     let message: String
+    let progress: Double
 
     var body: some View {
         VStack(spacing: 16) {
-            ProgressView()
-                .progressViewStyle(CircularProgressViewStyle(tint: PhotoDelStyle.accent))
-                .scaleEffect(1.05)
+            if progress > 0.01 {
+                VStack(spacing: 8) {
+                    ProgressView(value: progress)
+                        .progressViewStyle(LinearProgressViewStyle(tint: PhotoDelStyle.accent))
+                        .frame(maxWidth: 230)
+                        .clipShape(Capsule(style: .continuous))
+
+                    Text(L10n.percent(Int(progress * 100)))
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(PhotoDelStyle.tertiaryText)
+                }
+            } else {
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: PhotoDelStyle.accent))
+                    .scaleEffect(1.05)
+            }
 
             VStack(spacing: 7) {
-                Text(title)
+                Text(title.appLocalized)
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.primaryText)
 
-                Text(message)
+                Text(message.appLocalized)
                     .font(.system(size: 15, weight: .regular))
                     .foregroundColor(PhotoDelStyle.secondaryText)
                     .multilineTextAlignment(.center)
@@ -1204,7 +1224,7 @@ private struct GestureHintPill: View {
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(color)
 
-            Text(title)
+            Text(title.appLocalized)
                 .font(.system(size: 12, weight: .medium))
                 .foregroundColor(PhotoDelStyle.secondaryText)
                 .lineLimit(1)
@@ -1235,7 +1255,7 @@ struct SwipeIndicator: View {
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(action.tint)
 
-            Text(action.detailTitle)
+            Text(action.detailTitle.appLocalized)
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(PhotoDelStyle.primaryText)
         }
@@ -1290,7 +1310,7 @@ struct ActionButton: View {
                         .foregroundColor(color)
                 }
 
-                Text(title)
+                Text(title.appLocalized)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(PhotoDelStyle.secondaryText)
                     .lineLimit(1)
@@ -1315,13 +1335,13 @@ struct GestureGuideRow: View {
                 .foregroundColor(color)
                 .frame(width: 18)
 
-            Text(title)
+            Text(title.appLocalized)
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(PhotoDelStyle.primaryText)
 
             Spacer()
 
-            Text(detail)
+            Text(detail.appLocalized)
                 .font(.system(size: 13, weight: .regular))
                 .foregroundColor(PhotoDelStyle.secondaryText)
         }
@@ -1343,7 +1363,7 @@ struct SidebarActionButton: View {
                     .foregroundColor(color)
                     .frame(width: 20)
 
-                Text(title)
+                Text(title.appLocalized)
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.primaryText)
                     .lineLimit(1)
@@ -1441,7 +1461,7 @@ struct BatchConfirmView: View {
                         VStack(spacing: 18) {
                             if !deletePreviewAssets.isEmpty {
                                 CandidatePreviewSection(
-                                    title: "将删除",
+                                    title: L10n.string("将删除"),
                                     assets: deletePreviewAssets,
                                     color: PhotoDelStyle.destructive,
                                     icon: "trash.fill",
@@ -1451,7 +1471,7 @@ struct BatchConfirmView: View {
 
                             if !favoritePreviewAssets.isEmpty {
                                 CandidatePreviewSection(
-                                    title: "将收藏",
+                                    title: L10n.string("将收藏"),
                                     assets: favoritePreviewAssets,
                                     color: PhotoDelStyle.iconTint(for: "favorite"),
                                     icon: "heart.fill",
@@ -1501,7 +1521,7 @@ struct BatchConfirmView: View {
                     onComplete?()
                 }
             } else {
-                errorMessage = error?.localizedDescription ?? "操作失败，请稍后重试。"
+                errorMessage = error?.localizedDescription ?? L10n.string("操作失败，请稍后重试。")
             }
         }
     }
@@ -1541,7 +1561,7 @@ private struct CandidatePreviewSection: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(color)
 
-                Text("\(title) \(assets.count) 张")
+                Text(L10n.string("\(title) \(assets.count) 张"))
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.primaryText)
 

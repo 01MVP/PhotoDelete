@@ -61,7 +61,11 @@ struct CleanupMonthlySummary: Identifiable, Equatable {
     var title: String {
         let parts = monthKey.split(separator: "-")
         guard parts.count == 2 else { return monthKey }
-        return "\(parts[0]) 年 \(Int(parts[1]) ?? 0) 月"
+        var components = DateComponents()
+        components.year = Int(parts[0])
+        components.month = Int(parts[1])
+        guard let date = Calendar.current.date(from: components) else { return monthKey }
+        return CleanupStatsFormatter.month.string(from: date)
     }
 
     var formattedSpaceSaved: String {
@@ -196,6 +200,12 @@ enum CleanupStatsFormatter {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
+        return formatter
+    }()
+
+    static let month: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("yMMMM")
         return formatter
     }()
 

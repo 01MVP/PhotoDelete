@@ -200,11 +200,12 @@
 				};
 			};
 			buildConfigurationList = C8964AFD2E2162AB00B434E4 /* Build configuration list for PBXProject "PhotoDel" */;
-			developmentRegion = en;
+			developmentRegion = "zh-Hans";
 			hasScannedForEncodings = 0;
 			knownRegions = (
-				en,
 				Base,
+				en,
+				"zh-Hans",
 			);
 			mainGroup = C8964AF92E2162AB00B434E4;
 			minimizedProjectReferenceProxies = 1;

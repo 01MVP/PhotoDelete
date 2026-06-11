@@ -236,7 +236,7 @@ private struct SupporterMetricCard: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.72)
 
-            Text(label)
+            Text(label.appLocalized)
                 .font(.system(size: 13, weight: .medium))
                 .foregroundColor(PhotoDelStyle.secondaryText)
         }
@@ -270,7 +270,7 @@ private struct SupporterThemeSection: View {
                                         .stroke(PhotoDelStyle.primaryText.opacity(selectedThemeID == theme.rawValue ? 0.9 : 0), lineWidth: 2)
                                 )
 
-                            Text(theme.title)
+                            Text(theme.title.appLocalized)
                                 .font(.system(size: 12, weight: .medium))
                                 .foregroundColor(PhotoDelStyle.secondaryText)
                         }
@@ -305,7 +305,7 @@ private struct SupporterMonthlySection: View {
                                     .font(.system(size: 15, weight: .semibold))
                                     .foregroundColor(PhotoDelStyle.primaryText)
 
-                                Text("\(summary.sessions) 次 · 整理 \(summary.organizedPhotos) 张")
+                                Text(L10n.string("\(summary.sessions) 次 · 整理 \(summary.organizedPhotos) 张"))
                                     .font(.system(size: 13, weight: .regular))
                                     .foregroundColor(PhotoDelStyle.secondaryText)
                             }
@@ -355,7 +355,7 @@ private struct SupporterHistorySection: View {
                                     .font(.system(size: 15, weight: .semibold))
                                     .foregroundColor(PhotoDelStyle.primaryText)
 
-                                Text("删除 \(session.deletedPhotos) 张 · 收藏 \(session.favoritedPhotos) 张")
+                                Text(L10n.string("删除 \(session.deletedPhotos) 张 · 收藏 \(session.favoritedPhotos) 张"))
                                     .font(.system(size: 13, weight: .regular))
                                     .foregroundColor(PhotoDelStyle.secondaryText)
                             }
@@ -393,11 +393,11 @@ private struct SupporterBenefitRow: View {
                 .frame(width: 24)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(title)
+                Text(title.appLocalized)
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.primaryText)
 
-                Text(detail)
+                Text(detail.appLocalized)
                     .font(.system(size: 13, weight: .regular))
                     .foregroundColor(PhotoDelStyle.secondaryText)
             }
@@ -424,7 +424,7 @@ private struct SupporterEmptyText: View {
     }
 
     var body: some View {
-        Text(text)
+        Text(text.appLocalized)
             .font(.system(size: 14, weight: .regular))
             .foregroundColor(PhotoDelStyle.secondaryText)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -441,9 +441,9 @@ enum SupporterTheme: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .sky: return "天蓝"
-        case .mint: return "薄荷"
-        case .rose: return "玫瑰"
+        case .sky: return L10n.string("天蓝")
+        case .mint: return L10n.string("薄荷")
+        case .rose: return L10n.string("玫瑰")
         }
     }
 

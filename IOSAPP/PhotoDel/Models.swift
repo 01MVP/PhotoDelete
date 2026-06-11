@@ -16,6 +16,15 @@ enum PhotoCategory: String, CaseIterable {
     case screenshots = "截图"
     case favorites = "收藏"
 
+    var title: String {
+        switch self {
+        case .all: return L10n.string("全部照片")
+        case .videos: return L10n.string("视频")
+        case .screenshots: return L10n.string("截图")
+        case .favorites: return L10n.string("收藏")
+        }
+    }
+
     var icon: String {
         switch self {
         case .all: return "photo.on.rectangle"
@@ -36,17 +45,17 @@ enum SwipeGestureAction: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .delete: return "删除"
-        case .keep: return "保留"
-        case .favorite: return "收藏"
+        case .delete: return L10n.string("删除")
+        case .keep: return L10n.string("保留")
+        case .favorite: return L10n.string("收藏")
         }
     }
 
     var detailTitle: String {
         switch self {
-        case .delete: return "删除候选"
-        case .keep: return "保留跳过"
-        case .favorite: return "加入收藏"
+        case .delete: return L10n.string("删除候选")
+        case .keep: return L10n.string("保留跳过")
+        case .favorite: return L10n.string("加入收藏")
         }
     }
 
@@ -76,9 +85,9 @@ enum SwipeGestureDirection: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .left: return "左滑"
-        case .right: return "右滑"
-        case .up: return "上滑"
+        case .left: return L10n.string("左滑")
+        case .right: return L10n.string("右滑")
+        case .up: return L10n.string("上滑")
         }
     }
 
@@ -109,8 +118,8 @@ struct SwipeGesturePreset: Identifiable, Equatable {
 
     static let standard = SwipeGesturePreset(
         id: "standard",
-        title: "左删右留",
-        subtitle: "左滑删除，右滑保留，上滑收藏",
+        title: L10n.string("左删右留"),
+        subtitle: L10n.string("左滑删除，右滑保留，上滑收藏"),
         leftAction: .delete,
         rightAction: .keep,
         upAction: .favorite
@@ -118,8 +127,8 @@ struct SwipeGesturePreset: Identifiable, Equatable {
 
     static let reversed = SwipeGesturePreset(
         id: "reversed",
-        title: "左留右删",
-        subtitle: "左滑保留，右滑删除，上滑收藏",
+        title: L10n.string("左留右删"),
+        subtitle: L10n.string("左滑保留，右滑删除，上滑收藏"),
         leftAction: .keep,
         rightAction: .delete,
         upAction: .favorite
@@ -127,8 +136,8 @@ struct SwipeGesturePreset: Identifiable, Equatable {
 
     static let verticalDelete = SwipeGesturePreset(
         id: "verticalDelete",
-        title: "上滑删除",
-        subtitle: "上滑删除，左滑保留，右滑收藏",
+        title: L10n.string("上滑删除"),
+        subtitle: L10n.string("上滑删除，左滑保留，右滑收藏"),
         leftAction: .keep,
         rightAction: .favorite,
         upAction: .delete
@@ -158,6 +167,16 @@ enum TimeGroup: String, CaseIterable {
     case thisMonth = "本月的照片"
     case lastMonth = "上个月的照片"
     case olderPhotos = "更早的照片"
+
+    var title: String {
+        switch self {
+        case .today: return L10n.string("今天的照片")
+        case .thisWeek: return L10n.string("本周的照片")
+        case .thisMonth: return L10n.string("本月的照片")
+        case .lastMonth: return L10n.string("上个月的照片")
+        case .olderPhotos: return L10n.string("更早的照片")
+        }
+    }
 
     var icon: String {
         switch self {
@@ -216,6 +235,17 @@ enum AlbumType: String, CaseIterable {
     case videos = "视频"
     case userCreated = "用户相册"
 
+    var title: String {
+        switch self {
+        case .all: return L10n.string("全部照片")
+        case .recents: return L10n.string("最近项目")
+        case .favorites: return L10n.string("收藏")
+        case .screenshots: return L10n.string("截图")
+        case .videos: return L10n.string("视频")
+        case .userCreated: return L10n.string("用户相册")
+        }
+    }
+
     var icon: String {
         switch self {
         case .all: return "photo.on.rectangle"
@@ -240,11 +270,11 @@ struct AlbumInfo: Identifiable {
     init(assetCollection: PHAssetCollection?, type: AlbumType, photosCount: Int = 0, thumbnailAsset: PHAsset? = nil) {
         if let collection = assetCollection {
             self.id = collection.localIdentifier
-            self.title = collection.localizedTitle ?? type.rawValue
+            self.title = collection.localizedTitle ?? type.title
             self.assetCollection = collection
         } else {
             self.id = type.rawValue
-            self.title = type.rawValue
+            self.title = type.title
             self.assetCollection = nil
         }
         self.type = type

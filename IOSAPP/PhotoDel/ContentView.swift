@@ -36,29 +36,21 @@ private struct OnboardingFlowView: View {
     private let pages: [OnboardingPage] = [
         OnboardingPage(
             icon: "photo.on.rectangle.angled",
-            title: "快速整理相册",
-            message: "用滑动浏览照片，把想删除的先放进候选列表。完成前不会真正删除。",
+            title: L10n.string("快速整理相册"),
+            message: L10n.string("用滑动浏览照片，把想删除的先放进候选列表。完成前不会真正删除。"),
             visual: .organize
         ),
         OnboardingPage(
             icon: "hand.draw",
-            title: "手势很简单",
-            message: "滑动时可以执行删除、保留或收藏。默认手势够直接，也可以在设置里调整。",
+            title: L10n.string("手势很简单"),
+            message: L10n.string("滑动时可以执行删除、保留或收藏。默认手势够直接，也可以在设置里调整。"),
             visual: .swipe
         ),
         OnboardingPage(
             icon: "lock.shield",
-            title: "隐私优先",
+            title: L10n.string("隐私优先"),
             message: AppConstants.privacyShortText,
             visual: .privacy
-        ),
-        OnboardingPage(
-            icon: "sparkles",
-            title: "Created by Michael Jackie",
-            message: "PhotoDel 是一个免费的相册整理小工具。如果你也想用 AI 做自己的小 App，可以看看 01MVP。",
-            visual: .maker,
-            linkTitle: "了解 01MVP",
-            linkURL: URL(string: "https://01mvp.com")
         )
     ]
 
@@ -70,7 +62,7 @@ private struct OnboardingFlowView: View {
                 HStack {
                     Spacer()
 
-                    Button("跳过") {
+                    Button(L10n.string("跳过")) {
                         onComplete()
                     }
                     .font(.system(size: 15, weight: .medium))
@@ -103,7 +95,7 @@ private struct OnboardingFlowView: View {
 
                     Button(action: advance) {
                         HStack(spacing: 8) {
-                            Text(selectedPage == pages.count - 1 ? "开始整理" : "继续")
+                            Text(selectedPage == pages.count - 1 ? L10n.string("开始整理") : L10n.string("继续"))
 
                             Image(systemName: selectedPage == pages.count - 1 ? "checkmark" : "arrow.right")
                                 .font(.system(size: 15, weight: .semibold))
@@ -154,7 +146,6 @@ private enum OnboardingVisual {
     case organize
     case swipe
     case privacy
-    case maker
 }
 
 private struct OnboardingPageView: View {
@@ -172,7 +163,7 @@ private struct OnboardingPageView: View {
 
                 VStack(spacing: 12) {
                     Text(page.title)
-                        .font(.system(size: page.visual == .maker ? 26 : 30, weight: .semibold))
+                        .font(.system(size: 30, weight: .semibold))
                         .foregroundColor(PhotoDelStyle.primaryText)
                         .multilineTextAlignment(.center)
                         .minimumScaleFactor(0.86)
@@ -218,8 +209,6 @@ private struct OnboardingVisualView: View {
             SwipeIntroVisual(animate: animate)
         case .privacy:
             PrivacyIntroVisual(animate: animate)
-        case .maker:
-            MakerIntroVisual(animate: animate)
         }
     }
 }
@@ -255,7 +244,7 @@ private struct OrganizeIntroVisual: View {
 
                 HStack(spacing: 8) {
                     Image(systemName: "tray.full")
-                    Text("候选列表")
+                    Text(L10n.string("候选列表"))
                 }
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(PhotoDelStyle.primaryText.opacity(0.78))
@@ -285,9 +274,9 @@ private struct SwipeIntroVisual: View {
 
     var body: some View {
         ZStack {
-            swipeDestination(symbol: "arrow.left", text: "左滑", color: PhotoDelStyle.accent, x: -102, y: 8)
-            swipeDestination(symbol: "arrow.right", text: "右滑", color: PhotoDelStyle.accent, x: 102, y: 8)
-            swipeDestination(symbol: "arrow.up", text: "上滑", color: PhotoDelStyle.accent, x: 0, y: -104)
+            swipeDestination(symbol: "arrow.left", text: L10n.string("左滑"), color: PhotoDelStyle.accent, x: -102, y: 8)
+            swipeDestination(symbol: "arrow.right", text: L10n.string("右滑"), color: PhotoDelStyle.accent, x: 102, y: 8)
+            swipeDestination(symbol: "arrow.up", text: L10n.string("上滑"), color: PhotoDelStyle.accent, x: 0, y: -104)
 
             RoundedRectangle(cornerRadius: 30, style: .continuous)
                 .fill(PhotoDelStyle.surface)
@@ -322,7 +311,7 @@ private struct SwipeIntroVisual: View {
             Image(systemName: symbol)
                 .font(.system(size: 18, weight: .semibold))
 
-            Text(text)
+            Text(text.appLocalized)
                 .font(.system(size: 12, weight: .semibold))
         }
         .foregroundColor(color)
@@ -382,83 +371,13 @@ private struct PrivacyIntroVisual: View {
 
                 HStack(spacing: 8) {
                     Image(systemName: "iphone")
-                    Text("在手机上完成")
+                    Text(L10n.string("在手机上完成"))
                 }
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(PhotoDelStyle.primaryText.opacity(0.76))
             }
         }
         .animation(.easeInOut(duration: 1.35).repeatForever(autoreverses: true), value: animate)
-    }
-}
-
-private struct MakerIntroVisual: View {
-    let animate: Bool
-
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 34, style: .continuous)
-                .fill(PhotoDelStyle.surface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 34, style: .continuous)
-                        .stroke(PhotoDelStyle.hairline, lineWidth: 1)
-                )
-                .frame(width: 254, height: 238)
-
-            VStack(spacing: 20) {
-                HStack(spacing: 14) {
-                    productNode(text: "0", subtitle: "想法", filled: true)
-                    Image(systemName: "arrow.right")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(PhotoDelStyle.accent)
-                        .offset(x: animate ? 4 : -2)
-                    productNode(text: "1", subtitle: "产品", filled: animate)
-                }
-
-                VStack(spacing: 8) {
-                    Text("01MVP")
-                        .font(.system(size: 22, weight: .bold, design: .rounded))
-                        .foregroundColor(PhotoDelStyle.primaryText)
-
-                    Text("Michael Jackie")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(PhotoDelStyle.secondaryText)
-                }
-                .padding(.horizontal, 22)
-                .padding(.vertical, 14)
-                .background(
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .fill(PhotoDelStyle.elevatedSurface)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                .stroke(PhotoDelStyle.hairline, lineWidth: 1)
-                        )
-                )
-            }
-        }
-        .animation(.spring(response: 0.72, dampingFraction: 0.72), value: animate)
-    }
-
-    private func productNode(text: String, subtitle: String, filled: Bool) -> some View {
-        VStack(spacing: 6) {
-            Text(text)
-                .font(.system(size: 30, weight: .bold, design: .rounded))
-                .foregroundColor(filled ? Color.black.opacity(0.86) : PhotoDelStyle.primaryText)
-                .frame(width: 70, height: 70)
-                .background(
-                    Circle()
-                        .fill(filled ? PhotoDelStyle.accent : PhotoDelStyle.elevatedSurface)
-                        .overlay(
-                            Circle()
-                                .stroke(filled ? PhotoDelStyle.accent.opacity(0.35) : PhotoDelStyle.hairline, lineWidth: 1)
-                        )
-                )
-
-            Text(subtitle)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(PhotoDelStyle.secondaryText)
-        }
-        .scaleEffect(filled ? 1 : 0.92)
     }
 }
 

@@ -112,6 +112,7 @@ struct PhotoDelSecondaryButtonStyle: ButtonStyle {
 // MARK: - App Constants
 enum AppConstants {
     static let version = "1.0.0"
+    static let authorName = "maker jackie"
     static let feedbackEmail = "contact@01mvp.com"
     static let wechatID = "mvps01"
     static let websiteURL = "https://01mvp.com"
@@ -124,7 +125,9 @@ enum AppConstants {
     static let supporterProductID = "com.01mvp.photodel.supporter.stats"
     static let supporterEntitlementKey = "photoDelSupporterUnlocked"
     static let supporterThemeKey = "photoDelSupporterTheme"
-    static let privacyShortText = "照片整理只在本机完成。不需要账号，也不会上传你的照片。"
+    static var privacyShortText: String {
+        L10n.string("照片整理只在本机完成。不需要账号，也不会上传你的照片。")
+    }
 }
 
 // MARK: - Haptic Manager
@@ -195,7 +198,7 @@ struct PhotoDelToastView: View {
                 .foregroundColor(toast.style.color)
                 .frame(width: 22)
 
-            Text(toast.message)
+            Text(toast.message.appLocalized)
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(PhotoDelStyle.primaryText)
                 .lineLimit(1)
@@ -206,7 +209,7 @@ struct PhotoDelToastView: View {
                     .frame(height: 18)
                     .background(PhotoDelStyle.hairline)
 
-                Button("撤销", action: onUndo)
+                Button(L10n.string("撤销"), action: onUndo)
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.accent)
                     .buttonStyle(.plain)
@@ -237,17 +240,17 @@ struct PhotoAuthorizationCard: View {
                 .font(.system(size: 60, weight: .medium))
                 .foregroundColor(PhotoDelStyle.accent)
 
-            Text("需要访问照片库")
+            Text(L10n.string("需要访问照片库"))
                 .font(.system(size: 24, weight: .semibold))
                 .foregroundColor(PhotoDelStyle.primaryText)
 
-            Text(subtitle)
+            Text(subtitle.appLocalized)
                 .font(.system(size: 16, weight: .regular))
                 .foregroundColor(PhotoDelStyle.secondaryText)
                 .multilineTextAlignment(.center)
 
             Button(action: onRequestAccess) {
-                Text("继续")
+                Text(L10n.string("继续"))
                     .frame(maxWidth: 180)
             }
             .photoDelPrimaryButton()
