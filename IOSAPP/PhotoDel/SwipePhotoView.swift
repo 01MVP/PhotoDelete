@@ -15,6 +15,9 @@ struct SwipePhotoView: View {
     @EnvironmentObject var dataManager: DataManager
     @Environment(\.dismiss) private var dismiss
     @Environment(\.displayScale) private var displayScale
+    @AppStorage(AppConstants.leftSwipeActionKey) private var leftSwipeActionValue = SwipeGesturePreset.standard.leftAction.rawValue
+    @AppStorage(AppConstants.rightSwipeActionKey) private var rightSwipeActionValue = SwipeGesturePreset.standard.rightAction.rawValue
+    @AppStorage(AppConstants.upSwipeActionKey) private var upSwipeActionValue = SwipeGesturePreset.standard.upAction.rawValue
 
     let selectedCategory: PhotoCategory?
     let selectedTimeGroup: String?
@@ -268,8 +271,11 @@ struct SwipePhotoView: View {
                         .scaleEffect(1.0 - abs(dragOffset.width) / 1000)
                         .gesture(createDragGesture())
 
-                        if abs(dragOffset.width) > 50 {
-                            SwipeIndicator(direction: dragOffset.width < 0 ? .left : .right)
+                        if let previewDirection = dominantSwipeDirection(for: dragOffset, threshold: 50) {
+                            SwipeIndicator(
+                                direction: previewDirection,
+                                action: configuredAction(for: previewDirection)
+                            )
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -380,29 +386,8 @@ struct SwipePhotoView: View {
 
                 // 操作提示
                 if currentRealPhoto != nil {
-                    HStack(spacing: 24) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "arrow.left")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(PhotoDelStyle.destructive)
-                            Text("左滑删除候选")
-                                .font(.system(size: 14, weight: .regular))
-                                .foregroundColor(PhotoDelStyle.secondaryText)
-                        }
-
-                        Text("·")
-                            .foregroundColor(PhotoDelStyle.tertiaryText)
-
-                        HStack(spacing: 8) {
-                            Image(systemName: "arrow.right")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(PhotoDelStyle.positive)
-                            Text("右滑跳过")
-                                .font(.system(size: 14, weight: .regular))
-                                .foregroundColor(PhotoDelStyle.secondaryText)
-                        }
-                    }
-                    .padding(.bottom, 20)
+                    gestureHintStrip
+                        .padding(.bottom, 20)
                 }
 
                 Spacer()
@@ -526,9 +511,15 @@ struct SwipePhotoView: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(PhotoDelStyle.tertiaryText)
 
-            GestureGuideRow(icon: "arrow.left", title: "左滑", detail: "删除候选", color: PhotoDelStyle.destructive)
-            GestureGuideRow(icon: "arrow.right", title: "右滑", detail: "保留跳过", color: PhotoDelStyle.positive)
-            GestureGuideRow(icon: "arrow.up", title: "上滑", detail: "加入收藏", color: PhotoDelStyle.iconTint(for: "favorite"))
+            ForEach(SwipeGestureDirection.allCases) { direction in
+                let action = configuredAction(for: direction)
+                GestureGuideRow(
+                    icon: direction.icon,
+                    title: direction.title,
+                    detail: action.detailTitle,
+                    color: action.tint
+                )
+            }
         }
         .padding(16)
         .photoDelCard(radius: 16)
@@ -634,6 +625,20 @@ struct SwipePhotoView: View {
         return "\(getDisplayTitle()) · 已整理 \(organizedProgress)/\(totalPhotosCount)"
     }
 
+    private var gestureHintStrip: some View {
+        HStack(spacing: 8) {
+            ForEach(SwipeGestureDirection.allCases) { direction in
+                let action = configuredAction(for: direction)
+                GestureHintPill(
+                    icon: direction.icon,
+                    title: "\(direction.title)\(action.title)",
+                    color: action.tint
+                )
+            }
+        }
+        .padding(.horizontal, 24)
+    }
+
     private func initializeSessionIfNeeded() {
         guard !didInitializeSession else { return }
 
@@ -723,29 +728,62 @@ struct SwipePhotoView: View {
             return
         }
 
-        if abs(translation.width) > threshold {
-            if translation.width < 0 {
-                // 左滑：添加到删除候选库
-                markDeleteCandidate(asset)
-                moveToNextPhoto()
-            } else {
-                // 右滑：跳过
-                markSkip(asset)
-                moveToNextPhoto()
-            }
-        } else if abs(translation.height) > threshold {
-            if translation.height < 0 {
-                // 上滑：添加到收藏候选库
-                markFavoriteCandidate(asset)
-                moveToNextPhoto()
-            } else {
-                // 下滑：跳过
-                markSkip(asset)
-                moveToNextPhoto()
-            }
+        if let direction = dominantSwipeDirection(for: translation, threshold: threshold) {
+            performGestureAction(configuredAction(for: direction), asset: asset)
+            moveToNextPhoto()
         }
 
         resetCardPosition()
+    }
+
+    private func dominantSwipeDirection(for translation: CGSize, threshold: CGFloat) -> SwipeDirection? {
+        let horizontalDistance = abs(translation.width)
+        let verticalDistance = abs(translation.height)
+
+        if horizontalDistance >= verticalDistance, horizontalDistance > threshold {
+            return translation.width < 0 ? .left : .right
+        }
+
+        if verticalDistance > threshold {
+            return translation.height < 0 ? .up : .down
+        }
+
+        return nil
+    }
+
+    private func configuredAction(for direction: SwipeDirection) -> SwipeGestureAction {
+        switch direction {
+        case .left:
+            return configuredAction(for: SwipeGestureDirection.left)
+        case .right:
+            return configuredAction(for: SwipeGestureDirection.right)
+        case .up:
+            return configuredAction(for: SwipeGestureDirection.up)
+        case .down:
+            return .keep
+        }
+    }
+
+    private func configuredAction(for direction: SwipeGestureDirection) -> SwipeGestureAction {
+        switch direction {
+        case .left:
+            return SwipeGesturePreferences.normalizedAction(leftSwipeActionValue, fallback: SwipeGesturePreferences.defaultAction(for: .left))
+        case .right:
+            return SwipeGesturePreferences.normalizedAction(rightSwipeActionValue, fallback: SwipeGesturePreferences.defaultAction(for: .right))
+        case .up:
+            return SwipeGesturePreferences.normalizedAction(upSwipeActionValue, fallback: SwipeGesturePreferences.defaultAction(for: .up))
+        }
+    }
+
+    private func performGestureAction(_ action: SwipeGestureAction, asset: PHAsset) {
+        switch action {
+        case .delete:
+            markDeleteCandidate(asset)
+        case .keep:
+            markSkip(asset)
+        case .favorite:
+            markFavoriteCandidate(asset)
+        }
     }
 
     private func moveToNextPhoto() {
@@ -1155,17 +1193,49 @@ private struct PhotoSelectionLoadingCard: View {
     }
 }
 
+private struct GestureHintPill: View {
+    let icon: String
+    let title: String
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(color)
+
+            Text(title)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(PhotoDelStyle.secondaryText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+        }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 7)
+        .frame(maxWidth: .infinity)
+        .background(
+            Capsule(style: .continuous)
+                .fill(PhotoDelStyle.surface)
+                .overlay(
+                    Capsule(style: .continuous)
+                        .stroke(color.opacity(0.24), lineWidth: 1)
+                )
+        )
+    }
+}
+
 // MARK: - 滑动指示器
 struct SwipeIndicator: View {
     let direction: SwipePhotoView.SwipeDirection
+    let action: SwipeGestureAction
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: direction == .left ? "trash" : "arrow.right")
+            Image(systemName: action.icon)
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(direction == .left ? PhotoDelStyle.destructive : PhotoDelStyle.positive)
+                .foregroundColor(action.tint)
 
-            Text(direction == .left ? "删除候选" : "跳过")
+            Text(action.detailTitle)
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(PhotoDelStyle.primaryText)
         }
@@ -1176,10 +1246,23 @@ struct SwipeIndicator: View {
                 .fill(PhotoDelStyle.background.opacity(0.82))
                 .overlay(
                     Capsule(style: .continuous)
-                        .stroke(direction == .left ? PhotoDelStyle.destructive.opacity(0.38) : PhotoDelStyle.positive.opacity(0.38), lineWidth: 1)
+                        .stroke(action.tint.opacity(0.38), lineWidth: 1)
                 )
         )
-        .offset(x: direction == .left ? -100 : 100)
+        .offset(indicatorOffset)
+    }
+
+    private var indicatorOffset: CGSize {
+        switch direction {
+        case .left:
+            return CGSize(width: -100, height: 0)
+        case .right:
+            return CGSize(width: 100, height: 0)
+        case .up:
+            return CGSize(width: 0, height: -100)
+        case .down:
+            return CGSize(width: 0, height: 100)
+        }
     }
 }
 

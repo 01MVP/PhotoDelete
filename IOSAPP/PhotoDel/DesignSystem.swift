@@ -118,6 +118,9 @@ enum AppConstants {
     static let landscapeBreakpoint: CGFloat = 700
     static let hapticsEnabledKey = "photoDelHapticsEnabled"
     static let customAlbumOrderKey = "photoDelCustomAlbumOrder"
+    static let leftSwipeActionKey = "photoDelLeftSwipeAction"
+    static let rightSwipeActionKey = "photoDelRightSwipeAction"
+    static let upSwipeActionKey = "photoDelUpSwipeAction"
     static let supporterProductID = "com.01mvp.photodel.supporter.stats"
     static let supporterEntitlementKey = "photoDelSupporterUnlocked"
     static let supporterThemeKey = "photoDelSupporterTheme"

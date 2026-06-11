@@ -129,6 +129,30 @@ struct PhotoDelTests {
         #expect(stats.formattedSpaceSaved == "0.0 MB")
     }
 
+    // MARK: - Gesture settings tests
+
+    @Test func swipeGestureStandardPresetMatchesDefaultActions() async throws {
+        #expect(SwipeGesturePreferences.defaultAction(for: .left) == .delete)
+        #expect(SwipeGesturePreferences.defaultAction(for: .right) == .keep)
+        #expect(SwipeGesturePreferences.defaultAction(for: .up) == .favorite)
+    }
+
+    @Test func swipeGesturePresetsCoverRequestedLayouts() async throws {
+        #expect(SwipeGesturePreset.standard.leftAction == .delete)
+        #expect(SwipeGesturePreset.standard.rightAction == .keep)
+
+        #expect(SwipeGesturePreset.reversed.leftAction == .keep)
+        #expect(SwipeGesturePreset.reversed.rightAction == .delete)
+
+        #expect(SwipeGesturePreset.verticalDelete.upAction == .delete)
+        #expect(SwipeGesturePreset.verticalDelete.leftAction == .keep)
+    }
+
+    @Test func swipeGestureActionNormalizationFallsBackForUnknownValues() async throws {
+        #expect(SwipeGesturePreferences.normalizedAction("favorite", fallback: .delete) == .favorite)
+        #expect(SwipeGesturePreferences.normalizedAction("unknown", fallback: .keep) == .keep)
+    }
+
     // MARK: - CleanupStatsStore tests
 
     @Test func cleanupStatsStoreRecordsAndPersistsSessions() async throws {

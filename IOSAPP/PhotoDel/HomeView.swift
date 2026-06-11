@@ -132,7 +132,7 @@ struct HomeView: View {
                             .font(.system(size: 17, weight: .semibold))
                             .foregroundColor(PhotoDelStyle.primaryText)
 
-                        Text("左滑放入待删除，右滑保留跳过，上滑加入收藏。点完成后再统一确认。")
+                        Text("滑动时可以执行删除、保留或收藏。点完成后再统一确认。")
                             .font(.system(size: 14, weight: .regular))
                             .foregroundColor(PhotoDelStyle.secondaryText)
                             .fixedSize(horizontal: false, vertical: true)
@@ -312,7 +312,7 @@ struct HomeView: View {
                         .font(.system(size: isCompact ? 22 : 26, weight: .semibold))
                         .foregroundColor(PhotoDelStyle.primaryText)
 
-                    Text("左滑删除，右滑保留，上滑收藏。完成前不会真正删除。")
+                    Text("滑动整理照片，完成前不会真正删除。手势可在设置里调整。")
                         .font(.system(size: 15, weight: .regular))
                         .foregroundColor(PhotoDelStyle.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)

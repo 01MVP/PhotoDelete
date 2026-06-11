@@ -37,13 +37,13 @@ private struct OnboardingFlowView: View {
         OnboardingPage(
             icon: "photo.on.rectangle.angled",
             title: "快速整理相册",
-            message: "用左右滑浏览照片，把想删除的先放进候选列表。完成前不会真正删除。",
+            message: "用滑动浏览照片，把想删除的先放进候选列表。完成前不会真正删除。",
             visual: .organize
         ),
         OnboardingPage(
             icon: "hand.draw",
             title: "手势很简单",
-            message: "左滑待删除，右滑保留跳过，上滑加入收藏。需要时可以马上撤销。",
+            message: "滑动时可以执行删除、保留或收藏。默认手势够直接，也可以在设置里调整。",
             visual: .swipe
         ),
         OnboardingPage(
@@ -285,9 +285,9 @@ private struct SwipeIntroVisual: View {
 
     var body: some View {
         ZStack {
-            swipeDestination(symbol: "trash", text: "左滑", color: PhotoDelStyle.destructive, x: -102, y: 8)
-            swipeDestination(symbol: "arrow.right", text: "右滑", color: PhotoDelStyle.positive, x: 102, y: 8)
-            swipeDestination(symbol: "heart", text: "上滑", color: Color(red: 1.0, green: 0.62, blue: 0.72), x: 0, y: -104)
+            swipeDestination(symbol: "arrow.left", text: "左滑", color: PhotoDelStyle.accent, x: -102, y: 8)
+            swipeDestination(symbol: "arrow.right", text: "右滑", color: PhotoDelStyle.accent, x: 102, y: 8)
+            swipeDestination(symbol: "arrow.up", text: "上滑", color: PhotoDelStyle.accent, x: 0, y: -104)
 
             RoundedRectangle(cornerRadius: 30, style: .continuous)
                 .fill(PhotoDelStyle.surface)

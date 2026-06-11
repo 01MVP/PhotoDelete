@@ -147,7 +147,6 @@ struct AlbumsView: View {
     // MARK: - 相册列表
     @ViewBuilder
     private var albumsList: some View {
-        let systemAlbums = filteredSystemAlbums
         let userAlbums = filteredUserAlbums
         List {
             if showSearchBar {
@@ -158,16 +157,6 @@ struct AlbumsView: View {
             if isLoadingAlbums {
                 loadingRow
             } else {
-                if !systemAlbums.isEmpty {
-                    Section {
-                        ForEach(systemAlbums) { albumInfo in
-                            albumRow(albumInfo, allowsActions: false)
-                        }
-                    } header: {
-                        sectionHeader("系统相册", count: systemAlbums.count)
-                    }
-                }
-
                 if !userAlbums.isEmpty {
                     Section {
                         ForEach(userAlbums) { albumInfo in
@@ -179,7 +168,7 @@ struct AlbumsView: View {
                     }
                 }
 
-                if systemAlbums.isEmpty && userAlbums.isEmpty {
+                if userAlbums.isEmpty {
                     emptyRow
                 }
             }
@@ -321,26 +310,22 @@ struct AlbumsView: View {
             return "需要访问照片库权限"
         }
 
-        let albumCount = dataManager.getAllAlbums().count
+        let albumCount = dataManager.getUserAlbums().count
         if dataManager.isLoadingAlbums && albumCount == 0 {
             return "正在读取相册"
         }
-        return "\(albumCount) 个相册"
+        return "\(albumCount) 个我的相册"
     }
 
     // MARK: - 计算属性
     private var isLoadingAlbums: Bool {
-        dataManager.isLoadingAlbums && dataManager.getAllAlbums().isEmpty
+        dataManager.isLoadingAlbums && dataManager.getUserAlbums().isEmpty
     }
 
     private func filteredAlbums(_ albums: [AlbumInfo]) -> [AlbumInfo] {
         let sorted = sortedAlbums(albums)
         if searchText.isEmpty { return sorted }
         return sorted.filter { $0.title.localizedCaseInsensitiveContains(searchText) }
-    }
-
-    private var filteredSystemAlbums: [AlbumInfo] {
-        filteredAlbums(dataManager.getSystemAlbums())
     }
 
     private var filteredUserAlbums: [AlbumInfo] {

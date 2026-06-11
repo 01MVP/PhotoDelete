@@ -18,11 +18,15 @@ struct SettingsView: View {
     @EnvironmentObject var purchaseManager: PurchaseManager
     @AppStorage("hasSeenPhotoDelIntro") private var hasSeenPhotoDelIntro = false
     @AppStorage(AppConstants.hapticsEnabledKey) private var hapticsEnabled = true
+    @AppStorage(AppConstants.leftSwipeActionKey) private var leftSwipeActionValue = SwipeGesturePreset.standard.leftAction.rawValue
+    @AppStorage(AppConstants.rightSwipeActionKey) private var rightSwipeActionValue = SwipeGesturePreset.standard.rightAction.rawValue
+    @AppStorage(AppConstants.upSwipeActionKey) private var upSwipeActionValue = SwipeGesturePreset.standard.upAction.rawValue
     @State private var showingMailCompose = false
     @State private var showingAbout = false
     @State private var showingAuthor = false
     @State private var showingPrivacyInfo = false
     @State private var showingSupporter = false
+    @State private var showingGestureSettings = false
     @State private var showingWeChatCopied = false
     @State private var settingsToast: PhotoDelToast?
     
@@ -106,6 +110,9 @@ struct SettingsView: View {
             SupporterView()
                 .environmentObject(dataManager)
                 .environmentObject(purchaseManager)
+        }
+        .sheet(isPresented: $showingGestureSettings) {
+            GestureSettingsView()
         }
     }
     
@@ -281,6 +288,20 @@ struct SettingsView: View {
                     .padding(.horizontal, 16)
 
                 SettingRow(
+                    icon: "hand.draw.fill",
+                    iconColor: PhotoDelStyle.accent,
+                    title: "手势控制",
+                    subtitle: gestureSettingsSubtitle,
+                    action: {
+                        showingGestureSettings = true
+                    }
+                )
+
+                Divider()
+                    .background(PhotoDelStyle.hairline)
+                    .padding(.horizontal, 16)
+
+                SettingRow(
                     icon: "tray.full.fill",
                     iconColor: PhotoDelStyle.positive,
                     title: "本机整理数据",
@@ -391,6 +412,24 @@ struct SettingsView: View {
             return "没有本机整理记录"
         }
         return "已整理 \(reviewedCount) 张 · 候选 \(pendingCount) 张"
+    }
+
+    private var gestureSettingsSubtitle: String {
+        let left = currentGestureAction(for: .left)
+        let right = currentGestureAction(for: .right)
+        let up = currentGestureAction(for: .up)
+        return "左滑\(left.title) · 右滑\(right.title) · 上滑\(up.title)"
+    }
+
+    private func currentGestureAction(for direction: SwipeGestureDirection) -> SwipeGestureAction {
+        switch direction {
+        case .left:
+            return SwipeGesturePreferences.normalizedAction(leftSwipeActionValue, fallback: SwipeGesturePreferences.defaultAction(for: .left))
+        case .right:
+            return SwipeGesturePreferences.normalizedAction(rightSwipeActionValue, fallback: SwipeGesturePreferences.defaultAction(for: .right))
+        case .up:
+            return SwipeGesturePreferences.normalizedAction(upSwipeActionValue, fallback: SwipeGesturePreferences.defaultAction(for: .up))
+        }
     }
     
     private func handleMailAction() {
@@ -573,6 +612,293 @@ struct SettingToggleRow: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
+    }
+}
+
+// MARK: - 手势设置
+struct GestureSettingsView: View {
+    @Environment(\.dismiss) private var dismiss
+    @AppStorage(AppConstants.leftSwipeActionKey) private var leftSwipeActionValue = SwipeGesturePreset.standard.leftAction.rawValue
+    @AppStorage(AppConstants.rightSwipeActionKey) private var rightSwipeActionValue = SwipeGesturePreset.standard.rightAction.rawValue
+    @AppStorage(AppConstants.upSwipeActionKey) private var upSwipeActionValue = SwipeGesturePreset.standard.upAction.rawValue
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                PhotoDelScreenBackground()
+
+                ScrollView {
+                    VStack(spacing: 24) {
+                        currentGesturePreview
+                        presetSection
+                        customGestureSection
+                        resetButton
+                    }
+                    .padding(24)
+                    .padding(.bottom, 20)
+                }
+            }
+            .navigationTitle("手势控制")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("完成") {
+                        dismiss()
+                    }
+                    .foregroundColor(PhotoDelStyle.accent)
+                }
+            }
+        }
+    }
+
+    private var currentGesturePreview: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("当前手势")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(PhotoDelStyle.primaryText)
+
+            HStack(spacing: 10) {
+                ForEach(SwipeGestureDirection.allCases) { direction in
+                    GesturePreviewTile(
+                        direction: direction,
+                        action: currentAction(for: direction)
+                    )
+                }
+            }
+        }
+    }
+
+    private var presetSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("快速方案")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(PhotoDelStyle.primaryText)
+
+            VStack(spacing: 10) {
+                ForEach(SwipeGesturePreset.presets) { preset in
+                    GesturePresetButton(
+                        preset: preset,
+                        isSelected: matches(preset)
+                    ) {
+                        applyPreset(preset)
+                    }
+                }
+            }
+        }
+    }
+
+    private var customGestureSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("自定义")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(PhotoDelStyle.primaryText)
+
+            VStack(spacing: 0) {
+                ForEach(SwipeGestureDirection.allCases) { direction in
+                    GestureActionPickerRow(
+                        direction: direction,
+                        selectedAction: currentAction(for: direction),
+                        onSelect: { action in
+                            setAction(action, for: direction)
+                        }
+                    )
+
+                    if direction != .up {
+                        Divider()
+                            .background(PhotoDelStyle.hairline)
+                            .padding(.leading, 60)
+                    }
+                }
+            }
+            .photoDelCard()
+        }
+    }
+
+    private var resetButton: some View {
+        Button(action: {
+            applyPreset(.standard)
+        }) {
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.counterclockwise")
+                    .font(.system(size: 14, weight: .semibold))
+                Text("恢复默认")
+            }
+        }
+        .photoDelSecondaryButton()
+    }
+
+    private func currentAction(for direction: SwipeGestureDirection) -> SwipeGestureAction {
+        switch direction {
+        case .left:
+            return SwipeGesturePreferences.normalizedAction(leftSwipeActionValue, fallback: SwipeGesturePreferences.defaultAction(for: .left))
+        case .right:
+            return SwipeGesturePreferences.normalizedAction(rightSwipeActionValue, fallback: SwipeGesturePreferences.defaultAction(for: .right))
+        case .up:
+            return SwipeGesturePreferences.normalizedAction(upSwipeActionValue, fallback: SwipeGesturePreferences.defaultAction(for: .up))
+        }
+    }
+
+    private func setAction(_ action: SwipeGestureAction, for direction: SwipeGestureDirection) {
+        switch direction {
+        case .left:
+            leftSwipeActionValue = action.rawValue
+        case .right:
+            rightSwipeActionValue = action.rawValue
+        case .up:
+            upSwipeActionValue = action.rawValue
+        }
+        HapticManager.impact(.light)
+    }
+
+    private func applyPreset(_ preset: SwipeGesturePreset) {
+        leftSwipeActionValue = preset.leftAction.rawValue
+        rightSwipeActionValue = preset.rightAction.rawValue
+        upSwipeActionValue = preset.upAction.rawValue
+        HapticManager.impact(.light)
+    }
+
+    private func matches(_ preset: SwipeGesturePreset) -> Bool {
+        currentAction(for: .left) == preset.leftAction &&
+            currentAction(for: .right) == preset.rightAction &&
+            currentAction(for: .up) == preset.upAction
+    }
+}
+
+private struct GesturePreviewTile: View {
+    let direction: SwipeGestureDirection
+    let action: SwipeGestureAction
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: direction.icon)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(action.tint)
+                .frame(width: 34, height: 34)
+                .background(
+                    Circle()
+                        .fill(PhotoDelStyle.elevatedSurface)
+                        .overlay(
+                            Circle()
+                                .stroke(action.tint.opacity(0.34), lineWidth: 1)
+                        )
+                )
+
+            VStack(spacing: 3) {
+                Text(direction.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.primaryText)
+
+                Text(action.title)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(PhotoDelStyle.secondaryText)
+            }
+        }
+        .padding(.vertical, 14)
+        .frame(maxWidth: .infinity)
+        .photoDelCard(radius: 15)
+    }
+}
+
+private struct GesturePresetButton: View {
+    let preset: SwipeGesturePreset
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(preset.title)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(PhotoDelStyle.primaryText)
+
+                    Text(preset.subtitle)
+                        .font(.system(size: 13, weight: .regular))
+                        .foregroundColor(PhotoDelStyle.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer()
+
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 19, weight: .semibold))
+                    .foregroundColor(isSelected ? PhotoDelStyle.positive : PhotoDelStyle.tertiaryText)
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(PhotoDelStyle.surface)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(isSelected ? PhotoDelStyle.positive.opacity(0.38) : PhotoDelStyle.hairline, lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct GestureActionPickerRow: View {
+    let direction: SwipeGestureDirection
+    let selectedAction: SwipeGestureAction
+    let onSelect: (SwipeGestureAction) -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: direction.icon)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(selectedAction.tint)
+                .frame(width: 36, height: 36)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(PhotoDelStyle.elevatedSurface)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(selectedAction.tint.opacity(0.32), lineWidth: 1)
+                        )
+                )
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(direction.title)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.primaryText)
+
+                Text(selectedAction.detailTitle)
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundColor(PhotoDelStyle.secondaryText)
+            }
+
+            Spacer()
+
+            Menu {
+                ForEach(SwipeGestureAction.allCases) { action in
+                    Button {
+                        onSelect(action)
+                    } label: {
+                        Label(action.detailTitle, systemImage: action == selectedAction ? "checkmark" : action.icon)
+                    }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Text(selectedAction.title)
+                        .font(.system(size: 14, weight: .semibold))
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10, weight: .bold))
+                }
+                .foregroundColor(PhotoDelStyle.primaryText)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(PhotoDelStyle.elevatedSurface)
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .stroke(PhotoDelStyle.hairline, lineWidth: 1)
+                        )
+                )
+            }
+        }
+        .padding(16)
     }
 }
 
@@ -859,7 +1185,7 @@ struct AboutView: View {
                             .font(.system(size: 16, weight: .regular))
                             .foregroundColor(PhotoDelStyle.secondaryText)
                         
-                        Text("一个免费的相册整理工具。左滑加入删除候选，右滑跳过，上滑收藏，完成后再统一确认。")
+                        Text("一个免费的相册整理工具。滑动判断照片去留，完成后再统一确认。")
                             .font(.system(size: 16, weight: .regular))
                             .foregroundColor(PhotoDelStyle.secondaryText)
                             .multilineTextAlignment(.center)

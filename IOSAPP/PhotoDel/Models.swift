@@ -26,6 +26,131 @@ enum PhotoCategory: String, CaseIterable {
     }
 }
 
+// MARK: - 手势控制
+enum SwipeGestureAction: String, CaseIterable, Identifiable {
+    case delete
+    case keep
+    case favorite
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .delete: return "删除"
+        case .keep: return "保留"
+        case .favorite: return "收藏"
+        }
+    }
+
+    var detailTitle: String {
+        switch self {
+        case .delete: return "删除候选"
+        case .keep: return "保留跳过"
+        case .favorite: return "加入收藏"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .delete: return "trash"
+        case .keep: return "checkmark"
+        case .favorite: return "heart"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .delete: return PhotoDelStyle.destructive
+        case .keep: return PhotoDelStyle.positive
+        case .favorite: return PhotoDelStyle.iconTint(for: "favorite")
+        }
+    }
+}
+
+enum SwipeGestureDirection: String, CaseIterable, Identifiable {
+    case left
+    case right
+    case up
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .left: return "左滑"
+        case .right: return "右滑"
+        case .up: return "上滑"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .left: return "arrow.left"
+        case .right: return "arrow.right"
+        case .up: return "arrow.up"
+        }
+    }
+}
+
+struct SwipeGesturePreset: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let subtitle: String
+    let leftAction: SwipeGestureAction
+    let rightAction: SwipeGestureAction
+    let upAction: SwipeGestureAction
+
+    func action(for direction: SwipeGestureDirection) -> SwipeGestureAction {
+        switch direction {
+        case .left: return leftAction
+        case .right: return rightAction
+        case .up: return upAction
+        }
+    }
+
+    static let standard = SwipeGesturePreset(
+        id: "standard",
+        title: "左删右留",
+        subtitle: "左滑删除，右滑保留，上滑收藏",
+        leftAction: .delete,
+        rightAction: .keep,
+        upAction: .favorite
+    )
+
+    static let reversed = SwipeGesturePreset(
+        id: "reversed",
+        title: "左留右删",
+        subtitle: "左滑保留，右滑删除，上滑收藏",
+        leftAction: .keep,
+        rightAction: .delete,
+        upAction: .favorite
+    )
+
+    static let verticalDelete = SwipeGesturePreset(
+        id: "verticalDelete",
+        title: "上滑删除",
+        subtitle: "上滑删除，左滑保留，右滑收藏",
+        leftAction: .keep,
+        rightAction: .favorite,
+        upAction: .delete
+    )
+
+    static let presets: [SwipeGesturePreset] = [
+        .standard,
+        .reversed,
+        .verticalDelete
+    ]
+}
+
+enum SwipeGesturePreferences {
+    static func defaultAction(for direction: SwipeGestureDirection) -> SwipeGestureAction {
+        SwipeGesturePreset.standard.action(for: direction)
+    }
+
+    static func normalizedAction(_ rawValue: String, fallback: SwipeGestureAction) -> SwipeGestureAction {
+        SwipeGestureAction(rawValue: rawValue) ?? fallback
+    }
+}
+
 // MARK: - 时间分组
 enum TimeGroup: String, CaseIterable {
     case today = "今天的照片"
