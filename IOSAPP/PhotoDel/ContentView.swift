@@ -133,9 +133,7 @@ private struct OnboardingFlowView: View {
 
     private func advance() {
         if selectedPage < pages.count - 1 {
-            withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
-                selectedPage += 1
-            }
+            selectedPage += 1
         } else {
             onComplete()
         }

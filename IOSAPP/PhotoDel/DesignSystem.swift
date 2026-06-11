@@ -7,39 +7,39 @@ import UIKit
 enum PhotoDelStyle {
     #if canImport(UIKit)
     static let background = Color(uiColor: dynamicUIColor(
-        light: UIColor(red: 0.955, green: 0.965, blue: 0.98, alpha: 1),
+        light: UIColor.systemGroupedBackground,
         dark: UIColor(red: 0.035, green: 0.037, blue: 0.042, alpha: 1)
     ))
     static let backgroundTop = Color(uiColor: dynamicUIColor(
-        light: UIColor(red: 0.985, green: 0.988, blue: 0.995, alpha: 1),
+        light: UIColor.systemBackground,
         dark: UIColor(red: 0.058, green: 0.06, blue: 0.068, alpha: 1)
     ))
     static let surface = Color(uiColor: dynamicUIColor(
-        light: UIColor(white: 1, alpha: 0.82),
+        light: UIColor.secondarySystemGroupedBackground,
         dark: UIColor(white: 1, alpha: 0.075)
     ))
     static let elevatedSurface = Color(uiColor: dynamicUIColor(
-        light: UIColor(white: 1, alpha: 0.96),
+        light: UIColor.tertiarySystemGroupedBackground,
         dark: UIColor(white: 1, alpha: 0.105)
     ))
     static let hairline = Color(uiColor: dynamicUIColor(
-        light: UIColor(white: 0, alpha: 0.09),
+        light: UIColor.separator.withAlphaComponent(0.22),
         dark: UIColor(white: 1, alpha: 0.115)
     ))
     static let primaryText = Color(uiColor: dynamicUIColor(
-        light: UIColor(red: 0.07, green: 0.08, blue: 0.1, alpha: 0.96),
+        light: UIColor.label,
         dark: UIColor(white: 1, alpha: 0.96)
     ))
     static let secondaryText = Color(uiColor: dynamicUIColor(
-        light: UIColor(red: 0.24, green: 0.27, blue: 0.32, alpha: 0.72),
+        light: UIColor.secondaryLabel,
         dark: UIColor(white: 1, alpha: 0.62)
     ))
     static let tertiaryText = Color(uiColor: dynamicUIColor(
-        light: UIColor(red: 0.24, green: 0.27, blue: 0.32, alpha: 0.46),
+        light: UIColor.tertiaryLabel,
         dark: UIColor(white: 1, alpha: 0.42)
     ))
     static let accent = Color(uiColor: dynamicUIColor(
-        light: UIColor(red: 0, green: 0.36, blue: 0.9, alpha: 1),
+        light: UIColor.systemBlue,
         dark: UIColor(red: 0.64, green: 0.78, blue: 1, alpha: 1)
     ))
     static let destructive = Color(uiColor: dynamicUIColor(
@@ -60,17 +60,21 @@ enum PhotoDelStyle {
     ))
 
     static let uiBackground = dynamicUIColor(
-        light: UIColor(red: 0.955, green: 0.965, blue: 0.98, alpha: 1),
+        light: UIColor.systemGroupedBackground,
         dark: UIColor(red: 0.035, green: 0.037, blue: 0.042, alpha: 1)
     )
     static let uiAccent = dynamicUIColor(
-        light: UIColor(red: 0, green: 0.36, blue: 0.9, alpha: 1),
+        light: UIColor.systemBlue,
         dark: UIColor(red: 0.64, green: 0.78, blue: 1, alpha: 1)
     )
     static let uiSecondaryText = dynamicUIColor(
-        light: UIColor(red: 0.24, green: 0.27, blue: 0.32, alpha: 0.62),
+        light: UIColor.secondaryLabel,
         dark: UIColor(white: 1.0, alpha: 0.58)
     )
+    static let cardShadow = Color(uiColor: dynamicUIColor(
+        light: UIColor(white: 0, alpha: 0.08),
+        dark: UIColor(white: 0, alpha: 0)
+    ))
     #else
     static let background = Color(red: 0.035, green: 0.037, blue: 0.042)
     static let backgroundTop = Color(red: 0.058, green: 0.06, blue: 0.068)
@@ -85,6 +89,7 @@ enum PhotoDelStyle {
     static let positive = Color(red: 0.5, green: 0.9, blue: 0.64)
     static let warning = Color(red: 1.0, green: 0.79, blue: 0.47)
     static let primaryButtonText = Color.black.opacity(0.88)
+    static let cardShadow = Color.clear
     #endif
 
     static let cardRadius: CGFloat = 18
@@ -141,6 +146,7 @@ struct PhotoDelCardBackground: ViewModifier {
                             .stroke(PhotoDelStyle.hairline, lineWidth: 1)
                     )
             )
+            .shadow(color: PhotoDelStyle.cardShadow, radius: 12, x: 0, y: 5)
     }
 }
 

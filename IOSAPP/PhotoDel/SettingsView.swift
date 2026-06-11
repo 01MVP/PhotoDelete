@@ -189,7 +189,6 @@ struct SettingsView: View {
                     icon: purchaseManager.isSupporter ? "seal.fill" : "sparkles",
                     iconColor: purchaseManager.isSupporter ? PhotoDelStyle.positive : PhotoDelStyle.accent,
                     title: purchaseManager.isSupporter ? L10n.string("支持者版已解锁") : L10n.string("解锁进阶功能"),
-                    subtitle: purchaseManager.isSupporter ? L10n.string("查看支持者状态和恢复购买") : L10n.string("日期热力图、大文件整理和清理统计"),
                     action: {
                         activeSheet = .supporter
                     }
@@ -214,7 +213,6 @@ struct SettingsView: View {
                     icon: "lock.shield.fill",
                     iconColor: PhotoDelStyle.positive,
                     title: L10n.string("隐私说明"),
-                    subtitle: L10n.string("本机整理，不上传照片"),
                     action: {
                         activeSheet = .privacy
                     }
@@ -228,7 +226,6 @@ struct SettingsView: View {
                     icon: "person.text.rectangle.fill",
                     iconColor: PhotoDelStyle.accent,
                     title: L10n.string("了解作者"),
-                    subtitle: L10n.string("01MVP 与小产品创作"),
                     action: {
                         activeSheet = .author
                     }
@@ -366,7 +363,6 @@ struct SettingsView: View {
                     icon: "questionmark.circle.fill",
                     iconColor: PhotoDelStyle.secondaryText,
                     title: L10n.string("重新查看引导"),
-                    subtitle: L10n.string("下次打开 App 时显示使用说明"),
                     showsChevron: false,
                     action: resetIntro
                 )
@@ -645,7 +641,7 @@ struct SettingRow: View {
     let icon: String
     let iconColor: Color
     let title: String
-    let subtitle: String
+    var subtitle = ""
     var showsChevron = true
     let action: () -> Void
 
@@ -667,18 +663,22 @@ struct SettingRow: View {
                         .foregroundColor(iconColor)
                 }
 
-                // 文字信息
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title.appLocalized)
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(PhotoDelStyle.primaryText)
+                Text(title.appLocalized)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(PhotoDelStyle.primaryText)
+                    .lineLimit(1)
+                    .layoutPriority(1)
 
+                Spacer(minLength: 12)
+
+                if !subtitle.isEmpty {
                     Text(subtitle.appLocalized)
-                        .font(.system(size: 14, weight: .regular))
+                        .font(.system(size: 15, weight: .regular))
                         .foregroundColor(PhotoDelStyle.secondaryText)
+                        .lineLimit(1)
+                        .multilineTextAlignment(.trailing)
+                        .truncationMode(.middle)
                 }
-
-                Spacer()
 
                 if showsChevron {
                     Image(systemName: "chevron.right")
@@ -686,11 +686,15 @@ struct SettingRow: View {
                         .foregroundColor(PhotoDelStyle.tertiaryText)
                 }
             }
-            .padding(16)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(title.appLocalized))
+        .accessibilityValue(Text(subtitle.appLocalized))
     }
 }
 
@@ -717,16 +721,10 @@ struct SettingToggleRow: View {
                     .foregroundColor(iconColor)
             }
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title.appLocalized)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(PhotoDelStyle.primaryText)
-
-                Text(subtitle.appLocalized)
-                    .font(.system(size: 14, weight: .regular))
-                    .foregroundColor(PhotoDelStyle.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            Text(title.appLocalized)
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(PhotoDelStyle.primaryText)
+                .lineLimit(1)
 
             Spacer()
 
@@ -738,7 +736,8 @@ struct SettingToggleRow: View {
                 .accessibilityLabel(Text(title.appLocalized))
                 .accessibilityHint(Text(subtitle.appLocalized))
         }
-        .padding(16)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
     }
@@ -936,16 +935,10 @@ private struct GesturePresetButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(preset.title.appLocalized)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(PhotoDelStyle.primaryText)
-
-                    Text(preset.subtitle.appLocalized)
-                        .font(.system(size: 13, weight: .regular))
-                        .foregroundColor(PhotoDelStyle.secondaryText)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                Text(preset.title.appLocalized)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.primaryText)
+                    .lineLimit(1)
 
                 Spacer()
 
@@ -964,6 +957,7 @@ private struct GesturePresetButton: View {
             )
         }
         .buttonStyle(.plain)
+        .accessibilityHint(Text(preset.subtitle.appLocalized))
     }
 }
 
@@ -987,15 +981,10 @@ private struct GestureActionPickerRow: View {
                         )
                 )
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(direction.title.appLocalized)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(PhotoDelStyle.primaryText)
-
-                Text(selectedAction.detailTitle.appLocalized)
-                    .font(.system(size: 13, weight: .regular))
-                    .foregroundColor(PhotoDelStyle.secondaryText)
-            }
+            Text(direction.title.appLocalized)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(PhotoDelStyle.primaryText)
+                .lineLimit(1)
 
             Spacer()
 
@@ -1024,8 +1013,9 @@ private struct GestureActionPickerRow: View {
                             Capsule(style: .continuous)
                                 .stroke(PhotoDelStyle.hairline, lineWidth: 1)
                         )
-                )
+                    )
             }
+            .accessibilityHint(Text(selectedAction.detailTitle.appLocalized))
         }
         .padding(16)
     }
@@ -1065,22 +1055,17 @@ private struct LanguageSettingsView: View {
                                             .font(.system(size: 20, weight: .semibold))
                                             .foregroundColor(selectedLanguage == language ? PhotoDelStyle.positive : PhotoDelStyle.tertiaryText)
 
-                                        VStack(alignment: .leading, spacing: 3) {
-                                            Text(language.title)
-                                                .font(.system(size: 16, weight: .semibold))
-                                                .foregroundColor(PhotoDelStyle.primaryText)
-
-                                            Text(language.detail)
-                                                .font(.system(size: 13, weight: .regular))
-                                                .foregroundColor(PhotoDelStyle.secondaryText)
-                                                .fixedSize(horizontal: false, vertical: true)
-                                        }
+                                        Text(language.title)
+                                            .font(.system(size: 16, weight: .semibold))
+                                            .foregroundColor(PhotoDelStyle.primaryText)
+                                            .lineLimit(1)
 
                                         Spacer()
                                     }
                                     .padding(16)
                                 }
                                 .buttonStyle(.plain)
+                                .accessibilityHint(Text(language.detail))
 
                                 if language != AppLanguage.allCases.last {
                                     Divider()
@@ -1148,16 +1133,10 @@ private struct AppearanceSettingsView: View {
                                             .foregroundColor(selectedAppearance == appearance ? PhotoDelStyle.accent : PhotoDelStyle.tertiaryText)
                                             .frame(width: 24)
 
-                                        VStack(alignment: .leading, spacing: 3) {
-                                            Text(appearance.title)
-                                                .font(.system(size: 16, weight: .semibold))
-                                                .foregroundColor(PhotoDelStyle.primaryText)
-
-                                            Text(appearance.detail)
-                                                .font(.system(size: 13, weight: .regular))
-                                                .foregroundColor(PhotoDelStyle.secondaryText)
-                                                .fixedSize(horizontal: false, vertical: true)
-                                        }
+                                        Text(appearance.title)
+                                            .font(.system(size: 16, weight: .semibold))
+                                            .foregroundColor(PhotoDelStyle.primaryText)
+                                            .lineLimit(1)
 
                                         Spacer()
 
@@ -1168,6 +1147,7 @@ private struct AppearanceSettingsView: View {
                                     .padding(16)
                                 }
                                 .buttonStyle(.plain)
+                                .accessibilityHint(Text(appearance.detail))
 
                                 if appearance != AppAppearance.allCases.last {
                                     Divider()
