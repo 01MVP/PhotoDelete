@@ -69,6 +69,7 @@ private enum PhotoDelUITestDefaults {
             AppConstants.leftSwipeActionKey,
             AppConstants.rightSwipeActionKey,
             AppConstants.upSwipeActionKey,
+            AppConstants.reviewModeKey,
             AppConstants.customAlbumOrderKey,
             AppConstants.appAppearanceKey
         ].forEach(defaults.removeObject)

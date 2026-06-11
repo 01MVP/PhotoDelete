@@ -216,6 +216,7 @@ enum AppConstants {
     static let leftSwipeActionKey = "photoDelLeftSwipeAction"
     static let rightSwipeActionKey = "photoDelRightSwipeAction"
     static let upSwipeActionKey = "photoDelUpSwipeAction"
+    static let reviewModeKey = "photoDelReviewMode"
     static let appAppearanceKey = "photoDelAppAppearance"
     static let supporterProductID = "com.01mvp.photodel.supporter.stats"
     static let supporterEntitlementKey = "photoDelSupporterUnlocked"

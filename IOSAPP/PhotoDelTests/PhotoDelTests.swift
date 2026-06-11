@@ -160,6 +160,15 @@ struct PhotoDelTests {
         #expect(SwipeGesturePreferences.normalizedAction("unknown", fallback: .keep) == .keep)
     }
 
+    @Test func photoReviewModeNormalizesStoredValues() async throws {
+        #expect(PhotoReviewMode.normalized("browser") == .browser)
+        #expect(PhotoReviewMode.normalized("card") == .card)
+        #expect(PhotoReviewMode.normalized("unknown") == .card)
+        #expect(PhotoReviewMode.normalized(nil) == .card)
+        #expect(PhotoReviewMode.card.toggled == .browser)
+        #expect(PhotoReviewMode.browser.toggled == .card)
+    }
+
     // MARK: - CleanupStatsStore tests
 
     @Test func cleanupStatsStoreRecordsAndPersistsSessions() async throws {

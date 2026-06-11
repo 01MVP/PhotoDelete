@@ -18,6 +18,7 @@ struct SwipePhotoView: View {
     @AppStorage(AppConstants.leftSwipeActionKey) private var leftSwipeActionValue = SwipeGesturePreset.standard.leftAction.rawValue
     @AppStorage(AppConstants.rightSwipeActionKey) private var rightSwipeActionValue = SwipeGesturePreset.standard.rightAction.rawValue
     @AppStorage(AppConstants.upSwipeActionKey) private var upSwipeActionValue = SwipeGesturePreset.standard.upAction.rawValue
+    @AppStorage(AppConstants.reviewModeKey) private var reviewModeValue = PhotoReviewMode.card.rawValue
 
     let selectedCategory: PhotoCategory?
     let selectedTimeGroup: String?
@@ -123,11 +124,15 @@ struct SwipePhotoView: View {
 
     private var isCurrentPhotoFavorited: Bool {
         guard let asset = currentRealPhoto else { return false }
-        return asset.isFavorite || dataManager.isInFavoriteCandidates(asset)
+        return asset.isFavorite || isAssetQueuedForFavorite(asset)
     }
 
     private var canPerformPhotoAction: Bool {
         currentRealPhoto != nil && !showCompletionMessage
+    }
+
+    private var reviewMode: PhotoReviewMode {
+        PhotoReviewMode.normalized(reviewModeValue)
     }
 
     var body: some View {
@@ -222,6 +227,7 @@ struct SwipePhotoView: View {
                     }
                 }
                 .buttonStyle(.plain)
+                .frame(width: 116, alignment: .leading)
 
                 Spacer()
 
@@ -239,25 +245,44 @@ struct SwipePhotoView: View {
 
                 Spacer()
 
-                HStack(spacing: 7) {
-                    Image(systemName: "trash")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(PhotoDelStyle.destructive)
-                    Text("\(pendingDeleteCount)")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(PhotoDelStyle.primaryText)
+                HStack(spacing: 8) {
+                    Button(action: toggleReviewMode) {
+                        ZStack {
+                            Circle()
+                                .fill(PhotoDelStyle.elevatedSurface)
+                                .frame(width: 40, height: 40)
+
+                            Image(systemName: reviewMode.icon)
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundColor(PhotoDelStyle.accent)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(L10n.string("切换整理模式"))
+                    .accessibilityValue(reviewMode.accessibilityTitle)
+                    .accessibilityHint(reviewMode.toggleAccessibilityHint)
+
+                    HStack(spacing: 7) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(PhotoDelStyle.destructive)
+                        Text("\(pendingDeleteCount)")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(PhotoDelStyle.primaryText)
+                    }
+                    .frame(minWidth: 40)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(PhotoDelStyle.surface)
+                            .overlay(
+                                Capsule(style: .continuous)
+                                    .stroke(PhotoDelStyle.hairline, lineWidth: 1)
+                            )
+                    )
                 }
-                .frame(minWidth: 40)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(
-                    Capsule(style: .continuous)
-                        .fill(PhotoDelStyle.surface)
-                        .overlay(
-                            Capsule(style: .continuous)
-                                .stroke(PhotoDelStyle.hairline, lineWidth: 1)
-                        )
-                )
+                .frame(width: 116, alignment: .trailing)
             }
 
             if totalPhotosCount > 0 {
@@ -293,88 +318,19 @@ struct SwipePhotoView: View {
                     )
                     .padding(.horizontal, 24)
                 } else if let realPhoto = currentRealPhoto {
-                    // 真实照片显示
-                    let cardSize = photoCardSize(in: geometry.size)
                     ZStack {
-                        RealPhotoCard(
-                            asset: realPhoto,
-                            photoLibraryManager: dataManager.photoLibraryManager,
-                            isInDeleteCandidates: dataManager.isInDeleteCandidates(realPhoto),
-                            isInFavoriteCandidates: dataManager.isInFavoriteCandidates(realPhoto),
-                            displaySize: cardSize,
-                            targetSize: imageTargetSize(for: cardSize)
-                        )
-                        .id(realPhoto.localIdentifier)
-                        .offset(dragOffset)
-                        .rotationEffect(.degrees(rotationAngle))
-                        .scaleEffect(1.0 - abs(dragOffset.width) / 1000)
-                        .gesture(createDragGesture())
-                        .accessibilityAction(named: Text(L10n.string("加入待删除"))) {
-                            handleDeleteAction()
-                            resetCardPosition()
-                        }
-                        .accessibilityAction(named: Text(isCurrentPhotoFavorited ? L10n.string("已收藏") : L10n.string("加入收藏"))) {
-                            handleFavoriteAction()
-                            resetCardPosition()
-                        }
-                        .accessibilityAction(named: Text(L10n.string("跳过"))) {
-                            handleSkipAction()
-                            resetCardPosition()
+                        switch reviewMode {
+                        case .card:
+                            cardPhotoArea(asset: realPhoto, in: geometry.size)
+                        case .browser:
+                            browserPhotoArea(in: geometry.size)
                         }
 
-                        if let previewDirection = dominantSwipeDirection(for: dragOffset, threshold: 50) {
-                            SwipeIndicator(
-                                direction: previewDirection,
-                                action: configuredAction(for: previewDirection)
-                            )
+                        if showCompletionMessage {
+                            completionOverlay
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .overlay(
-                        // 完成提示覆盖层
-                        Group {
-                            if showCompletionMessage {
-                                ZStack {
-                                    PhotoDelStyle.background.opacity(0.78)
-                                        .ignoresSafeArea()
-
-                                    VStack(spacing: 18) {
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .font(.system(size: 54, weight: .medium))
-                                            .foregroundColor(PhotoDelStyle.positive)
-
-                                        Text("整理完成！")
-                                            .font(.system(size: 24, weight: .semibold))
-                                            .foregroundColor(PhotoDelStyle.primaryText)
-
-                                        Text("您已经浏览完所有照片")
-                                            .font(.system(size: 15, weight: .regular))
-                                            .foregroundColor(PhotoDelStyle.secondaryText)
-
-                                        HStack(spacing: 12) {
-                                            if hasUnreviewedPhotos {
-                                                Button("继续整理") {
-                                                    continueToNextUnreviewedPhoto()
-                                                    showCompletionMessage = false
-                                                }
-                                                .photoDelSecondaryButton()
-                                            }
-
-                                            Button("完成整理") {
-                                                handleFinishAction()
-                                                showCompletionMessage = false
-                                            }
-                                            .photoDelPrimaryButton()
-                                        }
-                                    }
-                                    .padding(24)
-                                    .photoDelCard()
-                                    .padding(.horizontal, 32)
-                                }
-                                .transition(.opacity)
-                            }
-                        }
-                    )
                 } else if shouldShowInitialPreparingState {
                     PhotoSelectionLoadingCard(
                         title: "正在读取照片",
@@ -440,7 +396,7 @@ struct SwipePhotoView: View {
                 }
 
                 // 操作提示
-                if currentRealPhoto != nil {
+                if currentRealPhoto != nil && reviewMode == .card {
                     gestureHintStrip
                         .padding(.bottom, 20)
                 }
@@ -448,6 +404,168 @@ struct SwipePhotoView: View {
                 Spacer()
             }
         }
+    }
+
+    private func cardPhotoArea(asset: PHAsset, in containerSize: CGSize) -> some View {
+        let cardSize = photoCardSize(in: containerSize)
+
+        return ZStack {
+            RealPhotoCard(
+                asset: asset,
+                photoLibraryManager: dataManager.photoLibraryManager,
+                isInDeleteCandidates: isAssetQueuedForDelete(asset),
+                isInFavoriteCandidates: isAssetQueuedForFavorite(asset),
+                displaySize: cardSize,
+                targetSize: imageTargetSize(for: cardSize)
+            )
+            .id(asset.localIdentifier)
+            .offset(dragOffset)
+            .rotationEffect(.degrees(rotationAngle))
+            .scaleEffect(1.0 - abs(dragOffset.width) / 1000)
+            .gesture(createDragGesture())
+            .accessibilityAction(named: Text(L10n.string("加入待删除"))) {
+                handleDeleteAction()
+                resetCardPosition()
+            }
+            .accessibilityAction(named: Text(isCurrentPhotoFavorited ? L10n.string("已收藏") : L10n.string("加入收藏"))) {
+                handleFavoriteAction()
+                resetCardPosition()
+            }
+            .accessibilityAction(named: Text(L10n.string("跳过"))) {
+                handleSkipAction()
+                resetCardPosition()
+            }
+
+            if let previewDirection = dominantSwipeDirection(for: dragOffset, threshold: 50) {
+                SwipeIndicator(
+                    direction: previewDirection,
+                    action: configuredAction(for: previewDirection)
+                )
+            }
+        }
+    }
+
+    private func browserPhotoArea(in containerSize: CGSize) -> some View {
+        let tileSize = browserTileSize(in: containerSize)
+        let rowSpacing: CGFloat = 12
+        let rows = [
+            GridItem(.fixed(tileSize.height), spacing: rowSpacing),
+            GridItem(.fixed(tileSize.height), spacing: rowSpacing)
+        ]
+
+        return VStack(spacing: 12) {
+            browserStatusStrip
+
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHGrid(rows: rows, alignment: .center, spacing: 12) {
+                        ForEach(sessionPhotos.indices, id: \.self) { index in
+                            let asset = sessionPhotos[index]
+
+                            BrowserPhotoTile(
+                                asset: asset,
+                                photoLibraryManager: dataManager.photoLibraryManager,
+                                isSelected: index == currentPhotoIndex,
+                                isReviewed: isAssetLocallyReviewed(asset),
+                                isInDeleteCandidates: isAssetQueuedForDelete(asset),
+                                isInFavoriteCandidates: isAssetQueuedForFavorite(asset),
+                                displaySize: tileSize,
+                                targetSize: imageTargetSize(for: tileSize),
+                                onSelect: {
+                                    selectBrowserPhoto(at: index)
+                                },
+                                onSwipeUpToDelete: {
+                                    handleBrowserSwipeUpDelete(asset, at: index)
+                                }
+                            )
+                            .id(asset.localIdentifier)
+                        }
+                    }
+                    .padding(.horizontal, max((containerSize.width - tileSize.width) / 2, 18))
+                    .padding(.vertical, 4)
+                }
+                .frame(height: tileSize.height * 2 + rowSpacing + 8)
+                .onAppear {
+                    scrollBrowserToCurrentPhoto(with: proxy, animated: false)
+                }
+                .onChange(of: currentPhotoIndex) { _ in
+                    scrollBrowserToCurrentPhoto(with: proxy, animated: true)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.top, 12)
+    }
+
+    private var browserStatusStrip: some View {
+        HStack(spacing: 10) {
+            Label(L10n.string("左右浏览"), systemImage: "arrow.left.and.right")
+                .foregroundColor(PhotoDelStyle.accent)
+
+            Label(L10n.string("上滑删除"), systemImage: "arrow.up")
+                .foregroundColor(PhotoDelStyle.destructive)
+
+            Spacer(minLength: 8)
+
+            Text("\(currentProgress)/\(totalPhotosCount)")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(PhotoDelStyle.secondaryText)
+        }
+        .font(.system(size: 12, weight: .semibold))
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .background(
+            Capsule(style: .continuous)
+                .fill(PhotoDelStyle.surface)
+                .overlay(
+                    Capsule(style: .continuous)
+                        .stroke(PhotoDelStyle.hairline, lineWidth: 1)
+                )
+        )
+        .padding(.horizontal, 24)
+    }
+
+    private var completionOverlay: some View {
+        ZStack {
+            PhotoDelStyle.background.opacity(0.78)
+                .ignoresSafeArea()
+
+            VStack(spacing: 18) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 54, weight: .medium))
+                    .foregroundColor(PhotoDelStyle.positive)
+
+                Text("整理完成！")
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.primaryText)
+
+                Text("您已经浏览完所有照片")
+                    .font(.system(size: 15, weight: .regular))
+                    .foregroundColor(PhotoDelStyle.secondaryText)
+
+                HStack(spacing: 12) {
+                    if hasUnreviewedPhotos {
+                        Button("继续整理") {
+                            continueToNextUnreviewedPhoto()
+                            showCompletionMessage = false
+                        }
+                        .photoDelSecondaryButton()
+                    }
+
+                    Button("完成整理") {
+                        handleFinishAction()
+                        showCompletionMessage = false
+                    }
+                    .photoDelPrimaryButton()
+                }
+            }
+            .padding(24)
+            .photoDelCard()
+            .padding(.horizontal, 32)
+        }
+        .transition(.opacity)
     }
 
     // MARK: - 底部控制区域
@@ -568,14 +686,30 @@ struct SwipePhotoView: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(PhotoDelStyle.tertiaryText)
 
-            ForEach(SwipeGestureDirection.allCases) { direction in
-                let action = configuredAction(for: direction)
+            if reviewMode == .browser {
                 GestureGuideRow(
-                    icon: direction.icon,
-                    title: direction.title,
-                    detail: action.detailTitle,
-                    color: action.tint
+                    icon: "arrow.left.and.right",
+                    title: L10n.string("左右浏览"),
+                    detail: L10n.string("浏览照片"),
+                    color: PhotoDelStyle.accent
                 )
+
+                GestureGuideRow(
+                    icon: "arrow.up",
+                    title: L10n.string("上滑"),
+                    detail: L10n.string("加入待删除"),
+                    color: PhotoDelStyle.destructive
+                )
+            } else {
+                ForEach(SwipeGestureDirection.allCases) { direction in
+                    let action = configuredAction(for: direction)
+                    GestureGuideRow(
+                        icon: direction.icon,
+                        title: direction.title,
+                        detail: action.detailTitle,
+                        color: action.tint
+                    )
+                }
             }
         }
         .padding(16)
@@ -770,6 +904,56 @@ struct SwipePhotoView: View {
         return CGSize(width: displaySize.width * scale, height: displaySize.height * scale)
     }
 
+    private func browserTileSize(in containerSize: CGSize) -> CGSize {
+        let reservedHeight: CGFloat = 92
+        let rowSpacing: CGFloat = 12
+        let availableHeight = max(containerSize.height - reservedHeight, 260)
+        let height = min(238, max(132, (availableHeight - rowSpacing) / 2))
+        let width = min(218, max(148, min(containerSize.width * 0.48, height * 0.86)))
+        return CGSize(width: width, height: height)
+    }
+
+    private func selectBrowserPhoto(at index: Int) {
+        guard isValidPhotoIndex(index) else { return }
+        currentPhotoIndex = index
+        preloadUpcomingImages(from: index)
+    }
+
+    private func scrollBrowserToCurrentPhoto(with proxy: ScrollViewProxy, animated: Bool) {
+        guard let asset = currentRealPhoto else { return }
+        let scrollAction = {
+            proxy.scrollTo(asset.localIdentifier, anchor: .center)
+        }
+
+        if animated {
+            withAnimation(.easeOut(duration: 0.22), scrollAction)
+        } else {
+            scrollAction()
+        }
+    }
+
+    private func handleBrowserSwipeUpDelete(_ asset: PHAsset, at index: Int) {
+        guard !showCompletionMessage else { return }
+        selectBrowserPhoto(at: index)
+
+        guard !isAssetQueuedForDelete(asset) else {
+            HapticManager.impact(.light)
+            showFeedback(L10n.string("已在待删除"), icon: "trash", style: .destructive, showsUndo: true)
+            return
+        }
+
+        markDeleteCandidate(asset)
+        moveToNextPhoto()
+    }
+
+    private func toggleReviewMode() {
+        let nextMode = reviewMode.toggled
+        reviewModeValue = nextMode.rawValue
+        resetCardPosition()
+        HapticManager.impact(.light)
+        showFeedback(nextMode == .browser ? L10n.string("已切换到双行浏览") : L10n.string("已切换到卡片模式"), icon: nextMode.icon, style: .neutral, duration: 1.6)
+    }
+
     private func createDragGesture() -> some Gesture {
         DragGesture()
             .onChanged { value in
@@ -908,6 +1092,23 @@ struct SwipePhotoView: View {
 
     private func isValidPhotoIndex(_ index: Int) -> Bool {
         return index >= 0 && index < sessionPhotos.count
+    }
+
+    private func isAssetQueuedForDelete(_ asset: PHAsset) -> Bool {
+        pendingSwipeMutations[asset.localIdentifier]?.action == .delete ||
+            dataManager.isInDeleteCandidates(asset)
+    }
+
+    private func isAssetQueuedForFavorite(_ asset: PHAsset) -> Bool {
+        pendingSwipeMutations[asset.localIdentifier]?.action == .favorite ||
+            dataManager.isInFavoriteCandidates(asset)
+    }
+
+    private func isAssetLocallyReviewed(_ asset: PHAsset) -> Bool {
+        pendingSwipeMutations[asset.localIdentifier] != nil ||
+            dataManager.isReviewed(asset) ||
+            dataManager.isInDeleteCandidates(asset) ||
+            dataManager.isInFavoriteCandidates(asset)
     }
 
     private func handleFavoriteAction() {
@@ -1212,6 +1413,258 @@ struct SwipePhotoView: View {
                 feedbackToast = nil
             }
         }
+    }
+}
+
+private struct BrowserPhotoTile: View {
+    let asset: PHAsset
+    let photoLibraryManager: PhotoLibraryManager
+    let isSelected: Bool
+    let isReviewed: Bool
+    let isInDeleteCandidates: Bool
+    let isInFavoriteCandidates: Bool
+    let displaySize: CGSize
+    let targetSize: CGSize
+    let onSelect: () -> Void
+    let onSwipeUpToDelete: () -> Void
+
+    @State private var image: UIImage?
+    @State private var isLoading = true
+    @State private var thumbnailRequestID: PHImageRequestID?
+    @State private var previewRequestID: PHImageRequestID?
+    @State private var loadingAssetIdentifier: String?
+    @State private var verticalOffset: CGFloat = 0
+    @State private var showsDeleteCue = false
+
+    private let cornerRadius: CGFloat = 18
+
+    var body: some View {
+        ZStack {
+            tileImage
+
+            topBadges
+                .padding(9)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+
+            stateOverlay
+
+            if showsDeleteCue {
+                deleteCueOverlay
+            }
+        }
+        .frame(width: displaySize.width, height: displaySize.height)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .stroke(isSelected ? PhotoDelStyle.accent : PhotoDelStyle.hairline, lineWidth: isSelected ? 2 : 1)
+        )
+        .shadow(color: .black.opacity(isSelected ? 0.34 : 0.22), radius: isSelected ? 16 : 8, x: 0, y: isSelected ? 10 : 5)
+        .offset(y: verticalOffset)
+        .scaleEffect(isSelected ? 1.015 : 1)
+        .animation(.easeOut(duration: 0.18), value: isSelected)
+        .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .onTapGesture(perform: onSelect)
+        .simultaneousGesture(deleteGesture)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(L10n.string("浏览照片"))
+        .accessibilityValue(accessibilityValue)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityAction(named: Text(L10n.string("选择"))) {
+            onSelect()
+        }
+        .accessibilityAction(named: Text(L10n.string("加入待删除"))) {
+            onSwipeUpToDelete()
+        }
+        .onAppear(perform: loadImage)
+        .onDisappear {
+            photoLibraryManager.cancelImageRequest(thumbnailRequestID)
+            photoLibraryManager.cancelImageRequest(previewRequestID)
+            loadingAssetIdentifier = nil
+        }
+    }
+
+    @ViewBuilder
+    private var tileImage: some View {
+        if let image {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+                .frame(width: displaySize.width, height: displaySize.height)
+                .clipped()
+        } else {
+            Rectangle()
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            PhotoDelStyle.surface,
+                            PhotoDelStyle.elevatedSurface
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay {
+                    if isLoading {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: PhotoDelStyle.accent))
+                            .scaleEffect(0.9)
+                    } else {
+                        Image(systemName: "photo")
+                            .font(.system(size: 24, weight: .medium))
+                            .foregroundColor(PhotoDelStyle.secondaryText)
+                    }
+                }
+        }
+    }
+
+    @ViewBuilder
+    private var topBadges: some View {
+        VStack(spacing: 7) {
+            if isReviewed && !isInDeleteCandidates && !isInFavoriteCandidates {
+                BrowserPhotoBadge(icon: "checkmark", color: PhotoDelStyle.positive)
+            }
+
+            if asset.mediaType == .video {
+                BrowserPhotoBadge(icon: "play.fill", color: .black.opacity(0.56))
+            }
+
+            if photoLibraryManager.isScreenshot(asset) {
+                BrowserPhotoBadge(icon: "camera.viewfinder", color: .black.opacity(0.56))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var stateOverlay: some View {
+        if isInDeleteCandidates || isInFavoriteCandidates {
+            ZStack {
+                PhotoDelStyle.background.opacity(0.74)
+
+                VStack(spacing: 9) {
+                    Image(systemName: isInDeleteCandidates ? "trash.fill" : "heart.fill")
+                        .font(.system(size: 28, weight: .semibold))
+                        .foregroundColor(isInDeleteCandidates ? PhotoDelStyle.destructive : PhotoDelStyle.iconTint(for: "favorite"))
+
+                    Text(isInDeleteCandidates ? L10n.string("待删除") : L10n.string("待收藏"))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(PhotoDelStyle.primaryText)
+                }
+            }
+        }
+    }
+
+    private var deleteCueOverlay: some View {
+        ZStack {
+            PhotoDelStyle.destructive.opacity(0.74)
+
+            VStack(spacing: 8) {
+                Image(systemName: "trash.fill")
+                    .font(.system(size: 28, weight: .semibold))
+                    .foregroundColor(.white)
+
+                Text(L10n.string("上滑删除"))
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white)
+            }
+        }
+    }
+
+    private var deleteGesture: some Gesture {
+        DragGesture(minimumDistance: 18, coordinateSpace: .local)
+            .onChanged { value in
+                let horizontalDistance = abs(value.translation.width)
+                let verticalDistance = abs(value.translation.height)
+                let isUpwardDelete = value.translation.height < 0 && verticalDistance > horizontalDistance
+
+                guard isUpwardDelete else { return }
+                verticalOffset = max(value.translation.height * 0.35, -46)
+                showsDeleteCue = verticalDistance > 26
+            }
+            .onEnded { value in
+                let horizontalDistance = abs(value.translation.width)
+                let verticalDistance = abs(value.translation.height)
+                let shouldDelete = value.translation.height < -58 && verticalDistance > horizontalDistance * 1.15
+
+                withAnimation(.interactiveSpring(response: 0.24, dampingFraction: 0.86)) {
+                    verticalOffset = 0
+                    showsDeleteCue = false
+                }
+
+                if shouldDelete {
+                    onSwipeUpToDelete()
+                }
+            }
+    }
+
+    private var accessibilityValue: String {
+        var values: [String] = []
+        values.append(asset.mediaType == .video ? L10n.string("视频") : L10n.string("照片"))
+
+        if isSelected {
+            values.append(L10n.string("当前照片"))
+        }
+
+        if photoLibraryManager.isScreenshot(asset) {
+            values.append(L10n.string("截图"))
+        }
+
+        if isInDeleteCandidates {
+            values.append(L10n.string("待删除"))
+        } else if isInFavoriteCandidates {
+            values.append(L10n.string("待收藏"))
+        } else if isReviewed {
+            values.append(L10n.string("已整理"))
+        }
+
+        return values.joined(separator: "，")
+    }
+
+    private func loadImage() {
+        photoLibraryManager.cancelImageRequest(thumbnailRequestID)
+        photoLibraryManager.cancelImageRequest(previewRequestID)
+        let requestedAssetID = asset.localIdentifier
+        loadingAssetIdentifier = requestedAssetID
+        image = nil
+        isLoading = true
+
+        let thumbnailSize = CGSize(
+            width: min(targetSize.width, 650),
+            height: min(targetSize.height, 850)
+        )
+
+        thumbnailRequestID = photoLibraryManager.loadFastThumbnail(for: asset, size: thumbnailSize) { loadedImage in
+            guard loadingAssetIdentifier == requestedAssetID else { return }
+            if let loadedImage {
+                image = loadedImage
+                isLoading = false
+            }
+            thumbnailRequestID = nil
+        }
+
+        previewRequestID = photoLibraryManager.loadSwipePreview(for: asset, size: targetSize) { loadedImage in
+            guard loadingAssetIdentifier == requestedAssetID else { return }
+            if let loadedImage {
+                image = loadedImage
+                isLoading = false
+            } else if image == nil {
+                isLoading = false
+            }
+            previewRequestID = nil
+        }
+    }
+}
+
+private struct BrowserPhotoBadge: View {
+    let icon: String
+    let color: Color
+
+    var body: some View {
+        Image(systemName: icon)
+            .font(.system(size: 11, weight: .bold))
+            .foregroundColor(.white)
+            .frame(width: 24, height: 24)
+            .background(Circle().fill(color))
+            .overlay(Circle().stroke(PhotoDelStyle.background.opacity(0.72), lineWidth: 1))
     }
 }
 

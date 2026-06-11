@@ -2848,6 +2848,146 @@
         }
       }
     },
+    "双行": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Two rows"
+          }
+        }
+      }
+    },
+    "卡片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Card"
+          }
+        }
+      }
+    },
+    "切换到卡片模式": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch to card mode"
+          }
+        }
+      }
+    },
+    "切换到双行浏览": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch to two-row browsing"
+          }
+        }
+      }
+    },
+    "切换整理模式": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch review mode"
+          }
+        }
+      }
+    },
+    "左右浏览": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Browse left or right"
+          }
+        }
+      }
+    },
+    "已切换到卡片模式": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switched to card mode"
+          }
+        }
+      }
+    },
+    "已切换到双行浏览": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switched to two-row browsing"
+          }
+        }
+      }
+    },
+    "已在待删除": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Already queued for deletion"
+          }
+        }
+      }
+    },
+    "已整理": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reviewed"
+          }
+        }
+      }
+    },
+    "当前是卡片模式": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Currently in card mode"
+          }
+        }
+      }
+    },
+    "当前是双行浏览模式": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Currently in two-row browsing mode"
+          }
+        }
+      }
+    },
+    "浏览照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Browse photo"
+          }
+        }
+      }
+    },
+    "选择": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select"
+          }
+        }
+      }
+    },
     "已收藏": {
       "localizations": {
         "en": {

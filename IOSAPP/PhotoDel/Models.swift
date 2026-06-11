@@ -160,6 +160,53 @@ enum SwipeGesturePreferences {
     }
 }
 
+enum PhotoReviewMode: String, CaseIterable, Identifiable {
+    case card
+    case browser
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .card: return L10n.string("卡片")
+        case .browser: return L10n.string("双行")
+        }
+    }
+
+    var accessibilityTitle: String {
+        switch self {
+        case .card: return L10n.string("当前是卡片模式")
+        case .browser: return L10n.string("当前是双行浏览模式")
+        }
+    }
+
+    var toggleAccessibilityHint: String {
+        switch self {
+        case .card: return L10n.string("切换到双行浏览")
+        case .browser: return L10n.string("切换到卡片模式")
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .card: return "rectangle.portrait"
+        case .browser: return "rectangle.grid.2x2"
+        }
+    }
+
+    var toggled: PhotoReviewMode {
+        switch self {
+        case .card: return .browser
+        case .browser: return .card
+        }
+    }
+
+    static func normalized(_ rawValue: String?) -> PhotoReviewMode {
+        guard let rawValue else { return .card }
+        return PhotoReviewMode(rawValue: rawValue) ?? .card
+    }
+}
+
 // MARK: - 时间分组
 enum TimeGroup: String, CaseIterable {
     case today
