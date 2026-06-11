@@ -176,7 +176,7 @@ struct HomeView: View {
     }
 
     private var isLibraryPreparing: Bool {
-        dataManager.isPreparingLibrary || dataManager.photoLibraryManager.isLoading
+        dataManager.isPreparingLibrary
     }
 
     private var titleSection: some View {
@@ -205,7 +205,7 @@ struct HomeView: View {
     private func primaryOrganizeSection(isCompact: Bool) -> some View {
         if isLibraryPreparing {
             libraryScanningSection
-        } else if dataManager.photoLibraryManager.totalPhotosCount == 0 {
+        } else if dataManager.photoLibraryManager.totalPhotosCount == 0 && !dataManager.photoLibraryManager.isLoading {
             emptyLibrarySection
         } else {
             startOrganizingSection(isCompact: isCompact)
@@ -324,12 +324,12 @@ struct HomeView: View {
             .photoDelPrimaryButton()
 
             if isCompact {
-                Text("\(dataManager.photoLibraryManager.totalPhotosCount) 张待整理 · \(dataManager.deleteCandidates.count) 张待删除")
+                Text(primarySummaryText)
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(PhotoDelStyle.secondaryText)
             } else {
                 HStack(spacing: 0) {
-                    HomeStatPill(value: "\(dataManager.photoLibraryManager.totalPhotosCount)", label: "待整理")
+                    HomeStatPill(value: primaryPhotoCountValue, label: primaryPhotoCountLabel)
                     Divider()
                         .frame(height: 28)
                         .background(PhotoDelStyle.hairline)
@@ -365,7 +365,7 @@ struct HomeView: View {
                         HomeEntryRow(
                             icon: category.icon,
                             title: category.rawValue,
-                            detail: "\(getPhotoCount(for: category)) 张",
+                            detail: getPhotoCountDetail(for: category),
                             tint: PhotoDelStyle.iconTint(for: category == .videos ? "video" : category == .favorites ? "favorite" : "photo")
                         ) {
                             navigationPath.append(SwipeViewDestination.category(category))
@@ -416,6 +416,35 @@ struct HomeView: View {
         case .favorites:
             return dataManager.photoLibraryManager.favoritesCount
         }
+    }
+
+    private var primarySummaryText: String {
+        if dataManager.photoLibraryManager.totalPhotosCount == 0 && dataManager.photoLibraryManager.isLoading {
+            return "正在同步照片信息 · 可先进入整理"
+        }
+        return "\(dataManager.photoLibraryManager.totalPhotosCount) 张待整理 · \(dataManager.deleteCandidates.count) 张待删除"
+    }
+
+    private var primaryPhotoCountValue: String {
+        if dataManager.photoLibraryManager.totalPhotosCount == 0 && dataManager.photoLibraryManager.isLoading {
+            return "..."
+        }
+        return "\(dataManager.photoLibraryManager.totalPhotosCount)"
+    }
+
+    private var primaryPhotoCountLabel: String {
+        if dataManager.photoLibraryManager.totalPhotosCount == 0 && dataManager.photoLibraryManager.isLoading {
+            return "同步中"
+        }
+        return "待整理"
+    }
+
+    private func getPhotoCountDetail(for category: PhotoCategory) -> String {
+        let count = getPhotoCount(for: category)
+        if count == 0 && dataManager.photoLibraryManager.isLoading {
+            return "同步中"
+        }
+        return "\(count) 张"
     }
 
 }

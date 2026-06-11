@@ -10,10 +10,12 @@ import SwiftUI
 struct ContentView: View {
     @AppStorage("hasCompletedPhotoDelOnboarding") private var hasCompletedOnboarding = false
     @AppStorage("hasSeenPhotoDelIntro") private var hasSeenHomeIntro = false
+    @StateObject private var dataManager = DataManager()
 
     var body: some View {
         if hasCompletedOnboarding {
-            SplashView()
+            MainTabView()
+                .environmentObject(dataManager)
         } else {
             OnboardingFlowView {
                 hasSeenHomeIntro = true

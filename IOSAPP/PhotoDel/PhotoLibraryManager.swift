@@ -283,12 +283,18 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             targetSize: size,
             contentMode: .aspectFill,
             options: options
-        ) { [weak self] image, _ in
+        ) { [weak self] image, info in
             DispatchQueue.main.async {
+                let isCancelled = (info?[PHImageCancelledKey] as? Bool) == true
+                let isInCloud = (info?[PHImageResultIsInCloudKey] as? Bool) == true
+                guard !isCancelled else { return }
+
                 // 缓存图片
                 if let image = image {
                     let cost = Int(image.size.width * image.size.height * 4) // 估算内存使用
                     self?.imageCache.setObject(image, forKey: cacheKey, cost: cost)
+                } else if isInCloud {
+                    return
                 }
                 completion(image)
             }
@@ -305,7 +311,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         }
 
         let options = PHImageRequestOptions()
-        options.deliveryMode = .highQualityFormat
+        options.deliveryMode = .opportunistic
         options.resizeMode = .exact
         options.isNetworkAccessAllowed = true
         options.isSynchronous = false
@@ -315,11 +321,17 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             targetSize: size,
             contentMode: .aspectFit,
             options: options
-        ) { [weak self] image, _ in
+        ) { [weak self] image, info in
             DispatchQueue.main.async {
+                let isCancelled = (info?[PHImageCancelledKey] as? Bool) == true
+                let isInCloud = (info?[PHImageResultIsInCloudKey] as? Bool) == true
+                guard !isCancelled else { return }
+
                 if let image {
                     let cost = Int(image.size.width * image.size.height * 4)
                     self?.imageCache.setObject(image, forKey: cacheKey, cost: cost)
+                } else if isInCloud {
+                    return
                 }
                 completion(image)
             }
@@ -395,7 +407,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         }
 
         let options = PHImageRequestOptions()
-        options.deliveryMode = .fastFormat
+        options.deliveryMode = .opportunistic
         options.resizeMode = .fast
         options.isNetworkAccessAllowed = true
 
@@ -404,11 +416,17 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             targetSize: size,
             contentMode: .aspectFill,
             options: options
-        ) { [weak self] image, _ in
+        ) { [weak self] image, info in
             DispatchQueue.main.async {
+                let isCancelled = (info?[PHImageCancelledKey] as? Bool) == true
+                let isInCloud = (info?[PHImageResultIsInCloudKey] as? Bool) == true
+                guard !isCancelled else { return }
+
                 if let image {
                     let cost = Int(image.size.width * image.size.height * 4)
                     self?.imageCache.setObject(image, forKey: cacheKey, cost: cost)
+                } else if isInCloud {
+                    return
                 }
                 completion(image)
             }

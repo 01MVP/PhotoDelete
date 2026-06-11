@@ -49,7 +49,7 @@ class DataManager: ObservableObject {
     // MARK: - 照片权限管理
     func requestPhotoLibraryAccess() {
         if photoLibraryManager.hasPhotoLibraryAccess {
-            reloadLibraryData()
+            reloadLibraryData(showPreparing: true)
             return
         }
 
@@ -65,11 +65,11 @@ class DataManager: ObservableObject {
         photoLibraryManager.requestAuthorization { [weak self] _ in
             guard let self else { return }
             self.authorizationRequested = false
-            self.syncPhotoLibraryAuthorization()
+            self.syncPhotoLibraryAuthorization(showPreparing: true)
         }
     }
 
-    func syncPhotoLibraryAuthorization() {
+    func syncPhotoLibraryAuthorization(showPreparing: Bool = false) {
         let hadAccess = photoLibraryManager.hasPhotoLibraryAccess
         let previousStatus = photoLibraryManager.authorizationStatus
         photoLibraryManager.checkAuthorizationStatus()
@@ -87,7 +87,7 @@ class DataManager: ObservableObject {
         if !hadAccess ||
             previousStatus != photoLibraryManager.authorizationStatus ||
             (!photoLibraryManager.hasLoadedPhotoLibrary && !photoLibraryManager.isLoading) {
-            reloadLibraryData()
+            reloadLibraryData(showPreparing: showPreparing)
         }
     }
 
@@ -98,7 +98,7 @@ class DataManager: ObservableObject {
         UIApplication.shared.open(settingsURL)
     }
 
-    func reloadLibraryData() {
+    func reloadLibraryData(showPreparing: Bool = true) {
         guard photoLibraryManager.hasPhotoLibraryAccess else {
             isPreparingLibrary = false
             isReloadingLibrary = false
@@ -106,7 +106,7 @@ class DataManager: ObservableObject {
         }
 
         guard !isReloadingLibrary else { return }
-        isPreparingLibrary = true
+        isPreparingLibrary = showPreparing
         isReloadingLibrary = true
 
         photoLibraryManager.loadPhotos { [weak self] in
@@ -153,17 +153,17 @@ class DataManager: ObservableObject {
 
     // MARK: - 批量操作（离开页面时执行）
     func executeBatchOperations(completion: @escaping (Bool, Error?) -> Void) {
+        guard !deleteCandidates.isEmpty || !favoriteCandidates.isEmpty else {
+            completion(true, nil)
+            return
+        }
+
         // 检查网络状态和iCloud同步状态
         guard checkSystemReadiness() else {
             let error = NSError(domain: "PhotoDelError", code: 1001, userInfo: [
                 NSLocalizedDescriptionKey: "系统未准备就绪，请检查网络连接和存储空间"
             ])
             completion(false, error)
-            return
-        }
-
-        guard !deleteCandidates.isEmpty || !favoriteCandidates.isEmpty else {
-            completion(true, nil)
             return
         }
 

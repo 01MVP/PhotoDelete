@@ -943,7 +943,8 @@ struct RealPhotoCard: View {
 
     @State private var image: UIImage?
     @State private var isLoading = true
-    @State private var requestID: PHImageRequestID?
+    @State private var thumbnailRequestID: PHImageRequestID?
+    @State private var previewRequestID: PHImageRequestID?
     @State private var loadingAssetIdentifier: String?
 
     var body: some View {
@@ -991,13 +992,9 @@ struct RealPhotoCard: View {
                                     .scaleEffect(1.2)
                             } else {
                                 VStack(spacing: 10) {
-                                    Image(systemName: "photo")
-                                        .font(.system(size: 28, weight: .medium))
-                                        .foregroundColor(PhotoDelStyle.secondaryText)
-
-                                    Text("暂时无法显示这张照片")
-                                        .font(.system(size: 14, weight: .medium))
-                                        .foregroundColor(PhotoDelStyle.secondaryText)
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: PhotoDelStyle.accent))
+                                        .scaleEffect(1.0)
                                 }
                             }
                         }
@@ -1015,7 +1012,8 @@ struct RealPhotoCard: View {
             loadImage()
         }
         .onDisappear {
-            photoLibraryManager.cancelImageRequest(requestID)
+            photoLibraryManager.cancelImageRequest(thumbnailRequestID)
+            photoLibraryManager.cancelImageRequest(previewRequestID)
             loadingAssetIdentifier = nil
         }
     }
@@ -1073,18 +1071,36 @@ struct RealPhotoCard: View {
     }
 
     private func loadImage() {
-        photoLibraryManager.cancelImageRequest(requestID)
+        photoLibraryManager.cancelImageRequest(thumbnailRequestID)
+        photoLibraryManager.cancelImageRequest(previewRequestID)
         isLoading = true
         image = nil
         let requestedAssetID = asset.localIdentifier
         loadingAssetIdentifier = requestedAssetID
 
-        requestID = photoLibraryManager.loadSwipePreview(for: asset, size: targetSize) { loadedImage in
+        let thumbnailSize = CGSize(
+            width: min(targetSize.width, 700),
+            height: min(targetSize.height, 900)
+        )
+
+        thumbnailRequestID = photoLibraryManager.loadFastThumbnail(for: asset, size: thumbnailSize) { loadedImage in
             guard loadingAssetIdentifier == requestedAssetID else { return }
-            self.image = loadedImage
-            self.isLoading = false
-            self.requestID = nil
-            self.loadingAssetIdentifier = nil
+            if let loadedImage {
+                self.image = loadedImage
+                self.isLoading = false
+            }
+            self.thumbnailRequestID = nil
+        }
+
+        previewRequestID = photoLibraryManager.loadSwipePreview(for: asset, size: targetSize) { loadedImage in
+            guard loadingAssetIdentifier == requestedAssetID else { return }
+            if let loadedImage {
+                self.image = loadedImage
+                self.isLoading = false
+            } else if self.image == nil {
+                self.isLoading = false
+            }
+            self.previewRequestID = nil
         }
     }
 }
