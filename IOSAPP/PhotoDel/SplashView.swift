@@ -94,6 +94,34 @@ struct SplashView: View {
                 checkPhotoLibraryStatus()
             }
         }
+        .onChange(of: dataManager.photoLibraryManager.loadingProgress) { progress in
+            guard dataManager.photoLibraryManager.isLoading || dataManager.isPreparingLibrary else { return }
+            if progress < 0.3 {
+                loadingText = "正在读取照片信息..."
+            } else if progress < 0.6 {
+                loadingText = "正在分析照片信息..."
+            } else if progress < 0.9 {
+                loadingText = "正在整理照片分类..."
+            } else {
+                loadingText = "即将完成..."
+            }
+        }
+        .onChange(of: dataManager.photoLibraryManager.isLoading) { isLoading in
+            if !isLoading && !dataManager.isPreparingLibrary && showProgress {
+                loadingText = "准备完成！"
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    showMainApp = true
+                }
+            }
+        }
+        .onChange(of: dataManager.isPreparingLibrary) { isPreparing in
+            if !isPreparing && !dataManager.photoLibraryManager.isLoading && showProgress {
+                loadingText = "准备完成！"
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    showMainApp = true
+                }
+            }
+        }
         .fullScreenCover(isPresented: $showMainApp) {
             MainTabView()
                 .environmentObject(dataManager)
@@ -105,13 +133,16 @@ struct SplashView: View {
             // 已授权，显示加载进度
             showProgress = true
             loadingText = "正在准备照片信息..."
-            if dataManager.photoLibraryManager.totalPhotosCount == 0 &&
+            if !dataManager.photoLibraryManager.hasLoadedPhotoLibrary &&
                 !dataManager.photoLibraryManager.isLoading {
                 dataManager.reloadLibraryData()
+            } else if !dataManager.photoLibraryManager.isLoading && !dataManager.isPreparingLibrary {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    showMainApp = true
+                }
             }
 
-            // 监听加载完成
-            monitorLoadingProgress()
+            // 监听加载完成通过 onChange（见 body 中的修饰符）
         } else if dataManager.photoLibraryManager.authorizationStatus == .notDetermined {
             // 未确定权限，显示准备状态
             showProgress = true
@@ -126,33 +157,6 @@ struct SplashView: View {
             loadingText = "准备完成"
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 showMainApp = true
-            }
-        }
-    }
-    
-    private func monitorLoadingProgress() {
-        // 监听加载进度
-        Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { timer in
-            if !dataManager.photoLibraryManager.isLoading && !dataManager.isPreparingLibrary {
-                // 加载完成
-                timer.invalidate()
-                loadingText = "准备完成！"
-                
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    showMainApp = true
-                }
-            } else {
-                // 更新加载文字
-                let progress = dataManager.photoLibraryManager.loadingProgress
-                if progress < 0.3 {
-                    loadingText = "正在读取照片信息..."
-                } else if progress < 0.6 {
-                    loadingText = "正在分析照片信息..."
-                } else if progress < 0.9 {
-                    loadingText = "正在整理照片分类..."
-                } else {
-                    loadingText = "即将完成..."
-                }
             }
         }
     }

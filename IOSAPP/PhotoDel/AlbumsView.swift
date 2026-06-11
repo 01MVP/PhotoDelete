@@ -13,17 +13,19 @@ import UIKit
 
 struct AlbumsView: View {
     @EnvironmentObject var dataManager: DataManager
+    @AppStorage(AppConstants.customAlbumOrderKey) private var customAlbumOrderData = "[]"
     @State private var searchText = ""
     @State private var showingCreateAlbum = false
     @State private var editingAlbum: PHAssetCollection?
     @State private var showingEditAlbum = false
     @State private var selectedAlbumInfo: AlbumInfo?
     @State private var showSearchBar = false
-    @State private var sortMode: AlbumSortMode = .defaultOrder
-    @State private var albumToast: AlbumToast?
+    @State private var sortMode: AlbumSortMode = .custom
+    @State private var editMode: EditMode = .inactive
+    @State private var albumToast: PhotoDelToast?
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
                 PhotoDelScreenBackground()
 
@@ -63,6 +65,10 @@ struct AlbumsView: View {
             SwipePhotoView(selectedCategory: nil, selectedTimeGroup: nil, selectedAlbumInfo: albumInfo)
                 .environmentObject(dataManager)
         }
+        .onChange(of: sortMode) { mode in
+            guard mode != .custom else { return }
+            editMode = .inactive
+        }
         .onAppear {
             dataManager.loadAlbums(showLoading: false)
         }
@@ -90,6 +96,14 @@ struct AlbumsView: View {
                             Label(mode.title, systemImage: mode.icon).tag(mode)
                         }
                     }
+
+                    if sortMode == .custom {
+                        Button {
+                            toggleReordering()
+                        } label: {
+                            Label(editMode == .active ? "完成排序" : "调整顺序", systemImage: "line.3.horizontal")
+                        }
+                    }
                 } label: {
                     Image(systemName: "arrow.up.arrow.down")
                         .font(.system(size: 16, weight: .semibold))
@@ -100,7 +114,7 @@ struct AlbumsView: View {
                 .menuStyle(.button)
 
                 Button(action: {
-                    impact(.light)
+                    HapticManager.impact(.light)
                     showingCreateAlbum = true
                 }) {
                     Image(systemName: "plus")
@@ -121,44 +135,20 @@ struct AlbumsView: View {
     private var authorizationSection: some View {
         VStack {
             Spacer()
-
-            VStack(spacing: 20) {
-                Image(systemName: "photo.stack")
-                    .font(.system(size: 60, weight: .medium))
-                    .foregroundColor(PhotoDelStyle.accent)
-
-                Text("需要访问照片库")
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundColor(PhotoDelStyle.primaryText)
-
-                Text("需要访问您的照片库来管理相册。我们不会上传或分享您的照片。")
-                    .font(.system(size: 16, weight: .regular))
-                    .foregroundColor(PhotoDelStyle.secondaryText)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(nil)
-
-                Button(action: {
-                    dataManager.requestPhotoLibraryAccess()
-                }) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "arrow.right")
-                            .font(.system(size: 16, weight: .semibold))
-
-                        Text("继续")
-                    }
-                }
-                .photoDelPrimaryButton()
-            }
-            .padding(24)
-            .photoDelCard()
+            PhotoAuthorizationCard(
+                subtitle: "需要访问您的照片库来管理相册。\(AppConstants.privacyShortText)",
+                onRequestAccess: { dataManager.requestPhotoLibraryAccess() }
+            )
             .padding(.horizontal, 32)
-
             Spacer()
         }
     }
 
     // MARK: - 相册列表
+    @ViewBuilder
     private var albumsList: some View {
+        let systemAlbums = filteredSystemAlbums
+        let userAlbums = filteredUserAlbums
         List {
             if showSearchBar {
                 searchRow
@@ -168,27 +158,28 @@ struct AlbumsView: View {
             if isLoadingAlbums {
                 loadingRow
             } else {
-                if !filteredSystemAlbums.isEmpty {
+                if !systemAlbums.isEmpty {
                     Section {
-                        ForEach(filteredSystemAlbums) { albumInfo in
+                        ForEach(systemAlbums) { albumInfo in
                             albumRow(albumInfo, allowsActions: false)
                         }
                     } header: {
-                        sectionHeader("系统相册", count: filteredSystemAlbums.count)
+                        sectionHeader("系统相册", count: systemAlbums.count)
                     }
                 }
 
-                if !filteredUserAlbums.isEmpty {
+                if !userAlbums.isEmpty {
                     Section {
-                        ForEach(filteredUserAlbums) { albumInfo in
+                        ForEach(userAlbums) { albumInfo in
                             albumRow(albumInfo, allowsActions: true)
                         }
+                        .onMove(perform: moveUserAlbums)
                     } header: {
-                        sectionHeader("我的相册", count: filteredUserAlbums.count)
+                        sectionHeader("我的相册", count: userAlbums.count)
                     }
                 }
 
-                if filteredSystemAlbums.isEmpty && filteredUserAlbums.isEmpty {
+                if systemAlbums.isEmpty && userAlbums.isEmpty {
                     emptyRow
                 }
             }
@@ -197,6 +188,7 @@ struct AlbumsView: View {
         .scrollContentBackground(.hidden)
         .background(Color.clear)
         .environment(\.defaultMinListRowHeight, 0)
+        .environment(\.editMode, $editMode)
         .refreshable {
             dataManager.loadAlbums(showLoading: false)
         }
@@ -301,8 +293,11 @@ struct AlbumsView: View {
         }) {
             AlbumInfoRow(
                 albumInfo: albumInfo,
-                photoLibraryManager: dataManager.photoLibraryManager
+                photoLibraryManager: dataManager.photoLibraryManager,
+                showsChevron: editMode != .active
             )
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
@@ -322,7 +317,7 @@ struct AlbumsView: View {
                 .tint(.gray)
             }
         }
-        .listRowInsets(EdgeInsets(top: 6, leading: 24, bottom: 6, trailing: 24))
+        .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
     }
@@ -344,26 +339,18 @@ struct AlbumsView: View {
         dataManager.isLoadingAlbums && dataManager.getAllAlbums().isEmpty
     }
 
+    private func filteredAlbums(_ albums: [AlbumInfo]) -> [AlbumInfo] {
+        let sorted = sortedAlbums(albums)
+        if searchText.isEmpty { return sorted }
+        return sorted.filter { $0.title.localizedCaseInsensitiveContains(searchText) }
+    }
+
     private var filteredSystemAlbums: [AlbumInfo] {
-        let albums = sortedAlbums(dataManager.getSystemAlbums())
-        if searchText.isEmpty {
-            return albums
-        } else {
-            return albums.filter { albumInfo in
-                albumInfo.title.localizedCaseInsensitiveContains(searchText)
-            }
-        }
+        filteredAlbums(dataManager.getSystemAlbums())
     }
 
     private var filteredUserAlbums: [AlbumInfo] {
-        let albums = sortedAlbums(dataManager.getUserAlbums())
-        if searchText.isEmpty {
-            return albums
-        } else {
-            return albums.filter { albumInfo in
-                albumInfo.title.localizedCaseInsensitiveContains(searchText)
-            }
-        }
+        filteredAlbums(dataManager.getUserAlbums())
     }
 
     // MARK: - 方法
@@ -376,14 +363,14 @@ struct AlbumsView: View {
     private func hideSearch() {
         withAnimation(.easeInOut(duration: 0.2)) {
             showSearchBar = false
-            searchText = ""
         }
+        searchText = ""
     }
 
     private func sortedAlbums(_ albums: [AlbumInfo]) -> [AlbumInfo] {
         switch sortMode {
-        case .defaultOrder:
-            return albums
+        case .custom:
+            return albumsSortedByCustomOrder(albums)
         case .name:
             return albums.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
         case .count:
@@ -391,14 +378,62 @@ struct AlbumsView: View {
         }
     }
 
+    private func albumsSortedByCustomOrder(_ albums: [AlbumInfo]) -> [AlbumInfo] {
+        let order = customAlbumOrder
+        guard !order.isEmpty else { return albums }
+
+        let ranks = Dictionary(uniqueKeysWithValues: order.enumerated().map { ($0.element, $0.offset) })
+        return albums.enumerated()
+            .sorted { lhs, rhs in
+                let lhsRank = ranks[lhs.element.id] ?? (order.count + lhs.offset)
+                let rhsRank = ranks[rhs.element.id] ?? (order.count + rhs.offset)
+                return lhsRank < rhsRank
+            }
+            .map(\.element)
+    }
+
+    private var customAlbumOrder: [String] {
+        guard let data = customAlbumOrderData.data(using: .utf8),
+              let order = try? JSONDecoder().decode([String].self, from: data) else {
+            return []
+        }
+        return order
+    }
+
+    private func saveCustomAlbumOrder(_ order: [String]) {
+        guard let data = try? JSONEncoder().encode(order),
+              let value = String(data: data, encoding: .utf8) else { return }
+        customAlbumOrderData = value
+    }
+
+    private func toggleReordering() {
+        guard sortMode == .custom else { return }
+        HapticManager.impact(.light)
+        withAnimation(.easeInOut(duration: 0.18)) {
+            editMode = editMode == .active ? .inactive : .active
+        }
+    }
+
+    private func moveUserAlbums(from source: IndexSet, to destination: Int) {
+        guard sortMode == .custom, searchText.isEmpty else {
+            showAlbumToast("请先清除搜索再调整顺序", icon: "magnifyingglass", style: .warning)
+            return
+        }
+
+        var albums = filteredUserAlbums
+        albums.move(fromOffsets: source, toOffset: destination)
+        saveCustomAlbumOrder(albums.map(\.id))
+        HapticManager.impact(.light)
+    }
+
     private func openAlbum(_ albumInfo: AlbumInfo) {
         guard albumInfo.photosCount > 0 else {
-            impact(.light)
+            HapticManager.impact(.light)
             showAlbumToast("这个相册还没有照片", icon: "photo", style: .warning)
             return
         }
 
-        impact(.light)
+        HapticManager.impact(.light)
         selectedAlbumInfo = albumInfo
     }
 
@@ -410,11 +445,11 @@ struct AlbumsView: View {
         }) { success, error in
             DispatchQueue.main.async {
                 if success {
-                    self.notify(.success)
+                    HapticManager.notify(.success)
                     self.showAlbumToast("相册已删除", icon: "trash", style: .positive)
                     self.dataManager.loadAlbums(showLoading: false)
                 } else if let error = error {
-                    self.notify(.error)
+                    HapticManager.notify(.error)
                     self.showAlbumToast("删除失败，请再试一次", icon: "exclamationmark.triangle", style: .warning)
                     print("删除相册失败: \(error.localizedDescription)")
                 }
@@ -422,8 +457,8 @@ struct AlbumsView: View {
         }
     }
 
-    private func showAlbumToast(_ message: String, icon: String, style: AlbumToastStyle) {
-        let toast = AlbumToast(message: message, icon: icon, style: style)
+    private func showAlbumToast(_ message: String, icon: String, style: PhotoDelToastStyle) {
+        let toast = PhotoDelToast(message: message, icon: icon, style: style)
         withAnimation(.spring(response: 0.28, dampingFraction: 0.88)) {
             albumToast = toast
         }
@@ -436,54 +471,19 @@ struct AlbumsView: View {
         }
     }
 
-    private func albumToastView(_ toast: AlbumToast) -> some View {
+    private func albumToastView(_ toast: PhotoDelToast) -> some View {
         VStack {
             Spacer()
-
-            HStack(spacing: 8) {
-                Image(systemName: toast.icon)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(toast.style.color)
-
-                Text(toast.message)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(PhotoDelStyle.primaryText)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(PhotoDelStyle.background.opacity(0.92))
-                    .overlay(
-                        Capsule(style: .continuous)
-                            .stroke(toast.style.color.opacity(0.35), lineWidth: 1)
-                    )
-            )
-            .shadow(color: .black.opacity(0.24), radius: 14, x: 0, y: 8)
-            .padding(.bottom, 96)
-            .transition(.move(edge: .bottom).combined(with: .opacity))
+            PhotoDelToastView(toast: toast)
+                .padding(.bottom, 96)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
         }
     }
 
-    private static let mediumFeedback = UIImpactFeedbackGenerator(style: .medium)
-    private static let lightFeedback = UIImpactFeedbackGenerator(style: .light)
-    private static let notificationFeedback = UINotificationFeedbackGenerator()
-
-    private func impact(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
-        switch style {
-        case .medium: Self.mediumFeedback.impactOccurred()
-        case .light: Self.lightFeedback.impactOccurred()
-        default: UIImpactFeedbackGenerator(style: style).impactOccurred()
-        }
-    }
-
-    private func notify(_ type: UINotificationFeedbackGenerator.FeedbackType) {
-        Self.notificationFeedback.notificationOccurred(type)
-    }
 }
 
 private enum AlbumSortMode: String, CaseIterable, Identifiable {
-    case defaultOrder
+    case custom
     case name
     case count
 
@@ -491,8 +491,8 @@ private enum AlbumSortMode: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .defaultOrder:
-            return "默认"
+        case .custom:
+            return "自定义"
         case .name:
             return "名称"
         case .count:
@@ -502,8 +502,8 @@ private enum AlbumSortMode: String, CaseIterable, Identifiable {
 
     var icon: String {
         switch self {
-        case .defaultOrder:
-            return "rectangle.stack"
+        case .custom:
+            return "line.3.horizontal"
         case .name:
             return "textformat"
         case .count:
@@ -512,36 +512,14 @@ private enum AlbumSortMode: String, CaseIterable, Identifiable {
     }
 }
 
-private enum AlbumToastStyle {
-    case neutral
-    case positive
-    case warning
-
-    var color: Color {
-        switch self {
-        case .neutral:
-            return PhotoDelStyle.accent
-        case .positive:
-            return PhotoDelStyle.positive
-        case .warning:
-            return PhotoDelStyle.warning
-        }
-    }
-}
-
-private struct AlbumToast: Identifiable {
-    let id = UUID()
-    let message: String
-    let icon: String
-    let style: AlbumToastStyle
-}
-
 // MARK: - 相册信息行
 struct AlbumInfoRow: View {
     let albumInfo: AlbumInfo
     let photoLibraryManager: PhotoLibraryManager
+    var showsChevron = true
 
     @State private var thumbnailImage: UIImage?
+    @State private var requestID: PHImageRequestID?
 
     var body: some View {
         rowContent
@@ -550,6 +528,9 @@ struct AlbumInfoRow: View {
         .accessibilityAddTraits(.isButton)
         .onAppear {
             loadAlbumThumbnail()
+        }
+        .onDisappear {
+            if let requestID { photoLibraryManager.cancelImageRequest(requestID) }
         }
     }
 
@@ -560,17 +541,17 @@ struct AlbumInfoRow: View {
                     Image(uiImage: image)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
-                        .frame(width: 56, height: 56)
+                        .frame(width: 48, height: 48)
                         .clipped()
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 } else {
                     ZStack {
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
                             .fill(PhotoDelStyle.elevatedSurface)
-                            .frame(width: 56, height: 56)
+                            .frame(width: 48, height: 48)
 
                         Image(systemName: albumInfo.type.icon)
-                            .font(.system(size: 20, weight: .medium))
+                            .font(.system(size: 18, weight: .medium))
                             .foregroundColor(albumIconTint)
                     }
                 }
@@ -589,18 +570,21 @@ struct AlbumInfoRow: View {
 
             Spacer()
 
-            Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(PhotoDelStyle.tertiaryText)
+            if showsChevron {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(PhotoDelStyle.tertiaryText)
+            }
         }
-        .padding(10)
-        .frame(minHeight: 76)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
         .photoDelCard(radius: 14)
     }
 
     private func loadAlbumThumbnail() {
         if let thumbnailAsset = albumInfo.thumbnailAsset {
-            photoLibraryManager.loadThumbnail(for: thumbnailAsset) { image in
+            requestID = photoLibraryManager.loadImage(for: thumbnailAsset, size: CGSize(width: 150, height: 150)) { image in
                 self.thumbnailImage = image
             }
         }
@@ -624,9 +608,10 @@ struct CreateAlbumView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var albumName = ""
     @State private var isCreating = false
+    @State private var errorMessage: String?
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
                 PhotoDelScreenBackground()
 
@@ -666,6 +651,12 @@ struct CreateAlbumView: View {
                             .font(.system(size: 14, weight: .regular))
                             .foregroundColor(PhotoDelStyle.secondaryText)
                             .multilineTextAlignment(.leading)
+                    }
+
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(PhotoDelStyle.warning)
                     }
 
                     VStack(spacing: 12) {
@@ -708,7 +699,6 @@ struct CreateAlbumView: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
     }
 
     private func createAlbum() {
@@ -725,6 +715,7 @@ struct CreateAlbumView: View {
                     self.dismiss()
                 } else if let error = error {
                     print("创建相册失败: \(error.localizedDescription)")
+                    self.errorMessage = "创建相册失败，请再试一次"
                 }
             }
         }
@@ -738,6 +729,7 @@ struct EditAlbumView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var newName: String
     @State private var isUpdating = false
+    @State private var errorMessage: String?
 
     init(album: PHAssetCollection) {
         self.album = album
@@ -745,7 +737,7 @@ struct EditAlbumView: View {
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
                 PhotoDelScreenBackground()
 
@@ -780,6 +772,12 @@ struct EditAlbumView: View {
                                         )
                                 )
                         }
+                    }
+
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(PhotoDelStyle.warning)
                     }
 
                     VStack(spacing: 12) {
@@ -822,7 +820,6 @@ struct EditAlbumView: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
     }
 
     private func updateAlbum() {
@@ -840,6 +837,7 @@ struct EditAlbumView: View {
                     self.dismiss()
                 } else if let error = error {
                     print("更新相册失败: \(error.localizedDescription)")
+                    self.errorMessage = "更新相册失败，请再试一次"
                 }
             }
         }

@@ -241,18 +241,42 @@ struct PhotoDelTests {
         #expect(!dm.isInDeleteCandidates(asset))
     }
 
-    @Test func executeBatchOperationsWithEmptyCandidatesRequiresAccess() async throws {
+    @Test func reviewedStateCanBeRestored() async throws {
+        guard let asset = fetchFirstAsset() else { return }
+        UserDefaults.standard.removeObject(forKey: "photoDelReviewedAssetIDs")
         let dm = DataManager()
-        // Without photo library authorization, checkSystemReadiness() fails first
-        // (before reaching the empty-candidates early return), so completion
-        // receives (false, error).
+
+        let wasReviewed = dm.markReviewed(asset)
+        #expect(wasReviewed == false)
+        #expect(dm.isReviewed(asset))
+
+        dm.restoreReviewedState(asset, wasReviewed: wasReviewed)
+        #expect(!dm.isReviewed(asset))
+    }
+
+    @Test func clearLocalOrganizeDataClearsCandidatesAndReviewedState() async throws {
+        guard let asset = fetchFirstAsset() else { return }
+        UserDefaults.standard.removeObject(forKey: "photoDelReviewedAssetIDs")
+        let dm = DataManager()
+
+        dm.addToDeleteCandidates(asset)
+        dm.markReviewed(asset)
+        dm.clearLocalOrganizeData()
+
+        #expect(dm.deleteCandidates.isEmpty)
+        #expect(dm.favoriteCandidates.isEmpty)
+        #expect(!dm.isReviewed(asset))
+    }
+
+    @Test func executeBatchOperationsWithEmptyCandidatesCompletesWithoutWork() async throws {
+        let dm = DataManager()
         let result: (Bool, Error?) = await withCheckedContinuation { continuation in
             dm.executeBatchOperations { success, error in
                 continuation.resume(returning: (success, error))
             }
         }
-        #expect(result.0 == false)
-        #expect(result.1 != nil)
+        #expect(result.0 == true)
+        #expect(result.1 == nil)
     }
 
     // MARK: - TimeGroupInfo tests

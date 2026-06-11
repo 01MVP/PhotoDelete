@@ -26,12 +26,16 @@ class DataManager: ObservableObject {
     @Published var systemAlbums: [AlbumInfo] = []
     @Published var userAlbums: [AlbumInfo] = []
     @Published var isLoadingAlbums = false
+    @Published private(set) var reviewedAssetIDs: Set<String> = []
 
     private var isReloadingLibrary = false
     private var hasLoadedAlbums = false
     private var timeGroupCache: [TimeGroup: [PHAsset]] = [:]
+    private var progressRefreshWorkItem: DispatchWorkItem?
+    private let reviewedAssetIDsKey = "photoDelReviewedAssetIDs"
 
     init() {
+        loadReviewedAssetIDs()
         setupPhotoLibraryManager()
     }
 
@@ -67,6 +71,7 @@ class DataManager: ObservableObject {
 
     func syncPhotoLibraryAuthorization() {
         let hadAccess = photoLibraryManager.hasPhotoLibraryAccess
+        let previousStatus = photoLibraryManager.authorizationStatus
         photoLibraryManager.checkAuthorizationStatus()
 
         guard photoLibraryManager.hasPhotoLibraryAccess else {
@@ -79,12 +84,14 @@ class DataManager: ObservableObject {
             return
         }
 
-        if !hadAccess || (photoLibraryManager.allPhotos.isEmpty && !photoLibraryManager.isLoading) {
+        if !hadAccess ||
+            previousStatus != photoLibraryManager.authorizationStatus ||
+            (!photoLibraryManager.hasLoadedPhotoLibrary && !photoLibraryManager.isLoading) {
             reloadLibraryData()
         }
     }
 
-    private func openPhotoLibrarySettings() {
+    func openPhotoLibrarySettings() {
         guard let settingsURL = URL(string: UIApplication.openSettingsURLString),
               UIApplication.shared.canOpenURL(settingsURL) else { return }
 
@@ -270,6 +277,53 @@ class DataManager: ObservableObject {
         updateStats()
     }
 
+    @discardableResult
+    func markReviewed(_ asset: PHAsset) -> Bool {
+        let wasReviewed = reviewedAssetIDs.contains(asset.localIdentifier)
+        reviewedAssetIDs.insert(asset.localIdentifier)
+        saveReviewedAssetIDs()
+        scheduleProgressRefresh()
+        return wasReviewed
+    }
+
+    func restoreReviewedState(_ asset: PHAsset, wasReviewed: Bool) {
+        if wasReviewed {
+            reviewedAssetIDs.insert(asset.localIdentifier)
+        } else {
+            reviewedAssetIDs.remove(asset.localIdentifier)
+        }
+        saveReviewedAssetIDs()
+        scheduleProgressRefresh()
+    }
+
+    func isReviewed(_ asset: PHAsset) -> Bool {
+        reviewedAssetIDs.contains(asset.localIdentifier)
+    }
+
+    func reviewedCount(in assets: [PHAsset]) -> Int {
+        assets.reduce(0) { count, asset in
+            count + (reviewedAssetIDs.contains(asset.localIdentifier) ? 1 : 0)
+        }
+    }
+
+    func clearLocalOrganizeData() {
+        deleteCandidates.removeAll()
+        favoriteCandidates.removeAll()
+        reviewedAssetIDs.removeAll()
+        saveReviewedAssetIDs()
+        loadTimeGroups()
+        updateStats()
+    }
+
+    private func scheduleProgressRefresh() {
+        progressRefreshWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.loadTimeGroups()
+        }
+        progressRefreshWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: workItem)
+    }
+
     // MARK: - 统计更新
     private func updateStats() {
         organizeStats.deletedPhotos = deleteCandidates.count
@@ -339,10 +393,22 @@ class DataManager: ObservableObject {
 
         // 计算已整理的照片数量（已删除或已收藏的照片）
         let organizedCount = photos.filter { asset in
-            deleteCandidates.contains(asset) || favoriteCandidates.contains(asset) || asset.isFavorite
+            reviewedAssetIDs.contains(asset.localIdentifier) ||
+                deleteCandidates.contains(asset) ||
+                favoriteCandidates.contains(asset) ||
+                asset.isFavorite
         }.count
 
         return Double(organizedCount) / Double(photos.count)
+    }
+
+    private func loadReviewedAssetIDs() {
+        let identifiers = UserDefaults.standard.stringArray(forKey: reviewedAssetIDsKey) ?? []
+        reviewedAssetIDs = Set(identifiers)
+    }
+
+    private func saveReviewedAssetIDs() {
+        UserDefaults.standard.set(Array(reviewedAssetIDs), forKey: reviewedAssetIDsKey)
     }
 
     // MARK: - 相册数据加载

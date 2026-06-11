@@ -15,17 +15,20 @@ import MessageUI
 
 struct SettingsView: View {
     @EnvironmentObject var dataManager: DataManager
+    @AppStorage("hasSeenPhotoDelIntro") private var hasSeenPhotoDelIntro = false
+    @AppStorage(AppConstants.hapticsEnabledKey) private var hapticsEnabled = true
     @State private var showingMailCompose = false
     @State private var showingAbout = false
     @State private var showingAuthor = false
     @State private var showingPrivacyInfo = false
     @State private var showingWeChatCopied = false
+    @State private var settingsToast: PhotoDelToast?
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
                 PhotoDelScreenBackground()
-                
+
                 ScrollView {
                     VStack(spacing: 24) {
                         // 顶部标题
@@ -42,6 +45,9 @@ struct SettingsView: View {
                         
                         // 使用统计
                         statsSection
+
+                        // 应用设置
+                        appSettingsSection
                         
                         // 关于与支持
                         aboutSection
@@ -58,6 +64,10 @@ struct SettingsView: View {
 
                 if showingWeChatCopied {
                     copyToast
+                }
+
+                if let settingsToast {
+                    settingsToastView(settingsToast)
                 }
             }
         }
@@ -144,7 +154,7 @@ struct SettingsView: View {
                     icon: "lock.shield.fill",
                     iconColor: PhotoDelStyle.positive,
                     title: "隐私说明",
-                    subtitle: "不需要账号，不上传照片",
+                    subtitle: "本机整理，不上传照片",
                     action: {
                         showingPrivacyInfo = true
                     }
@@ -172,7 +182,7 @@ struct SettingsView: View {
                     icon: "bubble.left.and.bubble.right.fill",
                     iconColor: PhotoDelStyle.positive,
                     title: "微信反馈",
-                    subtitle: "mvps01",
+                    subtitle: AppConstants.wechatID,
                     action: copyWeChatID
                 )
 
@@ -185,7 +195,7 @@ struct SettingsView: View {
                     icon: "envelope.fill",
                     iconColor: PhotoDelStyle.secondaryText,
                     title: "邮件反馈",
-                    subtitle: "contact@01mvp.com",
+                    subtitle: AppConstants.feedbackEmail,
                     action: {
                         handleMailAction()
                     }
@@ -200,10 +210,73 @@ struct SettingsView: View {
                     icon: "info.circle.fill",
                     iconColor: PhotoDelStyle.secondaryText,
                     title: "关于 PhotoDel",
-                    subtitle: "版本 1.0.0",
+                    subtitle: "版本 \(AppConstants.version)",
                     action: {
                         showingAbout = true
                     }
+                )
+            }
+            .photoDelCard()
+        }
+    }
+
+    // MARK: - 应用设置
+    private var appSettingsSection: some View {
+        VStack(spacing: 16) {
+            HStack {
+                Text("应用设置")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.primaryText)
+                Spacer()
+            }
+
+            VStack(spacing: 0) {
+                SettingRow(
+                    icon: "photo.badge.checkmark",
+                    iconColor: PhotoDelStyle.accent,
+                    title: "照片访问权限",
+                    subtitle: photoAccessSubtitle,
+                    action: {
+                        dataManager.openPhotoLibrarySettings()
+                    }
+                )
+
+                Divider()
+                    .background(PhotoDelStyle.hairline)
+                    .padding(.horizontal, 16)
+
+                SettingRow(
+                    icon: "tray.full.fill",
+                    iconColor: PhotoDelStyle.positive,
+                    title: "本机整理数据",
+                    subtitle: localDataSubtitle,
+                    showsChevron: false,
+                    action: clearLocalOrganizeData
+                )
+
+                Divider()
+                    .background(PhotoDelStyle.hairline)
+                    .padding(.horizontal, 16)
+
+                SettingRow(
+                    icon: "questionmark.circle.fill",
+                    iconColor: PhotoDelStyle.secondaryText,
+                    title: "重新查看引导",
+                    subtitle: "下次打开 App 时显示使用说明",
+                    showsChevron: false,
+                    action: resetIntro
+                )
+
+                Divider()
+                    .background(PhotoDelStyle.hairline)
+                    .padding(.horizontal, 16)
+
+                SettingToggleRow(
+                    icon: "hand.tap.fill",
+                    iconColor: PhotoDelStyle.accent,
+                    title: "触感反馈",
+                    subtitle: "滑动、撤销和归类时提供轻微反馈",
+                    isOn: $hapticsEnabled
                 )
             }
             .photoDelCard()
@@ -213,7 +286,7 @@ struct SettingsView: View {
     // MARK: - 版本信息
     private var versionInfo: some View {
         VStack(spacing: 8) {
-            Text("PhotoDel v1.0.0")
+            Text("PhotoDel v\(AppConstants.version)")
                 .font(.system(size: 14, weight: .regular))
                 .foregroundColor(PhotoDelStyle.secondaryText)
             
@@ -232,7 +305,7 @@ struct SettingsView: View {
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.positive)
 
-                Text("已复制微信号 mvps01")
+                Text("已复制微信号 \(AppConstants.wechatID)")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(PhotoDelStyle.primaryText)
             }
@@ -251,6 +324,39 @@ struct SettingsView: View {
             .transition(.move(edge: .bottom).combined(with: .opacity))
         }
     }
+
+    private func settingsToastView(_ toast: PhotoDelToast) -> some View {
+        VStack {
+            Spacer()
+            PhotoDelToastView(toast: toast)
+                .padding(.bottom, 96)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+        }
+    }
+
+    private var photoAccessSubtitle: String {
+        switch dataManager.photoLibraryManager.authorizationStatus {
+        case .authorized:
+            return "已允许访问全部照片"
+        case .limited:
+            return "当前仅可访问 \(dataManager.photoLibraryManager.totalPhotosCount) 张照片"
+        case .denied, .restricted:
+            return "未授权，点击前往系统设置"
+        case .notDetermined:
+            return "尚未选择照片访问范围"
+        @unknown default:
+            return "点击查看系统照片权限"
+        }
+    }
+
+    private var localDataSubtitle: String {
+        let reviewedCount = dataManager.reviewedAssetIDs.count
+        let pendingCount = dataManager.deleteCandidates.count + dataManager.favoriteCandidates.count
+        if reviewedCount == 0 && pendingCount == 0 {
+            return "没有本机整理记录"
+        }
+        return "已整理 \(reviewedCount) 张 · 候选 \(pendingCount) 张"
+    }
     
     private func handleMailAction() {
         #if canImport(MessageUI)
@@ -267,7 +373,7 @@ struct SettingsView: View {
     // MARK: - 方法
     private func openFeedbackMailURL() {
         let subject = "PhotoDel App 反馈".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        if let url = URL(string: "mailto:contact@01mvp.com?subject=\(subject)") {
+        if let url = URL(string: "mailto:\(AppConstants.feedbackEmail)?subject=\(subject)") {
             #if canImport(UIKit)
             UIApplication.shared.open(url)
             #endif
@@ -276,7 +382,7 @@ struct SettingsView: View {
 
     private func copyWeChatID() {
         #if canImport(UIKit)
-        UIPasteboard.general.string = "mvps01"
+        UIPasteboard.general.string = AppConstants.wechatID
         withAnimation(.easeInOut(duration: 0.18)) {
             showingWeChatCopied = true
         }
@@ -286,6 +392,30 @@ struct SettingsView: View {
             }
         }
         #endif
+    }
+
+    private func clearLocalOrganizeData() {
+        dataManager.clearLocalOrganizeData()
+        showSettingsToast("已清空本机整理记录", icon: "checkmark.circle.fill", style: .positive)
+    }
+
+    private func resetIntro() {
+        hasSeenPhotoDelIntro = false
+        showSettingsToast("已恢复开屏引导", icon: "sparkles", style: .positive)
+    }
+
+    private func showSettingsToast(_ message: String, icon: String, style: PhotoDelToastStyle) {
+        let toast = PhotoDelToast(message: message, icon: icon, style: style)
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.88)) {
+            settingsToast = toast
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            guard settingsToast?.id == toast.id else { return }
+            withAnimation(.easeOut(duration: 0.18)) {
+                settingsToast = nil
+            }
+        }
     }
 }
 
@@ -317,6 +447,7 @@ struct SettingRow: View {
     let iconColor: Color
     let title: String
     let subtitle: String
+    var showsChevron = true
     let action: () -> Void
     
     var body: some View {
@@ -350,14 +481,63 @@ struct SettingRow: View {
                 
                 Spacer()
                 
-                // 箭头
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(PhotoDelStyle.tertiaryText)
+                if showsChevron {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(PhotoDelStyle.tertiaryText)
+                }
             }
             .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(.plain)
+    }
+}
+
+struct SettingToggleRow: View {
+    let icon: String
+    let iconColor: Color
+    let title: String
+    let subtitle: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(PhotoDelStyle.elevatedSurface)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(iconColor.opacity(0.36), lineWidth: 1)
+                    )
+                    .frame(width: 32, height: 32)
+
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(iconColor)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(PhotoDelStyle.primaryText)
+
+                Text(subtitle)
+                    .font(.system(size: 14, weight: .regular))
+                    .foregroundColor(PhotoDelStyle.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer()
+
+            Toggle("", isOn: $isOn)
+                .labelsHidden()
+                .tint(PhotoDelStyle.accent)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
     }
 }
 
@@ -370,7 +550,7 @@ struct MailComposeView: UIViewControllerRepresentable {
         let composer = MFMailComposeViewController()
         composer.mailComposeDelegate = context.coordinator
         composer.setSubject("PhotoDel App 反馈")
-        composer.setToRecipients(["contact@01mvp.com"])
+        composer.setToRecipients([AppConstants.feedbackEmail])
         
         let body = """
         请在此处写下您的反馈和建议：
@@ -378,7 +558,7 @@ struct MailComposeView: UIViewControllerRepresentable {
         
         
         ---
-        App版本: 1.0.0
+        App版本: \(AppConstants.version)
         设备信息: \(UIDevice.current.systemName) \(UIDevice.current.systemVersion)
         """
         composer.setMessageBody(body, isHTML: false)
@@ -411,18 +591,28 @@ struct AuthorView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
                 PhotoDelScreenBackground()
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 22) {
                         VStack(alignment: .leading, spacing: 10) {
-                            Text("关于作者")
-                                .font(.system(size: 28, weight: .semibold))
-                                .foregroundColor(PhotoDelStyle.primaryText)
+                            HStack(spacing: 14) {
+                                AuthorAvatar()
 
-                            Text("我是 Jackie，长期做独立产品、AI 工具和 01MVP 实战内容。PhotoDel 是一个很小的相册整理工具，目标是把删照片这件事做得足够直接。")
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Created by Michael Jackie")
+                                        .font(.system(size: 24, weight: .semibold))
+                                        .foregroundColor(PhotoDelStyle.primaryText)
+
+                                    Text("免费的小相册整理工具")
+                                        .font(.system(size: 15, weight: .regular))
+                                        .foregroundColor(PhotoDelStyle.secondaryText)
+                                }
+                            }
+
+                            Text("PhotoDel 是一个免费的相册整理小工具，目标是把删照片、归类照片这件事做得足够直接。")
                                 .font(.system(size: 16, weight: .regular))
                                 .foregroundColor(PhotoDelStyle.secondaryText)
                                 .lineSpacing(4)
@@ -434,7 +624,7 @@ struct AuthorView: View {
                                 .font(.system(size: 20, weight: .semibold))
                                 .foregroundColor(PhotoDelStyle.primaryText)
 
-                            Text("01mvp.com 是一个教你如何从 0 到 1 创作自己的小产品的网站，记录真实产品从想法、设计、开发到发布的过程。")
+                            Text("如果你也想用 AI 开发类似的小 App，可以看看 01mvp.com 的实战教程。")
                                 .font(.system(size: 15, weight: .regular))
                                 .foregroundColor(PhotoDelStyle.secondaryText)
                                 .lineSpacing(4)
@@ -453,8 +643,8 @@ struct AuthorView: View {
                         .photoDelCard(radius: 18)
 
                         VStack(alignment: .leading, spacing: 10) {
-                            Label("微信反馈：mvps01", systemImage: "bubble.left.and.bubble.right.fill")
-                            Label("邮件反馈：contact@01mvp.com", systemImage: "envelope.fill")
+                            Label("微信反馈：\(AppConstants.wechatID)", systemImage: "bubble.left.and.bubble.right.fill")
+                            Label("邮件反馈：\(AppConstants.feedbackEmail)", systemImage: "envelope.fill")
                         }
                         .font(.system(size: 15, weight: .medium))
                         .foregroundColor(PhotoDelStyle.secondaryText)
@@ -475,15 +665,34 @@ struct AuthorView: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
     }
 
     private func openWebsite() {
-        if let url = URL(string: "https://01mvp.com") {
+        if let url = URL(string: AppConstants.websiteURL) {
             #if canImport(UIKit)
             UIApplication.shared.open(url)
             #endif
         }
+    }
+}
+
+struct AuthorAvatar: View {
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(PhotoDelStyle.accent)
+                .overlay(
+                    Circle()
+                        .stroke(PhotoDelStyle.primaryText.opacity(0.22), lineWidth: 1)
+                )
+
+            Text("MJ")
+                .font(.system(size: 22, weight: .bold, design: .rounded))
+                .foregroundColor(Color.black.opacity(0.84))
+        }
+        .frame(width: 62, height: 62)
+        .shadow(color: PhotoDelStyle.accent.opacity(0.2), radius: 18, x: 0, y: 10)
+        .accessibilityLabel("Michael Jackie")
     }
 }
 
@@ -492,7 +701,7 @@ struct PrivacyInfoView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
                 PhotoDelScreenBackground()
 
@@ -502,7 +711,7 @@ struct PrivacyInfoView: View {
                             .font(.system(size: 28, weight: .semibold))
                             .foregroundColor(PhotoDelStyle.primaryText)
 
-                        Text("PhotoDel 的照片整理流程不需要账号，也不会上传您的照片。")
+                        Text(AppConstants.privacyShortText)
                             .font(.system(size: 16, weight: .regular))
                             .foregroundColor(PhotoDelStyle.secondaryText)
                             .fixedSize(horizontal: false, vertical: true)
@@ -510,21 +719,21 @@ struct PrivacyInfoView: View {
 
                     VStack(spacing: 12) {
                         PrivacyInfoRow(
-                            icon: "person.crop.circle.badge.xmark",
-                            title: "不需要账号",
-                            detail: "打开 App 后即可整理授权范围内的照片。"
+                            icon: "iphone",
+                            title: "本机整理",
+                            detail: "预览、候选列表和删除确认都保存在你的设备上。"
                         )
 
                         PrivacyInfoRow(
                             icon: "icloud.slash",
                             title: "不上传照片",
-                            detail: "照片判断、候选列表和批量确认都在设备上完成。"
+                            detail: "PhotoDel 不接入自己的云端服务，也不会把照片发到服务器。"
                         )
 
                         PrivacyInfoRow(
-                            icon: "link",
-                            title: "主动打开外部链接才会离开 App",
-                            detail: "例如官网、邮件反馈或系统设置。"
+                            icon: "person.crop.circle.badge.xmark",
+                            title: "不需要账号",
+                            detail: "授权照片后即可使用，不需要注册或登录。"
                         )
                     }
 
@@ -543,7 +752,6 @@ struct PrivacyInfoView: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
     }
 }
 
@@ -586,10 +794,10 @@ struct AboutView: View {
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
                 PhotoDelScreenBackground()
-                
+
                 VStack(spacing: 32) {
                     // App图标
                     ZStack {
@@ -612,11 +820,11 @@ struct AboutView: View {
                             .font(.system(size: 32, weight: .bold, design: .rounded))
                             .foregroundColor(PhotoDelStyle.primaryText)
                         
-                        Text("版本 1.0.0")
+                        Text("版本 \(AppConstants.version)")
                             .font(.system(size: 16, weight: .regular))
                             .foregroundColor(PhotoDelStyle.secondaryText)
                         
-                        Text("一款专注于照片整理和删除的移动应用，通过直观的滑动手势帮助用户快速清理手机中的照片。")
+                        Text("一个免费的相册整理工具。左滑加入删除候选，右滑跳过，上滑收藏，完成后再统一确认。")
                             .font(.system(size: 16, weight: .regular))
                             .foregroundColor(PhotoDelStyle.secondaryText)
                             .multilineTextAlignment(.center)
@@ -626,7 +834,7 @@ struct AboutView: View {
                     Spacer()
                     
                     // 版权信息
-                    Text("© 2025 PhotoDel Team. All rights reserved.")
+                    Text("Created by Michael Jackie")
                         .font(.system(size: 12, weight: .regular))
                         .foregroundColor(PhotoDelStyle.tertiaryText)
                 }
@@ -645,7 +853,6 @@ struct AboutView: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
     }
 }
 

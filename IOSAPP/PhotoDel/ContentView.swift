@@ -45,13 +45,13 @@ private struct OnboardingFlowView: View {
         OnboardingPage(
             icon: "lock.shield",
             title: "隐私优先",
-            message: "整理在手机上完成。只有你主动打开官网或邮件反馈时，才会离开 PhotoDel。",
+            message: AppConstants.privacyShortText,
             visual: .privacy
         ),
         OnboardingPage(
             icon: "sparkles",
-            title: "Created by MakerJackie",
-            message: "PhotoDel 是一个很小的 01MVP。如果你也想从 0 到 1 做自己的小产品，可以看看 01MVP。",
+            title: "Created by Michael Jackie",
+            message: "PhotoDel 是一个免费的相册整理小工具。如果你也想用 AI 做自己的小 App，可以看看 01MVP。",
             visual: .maker,
             linkTitle: "了解 01MVP",
             linkURL: URL(string: "https://01mvp.com")
@@ -124,7 +124,6 @@ private struct OnboardingFlowView: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
     }
 
     private func advance() {
@@ -417,7 +416,7 @@ private struct MakerIntroVisual: View {
                         .font(.system(size: 22, weight: .bold, design: .rounded))
                         .foregroundColor(PhotoDelStyle.primaryText)
 
-                    Text("MakerJackie")
+                    Text("Michael Jackie")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(PhotoDelStyle.secondaryText)
                 }

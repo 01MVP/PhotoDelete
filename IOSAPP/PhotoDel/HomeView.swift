@@ -48,7 +48,7 @@ struct HomeView: View {
     var body: some View {
         NavigationStack(path: $navigationPath) {
             GeometryReader { geometry in
-                let isLandscape = geometry.size.width > geometry.size.height && geometry.size.width > 700
+                let isLandscape = geometry.size.width > geometry.size.height && geometry.size.width > AppConstants.landscapeBreakpoint
 
                 ZStack {
                     PhotoDelScreenBackground()
@@ -146,7 +146,7 @@ struct HomeView: View {
                         .frame(width: 28, height: 28)
                         .background(Circle().fill(PhotoDelStyle.elevatedSurface))
 
-                    Text("隐私优先：整理照片不需要账号，不上传照片，也不连接服务器。")
+                    Text("隐私优先：\(AppConstants.privacyShortText)")
                         .font(.system(size: 14, weight: .regular))
                         .foregroundColor(PhotoDelStyle.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -214,37 +214,10 @@ struct HomeView: View {
 
     // MARK: - 权限授权区域
     private var authorizationSection: some View {
-        VStack(spacing: 20) {
-            VStack(spacing: 12) {
-                Image(systemName: "photo.on.rectangle.angled")
-                    .font(.system(size: 58, weight: .medium))
-                    .foregroundColor(PhotoDelStyle.accent)
-
-                Text("需要访问照片库")
-                    .font(.system(size: 24, weight: .bold))
-                    .foregroundColor(PhotoDelStyle.primaryText)
-
-                Text("PhotoDel 需要照片库权限来整理相册。不需要账号，也不会上传您的照片。")
-                    .font(.system(size: 16, weight: .regular))
-                    .foregroundColor(PhotoDelStyle.secondaryText)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(nil)
-            }
-
-            Button(action: {
-                dataManager.requestPhotoLibraryAccess()
-            }) {
-                HStack(spacing: 8) {
-                    Image(systemName: "arrow.right")
-                        .font(.system(size: 16, weight: .semibold))
-
-                    Text("继续")
-                }
-            }
-            .photoDelPrimaryButton()
-        }
-        .padding(24)
-        .photoDelCard()
+        PhotoAuthorizationCard(
+            subtitle: "PhotoDel 需要照片库权限来整理相册。\(AppConstants.privacyShortText)",
+            onRequestAccess: { dataManager.requestPhotoLibraryAccess() }
+        )
     }
 
     // MARK: - 照片库扫描区域
@@ -261,7 +234,7 @@ struct HomeView: View {
                     .font(.system(size: 15, weight: .medium))
                     .foregroundColor(PhotoDelStyle.secondaryText)
 
-                Text("准备完成后会自动显示分类和数量。不会上传您的照片。")
+                Text("准备完成后会自动显示分类和数量。整理过程只在本机完成。")
                     .font(.system(size: 15, weight: .regular))
                     .foregroundColor(PhotoDelStyle.secondaryText)
                     .multilineTextAlignment(.center)

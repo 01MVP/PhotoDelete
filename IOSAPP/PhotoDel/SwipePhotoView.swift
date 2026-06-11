@@ -14,6 +14,7 @@ import UIKit
 struct SwipePhotoView: View {
     @EnvironmentObject var dataManager: DataManager
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.displayScale) private var displayScale
 
     let selectedCategory: PhotoCategory?
     let selectedTimeGroup: String?
@@ -27,7 +28,7 @@ struct SwipePhotoView: View {
     @State private var actionHistory: [SwipeAction] = []
     @State private var sessionPhotos: [PHAsset] = []
     @State private var shouldDismissAfterBatch = false
-    @State private var feedbackToast: SwipeFeedbackToast?
+    @State private var feedbackToast: PhotoDelToast?
     @State private var didInitializeSession = false
 
     enum SwipeDirection {
@@ -35,9 +36,9 @@ struct SwipePhotoView: View {
     }
 
     private enum SwipeAction {
-        case delete(PHAsset)
-        case favorite(PHAsset)
-        case skip
+        case delete(PHAsset, wasReviewed: Bool)
+        case favorite(PHAsset, wasReviewed: Bool)
+        case skip(PHAsset, wasReviewed: Bool)
     }
 
     private var currentRealPhoto: PHAsset? {
@@ -74,7 +75,7 @@ struct SwipePhotoView: View {
 
     private var organizedProgress: Int {
         guard totalPhotosCount > 0 else { return 0 }
-        return showCompletionMessage ? totalPhotosCount : min(currentPhotoIndex, totalPhotosCount)
+        return showCompletionMessage ? totalPhotosCount : dataManager.reviewedCount(in: sessionPhotos)
     }
 
     private var progressFraction: Double {
@@ -96,7 +97,7 @@ struct SwipePhotoView: View {
             PhotoDelScreenBackground()
 
             GeometryReader { geometry in
-                let isLandscape = geometry.size.width > geometry.size.height && geometry.size.width > 620
+                let isLandscape = geometry.size.width > geometry.size.height && geometry.size.width > AppConstants.landscapeBreakpoint
 
                 ZStack(alignment: .bottom) {
                     if isLandscape {
@@ -119,7 +120,7 @@ struct SwipePhotoView: View {
                     }
 
                     if let feedbackToast {
-                        SwipeToastView(toast: feedbackToast) {
+                        PhotoDelToastView(toast: feedbackToast) {
                             handleUndoAction()
                             resetCardPosition()
                         }
@@ -143,7 +144,10 @@ struct SwipePhotoView: View {
                 .environmentObject(dataManager)
         }
         .onDisappear {
-            // 页面消失时的清理工作（不自动弹出确认对话框，因为用户可能只是切换到其他页面）
+            dataManager.photoLibraryManager.stopCachingImages(
+                Array(sessionPhotos.prefix(6)),
+                size: swipeImageTargetSize
+            )
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
             // 处理内存警告
@@ -241,31 +245,10 @@ struct SwipePhotoView: View {
                 Spacer()
 
                 if !dataManager.photoLibraryManager.hasPhotoLibraryAccess {
-                    // 需要照片权限
-                    VStack(spacing: 20) {
-                        Image(systemName: "photo.on.rectangle.angled")
-                            .font(.system(size: 60, weight: .medium))
-                            .foregroundColor(PhotoDelStyle.accent)
-
-                        Text("需要访问照片库")
-                            .font(.system(size: 24, weight: .semibold))
-                            .foregroundColor(PhotoDelStyle.primaryText)
-
-                        Text("请允许访问您的照片库来开始整理照片")
-                            .font(.system(size: 16, weight: .regular))
-                            .foregroundColor(PhotoDelStyle.secondaryText)
-                            .multilineTextAlignment(.center)
-
-                        Button(action: {
-                            dataManager.requestPhotoLibraryAccess()
-                        }) {
-                            Text("继续")
-                                .frame(maxWidth: 180)
-                        }
-                        .photoDelPrimaryButton()
-                    }
-                    .padding(24)
-                    .photoDelCard()
+                    PhotoAuthorizationCard(
+                        subtitle: "请允许访问您的照片库来开始整理照片",
+                        onRequestAccess: { dataManager.requestPhotoLibraryAccess() }
+                    )
                     .padding(.horizontal, 24)
                 } else if let realPhoto = currentRealPhoto {
                     // 真实照片显示
@@ -664,7 +647,14 @@ struct SwipePhotoView: View {
     private func refreshSessionPhotos() {
         let photos = filteredRealPhotos
         sessionPhotos = photos
-        currentPhotoIndex = min(currentPhotoIndex, max(photos.count - 1, 0))
+        if didInitializeSession {
+            currentPhotoIndex = min(currentPhotoIndex, max(photos.count - 1, 0))
+        } else if let firstUnreviewedIndex = photos.firstIndex(where: { !dataManager.isReviewed($0) }) {
+            currentPhotoIndex = firstUnreviewedIndex
+        } else {
+            currentPhotoIndex = 0
+            showCompletionMessage = !photos.isEmpty
+        }
         preloadUpcomingImages(from: currentPhotoIndex)
     }
 
@@ -679,7 +669,7 @@ struct SwipePhotoView: View {
     }
 
     private var swipeImageTargetSize: CGSize {
-        let scale = UIScreen.main.scale
+        let scale = displayScale
         return CGSize(width: 380 * scale, height: 520 * scale)
     }
 
@@ -692,7 +682,7 @@ struct SwipePhotoView: View {
     }
 
     private func imageTargetSize(for displaySize: CGSize) -> CGSize {
-        let scale = UIScreen.main.scale
+        let scale = displayScale
         return CGSize(width: displaySize.width * scale, height: displaySize.height * scale)
     }
 
@@ -738,7 +728,7 @@ struct SwipePhotoView: View {
                 moveToNextPhoto()
             } else {
                 // 右滑：跳过
-                markSkip()
+                markSkip(asset)
                 moveToNextPhoto()
             }
         } else if abs(translation.height) > threshold {
@@ -748,7 +738,7 @@ struct SwipePhotoView: View {
                 moveToNextPhoto()
             } else {
                 // 下滑：跳过
-                markSkip()
+                markSkip(asset)
                 moveToNextPhoto()
             }
         }
@@ -759,12 +749,15 @@ struct SwipePhotoView: View {
     private func moveToNextPhoto() {
         guard !sessionPhotos.isEmpty else { return }
 
-        let newIndex = currentPhotoIndex + 1
+        let nextSearchStart = currentPhotoIndex + 1
+        let newIndex = sessionPhotos[nextSearchStart...]
+            .firstIndex(where: { !dataManager.isReviewed($0) }) ?? nextSearchStart
         if newIndex < sessionPhotos.count {
-            currentPhotoIndex = newIndex
+            withAnimation(.easeOut(duration: 0.15)) {
+                currentPhotoIndex = newIndex
+            }
             preloadUpcomingImages(from: newIndex)
         } else {
-            // 到达最后一张照片时显示完成提示
             showCompletionMessage = true
         }
     }
@@ -791,7 +784,8 @@ struct SwipePhotoView: View {
     }
 
     private func handleSkipAction() {
-        markSkip()
+        guard let asset = currentRealPhoto else { return }
+        markSkip(asset)
         moveToNextPhoto()
     }
 
@@ -806,46 +800,51 @@ struct SwipePhotoView: View {
 
     private func handleUndoAction() {
         guard let lastAction = actionHistory.popLast() else {
-            impact(.light)
+            HapticManager.impact(.light)
             showFeedback("没有可撤销的操作", icon: "arrow.uturn.backward", style: .neutral)
             return
         }
 
         switch lastAction {
-        case .delete(let asset):
+        case .delete(let asset, let wasReviewed):
             dataManager.removeFromDeleteCandidates(asset)
-        case .favorite(let asset):
+            dataManager.restoreReviewedState(asset, wasReviewed: wasReviewed)
+        case .favorite(let asset, let wasReviewed):
             dataManager.removeFromFavoriteCandidates(asset)
-        case .skip:
-            break
+            dataManager.restoreReviewedState(asset, wasReviewed: wasReviewed)
+        case .skip(let asset, let wasReviewed):
+            dataManager.restoreReviewedState(asset, wasReviewed: wasReviewed)
         }
         moveToPreviousPhoto()
-        notify(.success)
+        HapticManager.notify(.success)
         showFeedback("已撤销上一步", icon: "arrow.uturn.backward", style: .positive)
     }
 
     private func markDeleteCandidate(_ asset: PHAsset) {
+        let wasReviewed = dataManager.markReviewed(asset)
         dataManager.addToDeleteCandidates(asset)
-        actionHistory.append(.delete(asset))
-        impact(.medium)
+        actionHistory.append(.delete(asset, wasReviewed: wasReviewed))
+        HapticManager.impact(.medium)
         showFeedback("已加入删除候选", icon: "trash", style: .destructive, showsUndo: true)
     }
 
     private func markFavoriteCandidate(_ asset: PHAsset) {
         guard !asset.isFavorite else {
-            markSkip(message: "已经是收藏")
+            markSkip(asset, message: "已经是收藏")
             return
         }
 
+        let wasReviewed = dataManager.markReviewed(asset)
         dataManager.addToFavoriteCandidates(asset)
-        actionHistory.append(.favorite(asset))
-        impact(.light)
+        actionHistory.append(.favorite(asset, wasReviewed: wasReviewed))
+        HapticManager.impact(.light)
         showFeedback("已加入收藏候选", icon: "heart.fill", style: .favorite, showsUndo: true)
     }
 
-    private func markSkip(message: String = "已跳过") {
-        actionHistory.append(.skip)
-        impact(.light)
+    private func markSkip(_ asset: PHAsset, message: String = "已跳过") {
+        let wasReviewed = dataManager.markReviewed(asset)
+        actionHistory.append(.skip(asset, wasReviewed: wasReviewed))
+        HapticManager.impact(.light)
         showFeedback(message, icon: "arrow.right", style: .neutral)
     }
 
@@ -857,17 +856,19 @@ struct SwipePhotoView: View {
         }
 
         // 将照片添加到指定相册
-        impact(.light)
+        let wasReviewed = dataManager.markReviewed(asset)
+        HapticManager.impact(.light)
         showFeedback("正在归类到 \(albumInfo.title)", icon: "folder", style: .neutral, duration: 1.0)
         dataManager.addPhotoToAlbum(asset, album: assetCollection) { success in
             DispatchQueue.main.async {
                 if success {
                     // 添加成功后移动到下一张照片
-                    self.notify(.success)
+                    HapticManager.notify(.success)
                     self.showFeedback("已归类到 \(albumInfo.title)", icon: "checkmark.circle.fill", style: .positive)
                     self.moveToNextPhoto()
                 } else {
-                    self.notify(.error)
+                    self.dataManager.restoreReviewedState(asset, wasReviewed: wasReviewed)
+                    HapticManager.notify(.error)
                     self.showFeedback("归类失败，请再试一次", icon: "exclamationmark.triangle", style: .warning)
                 }
             }
@@ -912,11 +913,11 @@ struct SwipePhotoView: View {
     private func showFeedback(
         _ message: String,
         icon: String,
-        style: SwipeFeedbackStyle,
+        style: PhotoDelToastStyle,
         showsUndo: Bool = false,
         duration: TimeInterval = 3.0
     ) {
-        let toast = SwipeFeedbackToast(message: message, icon: icon, style: style, showsUndo: showsUndo)
+        let toast = PhotoDelToast(message: message, icon: icon, style: style, showsUndo: showsUndo)
         withAnimation(.spring(response: 0.28, dampingFraction: 0.88)) {
             feedbackToast = toast
         }
@@ -928,97 +929,6 @@ struct SwipePhotoView: View {
                 feedbackToast = nil
             }
         }
-    }
-
-    private static let mediumFeedback = UIImpactFeedbackGenerator(style: .medium)
-    private static let lightFeedback = UIImpactFeedbackGenerator(style: .light)
-    private static let heavyFeedback = UIImpactFeedbackGenerator(style: .heavy)
-    private static let notificationFeedback = UINotificationFeedbackGenerator()
-
-    private func impact(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
-        switch style {
-        case .medium: Self.mediumFeedback.impactOccurred()
-        case .light: Self.lightFeedback.impactOccurred()
-        case .heavy: Self.heavyFeedback.impactOccurred()
-        default: UIImpactFeedbackGenerator(style: style).impactOccurred()
-        }
-    }
-
-    private func notify(_ type: UINotificationFeedbackGenerator.FeedbackType) {
-        Self.notificationFeedback.notificationOccurred(type)
-    }
-}
-
-private enum SwipeFeedbackStyle {
-    case neutral
-    case positive
-    case destructive
-    case favorite
-    case warning
-
-    var color: Color {
-        switch self {
-        case .neutral:
-            return PhotoDelStyle.accent
-        case .positive:
-            return PhotoDelStyle.positive
-        case .destructive:
-            return PhotoDelStyle.destructive
-        case .favorite:
-            return PhotoDelStyle.iconTint(for: "favorite")
-        case .warning:
-            return PhotoDelStyle.warning
-        }
-    }
-}
-
-private struct SwipeFeedbackToast: Identifiable {
-    let id = UUID()
-    let message: String
-    let icon: String
-    let style: SwipeFeedbackStyle
-    let showsUndo: Bool
-}
-
-private struct SwipeToastView: View {
-    let toast: SwipeFeedbackToast
-    let onUndo: () -> Void
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: toast.icon)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundColor(toast.style.color)
-                .frame(width: 22)
-
-            Text(toast.message)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(PhotoDelStyle.primaryText)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-
-            if toast.showsUndo {
-                Divider()
-                    .frame(height: 18)
-                    .background(PhotoDelStyle.hairline)
-
-                Button("撤销", action: onUndo)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(PhotoDelStyle.accent)
-                    .buttonStyle(.plain)
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 11)
-        .background(
-            Capsule(style: .continuous)
-                .fill(PhotoDelStyle.background.opacity(0.9))
-                .overlay(
-                    Capsule(style: .continuous)
-                        .stroke(toast.style.color.opacity(0.34), lineWidth: 1)
-                )
-        )
-        .shadow(color: .black.opacity(0.24), radius: 14, x: 0, y: 8)
     }
 }
 
@@ -1085,7 +995,7 @@ struct RealPhotoCard: View {
                                         .font(.system(size: 28, weight: .medium))
                                         .foregroundColor(PhotoDelStyle.secondaryText)
 
-                                    Text("无法读取本地预览")
+                                    Text("暂时无法显示这张照片")
                                         .font(.system(size: 14, weight: .medium))
                                         .foregroundColor(PhotoDelStyle.secondaryText)
                                 }
@@ -1102,9 +1012,6 @@ struct RealPhotoCard: View {
         )
         .shadow(color: .black.opacity(0.35), radius: 26, x: 0, y: 18)
         .onAppear {
-            loadImage()
-        }
-        .onChange(of: asset.localIdentifier) { _ in
             loadImage()
         }
         .onDisappear {
@@ -1128,7 +1035,7 @@ struct RealPhotoCard: View {
                 }
             }
 
-            if isScreenshot {
+            if photoLibraryManager.isScreenshot(asset) {
                 ZStack {
                     Circle()
                         .fill(PhotoDelStyle.background.opacity(0.62))
@@ -1163,25 +1070,6 @@ struct RealPhotoCard: View {
             .frame(width: displaySize.width, height: displaySize.height)
             .cornerRadius(20)
         }
-    }
-
-    private var isScreenshot: Bool {
-        if #available(iOS 9.0, *) {
-            return asset.mediaSubtypes.contains(.photoScreenshot)
-        }
-
-        // 备用方法：通过尺寸判断
-        let screenScale = UIScreen.main.scale
-        let screenSize = UIScreen.main.bounds.size
-        let screenPixelSize = CGSize(
-            width: screenSize.width * screenScale,
-            height: screenSize.height * screenScale
-        )
-
-        let assetSize = CGSize(width: CGFloat(asset.pixelWidth), height: CGFloat(asset.pixelHeight))
-
-        return abs(assetSize.width - screenPixelSize.width) < 10 &&
-               abs(assetSize.height - screenPixelSize.height) < 10
     }
 
     private func loadImage() {
@@ -1261,7 +1149,7 @@ struct ActionButton: View {
             }
             .frame(width: 60)
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(.plain)
     }
 }
 
@@ -1581,9 +1469,6 @@ private struct CandidateThumbnailView: View {
         }
         .frame(width: 76, height: 76)
         .onAppear(perform: loadImage)
-        .onChange(of: asset.localIdentifier) { _ in
-            loadImage()
-        }
         .onDisappear {
             photoLibraryManager.cancelImageRequest(requestID)
             loadingAssetIdentifier = nil
@@ -1597,7 +1482,7 @@ private struct CandidateThumbnailView: View {
         image = nil
         isLoading = true
 
-        requestID = photoLibraryManager.loadSwipePreview(for: asset, size: CGSize(width: 220, height: 220)) { loadedImage in
+        requestID = photoLibraryManager.loadFastThumbnail(for: asset, size: CGSize(width: 150, height: 150)) { loadedImage in
             guard loadingAssetIdentifier == requestedAssetID else { return }
             image = loadedImage
             isLoading = false

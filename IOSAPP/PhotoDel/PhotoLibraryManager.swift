@@ -10,6 +10,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     @Published var favorites: [PHAsset] = []
     @Published var isLoading = false
     @Published var loadingProgress: Double = 0
+    @Published private(set) var hasLoadedPhotoLibrary = false
 
     private var allPhotosResult: PHFetchResult<PHAsset>?
     private let imageManager = PHCachingImageManager()
@@ -84,6 +85,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             pendingLoadCompletions.append(completion)
         }
         isLoading = true
+        hasLoadedPhotoLibrary = false
         loadingProgress = 0
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -112,6 +114,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                     self.favorites = []
                     self.loadingProgress = 1.0
                     self.isLoading = false
+                    self.hasLoadedPhotoLibrary = true
                     self.finishLoadingPhotos()
                 }
                 return
@@ -150,6 +153,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                     self.favorites = favorites
                     self.loadingProgress = 1.0
                     self.isLoading = false
+                    self.hasLoadedPhotoLibrary = true
                     self.finishLoadingPhotos()
                 }
             }
@@ -207,7 +211,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
 
     // MARK: - Photo Classification
 
-    private func isScreenshot(_ asset: PHAsset) -> Bool {
+    func isScreenshot(_ asset: PHAsset) -> Bool {
         // 检查截图的特征
         if #available(iOS 9.0, *) {
             // 通过资源子类型判断
@@ -272,7 +276,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         let options = PHImageRequestOptions()
         options.deliveryMode = .fastFormat
         options.resizeMode = .fast
-        options.isNetworkAccessAllowed = false
+        options.isNetworkAccessAllowed = true
 
         return imageManager.requestImage(
             for: asset,
@@ -303,7 +307,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         let options = PHImageRequestOptions()
         options.deliveryMode = .highQualityFormat
         options.resizeMode = .exact
-        options.isNetworkAccessAllowed = false
+        options.isNetworkAccessAllowed = true
         options.isSynchronous = false
 
         return imageManager.requestImage(
@@ -342,6 +346,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
 
         loadingProgress = 1
         isLoading = false
+        hasLoadedPhotoLibrary = true
     }
 
     func preloadImagesForAssets(_ assets: [PHAsset], size: CGSize, maxCount: Int = 10) {
@@ -352,7 +357,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         let options = PHImageRequestOptions()
         options.deliveryMode = .opportunistic
         options.resizeMode = .exact
-        options.isNetworkAccessAllowed = false
+        options.isNetworkAccessAllowed = true
 
         imageManager.startCachingImages(
             for: assetsToPreload,
@@ -367,8 +372,47 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         imageManager.stopCachingImagesForAllAssets()
     }
 
+    func stopCachingImages(_ assets: [PHAsset], size: CGSize) {
+        guard !assets.isEmpty else { return }
+        let options = PHImageRequestOptions()
+        options.deliveryMode = .opportunistic
+        options.resizeMode = .exact
+        options.isNetworkAccessAllowed = true
+        imageManager.stopCachingImages(for: assets, targetSize: size, contentMode: .aspectFit, options: options)
+    }
+
     func loadThumbnail(for asset: PHAsset, completion: @escaping (UIImage?) -> Void) {
         loadImage(for: asset, size: CGSize(width: 150, height: 150), completion: completion)
+    }
+
+    @discardableResult
+    func loadFastThumbnail(for asset: PHAsset, size: CGSize, completion: @escaping (UIImage?) -> Void) -> PHImageRequestID? {
+        let cacheKey = "\(asset.localIdentifier)_thumb_\(Int(size.width))x\(Int(size.height))" as NSString
+
+        if let cachedImage = imageCache.object(forKey: cacheKey) {
+            completion(cachedImage)
+            return nil
+        }
+
+        let options = PHImageRequestOptions()
+        options.deliveryMode = .fastFormat
+        options.resizeMode = .fast
+        options.isNetworkAccessAllowed = true
+
+        return imageManager.requestImage(
+            for: asset,
+            targetSize: size,
+            contentMode: .aspectFill,
+            options: options
+        ) { [weak self] image, _ in
+            DispatchQueue.main.async {
+                if let image {
+                    let cost = Int(image.size.width * image.size.height * 4)
+                    self?.imageCache.setObject(image, forKey: cacheKey, cost: cost)
+                }
+                completion(image)
+            }
+        }
     }
 
     private func expectLocalLibraryChange() {
@@ -435,6 +479,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
 
         loadingProgress = 1
         isLoading = false
+        hasLoadedPhotoLibrary = true
         finishLoadingPhotos()
     }
 
@@ -455,6 +500,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                     self.favorites = favorites
                     self.loadingProgress = 1
                     self.isLoading = false
+                    self.hasLoadedPhotoLibrary = true
                     self.finishLoadingPhotos()
                 }
             }
