@@ -44,7 +44,7 @@ struct SupporterView: View {
                             )
                         }
                     }
-                    .padding(.horizontal, 24)
+                    .padding(.horizontal, PhotoDelStyle.screenHorizontalPadding)
                     .padding(.top, 20)
                     .padding(.bottom, 40)
                 }
@@ -242,7 +242,7 @@ private struct SupporterMetricCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .photoDelCard(radius: 16)
+        .photoDelCard()
     }
 }
 

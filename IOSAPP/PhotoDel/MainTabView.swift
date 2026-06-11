@@ -25,7 +25,7 @@ struct MainTabView: View {
             HomeView()
                 .environmentObject(dataManager)
                 .tabItem {
-                    Image(systemName: "photo.on.rectangle.angled")
+                    Image(systemName: "sparkles")
                     Text("整理")
                 }
                 .tag(0)
@@ -34,7 +34,7 @@ struct MainTabView: View {
             AlbumsView()
                 .environmentObject(dataManager)
                 .tabItem {
-                    Image(systemName: "rectangle.stack")
+                    Image(systemName: "photo.on.rectangle")
                     Text("相册")
                 }
                 .tag(1)

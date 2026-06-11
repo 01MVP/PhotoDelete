@@ -121,18 +121,19 @@ struct HomeView: View {
         if !hasSeenPhotoDelIntro {
             VStack(alignment: .leading, spacing: isCompact ? 12 : 14) {
                 HStack(alignment: .top, spacing: 12) {
-                    Image(systemName: "hand.draw")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(PhotoDelStyle.accent)
-                        .frame(width: 28, height: 28)
-                        .background(Circle().fill(PhotoDelStyle.elevatedSurface))
+                    PhotoDelIconTile(
+                        icon: "hand.draw",
+                        tint: PhotoDelStyle.accent,
+                        size: 28,
+                        cornerRadius: 8
+                    )
 
                     VStack(alignment: .leading, spacing: 6) {
                         Text(L10n.string("快速上手"))
                             .font(.system(size: 17, weight: .semibold))
                             .foregroundColor(PhotoDelStyle.primaryText)
 
-                        Text(L10n.string("左滑删除，右滑跳过，上滑收藏。点完成后再统一确认。"))
+                        Text(L10n.string("左滑保留，右滑删除，上滑收藏。点完成后再统一确认。"))
                             .font(.system(size: 14, weight: .regular))
                             .foregroundColor(PhotoDelStyle.secondaryText)
                             .fixedSize(horizontal: false, vertical: true)
@@ -140,11 +141,12 @@ struct HomeView: View {
                 }
 
                 HStack(alignment: .top, spacing: 12) {
-                    Image(systemName: "lock.shield")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(PhotoDelStyle.positive)
-                        .frame(width: 28, height: 28)
-                        .background(Circle().fill(PhotoDelStyle.elevatedSurface))
+                    PhotoDelIconTile(
+                        icon: "lock.shield",
+                        tint: PhotoDelStyle.positive,
+                        size: 28,
+                        cornerRadius: 8
+                    )
 
                     Text(L10n.string("隐私优先：\(AppConstants.privacyShortText)"))
                         .font(.system(size: 14, weight: .regular))
@@ -315,8 +317,8 @@ struct HomeView: View {
                 PhotoDelIconTile(
                     icon: "photo.on.rectangle.angled",
                     tint: PhotoDelStyle.accent,
-                    size: isCompact ? 44 : 52,
-                    cornerRadius: 14,
+                    size: isCompact ? 42 : 48,
+                    cornerRadius: 13,
                     filled: false
                 )
 
@@ -387,7 +389,7 @@ struct HomeView: View {
                             icon: category.icon,
                             title: category.title,
                             detail: getPhotoCountDetail(for: category),
-                            tint: PhotoDelStyle.iconTint(for: category == .videos ? "video" : category == .favorites ? "favorite" : "photo")
+                            tint: iconTint(for: category)
                         ) {
                             navigationPath.append(SwipeViewDestination.category(category))
                         }
@@ -481,6 +483,19 @@ struct HomeView: View {
             return L10n.string("读取中 \(libraryLoadingProgressText)")
         }
         return L10n.shortPhotoCount(count)
+    }
+
+    private func iconTint(for category: PhotoCategory) -> Color {
+        switch category {
+        case .videos:
+            return PhotoDelStyle.iconTint(for: "video")
+        case .screenshots:
+            return PhotoDelStyle.iconTint(for: "screenshot")
+        case .favorites:
+            return PhotoDelStyle.iconTint(for: "favorite")
+        case .all:
+            return PhotoDelStyle.accent
+        }
     }
 
     private var libraryLoadingProgressText: String {

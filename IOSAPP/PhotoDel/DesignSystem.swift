@@ -75,10 +75,6 @@ enum PhotoDelStyle {
         light: UIColor.secondaryLabel,
         dark: UIColor(white: 1.0, alpha: 0.58)
     )
-    static let cardShadow = Color(uiColor: dynamicUIColor(
-        light: UIColor(white: 0, alpha: 0.04),
-        dark: UIColor(white: 0, alpha: 0)
-    ))
     static let floatingShadow = Color(uiColor: dynamicUIColor(
         light: UIColor(white: 0, alpha: 0.08),
         dark: UIColor(white: 0, alpha: 0.24)
@@ -98,7 +94,6 @@ enum PhotoDelStyle {
     static let positive = Color(red: 0.5, green: 0.9, blue: 0.64)
     static let warning = Color(red: 1.0, green: 0.79, blue: 0.47)
     static let primaryButtonText = Color.black.opacity(0.88)
-    static let cardShadow = Color.clear
     static let floatingShadow = Color.black.opacity(0.24)
     #endif
 
@@ -115,6 +110,10 @@ enum PhotoDelStyle {
         case "favorite", "heart": return Color(uiColor: dynamicUIColor(
             light: UIColor(red: 0.82, green: 0.16, blue: 0.38, alpha: 1),
             dark: UIColor(red: 1.0, green: 0.62, blue: 0.72, alpha: 1)
+        ))
+        case "screenshot", "iphone": return Color(uiColor: dynamicUIColor(
+            light: UIColor(red: 0.0, green: 0.48, blue: 0.78, alpha: 1),
+            dark: UIColor(red: 0.44, green: 0.78, blue: 1.0, alpha: 1)
         ))
         case "video": return Color(uiColor: dynamicUIColor(
             light: UIColor(red: 0.44, green: 0.31, blue: 0.88, alpha: 1),
@@ -163,22 +162,56 @@ struct PhotoDelCardBackground: ViewModifier {
     }
 }
 
+enum PhotoDelIconTileStyle {
+    case soft
+    case solid
+    case plain
+}
+
 struct PhotoDelIconTile: View {
     let icon: String
     let tint: Color
     var size: CGFloat = PhotoDelStyle.rowIconSize
     var cornerRadius: CGFloat = 9
-    var filled = true
+    var style: PhotoDelIconTileStyle = .soft
+    var filled: Bool? = nil
 
     var body: some View {
-        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            .fill(filled ? tint : PhotoDelStyle.elevatedSurface)
+        iconContent
             .frame(width: size, height: size)
-            .overlay(
-                Image(systemName: icon)
-                    .font(.system(size: size * 0.48, weight: .semibold))
-                    .foregroundColor(filled ? .white : tint)
-            )
+    }
+
+    private var resolvedStyle: PhotoDelIconTileStyle {
+        if let filled {
+            return filled ? .solid : .soft
+        }
+        return style
+    }
+
+    @ViewBuilder
+    private var iconContent: some View {
+        switch resolvedStyle {
+        case .soft:
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(tint.opacity(0.14))
+                .overlay(
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .stroke(tint.opacity(0.12), lineWidth: 1)
+                )
+                .overlay(symbol.foregroundColor(tint))
+        case .solid:
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(tint)
+                .overlay(symbol.foregroundColor(.white))
+        case .plain:
+            symbol.foregroundColor(tint)
+        }
+    }
+
+    private var symbol: some View {
+        Image(systemName: icon)
+            .symbolRenderingMode(.monochrome)
+            .font(.system(size: max(size * 0.46, 14), weight: .medium))
     }
 }
 

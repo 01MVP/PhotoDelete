@@ -517,7 +517,7 @@ private struct AdvancedPeriodNavigator: View {
             .accessibilityLabel(L10n.string("下一段时间"))
         }
         .padding(12)
-        .photoDelCard(radius: 16)
+        .photoDelCard()
     }
 }
 
@@ -665,7 +665,7 @@ private struct AdvancedPeriodActionContent: View {
                 .foregroundColor(PhotoDelStyle.tertiaryText)
         }
         .padding(14)
-        .photoDelCard(radius: 16)
+        .photoDelCard()
     }
 }
 
@@ -675,15 +675,12 @@ private struct AdvancedCleanupEntryRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .fill(queue.kind.tint.opacity(0.17))
-                    .frame(width: 38, height: 38)
-
-                Image(systemName: queue.kind.icon)
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(queue.kind.tint)
-            }
+            PhotoDelIconTile(
+                icon: queue.kind.icon,
+                tint: queue.kind.tint,
+                size: 38,
+                cornerRadius: 11
+            )
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
@@ -822,7 +819,7 @@ private struct AdvancedLibraryPreparingCard: View {
                 .accessibilityLabel(L10n.string("照片数据整理进度"))
         }
         .padding(16)
-        .photoDelCard(radius: 16)
+        .photoDelCard()
     }
 }
 
@@ -1262,7 +1259,7 @@ private struct AdvancedSimilarPhotoGroupCard: View {
             }
         }
         .padding(14)
-        .photoDelCard(radius: 16)
+        .photoDelCard()
     }
 }
 
@@ -1304,7 +1301,7 @@ private struct AdvancedAssetListSummaryCard: View {
             .buttonStyle(.plain)
         }
         .padding(14)
-        .photoDelCard(radius: 16)
+        .photoDelCard()
     }
 }
 
@@ -1358,7 +1355,7 @@ private struct AdvancedAssetRow: View {
             }
         }
         .padding(10)
-        .photoDelCard(radius: 16)
+        .photoDelCard()
         .contentShape(Rectangle())
         .onTapGesture(perform: onToggleSelection)
     }
@@ -1711,7 +1708,7 @@ private struct AdvancedEmptyState: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 42)
-        .photoDelCard(radius: 16)
+        .photoDelCard()
     }
 }
 

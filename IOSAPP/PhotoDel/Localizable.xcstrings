@@ -831,6 +831,26 @@
         }
       }
     },
+    "左滑保留，右滑删除，上滑收藏。所有删除都会在最后统一确认。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swipe left to keep, right to delete, and up to favorite. Deletes are confirmed at the end."
+          }
+        }
+      }
+    },
+    "左滑保留，右滑删除，上滑收藏。点完成后再统一确认。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swipe left to keep, right to delete, and up to favorite. Tap Done to confirm everything together."
+          }
+        }
+      }
+    },
     "左滑删除，右滑保留，上滑收藏": {
       "localizations": {
         "en": {

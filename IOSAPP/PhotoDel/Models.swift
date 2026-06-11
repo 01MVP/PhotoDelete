@@ -30,7 +30,7 @@ enum PhotoCategory: String, CaseIterable {
         case .all: return "photo.on.rectangle"
         case .videos: return "video"
         case .screenshots: return "iphone"
-        case .favorites: return "heart.fill"
+        case .favorites: return "heart"
         }
     }
 }
@@ -118,19 +118,19 @@ struct SwipeGesturePreset: Identifiable, Equatable {
 
     static let standard = SwipeGesturePreset(
         id: "standard",
-        title: L10n.string("左删右留"),
-        subtitle: L10n.string("左滑删除，右滑保留，上滑收藏"),
-        leftAction: .delete,
-        rightAction: .keep,
+        title: L10n.string("左留右删"),
+        subtitle: L10n.string("左滑保留，右滑删除，上滑收藏"),
+        leftAction: .keep,
+        rightAction: .delete,
         upAction: .favorite
     )
 
     static let reversed = SwipeGesturePreset(
         id: "reversed",
-        title: L10n.string("左留右删"),
-        subtitle: L10n.string("左滑保留，右滑删除，上滑收藏"),
-        leftAction: .keep,
-        rightAction: .delete,
+        title: L10n.string("左删右留"),
+        subtitle: L10n.string("左滑删除，右滑保留，上滑收藏"),
+        leftAction: .delete,
+        rightAction: .keep,
         upAction: .favorite
     )
 
@@ -187,17 +187,18 @@ enum PhotoReviewMode: String, CaseIterable, Identifiable {
         }
     }
 
-    var toggleButtonTitle: String {
-        switch self {
-        case .card: return L10n.string("双行")
-        case .browser: return L10n.string("卡片")
-        }
+    var toolbarTitle: String {
+        title
     }
 
-    var toggleButtonIcon: String {
+    var toolbarIcon: String {
+        icon
+    }
+
+    var switchAnnouncement: String {
         switch self {
-        case .card: return "rectangle.grid.2x2"
-        case .browser: return "rectangle.portrait"
+        case .card: return L10n.string("已切换到卡片模式")
+        case .browser: return L10n.string("已切换到双行浏览")
         }
     }
 

@@ -160,7 +160,7 @@ struct AlbumsView: View {
                 subtitle: L10n.string("需要访问您的照片库来管理相册。\(AppConstants.privacyShortText)"),
                 onRequestAccess: { dataManager.requestPhotoLibraryAccess() }
             )
-            .padding(.horizontal, 32)
+            .padding(.horizontal, PhotoDelStyle.screenHorizontalPadding)
             Spacer()
         }
     }
@@ -751,7 +751,7 @@ struct CreateAlbumView: View {
 
                     Spacer()
                 }
-                .padding(.horizontal, 32)
+                .padding(.horizontal, PhotoDelStyle.screenHorizontalPadding)
                 .padding(.top, 40)
             }
             .navigationTitle("创建相册")
@@ -876,7 +876,7 @@ struct EditAlbumView: View {
 
                     Spacer()
                 }
-                .padding(.horizontal, 32)
+                .padding(.horizontal, PhotoDelStyle.screenHorizontalPadding)
                 .padding(.top, 40)
             }
             .navigationTitle("编辑相册")

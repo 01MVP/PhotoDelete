@@ -44,7 +44,7 @@ private struct OnboardingFlowView: View {
         OnboardingPage(
             icon: "hand.draw",
             title: L10n.string("手势很简单"),
-            message: L10n.string("左滑删除，右滑跳过，上滑收藏。所有删除都会在最后统一确认。"),
+            message: L10n.string("左滑保留，右滑删除，上滑收藏。所有删除都会在最后统一确认。"),
             visual: .swipe
         ),
         OnboardingPage(
@@ -309,16 +309,16 @@ private struct SwipeIntroVisual: View {
             swipeDestination(
                 symbol: "arrow.left",
                 direction: L10n.string("左滑"),
-                action: L10n.string("删除"),
-                color: PhotoDelStyle.destructive,
+                action: L10n.string("保留"),
+                color: PhotoDelStyle.positive,
                 x: -118,
                 y: 12
             )
             swipeDestination(
                 symbol: "arrow.right",
                 direction: L10n.string("右滑"),
-                action: L10n.string("跳过"),
-                color: PhotoDelStyle.positive,
+                action: L10n.string("删除"),
+                color: PhotoDelStyle.destructive,
                 x: 118,
                 y: 12
             )

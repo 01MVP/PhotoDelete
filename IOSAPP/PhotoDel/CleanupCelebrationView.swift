@@ -85,11 +85,11 @@ struct CleanupCelebrationOverlay: View {
                     .fill(PhotoDelStyle.background.opacity(0.96))
                     .overlay(
                         RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .stroke(PhotoDelStyle.hairline, lineWidth: 1)
+                            .stroke(PhotoDelStyle.cardStroke, lineWidth: 1)
                     )
             )
-            .shadow(color: .black.opacity(0.22), radius: 24, x: 0, y: 12)
-            .padding(.horizontal, 24)
+            .shadow(color: PhotoDelStyle.floatingShadow, radius: 18, x: 0, y: 8)
+            .padding(.horizontal, PhotoDelStyle.screenHorizontalPadding)
             .transition(.scale(scale: 0.92).combined(with: .opacity))
         }
         .onAppear {

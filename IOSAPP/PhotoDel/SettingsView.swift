@@ -187,7 +187,7 @@ struct SettingsView: View {
 
             VStack(spacing: 0) {
                 SettingRow(
-                    icon: purchaseManager.isSupporter ? "seal.fill" : "sparkles",
+                    icon: purchaseManager.isSupporter ? "seal" : "sparkles",
                     iconColor: purchaseManager.isSupporter ? PhotoDelStyle.positive : PhotoDelStyle.accent,
                     title: purchaseManager.isSupporter ? L10n.string("支持者版已解锁") : L10n.string("解锁进阶功能"),
                     action: {
@@ -211,7 +211,7 @@ struct SettingsView: View {
 
             VStack(spacing: 0) {
                 SettingRow(
-                    icon: "lock.shield.fill",
+                    icon: "lock.shield",
                     iconColor: PhotoDelStyle.positive,
                     title: L10n.string("隐私说明"),
                     action: {
@@ -224,7 +224,7 @@ struct SettingsView: View {
                     .padding(.horizontal, 16)
 
                 SettingRow(
-                    icon: "person.text.rectangle.fill",
+                    icon: "person.text.rectangle",
                     iconColor: PhotoDelStyle.accent,
                     title: L10n.string("了解作者"),
                     action: {
@@ -237,7 +237,7 @@ struct SettingsView: View {
                     .padding(.horizontal, 16)
 
                 SettingRow(
-                    icon: "bubble.left.and.bubble.right.fill",
+                    icon: "bubble.left.and.bubble.right",
                     iconColor: PhotoDelStyle.positive,
                     title: L10n.string("微信反馈"),
                     subtitle: AppConstants.wechatID,
@@ -250,7 +250,7 @@ struct SettingsView: View {
 
                 // 邮件反馈
                 SettingRow(
-                    icon: "envelope.fill",
+                    icon: "envelope",
                     iconColor: PhotoDelStyle.secondaryText,
                     title: L10n.string("邮件反馈"),
                     subtitle: AppConstants.feedbackEmail,
@@ -265,7 +265,7 @@ struct SettingsView: View {
 
                 // 关于应用
                 SettingRow(
-                    icon: "info.circle.fill",
+                    icon: "info.circle",
                     iconColor: PhotoDelStyle.secondaryText,
                     title: L10n.string("关于 PhotoDel"),
                     subtitle: L10n.string("版本 \(AppConstants.displayVersion)"),
@@ -304,7 +304,7 @@ struct SettingsView: View {
                     .padding(.horizontal, 16)
 
                 SettingRow(
-                    icon: "hand.draw.fill",
+                    icon: "hand.draw",
                     iconColor: PhotoDelStyle.accent,
                     title: L10n.string("手势控制"),
                     subtitle: gestureSettingsSubtitle,
@@ -346,7 +346,7 @@ struct SettingsView: View {
                     .padding(.horizontal, 16)
 
                 SettingRow(
-                    icon: "tray.full.fill",
+                    icon: "tray.full",
                     iconColor: PhotoDelStyle.positive,
                     title: L10n.string("本机整理数据"),
                     subtitle: localDataSubtitle,
@@ -361,7 +361,7 @@ struct SettingsView: View {
                     .padding(.horizontal, 16)
 
                 SettingRow(
-                    icon: "questionmark.circle.fill",
+                    icon: "questionmark.circle",
                     iconColor: PhotoDelStyle.secondaryText,
                     title: L10n.string("重新查看引导"),
                     showsChevron: false,
@@ -373,7 +373,7 @@ struct SettingsView: View {
                     .padding(.horizontal, 16)
 
                 SettingToggleRow(
-                    icon: "hand.tap.fill",
+                    icon: "hand.tap",
                     iconColor: PhotoDelStyle.accent,
                     title: L10n.string("触感反馈"),
                     subtitle: L10n.string("滑动、撤销和归类时提供轻微反馈"),
@@ -734,14 +734,15 @@ struct GestureSettingsView: View {
                 PhotoDelScreenBackground()
 
                 ScrollView {
-                    VStack(spacing: 24) {
+                    VStack(spacing: PhotoDelStyle.sectionSpacing) {
                         currentGesturePreview
                         presetSection
                         customGestureSection
                         resetButton
                     }
-                    .padding(24)
-                    .padding(.bottom, 20)
+                    .padding(.horizontal, PhotoDelStyle.screenHorizontalPadding)
+                    .padding(.top, 20)
+                    .padding(.bottom, 24)
                 }
             }
             .navigationTitle(L10n.string("手势控制"))
@@ -876,18 +877,12 @@ private struct GesturePreviewTile: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            Image(systemName: direction.icon)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(action.tint)
-                .frame(width: 34, height: 34)
-                .background(
-                    Circle()
-                        .fill(PhotoDelStyle.elevatedSurface)
-                        .overlay(
-                            Circle()
-                                .stroke(action.tint.opacity(0.34), lineWidth: 1)
-                        )
-                )
+            PhotoDelIconTile(
+                icon: direction.icon,
+                tint: action.tint,
+                size: 34,
+                cornerRadius: 10
+            )
 
             VStack(spacing: 3) {
                 Text(direction.title.appLocalized)
@@ -901,7 +896,7 @@ private struct GesturePreviewTile: View {
         }
         .padding(.vertical, 14)
         .frame(maxWidth: .infinity)
-        .photoDelCard(radius: 15)
+        .photoDelCard()
     }
 }
 
@@ -926,10 +921,10 @@ private struct GesturePresetButton: View {
             }
             .padding(16)
             .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: PhotoDelStyle.cardRadius, style: .continuous)
                     .fill(PhotoDelStyle.surface)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        RoundedRectangle(cornerRadius: PhotoDelStyle.cardRadius, style: .continuous)
                             .stroke(isSelected ? PhotoDelStyle.positive.opacity(0.38) : PhotoDelStyle.hairline, lineWidth: 1)
                     )
             )
@@ -946,18 +941,12 @@ private struct GestureActionPickerRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: direction.icon)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundColor(selectedAction.tint)
-                .frame(width: 36, height: 36)
-                .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(PhotoDelStyle.elevatedSurface)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .stroke(selectedAction.tint.opacity(0.32), lineWidth: 1)
-                        )
-                )
+            PhotoDelIconTile(
+                icon: direction.icon,
+                tint: selectedAction.tint,
+                size: 36,
+                cornerRadius: 10
+            )
 
             Text(direction.title.appLocalized)
                 .font(.system(size: 16, weight: .semibold))
@@ -1054,7 +1043,8 @@ private struct LanguageSettingsView: View {
                         }
                         .photoDelCard()
                     }
-                    .padding(24)
+                    .padding(.horizontal, PhotoDelStyle.screenHorizontalPadding)
+                    .padding(.top, 20)
                     .padding(.bottom, 24)
                 }
             }
@@ -1136,7 +1126,8 @@ private struct AppearanceSettingsView: View {
                         }
                         .photoDelCard()
                     }
-                    .padding(24)
+                    .padding(.horizontal, PhotoDelStyle.screenHorizontalPadding)
+                    .padding(.top, 20)
                     .padding(.bottom, 24)
                 }
             }
@@ -1247,7 +1238,7 @@ struct AuthorView: View {
                             .photoDelPrimaryButton()
                         }
                         .padding(18)
-                        .photoDelCard(radius: 18)
+                        .photoDelCard()
 
                         VStack(alignment: .leading, spacing: 10) {
                             Label(L10n.string("微信反馈：\(AppConstants.wechatID)"), systemImage: "bubble.left.and.bubble.right.fill")
@@ -1258,7 +1249,9 @@ struct AuthorView: View {
 
                         Spacer(minLength: 24)
                     }
-                    .padding(24)
+                    .padding(.horizontal, PhotoDelStyle.screenHorizontalPadding)
+                    .padding(.top, 20)
+                    .padding(.bottom, 24)
                 }
             }
             .navigationTitle(L10n.string("了解作者"))
@@ -1346,7 +1339,9 @@ struct PrivacyInfoView: View {
 
                     Spacer()
                 }
-                .padding(24)
+                .padding(.horizontal, PhotoDelStyle.screenHorizontalPadding)
+                .padding(.top, 20)
+                .padding(.bottom, 24)
             }
             .navigationTitle(L10n.string("隐私"))
             .navigationBarTitleDisplayMode(.inline)
@@ -1392,7 +1387,7 @@ struct PrivacyInfoRow: View {
             Spacer()
         }
         .padding(16)
-        .photoDelCard(radius: 16)
+        .photoDelCard()
     }
 }
 
@@ -1440,8 +1435,8 @@ struct AboutView: View {
 
                     Spacer()
                 }
-                .padding(.horizontal, 32)
-                .padding(.top, 60)
+                .padding(.horizontal, PhotoDelStyle.screenHorizontalPadding)
+                .padding(.top, 52)
                 .padding(.bottom, 32)
             }
             .navigationTitle(L10n.string("关于"))

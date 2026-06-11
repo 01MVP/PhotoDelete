@@ -139,17 +139,17 @@ struct PhotoDelTests {
     // MARK: - Gesture settings tests
 
     @Test func swipeGestureStandardPresetMatchesDefaultActions() async throws {
-        #expect(SwipeGesturePreferences.defaultAction(for: .left) == .delete)
-        #expect(SwipeGesturePreferences.defaultAction(for: .right) == .keep)
+        #expect(SwipeGesturePreferences.defaultAction(for: .left) == .keep)
+        #expect(SwipeGesturePreferences.defaultAction(for: .right) == .delete)
         #expect(SwipeGesturePreferences.defaultAction(for: .up) == .favorite)
     }
 
     @Test func swipeGesturePresetsCoverRequestedLayouts() async throws {
-        #expect(SwipeGesturePreset.standard.leftAction == .delete)
-        #expect(SwipeGesturePreset.standard.rightAction == .keep)
+        #expect(SwipeGesturePreset.standard.leftAction == .keep)
+        #expect(SwipeGesturePreset.standard.rightAction == .delete)
 
-        #expect(SwipeGesturePreset.reversed.leftAction == .keep)
-        #expect(SwipeGesturePreset.reversed.rightAction == .delete)
+        #expect(SwipeGesturePreset.reversed.leftAction == .delete)
+        #expect(SwipeGesturePreset.reversed.rightAction == .keep)
 
         #expect(SwipeGesturePreset.verticalDelete.upAction == .delete)
         #expect(SwipeGesturePreset.verticalDelete.leftAction == .keep)
