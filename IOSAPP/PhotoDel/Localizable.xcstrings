@@ -604,6 +604,36 @@
         }
       }
     },
+    "取消删除这张照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove this photo from deletion"
+          }
+        }
+      }
+    },
+    "取消收藏这张照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove this photo from favorites"
+          }
+        }
+      }
+    },
+    "关闭": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close"
+          }
+        }
+      }
+    },
     "只会清空 PhotoDel 的本机统计，不会影响照片。": {
       "localizations": {
         "en": {
@@ -1626,6 +1656,16 @@
         }
       }
     },
+    "无法读取这张照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unable to load this photo"
+          }
+        }
+      }
+    },
     "正在读取照片信息": {
       "localizations": {
         "en": {
@@ -1849,12 +1889,52 @@
         }
       }
     },
+    "从本次批量操作中移除": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove from this batch operation"
+          }
+        }
+      }
+    },
+    "放大查看照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View photo larger"
+          }
+        }
+      }
+    },
+    "放大的照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enlarged photo"
+          }
+        }
+      }
+    },
     "照片整理": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Photo Cleanup"
+          }
+        }
+      }
+    },
+    "照片预览": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo Preview"
           }
         }
       }
@@ -2396,16 +2476,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mark to delete"
-          }
-        }
-      }
-    },
-    "发自我的 iPhone": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sent from my iPhone"
           }
         }
       }

@@ -30,6 +30,7 @@ struct SwipePhotoView: View {
     @State private var showCompletionMessage = false
     @State private var actionHistory: [SwipeAction] = []
     @State private var sessionPhotos: [PHAsset] = []
+    @State private var sessionReviewedCount = 0
     @State private var shouldDismissAfterBatch = false
     @State private var feedbackToast: PhotoDelToast?
     @State private var didInitializeSession = false
@@ -79,7 +80,7 @@ struct SwipePhotoView: View {
 
     private var organizedProgress: Int {
         guard totalPhotosCount > 0 else { return 0 }
-        return showCompletionMessage ? totalPhotosCount : dataManager.reviewedCount(in: sessionPhotos)
+        return showCompletionMessage ? totalPhotosCount : min(sessionReviewedCount, totalPhotosCount)
     }
 
     private var progressFraction: Double {
@@ -656,7 +657,7 @@ struct SwipePhotoView: View {
     }
 
     private var hasUnreviewedPhotos: Bool {
-        sessionPhotos.contains { !dataManager.isReviewed($0) }
+        sessionReviewedCount < totalPhotosCount
     }
 
     private var gestureHintStrip: some View {
@@ -688,6 +689,7 @@ struct SwipePhotoView: View {
     private func refreshSessionPhotos(_ photos: [PHAsset]? = nil) {
         let photos = photos ?? filteredRealPhotos
         sessionPhotos = photos
+        sessionReviewedCount = dataManager.reviewedCount(in: photos)
         if didInitializeSession {
             currentPhotoIndex = min(currentPhotoIndex, max(photos.count - 1, 0))
         } else if let firstUnreviewedIndex = photos.firstIndex(where: { !dataManager.isReviewed($0) }) {
@@ -913,13 +915,16 @@ struct SwipePhotoView: View {
         case .delete(let asset, let originalIndex, let wasReviewed):
             dataManager.removeFromDeleteCandidates(asset)
             dataManager.restoreReviewedState(asset, wasReviewed: wasReviewed)
+            restoreSessionReviewedCount(wasReviewed: wasReviewed)
             restorePhotoPosition(asset, preferredIndex: originalIndex)
         case .favorite(let asset, let originalIndex, let wasReviewed):
             dataManager.removeFromFavoriteCandidates(asset)
             dataManager.restoreReviewedState(asset, wasReviewed: wasReviewed)
+            restoreSessionReviewedCount(wasReviewed: wasReviewed)
             restorePhotoPosition(asset, preferredIndex: originalIndex)
         case .skip(let asset, let originalIndex, let wasReviewed):
             dataManager.restoreReviewedState(asset, wasReviewed: wasReviewed)
+            restoreSessionReviewedCount(wasReviewed: wasReviewed)
             restorePhotoPosition(asset, preferredIndex: originalIndex)
         }
         HapticManager.notify(.success)
@@ -929,6 +934,7 @@ struct SwipePhotoView: View {
     private func markDeleteCandidate(_ asset: PHAsset) {
         let originalIndex = currentPhotoIndex
         let wasReviewed = dataManager.markReviewed(asset)
+        recordSessionReviewedChange(wasReviewed: wasReviewed)
         dataManager.addToDeleteCandidates(asset)
         actionHistory.append(.delete(asset, originalIndex: originalIndex, wasReviewed: wasReviewed))
         HapticManager.impact(.medium)
@@ -943,6 +949,7 @@ struct SwipePhotoView: View {
 
         let originalIndex = currentPhotoIndex
         let wasReviewed = dataManager.markReviewed(asset)
+        recordSessionReviewedChange(wasReviewed: wasReviewed)
         dataManager.addToFavoriteCandidates(asset)
         actionHistory.append(.favorite(asset, originalIndex: originalIndex, wasReviewed: wasReviewed))
         HapticManager.impact(.light)
@@ -952,6 +959,7 @@ struct SwipePhotoView: View {
     private func markSkip(_ asset: PHAsset, message: String? = nil) {
         let originalIndex = currentPhotoIndex
         let wasReviewed = dataManager.markReviewed(asset)
+        recordSessionReviewedChange(wasReviewed: wasReviewed)
         actionHistory.append(.skip(asset, originalIndex: originalIndex, wasReviewed: wasReviewed))
         HapticManager.impact(.light)
         showFeedback(message ?? L10n.string("已跳过"), icon: "arrow.right", style: .neutral)
@@ -967,6 +975,7 @@ struct SwipePhotoView: View {
 
         // 将照片添加到指定相册
         let wasReviewed = dataManager.markReviewed(asset)
+        recordSessionReviewedChange(wasReviewed: wasReviewed)
         HapticManager.impact(.light)
         showFeedback(L10n.string("正在归类到 \(albumInfo.title)"), icon: "folder", style: .neutral, duration: 1.0)
         dataManager.addPhotoToAlbum(asset, album: assetCollection) { success in
@@ -978,6 +987,7 @@ struct SwipePhotoView: View {
                     self.moveToNextPhoto()
                 } else {
                     self.dataManager.restoreReviewedState(asset, wasReviewed: wasReviewed)
+                    self.restoreSessionReviewedCount(wasReviewed: wasReviewed)
                     HapticManager.notify(.error)
                     self.showFeedback(L10n.string("归类失败，请再试一次"), icon: "exclamationmark.triangle", style: .warning)
                 }
@@ -992,6 +1002,16 @@ struct SwipePhotoView: View {
             dragOffset = .zero
             rotationAngle = 0
         }
+    }
+
+    private func recordSessionReviewedChange(wasReviewed: Bool) {
+        guard !wasReviewed else { return }
+        sessionReviewedCount = min(sessionReviewedCount + 1, totalPhotosCount)
+    }
+
+    private func restoreSessionReviewedCount(wasReviewed: Bool) {
+        guard !wasReviewed else { return }
+        sessionReviewedCount = max(sessionReviewedCount - 1, 0)
     }
 
     private func handleBackAction() {
@@ -1488,6 +1508,7 @@ struct BatchConfirmView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var isProcessing = false
     @State private var errorMessage: String?
+    @State private var previewAsset: CandidatePreviewAsset?
     let albumInfo: AlbumInfo?
     let onComplete: (() -> Void)?
 
@@ -1555,7 +1576,10 @@ struct BatchConfirmView: View {
                                     assets: deleteAssets,
                                     color: PhotoDelStyle.destructive,
                                     icon: "trash.fill",
-                                    photoLibraryManager: dataManager.photoLibraryManager
+                                    photoLibraryManager: dataManager.photoLibraryManager,
+                                    removeAccessibilityLabel: L10n.string("取消删除这张照片"),
+                                    onPreview: { previewAsset = CandidatePreviewAsset(asset: $0) },
+                                    onRemove: { dataManager.removeFromDeleteCandidates($0) }
                                 )
                             }
 
@@ -1565,7 +1589,10 @@ struct BatchConfirmView: View {
                                     assets: favoriteAssets,
                                     color: PhotoDelStyle.iconTint(for: "favorite"),
                                     icon: "heart.fill",
-                                    photoLibraryManager: dataManager.photoLibraryManager
+                                    photoLibraryManager: dataManager.photoLibraryManager,
+                                    removeAccessibilityLabel: L10n.string("取消收藏这张照片"),
+                                    onPreview: { previewAsset = CandidatePreviewAsset(asset: $0) },
+                                    onRemove: { dataManager.removeFromFavoriteCandidates($0) }
                                 )
                             }
                         }
@@ -1592,6 +1619,12 @@ struct BatchConfirmView: View {
             .padding(.vertical, 30)
             .photoDelCard()
             .padding(.horizontal, 24)
+        }
+        .sheet(item: $previewAsset) { previewAsset in
+            CandidatePhotoPreviewView(
+                asset: previewAsset.asset,
+                photoLibraryManager: dataManager.photoLibraryManager
+            )
         }
     }
 
@@ -1644,6 +1677,9 @@ private struct CandidatePreviewSection: View {
     let color: Color
     let icon: String
     let photoLibraryManager: PhotoLibraryManager
+    let removeAccessibilityLabel: String
+    let onPreview: (PHAsset) -> Void
+    let onRemove: (PHAsset) -> Void
 
     private let columns = [
         GridItem(.adaptive(minimum: 64, maximum: 76), spacing: 8)
@@ -1669,7 +1705,10 @@ private struct CandidatePreviewSection: View {
                         asset: asset,
                         photoLibraryManager: photoLibraryManager,
                         badgeColor: color,
-                        badgeIcon: icon
+                        badgeIcon: icon,
+                        removeAccessibilityLabel: removeAccessibilityLabel,
+                        onPreview: { onPreview(asset) },
+                        onRemove: { onRemove(asset) }
                     )
                 }
             }
@@ -1691,6 +1730,9 @@ private struct CandidateThumbnailView: View {
     let photoLibraryManager: PhotoLibraryManager
     let badgeColor: Color
     let badgeIcon: String
+    let removeAccessibilityLabel: String
+    let onPreview: () -> Void
+    let onRemove: () -> Void
 
     @State private var image: UIImage?
     @State private var isLoading = true
@@ -1699,43 +1741,63 @@ private struct CandidateThumbnailView: View {
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
-            Group {
-                if let image {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
-                } else {
-                    Rectangle()
-                        .fill(PhotoDelStyle.elevatedSurface)
-                        .overlay {
-                            if isLoading {
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: PhotoDelStyle.accent))
-                                    .scaleEffect(0.72)
-                            } else {
-                                Image(systemName: "photo")
-                                    .font(.system(size: 18, weight: .medium))
-                                    .foregroundColor(PhotoDelStyle.secondaryText)
-                            }
-                        }
-                }
+            Button(action: onPreview) {
+                thumbnailContent
+                    .frame(width: 70, height: 70)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
-            .frame(width: 70, height: 70)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .buttonStyle(.plain)
+            .accessibilityLabel(L10n.string("放大查看照片"))
 
             Image(systemName: badgeIcon)
-                .font(.system(size: 10, weight: .bold))
+                .font(.system(size: 9, weight: .bold))
                 .foregroundColor(.white)
-                .frame(width: 22, height: 22)
+                .frame(width: 20, height: 20)
                 .background(Circle().fill(badgeColor))
                 .overlay(Circle().stroke(PhotoDelStyle.background.opacity(0.8), lineWidth: 1.5))
-                .offset(x: 3, y: 3)
+                .offset(x: -53, y: -53)
+
+            Button(action: onRemove) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(width: 24, height: 24)
+                    .background(Circle().fill(PhotoDelStyle.background.opacity(0.9)))
+                    .overlay(Circle().stroke(PhotoDelStyle.primaryText.opacity(0.18), lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(removeAccessibilityLabel)
+            .accessibilityHint(L10n.string("从本次批量操作中移除"))
+            .offset(x: 3, y: 3)
         }
         .frame(width: 76, height: 76)
         .onAppear(perform: loadImage)
         .onDisappear {
             photoLibraryManager.cancelImageRequest(requestID)
             loadingAssetIdentifier = nil
+        }
+    }
+
+    @ViewBuilder
+    private var thumbnailContent: some View {
+        if let image {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+        } else {
+            Rectangle()
+                .fill(PhotoDelStyle.elevatedSurface)
+                .overlay {
+                    if isLoading {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: PhotoDelStyle.accent))
+                            .scaleEffect(0.72)
+                    } else {
+                        Image(systemName: "photo")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundColor(PhotoDelStyle.secondaryText)
+                    }
+                }
         }
     }
 
@@ -1752,6 +1814,115 @@ private struct CandidateThumbnailView: View {
             isLoading = false
             requestID = nil
             loadingAssetIdentifier = nil
+        }
+    }
+}
+
+private struct CandidatePreviewAsset: Identifiable {
+    let asset: PHAsset
+
+    var id: String {
+        asset.localIdentifier
+    }
+}
+
+private struct CandidatePhotoPreviewView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.displayScale) private var displayScale
+    let asset: PHAsset
+    let photoLibraryManager: PhotoLibraryManager
+
+    @State private var image: UIImage?
+    @State private var isLoading = true
+    @State private var requestID: PHImageRequestID?
+    @State private var zoomScale: CGFloat = 1
+    @State private var settledZoomScale: CGFloat = 1
+
+    var body: some View {
+        NavigationStack {
+            GeometryReader { geometry in
+                ZStack {
+                    PhotoDelStyle.background.ignoresSafeArea()
+
+                    if let image {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFit()
+                            .scaleEffect(zoomScale)
+                            .gesture(zoomGesture)
+                            .onTapGesture(count: 2, perform: toggleZoom)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .accessibilityLabel(L10n.string("放大的照片"))
+                    } else {
+                        VStack(spacing: 14) {
+                            if isLoading {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: PhotoDelStyle.accent))
+                            } else {
+                                Image(systemName: "photo")
+                                    .font(.system(size: 36, weight: .medium))
+                                    .foregroundColor(PhotoDelStyle.secondaryText)
+                            }
+
+                            Text(isLoading ? L10n.string("正在读取照片") : L10n.string("无法读取这张照片"))
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundColor(PhotoDelStyle.secondaryText)
+                        }
+                    }
+                }
+                .onAppear {
+                    loadImage(in: geometry.size)
+                }
+            }
+            .navigationTitle(L10n.string("照片预览"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(L10n.string("关闭")) {
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .onDisappear {
+            photoLibraryManager.cancelImageRequest(requestID)
+        }
+    }
+
+    private var zoomGesture: some Gesture {
+        MagnificationGesture()
+            .onChanged { value in
+                zoomScale = min(max(settledZoomScale * value, 1), 4)
+            }
+            .onEnded { _ in
+                settledZoomScale = zoomScale
+            }
+    }
+
+    private func toggleZoom() {
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+            if zoomScale > 1 {
+                zoomScale = 1
+                settledZoomScale = 1
+            } else {
+                zoomScale = 2
+                settledZoomScale = 2
+            }
+        }
+    }
+
+    private func loadImage(in size: CGSize) {
+        guard requestID == nil, image == nil else { return }
+        isLoading = true
+        let targetSize = CGSize(
+            width: max(size.width * displayScale, 800),
+            height: max(size.height * displayScale, 1_200)
+        )
+
+        requestID = photoLibraryManager.loadHighQualityPreview(for: asset, size: targetSize) { loadedImage in
+            image = loadedImage
+            isLoading = false
+            requestID = nil
         }
     }
 }

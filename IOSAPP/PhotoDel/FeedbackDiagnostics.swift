@@ -15,9 +15,7 @@ enum FeedbackDiagnostics {
             "App: PhotoDel v\(AppConstants.displayVersion)",
             "Device: \(deviceDisplayName)",
             "iOS: \(systemDisplayName)",
-            "Anonymous User ID: \(anonymousUserID)",
-            "",
-            L10n.string("发自我的 iPhone")
+            "Anonymous User ID: \(anonymousUserID)"
         ].joined(separator: "\n")
     }
 

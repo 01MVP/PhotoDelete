@@ -44,9 +44,15 @@ class DataManager: ObservableObject {
     private var isFetchingAlbums = false
     private var timeGroupCache: [TimeGroup: [PHAsset]] = [:]
     private var progressRefreshWorkItem: DispatchWorkItem?
+    private var progressRefreshGeneration = 0
     private var libraryDataRefreshWorkItem: DispatchWorkItem?
     private var reviewedAssetIDsSaveWorkItem: DispatchWorkItem?
     private var cancellables: Set<AnyCancellable> = []
+
+    private struct TimeGroupBuildResult {
+        let cache: [TimeGroup: [PHAsset]]
+        let timeGroups: [TimeGroupInfo]
+    }
 
     init(cleanupStatsStore: CleanupStatsStore = CleanupStatsStore()) {
         self.cleanupStatsStore = cleanupStatsStore
@@ -363,11 +369,34 @@ class DataManager: ObservableObject {
 
     private func scheduleProgressRefresh() {
         progressRefreshWorkItem?.cancel()
+        progressRefreshGeneration += 1
+        let generation = progressRefreshGeneration
+
         let workItem = DispatchWorkItem { [weak self] in
-            self?.loadTimeGroups()
+            guard let self, self.progressRefreshGeneration == generation else { return }
+
+            let photos = self.photoLibraryManager.allPhotos
+            let reviewedAssetIDs = self.reviewedAssetIDs
+            let deleteCandidateIDs = Set(self.deleteCandidates.map(\.localIdentifier))
+            let favoriteCandidateIDs = Set(self.favoriteCandidates.map(\.localIdentifier))
+
+            DispatchQueue.global(qos: .utility).async { [weak self] in
+                let result = Self.buildTimeGroupData(
+                    photos: photos,
+                    reviewedAssetIDs: reviewedAssetIDs,
+                    deleteCandidateIDs: deleteCandidateIDs,
+                    favoriteCandidateIDs: favoriteCandidateIDs
+                )
+
+                DispatchQueue.main.async {
+                    guard let self, self.progressRefreshGeneration == generation else { return }
+                    self.timeGroupCache = result.cache
+                    self.timeGroups = result.timeGroups
+                }
+            }
         }
         progressRefreshWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: workItem)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2, execute: workItem)
     }
 
     // MARK: - 统计更新
@@ -400,38 +429,57 @@ class DataManager: ObservableObject {
     // MARK: - 时间组数据加载
     func loadTimeGroups() {
         guard photoLibraryManager.hasPhotoLibraryAccess else { return }
+        progressRefreshGeneration += 1
 
-        // 单次遍历构建缓存，避免重复全量扫描
-        let calendar = Calendar.current
-        let now = Date()
-        timeGroupCache.removeAll()
-
-        for asset in photoLibraryManager.allPhotos {
-            guard let creationDate = asset.creationDate else { continue }
-            let group = TimeGroupResolver.group(for: creationDate, now: now, calendar: calendar)
-            timeGroupCache[group, default: []].append(asset)
-        }
-
-        timeGroups = TimeGroup.allCases.map { timeGroup in
-            let photos = timeGroupCache[timeGroup] ?? []
-            let progress = calculateProgressForTimeGroup(timeGroup, photos: photos)
-            return TimeGroupInfo(timeGroup: timeGroup, photosCount: photos.count, progress: progress)
-        }
+        let result = Self.buildTimeGroupData(
+            photos: photoLibraryManager.allPhotos,
+            reviewedAssetIDs: reviewedAssetIDs,
+            deleteCandidateIDs: Set(deleteCandidates.map(\.localIdentifier)),
+            favoriteCandidateIDs: Set(favoriteCandidates.map(\.localIdentifier))
+        )
+        timeGroupCache = result.cache
+        timeGroups = result.timeGroups
     }
 
-    // MARK: - 计算时间组整理进度
-    private func calculateProgressForTimeGroup(_ timeGroup: TimeGroup, photos: [PHAsset]) -> Double {
-        guard !photos.isEmpty else { return 0.0 }
+    private static func buildTimeGroupData(
+        photos: [PHAsset],
+        reviewedAssetIDs: Set<String>,
+        deleteCandidateIDs: Set<String>,
+        favoriteCandidateIDs: Set<String>,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> TimeGroupBuildResult {
+        var cache: [TimeGroup: [PHAsset]] = [:]
 
-        // 计算已整理的照片数量（已删除或已收藏的照片）
-        let organizedCount = photos.filter { asset in
-            reviewedAssetIDs.contains(asset.localIdentifier) ||
-                deleteCandidates.contains(asset) ||
-                favoriteCandidates.contains(asset) ||
-                asset.isFavorite
-        }.count
+        for asset in photos {
+            guard let creationDate = asset.creationDate else { continue }
+            let group = TimeGroupResolver.group(for: creationDate, now: now, calendar: calendar)
+            cache[group, default: []].append(asset)
+        }
 
-        return Double(organizedCount) / Double(photos.count)
+        let timeGroups = TimeGroup.allCases.map { timeGroup in
+            let groupPhotos = cache[timeGroup] ?? []
+            guard !groupPhotos.isEmpty else {
+                return TimeGroupInfo(timeGroup: timeGroup, photosCount: 0, progress: 0)
+            }
+
+            let organizedCount = groupPhotos.reduce(0) { count, asset in
+                let identifier = asset.localIdentifier
+                let isOrganized = reviewedAssetIDs.contains(identifier) ||
+                    deleteCandidateIDs.contains(identifier) ||
+                    favoriteCandidateIDs.contains(identifier) ||
+                    asset.isFavorite
+                return count + (isOrganized ? 1 : 0)
+            }
+
+            return TimeGroupInfo(
+                timeGroup: timeGroup,
+                photosCount: groupPhotos.count,
+                progress: Double(organizedCount) / Double(groupPhotos.count)
+            )
+        }
+
+        return TimeGroupBuildResult(cache: cache, timeGroups: timeGroups)
     }
 
     private func loadReviewedAssetIDs() {

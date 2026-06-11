@@ -129,6 +129,13 @@ struct PhotoDelTests {
         #expect(stats.formattedSpaceSaved == "0.0 MB")
     }
 
+    @Test func feedbackEmailBodyDoesNotDuplicateSystemMailSignature() async throws {
+        let body = FeedbackDiagnostics.emailBody()
+        #expect(body.contains("Anonymous User ID:"))
+        #expect(!body.contains("发自我的 iPhone"))
+        #expect(!body.contains("Sent from my iPhone"))
+    }
+
     // MARK: - Gesture settings tests
 
     @Test func swipeGestureStandardPresetMatchesDefaultActions() async throws {
