@@ -12,6 +12,7 @@ import UIKit
 
 struct MainTabView: View {
     @EnvironmentObject var dataManager: DataManager
+    @EnvironmentObject var purchaseManager: PurchaseManager
     @Environment(\.scenePhase) private var scenePhase
     @State private var selectedTab = 0
     
@@ -34,15 +35,26 @@ struct MainTabView: View {
                     Text("相册")
                 }
                 .tag(1)
+
+            // 进阶页面
+            AdvancedView()
+                .environmentObject(dataManager)
+                .environmentObject(purchaseManager)
+                .tabItem {
+                    Image(systemName: "chart.bar.xaxis")
+                    Text("进阶")
+                }
+                .tag(2)
             
             // 设置页面
             SettingsView()
                 .environmentObject(dataManager)
+                .environmentObject(purchaseManager)
                 .tabItem {
                     Image(systemName: "gearshape")
                     Text("设置")
                 }
-                .tag(2)
+                .tag(3)
         }
         .tint(PhotoDelStyle.accent)
         .preferredColorScheme(.dark)

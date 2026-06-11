@@ -157,19 +157,6 @@ struct SettingsView: View {
                 }
                 .padding(20)
 
-                Divider()
-                    .background(PhotoDelStyle.hairline)
-                    .padding(.horizontal, 16)
-
-                SettingRow(
-                    icon: purchaseManager.isSupporter ? "chart.bar.xaxis" : "lock.fill",
-                    iconColor: purchaseManager.isSupporter ? PhotoDelStyle.positive : PhotoDelStyle.accent,
-                    title: purchaseManager.isSupporter ? L10n.string("查看长期统计") : L10n.string("长期统计"),
-                    subtitle: purchaseManager.isSupporter ? L10n.string("月度记录、清理历史和节省空间") : L10n.string("支持者版解锁月度记录和清理历史"),
-                    action: {
-                        activeSheet = .supporter
-                    }
-                )
             }
             .photoDelCard()
         }
@@ -179,7 +166,7 @@ struct SettingsView: View {
     private var supporterSection: some View {
         VStack(spacing: 16) {
             HStack {
-                Text(L10n.string("支持者版"))
+                Text(L10n.string("购买与恢复"))
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.primaryText)
                 Spacer()
@@ -189,8 +176,8 @@ struct SettingsView: View {
                 SettingRow(
                     icon: purchaseManager.isSupporter ? "seal.fill" : "sparkles",
                     iconColor: purchaseManager.isSupporter ? PhotoDelStyle.positive : PhotoDelStyle.accent,
-                    title: L10n.string("PhotoDel 支持者版"),
-                    subtitle: purchaseManager.isSupporter ? L10n.string("已解锁长期统计和支持者功能") : L10n.string("长期统计、月度记录和徽章"),
+                    title: purchaseManager.isSupporter ? L10n.string("支持者版已解锁") : L10n.string("解锁进阶功能"),
+                    subtitle: purchaseManager.isSupporter ? L10n.string("查看支持者状态和恢复购买") : L10n.string("日期热力图、大文件整理和清理统计"),
                     action: {
                         activeSheet = .supporter
                     }

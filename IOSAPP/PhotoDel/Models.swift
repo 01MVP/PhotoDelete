@@ -346,3 +346,183 @@ struct OrganizeStats {
         CleanupStatsFormatter.space(spaceSaved)
     }
 }
+
+// MARK: - 进阶功能
+enum AdvancedCleanupKind: String, CaseIterable, Identifiable {
+    case similarPhotos
+    case largeFiles
+    case screenshots
+    case videos
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .similarPhotos: return L10n.string("相似照片清理")
+        case .largeFiles: return L10n.string("大文件整理")
+        case .screenshots: return L10n.string("清理截图")
+        case .videos: return L10n.string("视频整理")
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .similarPhotos: return L10n.string("连续拍摄、内容接近的照片")
+        case .largeFiles: return L10n.string("按估算占用空间优先处理")
+        case .screenshots: return L10n.string("集中处理不再需要的截图")
+        case .videos: return L10n.string("优先检查占用较高的视频")
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .similarPhotos: return "square.stack.3d.down.right"
+        case .largeFiles: return "internaldrive"
+        case .screenshots: return "iphone"
+        case .videos: return "video.fill"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .similarPhotos: return Color(red: 0.72, green: 0.7, blue: 1.0)
+        case .largeFiles: return PhotoDelStyle.warning
+        case .screenshots: return PhotoDelStyle.accent
+        case .videos: return PhotoDelStyle.iconTint(for: "video")
+        }
+    }
+}
+
+struct PhotoDaySummary: Identifiable, Equatable {
+    let date: Date
+    let photoCount: Int
+    let screenshotCount: Int
+    let videoCount: Int
+    let reviewedCount: Int
+    let estimatedSizeMB: Double
+
+    var id: String {
+        let components = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", components.year ?? 0, components.month ?? 0, components.day ?? 0)
+    }
+
+    var progress: Double {
+        guard photoCount > 0 else { return 0 }
+        return min(Double(reviewedCount) / Double(photoCount), 1)
+    }
+
+    var formattedEstimatedSize: String {
+        CleanupStatsFormatter.space(estimatedSizeMB)
+    }
+}
+
+struct DeviceStorageSnapshot: Equatable {
+    let totalBytes: Int64
+    let freeBytes: Int64
+
+    static let empty = DeviceStorageSnapshot(totalBytes: 0, freeBytes: 0)
+
+    var usedBytes: Int64 {
+        max(totalBytes - freeBytes, 0)
+    }
+
+    var usedFraction: Double {
+        guard totalBytes > 0 else { return 0 }
+        return min(max(Double(usedBytes) / Double(totalBytes), 0), 1)
+    }
+
+    var formattedUsed: String {
+        Self.formatBytes(usedBytes)
+    }
+
+    var formattedFree: String {
+        Self.formatBytes(freeBytes)
+    }
+
+    var formattedTotal: String {
+        Self.formatBytes(totalBytes)
+    }
+
+    static func formatBytes(_ bytes: Int64) -> String {
+        guard bytes > 0 else { return "0 GB" }
+        let gigabytes = Double(bytes) / 1_073_741_824
+        if gigabytes >= 100 {
+            return String(format: "%.0f GB", gigabytes)
+        }
+        return String(format: "%.1f GB", gigabytes)
+    }
+}
+
+struct AdvancedCleanupQueue: Identifiable, Equatable {
+    let kind: AdvancedCleanupKind
+    let assetCount: Int
+    let estimatedSpaceMB: Double
+
+    var id: String { kind.id }
+
+    var formattedSpace: String {
+        CleanupStatsFormatter.space(estimatedSpaceMB)
+    }
+}
+
+struct AdvancedLibraryStats: Equatable {
+    let totalAssets: Int
+    let reviewedAssets: Int
+    let deletedAssets: Int
+    let organizedAssets: Int
+    let estimatedSpaceSavedMB: Double
+    let pendingDeleteAssets: Int
+    let storageSnapshot: DeviceStorageSnapshot
+
+    var formattedSpaceSaved: String {
+        CleanupStatsFormatter.space(estimatedSpaceSavedMB)
+    }
+}
+
+struct AdvancedLibrarySnapshot: Equatable {
+    let stats: AdvancedLibraryStats
+    let daySummaries: [PhotoDaySummary]
+    let cleanupQueues: [AdvancedCleanupQueue]
+
+    static func demo(referenceDate: Date = Date(), calendar: Calendar = .current) -> AdvancedLibrarySnapshot {
+        let monthStart = calendar.dateInterval(of: .month, for: referenceDate)?.start ?? referenceDate
+        let pattern: [(Int, Int, Int, Int, Double)] = [
+            (1, 24, 2, 0, 78), (2, 42, 9, 1, 164), (4, 18, 1, 0, 54),
+            (6, 86, 24, 4, 620), (8, 35, 7, 0, 116), (9, 54, 14, 2, 260),
+            (11, 28, 4, 1, 148), (13, 73, 17, 3, 512), (15, 31, 5, 0, 92),
+            (18, 96, 28, 6, 1_320), (21, 63, 11, 2, 342), (23, 39, 8, 0, 128),
+            (26, 44, 12, 1, 236), (29, 58, 16, 2, 410)
+        ]
+
+        let summaries = pattern.compactMap { day, photos, screenshots, videos, size -> PhotoDaySummary? in
+            guard let date = calendar.date(byAdding: .day, value: day - 1, to: monthStart) else { return nil }
+            return PhotoDaySummary(
+                date: date,
+                photoCount: photos,
+                screenshotCount: screenshots,
+                videoCount: videos,
+                reviewedCount: Int(Double(photos) * 0.58),
+                estimatedSizeMB: size
+            )
+        }
+
+        return AdvancedLibrarySnapshot(
+            stats: AdvancedLibraryStats(
+                totalAssets: 8_426,
+                reviewedAssets: 2_184,
+                deletedAssets: 642,
+                organizedAssets: 2_184,
+                estimatedSpaceSavedMB: 4_860,
+                pendingDeleteAssets: 37,
+                storageSnapshot: DeviceStorageSnapshot(totalBytes: 256 * 1_073_741_824, freeBytes: 42 * 1_073_741_824)
+            ),
+            daySummaries: summaries,
+            cleanupQueues: [
+                AdvancedCleanupQueue(kind: .similarPhotos, assetCount: 184, estimatedSpaceMB: 860),
+                AdvancedCleanupQueue(kind: .largeFiles, assetCount: 46, estimatedSpaceMB: 3_240),
+                AdvancedCleanupQueue(kind: .screenshots, assetCount: 328, estimatedSpaceMB: 980),
+                AdvancedCleanupQueue(kind: .videos, assetCount: 62, estimatedSpaceMB: 7_800)
+            ]
+        )
+    }
+}

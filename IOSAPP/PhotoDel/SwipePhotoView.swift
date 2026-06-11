@@ -22,6 +22,8 @@ struct SwipePhotoView: View {
     let selectedCategory: PhotoCategory?
     let selectedTimeGroup: String?
     let selectedAlbumInfo: AlbumInfo?
+    let selectedDate: Date?
+    let selectedAdvancedCleanup: AdvancedCleanupKind?
 
     @State private var dragOffset = CGSize.zero
     @State private var rotationAngle: Double = 0
@@ -35,6 +37,20 @@ struct SwipePhotoView: View {
     @State private var feedbackToast: PhotoDelToast?
     @State private var didInitializeSession = false
     @State private var preloadedAssets: [PHAsset] = []
+
+    init(
+        selectedCategory: PhotoCategory?,
+        selectedTimeGroup: String?,
+        selectedAlbumInfo: AlbumInfo?,
+        selectedDate: Date? = nil,
+        selectedAdvancedCleanup: AdvancedCleanupKind? = nil
+    ) {
+        self.selectedCategory = selectedCategory
+        self.selectedTimeGroup = selectedTimeGroup
+        self.selectedAlbumInfo = selectedAlbumInfo
+        self.selectedDate = selectedDate
+        self.selectedAdvancedCleanup = selectedAdvancedCleanup
+    }
 
     enum SwipeDirection {
         case left, right, up, down
@@ -60,6 +76,10 @@ struct SwipePhotoView: View {
 
         if let albumInfo = selectedAlbumInfo {
             return dataManager.getPhotosForAlbum(albumInfo)
+        } else if let selectedDate {
+            return dataManager.getPhotosForDay(selectedDate)
+        } else if let selectedAdvancedCleanup {
+            return dataManager.getPhotosForAdvancedCleanup(selectedAdvancedCleanup)
         } else if let category = selectedCategory {
             return dataManager.getRealPhotos(for: category)
         } else if let timeGroupString = selectedTimeGroup,
@@ -194,7 +214,7 @@ struct SwipePhotoView: View {
                 Spacer()
 
                 VStack(spacing: 2) {
-                    Text(isAlbumMode ? "相册整理" : "照片整理")
+                    Text(sessionModeTitle)
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(PhotoDelStyle.primaryText)
 
@@ -1028,9 +1048,26 @@ struct SwipePhotoView: View {
         !dataManager.deleteCandidates.isEmpty || !dataManager.favoriteCandidates.isEmpty
     }
 
+    private var sessionModeTitle: String {
+        if selectedAlbumInfo != nil {
+            return L10n.string("相册整理")
+        }
+        if selectedDate != nil {
+            return L10n.string("日期整理")
+        }
+        if selectedAdvancedCleanup != nil {
+            return L10n.string("智能清理")
+        }
+        return L10n.string("照片整理")
+    }
+
     private func getDisplayTitle() -> String {
         if let albumInfo = selectedAlbumInfo {
             return albumInfo.title
+        } else if let selectedDate {
+            return AdvancedSwipeDateFormatter.dayTitle.string(from: selectedDate)
+        } else if let selectedAdvancedCleanup {
+            return selectedAdvancedCleanup.title
         } else if let category = selectedCategory {
             return category.title
         } else if let timeGroup = selectedTimeGroup {
@@ -1060,6 +1097,14 @@ struct SwipePhotoView: View {
             }
         }
     }
+}
+
+private enum AdvancedSwipeDateFormatter {
+    static let dayTitle: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("MMMEd")
+        return formatter
+    }()
 }
 
 // MARK: - 真实照片卡片

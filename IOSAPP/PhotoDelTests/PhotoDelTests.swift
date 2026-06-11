@@ -232,6 +232,45 @@ struct PhotoDelTests {
         #expect(store.sessions.isEmpty)
     }
 
+    // MARK: - Advanced feature models
+
+    @Test func deviceStorageSnapshotFormatsAndClampsUsage() async throws {
+        let snapshot = DeviceStorageSnapshot(
+            totalBytes: 256 * 1_073_741_824,
+            freeBytes: 64 * 1_073_741_824
+        )
+
+        #expect(snapshot.formattedUsed == "192 GB")
+        #expect(snapshot.formattedFree == "64.0 GB")
+        #expect(snapshot.formattedTotal == "256 GB")
+        #expect(snapshot.usedFraction == 0.75)
+    }
+
+    @Test func photoDaySummaryProgressClampsToOne() async throws {
+        let summary = PhotoDaySummary(
+            date: Date(),
+            photoCount: 10,
+            screenshotCount: 2,
+            videoCount: 1,
+            reviewedCount: 14,
+            estimatedSizeMB: 42
+        )
+
+        #expect(summary.progress == 1)
+        #expect(summary.formattedEstimatedSize == "42.0 MB")
+    }
+
+    @Test func advancedDemoSnapshotIncludesCalendarAndCleanupQueues() async throws {
+        let snapshot = AdvancedLibrarySnapshot.demo(
+            referenceDate: makeDate(year: 2026, month: 6, day: 11, calendar: Calendar(identifier: .gregorian)),
+            calendar: Calendar(identifier: .gregorian)
+        )
+
+        #expect(snapshot.stats.totalAssets > 0)
+        #expect(snapshot.daySummaries.isEmpty == false)
+        #expect(snapshot.cleanupQueues.map(\.kind) == AdvancedCleanupKind.allCases)
+    }
+
     // MARK: - AlbumInfo tests
 
     @Test func albumInfoWithNilAssetCollectionUsesTypeRawValue() async throws {

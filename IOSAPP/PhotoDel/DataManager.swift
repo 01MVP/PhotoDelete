@@ -54,6 +54,27 @@ class DataManager: ObservableObject {
         let timeGroups: [TimeGroupInfo]
     }
 
+    private struct DaySummaryAccumulator {
+        var photoCount = 0
+        var screenshotCount = 0
+        var videoCount = 0
+        var reviewedCount = 0
+        var estimatedSizeMB: Double = 0
+
+        mutating func add(
+            asset: PHAsset,
+            isScreenshot: Bool,
+            isReviewed: Bool,
+            estimatedSizeMB: Double
+        ) {
+            photoCount += 1
+            screenshotCount += isScreenshot ? 1 : 0
+            videoCount += asset.mediaType == .video ? 1 : 0
+            reviewedCount += isReviewed ? 1 : 0
+            self.estimatedSizeMB += estimatedSizeMB
+        }
+    }
+
     init(cleanupStatsStore: CleanupStatsStore = CleanupStatsStore()) {
         self.cleanupStatsStore = cleanupStatsStore
         loadReviewedAssetIDs()
@@ -424,6 +445,215 @@ class DataManager: ObservableObject {
 
     func getVideosCount() -> Int {
         return photoLibraryManager.videosCount
+    }
+
+    // MARK: - 进阶功能数据
+    func makeAdvancedLibrarySnapshot(
+        referenceDate: Date = Date(),
+        calendar: Calendar = .current
+    ) -> AdvancedLibrarySnapshot {
+        let cleanupSummary = cleanupStatsStore.summary
+        let reviewedCount = min(reviewedAssetIDs.count, photoLibraryManager.allPhotos.count)
+        let organizedCount = max(reviewedCount, cleanupSummary.organizedPhotos)
+
+        return AdvancedLibrarySnapshot(
+            stats: AdvancedLibraryStats(
+                totalAssets: photoLibraryManager.totalPhotosCount,
+                reviewedAssets: reviewedCount,
+                deletedAssets: cleanupSummary.deletedPhotos,
+                organizedAssets: organizedCount,
+                estimatedSpaceSavedMB: cleanupSummary.estimatedSpaceSavedMB + organizeStats.spaceSaved,
+                pendingDeleteAssets: deleteCandidates.count,
+                storageSnapshot: Self.currentDeviceStorageSnapshot()
+            ),
+            daySummaries: makePhotoDaySummaries(referenceDate: referenceDate, calendar: calendar),
+            cleanupQueues: makeAdvancedCleanupQueues()
+        )
+    }
+
+    func getPhotosForDay(_ date: Date, calendar: Calendar = .current) -> [PHAsset] {
+        let start = calendar.startOfDay(for: date)
+        guard let end = calendar.date(byAdding: .day, value: 1, to: start) else { return [] }
+
+        return photoLibraryManager.allPhotos.filter { asset in
+            guard let creationDate = asset.creationDate else { return false }
+            return creationDate >= start && creationDate < end
+        }
+    }
+
+    func getPhotosForAdvancedCleanup(_ kind: AdvancedCleanupKind) -> [PHAsset] {
+        switch kind {
+        case .similarPhotos:
+            return similarPhotoCandidates(maxCount: 240)
+        case .largeFiles:
+            return largeFileCandidates(maxCount: 240)
+        case .screenshots:
+            return photoLibraryManager.screenshots
+        case .videos:
+            return photoLibraryManager.videos.sorted {
+                estimatedAssetSizeMB($0) > estimatedAssetSizeMB($1)
+            }
+        }
+    }
+
+    private func makePhotoDaySummaries(
+        referenceDate: Date,
+        calendar: Calendar
+    ) -> [PhotoDaySummary] {
+        guard let monthInterval = calendar.dateInterval(of: .month, for: referenceDate) else { return [] }
+
+        let screenshotIDs = Set(photoLibraryManager.screenshots.map(\.localIdentifier))
+        let reviewedIDs = reviewedAssetIDs
+        var buckets: [Date: DaySummaryAccumulator] = [:]
+
+        for asset in photoLibraryManager.allPhotos {
+            guard let creationDate = asset.creationDate,
+                  monthInterval.contains(creationDate) else { continue }
+
+            let day = calendar.startOfDay(for: creationDate)
+            var accumulator = buckets[day] ?? DaySummaryAccumulator()
+            accumulator.add(
+                asset: asset,
+                isScreenshot: screenshotIDs.contains(asset.localIdentifier),
+                isReviewed: reviewedIDs.contains(asset.localIdentifier),
+                estimatedSizeMB: estimatedAssetSizeMB(asset)
+            )
+            buckets[day] = accumulator
+        }
+
+        return buckets.map { day, accumulator in
+            PhotoDaySummary(
+                date: day,
+                photoCount: accumulator.photoCount,
+                screenshotCount: accumulator.screenshotCount,
+                videoCount: accumulator.videoCount,
+                reviewedCount: accumulator.reviewedCount,
+                estimatedSizeMB: accumulator.estimatedSizeMB
+            )
+        }
+        .sorted { $0.date < $1.date }
+    }
+
+    private func makeAdvancedCleanupQueues() -> [AdvancedCleanupQueue] {
+        let similar = similarPhotoCandidates(maxCount: Int.max)
+        let largeFiles = largeFileCandidates(maxCount: Int.max)
+        let screenshots = photoLibraryManager.screenshots
+        let videos = photoLibraryManager.videos
+
+        return [
+            AdvancedCleanupQueue(
+                kind: .similarPhotos,
+                assetCount: similar.count,
+                estimatedSpaceMB: similar.reduce(0) { $0 + estimatedAssetSizeMB($1) }
+            ),
+            AdvancedCleanupQueue(
+                kind: .largeFiles,
+                assetCount: largeFiles.count,
+                estimatedSpaceMB: largeFiles.reduce(0) { $0 + estimatedAssetSizeMB($1) }
+            ),
+            AdvancedCleanupQueue(
+                kind: .screenshots,
+                assetCount: screenshots.count,
+                estimatedSpaceMB: screenshots.reduce(0) { $0 + estimatedAssetSizeMB($1) }
+            ),
+            AdvancedCleanupQueue(
+                kind: .videos,
+                assetCount: videos.count,
+                estimatedSpaceMB: videos.reduce(0) { $0 + estimatedAssetSizeMB($1) }
+            )
+        ]
+    }
+
+    private func similarPhotoCandidates(maxCount: Int) -> [PHAsset] {
+        let screenshotIDs = Set(photoLibraryManager.screenshots.map(\.localIdentifier))
+        let photos = photoLibraryManager.allPhotos
+            .filter { asset in
+                asset.mediaType == .image &&
+                    asset.creationDate != nil &&
+                    !screenshotIDs.contains(asset.localIdentifier)
+            }
+            .sorted {
+                let lhsDate = $0.creationDate ?? .distantPast
+                let rhsDate = $1.creationDate ?? .distantPast
+                if lhsDate == rhsDate {
+                    return $0.localIdentifier < $1.localIdentifier
+                }
+                return lhsDate < rhsDate
+            }
+
+        var candidates: [PHAsset] = []
+        var cluster: [PHAsset] = []
+
+        func flushCluster() {
+            guard cluster.count >= 3 else { return }
+            candidates.append(contentsOf: cluster)
+        }
+
+        for asset in photos {
+            if let previous = cluster.last, isPotentiallySimilar(asset, to: previous) {
+                cluster.append(asset)
+            } else {
+                flushCluster()
+                cluster = [asset]
+            }
+        }
+        flushCluster()
+
+        return Array(candidates.sorted {
+            ($0.creationDate ?? .distantPast) > ($1.creationDate ?? .distantPast)
+        }.prefix(maxCount))
+    }
+
+    private func largeFileCandidates(maxCount: Int) -> [PHAsset] {
+        let candidates = photoLibraryManager.allPhotos.filter { asset in
+            let estimatedSize = estimatedAssetSizeMB(asset)
+            if asset.mediaType == .video {
+                return estimatedSize >= 80
+            }
+            return estimatedSize >= 18
+        }
+        let source = candidates.isEmpty ? photoLibraryManager.allPhotos : candidates
+
+        return Array(source.sorted {
+            estimatedAssetSizeMB($0) > estimatedAssetSizeMB($1)
+        }.prefix(maxCount))
+    }
+
+    private func isPotentiallySimilar(_ asset: PHAsset, to previous: PHAsset) -> Bool {
+        guard let assetDate = asset.creationDate,
+              let previousDate = previous.creationDate else { return false }
+
+        let timeDistance = abs(assetDate.timeIntervalSince(previousDate))
+        guard timeDistance <= 90 else { return false }
+
+        let assetAspect = aspectRatio(for: asset)
+        let previousAspect = aspectRatio(for: previous)
+        return abs(assetAspect - previousAspect) <= 0.025
+    }
+
+    private func aspectRatio(for asset: PHAsset) -> Double {
+        guard asset.pixelHeight > 0 else { return 0 }
+        return Double(asset.pixelWidth) / Double(asset.pixelHeight)
+    }
+
+    private func estimatedAssetSizeMB(_ asset: PHAsset) -> Double {
+        let megapixels = Double(asset.pixelWidth) * Double(asset.pixelHeight) / 1_000_000
+        if asset.mediaType == .video {
+            return max(asset.duration * 8.0, megapixels * 0.75, 2.0)
+        }
+        return max(megapixels * 0.55, 0.8)
+    }
+
+    private static func currentDeviceStorageSnapshot() -> DeviceStorageSnapshot {
+        do {
+            let attributes = try FileManager.default.attributesOfFileSystem(forPath: NSHomeDirectory())
+            let total = (attributes[.systemSize] as? NSNumber)?.int64Value ?? 0
+            let free = (attributes[.systemFreeSize] as? NSNumber)?.int64Value ?? 0
+            return DeviceStorageSnapshot(totalBytes: total, freeBytes: free)
+        } catch {
+            dataManagerLogger.error("Unable to read device storage: \(error.localizedDescription, privacy: .public)")
+            return .empty
+        }
     }
 
     // MARK: - 时间组数据加载
