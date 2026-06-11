@@ -472,6 +472,7 @@ class DataManager: ObservableObject {
         return AdvancedLibrarySnapshot(
             stats: stats,
             daySummaries: makePhotoDaySummaries(referenceDate: referenceDate, calendar: calendar),
+            monthSummaries: makePhotoMonthSummaries(calendar: calendar),
             cleanupQueues: makeAdvancedCleanupQueues()
         )
     }
@@ -484,6 +485,23 @@ class DataManager: ObservableObject {
             guard let creationDate = asset.creationDate else { return false }
             return creationDate >= start && creationDate < end
         }
+    }
+
+    func getPhotosForMonth(_ monthStart: Date, calendar: Calendar = .current) -> [PHAsset] {
+        guard let interval = calendar.dateInterval(of: .month, for: monthStart) else { return [] }
+        return photoLibraryManager.allPhotos
+            .filter { asset in
+                guard let creationDate = asset.creationDate else { return false }
+                return interval.contains(creationDate)
+            }
+            .sorted {
+                let lhsDate = $0.creationDate ?? .distantPast
+                let rhsDate = $1.creationDate ?? .distantPast
+                if lhsDate == rhsDate {
+                    return $0.localIdentifier < $1.localIdentifier
+                }
+                return lhsDate > rhsDate
+            }
     }
 
     func getPhotosForAdvancedCleanup(_ kind: AdvancedCleanupKind) -> [PHAsset] {
@@ -539,8 +557,49 @@ class DataManager: ObservableObject {
         .sorted { $0.date < $1.date }
     }
 
+    func makePhotoMonthSummaries(
+        calendar: Calendar = .current
+    ) -> [PhotoMonthSummary] {
+        let screenshotIDs = Set(photoLibraryManager.screenshots.map(\.localIdentifier))
+        let reviewedIDs = reviewedAssetIDs
+        let deleteCandidateIDs = Set(deleteCandidates.map(\.localIdentifier))
+        let favoriteCandidateIDs = Set(favoriteCandidates.map(\.localIdentifier))
+        var buckets: [Date: DaySummaryAccumulator] = [:]
+
+        for asset in photoLibraryManager.allPhotos {
+            guard let creationDate = asset.creationDate,
+                  let month = calendar.dateInterval(of: .month, for: creationDate)?.start else { continue }
+
+            let identifier = asset.localIdentifier
+            let isReviewed = reviewedIDs.contains(identifier) ||
+                deleteCandidateIDs.contains(identifier) ||
+                favoriteCandidateIDs.contains(identifier) ||
+                asset.isFavorite
+            var accumulator = buckets[month] ?? DaySummaryAccumulator()
+            accumulator.add(
+                asset: asset,
+                isScreenshot: screenshotIDs.contains(identifier),
+                isReviewed: isReviewed,
+                estimatedSizeMB: estimatedAssetSizeMB(asset)
+            )
+            buckets[month] = accumulator
+        }
+
+        return buckets.map { month, accumulator in
+            PhotoMonthSummary(
+                monthStart: month,
+                assetCount: accumulator.photoCount,
+                screenshotCount: accumulator.screenshotCount,
+                videoCount: accumulator.videoCount,
+                reviewedCount: accumulator.reviewedCount,
+                estimatedSizeMB: accumulator.estimatedSizeMB
+            )
+        }
+        .sorted { $0.monthStart > $1.monthStart }
+    }
+
     private func makeAdvancedCleanupQueues() -> [AdvancedCleanupQueue] {
-        let similar = similarPhotoCandidates(maxCount: Int.max)
+        let similarGroups = makeSimilarPhotoGroups(maxGroups: Int.max)
         let largeFiles = largeFileCandidates(maxCount: Int.max)
         let screenshots = photoLibraryManager.screenshots
         let videos = photoLibraryManager.videos
@@ -548,8 +607,8 @@ class DataManager: ObservableObject {
         return [
             AdvancedCleanupQueue(
                 kind: .similarPhotos,
-                assetCount: similar.count,
-                estimatedSpaceMB: similar.reduce(0) { $0 + estimatedAssetSizeMB($1) }
+                assetCount: similarGroups.reduce(0) { $0 + $1.suggestedDeleteCount },
+                estimatedSpaceMB: similarGroups.reduce(0) { $0 + $1.estimatedSpaceMB }
             ),
             AdvancedCleanupQueue(
                 kind: .largeFiles,
@@ -569,7 +628,7 @@ class DataManager: ObservableObject {
         ]
     }
 
-    private func similarPhotoCandidates(maxCount: Int) -> [PHAsset] {
+    func makeSimilarPhotoGroups(maxGroups: Int = 80) -> [AdvancedSimilarPhotoGroup] {
         let screenshotIDs = Set(photoLibraryManager.screenshots.map(\.localIdentifier))
         let photos = photoLibraryManager.allPhotos
             .filter { asset in
@@ -586,12 +645,22 @@ class DataManager: ObservableObject {
                 return lhsDate < rhsDate
             }
 
-        var candidates: [PHAsset] = []
+        var groups: [AdvancedSimilarPhotoGroup] = []
         var cluster: [PHAsset] = []
 
         func flushCluster() {
             guard cluster.count >= 3 else { return }
-            candidates.append(contentsOf: cluster)
+            let estimatedSpace = cluster.dropFirst().reduce(0) { $0 + estimatedAssetSizeMB($1) }
+            groups.append(
+                AdvancedSimilarPhotoGroup(
+                    assets: cluster.sorted {
+                        let lhsDate = $0.creationDate ?? .distantPast
+                        let rhsDate = $1.creationDate ?? .distantPast
+                        return lhsDate < rhsDate
+                    },
+                    estimatedSpaceMB: estimatedSpace
+                )
+            )
         }
 
         for asset in photos {
@@ -604,9 +673,15 @@ class DataManager: ObservableObject {
         }
         flushCluster()
 
-        return Array(candidates.sorted {
-            ($0.creationDate ?? .distantPast) > ($1.creationDate ?? .distantPast)
-        }.prefix(maxCount))
+        return Array(groups.sorted {
+            ($0.representativeDate ?? .distantPast) > ($1.representativeDate ?? .distantPast)
+        }.prefix(maxGroups))
+    }
+
+    private func similarPhotoCandidates(maxCount: Int) -> [PHAsset] {
+        Array(makeSimilarPhotoGroups(maxGroups: Int.max)
+            .flatMap(\.assets)
+            .prefix(maxCount))
     }
 
     private func largeFileCandidates(maxCount: Int) -> [PHAsset] {
@@ -639,6 +714,10 @@ class DataManager: ObservableObject {
     private func aspectRatio(for asset: PHAsset) -> Double {
         guard asset.pixelHeight > 0 else { return 0 }
         return Double(asset.pixelWidth) / Double(asset.pixelHeight)
+    }
+
+    func estimatedSizeMB(for asset: PHAsset) -> Double {
+        estimatedAssetSizeMB(asset)
     }
 
     private func estimatedAssetSizeMB(_ asset: PHAsset) -> Double {

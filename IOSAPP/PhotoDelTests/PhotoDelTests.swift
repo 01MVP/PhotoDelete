@@ -267,6 +267,9 @@ struct PhotoDelTests {
         )
 
         #expect(snapshot.stats.totalAssets > 0)
+        #expect(snapshot.monthSummaries.isEmpty == false)
+        #expect(snapshot.monthSummaries[0].assetCount > 0)
+        #expect(snapshot.monthSummaries[0].progress > 0)
         #expect(snapshot.daySummaries.isEmpty == false)
         #expect(snapshot.cleanupQueues.map(\.kind) == AdvancedCleanupKind.allCases)
     }

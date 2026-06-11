@@ -358,10 +358,10 @@ enum AdvancedCleanupKind: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .similarPhotos: return L10n.string("相似照片清理")
-        case .largeFiles: return L10n.string("大文件整理")
-        case .screenshots: return L10n.string("清理截图")
-        case .videos: return L10n.string("视频整理")
+        case .similarPhotos: return L10n.string("相似照片")
+        case .largeFiles: return L10n.string("大文件")
+        case .screenshots: return L10n.string("截图")
+        case .videos: return L10n.string("视频")
         }
     }
 
@@ -409,6 +409,33 @@ struct PhotoDaySummary: Identifiable, Equatable {
     var progress: Double {
         guard photoCount > 0 else { return 0 }
         return min(Double(reviewedCount) / Double(photoCount), 1)
+    }
+
+    var formattedEstimatedSize: String {
+        CleanupStatsFormatter.space(estimatedSizeMB)
+    }
+}
+
+struct PhotoMonthSummary: Identifiable, Equatable {
+    let monthStart: Date
+    let assetCount: Int
+    let screenshotCount: Int
+    let videoCount: Int
+    let reviewedCount: Int
+    let estimatedSizeMB: Double
+
+    var id: String {
+        let components = Calendar.current.dateComponents([.year, .month], from: monthStart)
+        return String(format: "%04d-%02d", components.year ?? 0, components.month ?? 0)
+    }
+
+    var progress: Double {
+        guard assetCount > 0 else { return 0 }
+        return min(Double(reviewedCount) / Double(assetCount), 1)
+    }
+
+    var remainingCount: Int {
+        max(assetCount - reviewedCount, 0)
     }
 
     var formattedEstimatedSize: String {
@@ -482,10 +509,34 @@ struct AdvancedLibraryStats: Equatable {
 struct AdvancedLibrarySnapshot: Equatable {
     let stats: AdvancedLibraryStats
     let daySummaries: [PhotoDaySummary]
+    let monthSummaries: [PhotoMonthSummary]
     let cleanupQueues: [AdvancedCleanupQueue]
 
     static func demo(referenceDate: Date = Date(), calendar: Calendar = .current) -> AdvancedLibrarySnapshot {
         let monthStart = calendar.dateInterval(of: .month, for: referenceDate)?.start ?? referenceDate
+        let monthPatterns: [(Int, Int, Int, Int, Int, Double)] = [
+            (0, 632, 82, 38, 428, 3_420),
+            (-1, 1_248, 326, 64, 1_026, 5_860),
+            (-2, 924, 196, 51, 498, 4_120),
+            (-3, 704, 88, 42, 704, 2_960),
+            (-4, 386, 72, 24, 158, 1_840),
+            (-5, 518, 108, 29, 130, 2_360),
+            (-6, 812, 141, 58, 324, 3_540),
+            (-7, 436, 67, 31, 214, 1_920),
+            (-8, 1_104, 238, 77, 712, 6_240)
+        ]
+        let monthSummaries = monthPatterns.compactMap { offset, assets, screenshots, videos, reviewed, size -> PhotoMonthSummary? in
+            guard let month = calendar.date(byAdding: .month, value: offset, to: monthStart) else { return nil }
+            return PhotoMonthSummary(
+                monthStart: month,
+                assetCount: assets,
+                screenshotCount: screenshots,
+                videoCount: videos,
+                reviewedCount: reviewed,
+                estimatedSizeMB: size
+            )
+        }
+
         let pattern: [(Int, Int, Int, Int, Double)] = [
             (1, 24, 2, 0, 78), (2, 42, 9, 1, 164), (4, 18, 1, 0, 54),
             (6, 86, 24, 4, 620), (8, 35, 7, 0, 116), (9, 54, 14, 2, 260),
@@ -517,6 +568,7 @@ struct AdvancedLibrarySnapshot: Equatable {
                 storageSnapshot: DeviceStorageSnapshot(totalBytes: 256 * 1_073_741_824, freeBytes: 42 * 1_073_741_824)
             ),
             daySummaries: summaries,
+            monthSummaries: monthSummaries,
             cleanupQueues: [
                 AdvancedCleanupQueue(kind: .similarPhotos, assetCount: 184, estimatedSpaceMB: 860),
                 AdvancedCleanupQueue(kind: .largeFiles, assetCount: 46, estimatedSpaceMB: 3_240),
@@ -525,4 +577,38 @@ struct AdvancedLibrarySnapshot: Equatable {
             ]
         )
     }
+}
+
+struct AdvancedSimilarPhotoGroup: Identifiable {
+    let assets: [PHAsset]
+    let estimatedSpaceMB: Double
+
+    var id: String {
+        assets.map(\.localIdentifier).joined(separator: "|")
+    }
+
+    var title: String {
+        guard let date = representativeDate else { return L10n.string("相似照片") }
+        return AdvancedSimilarPhotoGroupFormatter.groupTitle.string(from: date)
+    }
+
+    var representativeDate: Date? {
+        assets.first?.creationDate
+    }
+
+    var suggestedDeleteCount: Int {
+        max(assets.count - 1, 0)
+    }
+
+    var formattedEstimatedSpace: String {
+        CleanupStatsFormatter.space(estimatedSpaceMB)
+    }
+}
+
+private enum AdvancedSimilarPhotoGroupFormatter {
+    static let groupTitle: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("MMM d")
+        return formatter
+    }()
 }
