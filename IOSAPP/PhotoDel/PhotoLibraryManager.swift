@@ -72,7 +72,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
 
     // MARK: - Load Photos
 
-    func loadPhotos(completion: (() -> Void)? = nil) {
+    func loadPhotos(preserveExistingData: Bool = false, completion: (() -> Void)? = nil) {
         guard hasPhotoLibraryAccess else { return }
         guard !isLoading else {
             if let completion {
@@ -84,9 +84,14 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         if let completion {
             pendingLoadCompletions.append(completion)
         }
+        let shouldPreserveExistingData = preserveExistingData && hasLoadedPhotoLibrary && !allPhotos.isEmpty
         isLoading = true
-        hasLoadedPhotoLibrary = false
-        loadingProgress = 0
+        if shouldPreserveExistingData {
+            loadingProgress = max(loadingProgress, 0.05)
+        } else {
+            hasLoadedPhotoLibrary = false
+            loadingProgress = 0
+        }
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
@@ -334,6 +339,47 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                     return
                 }
                 completion(image)
+            }
+        }
+    }
+
+    @discardableResult
+    func loadHighQualityPreview(for asset: PHAsset, size: CGSize, completion: @escaping (UIImage?) -> Void) -> PHImageRequestID? {
+        let cacheKey = "\(asset.localIdentifier)_hq_\(Int(size.width))x\(Int(size.height))" as NSString
+
+        if let cachedImage = imageCache.object(forKey: cacheKey) {
+            completion(cachedImage)
+            return nil
+        }
+
+        let options = PHImageRequestOptions()
+        options.deliveryMode = .highQualityFormat
+        options.resizeMode = .exact
+        options.version = .current
+        options.isNetworkAccessAllowed = true
+        options.isSynchronous = false
+
+        return imageManager.requestImage(
+            for: asset,
+            targetSize: size,
+            contentMode: .aspectFit,
+            options: options
+        ) { [weak self] image, info in
+            DispatchQueue.main.async {
+                let isCancelled = (info?[PHImageCancelledKey] as? Bool) == true
+                let isInCloud = (info?[PHImageResultIsInCloudKey] as? Bool) == true
+                let error = info?[PHImageErrorKey] as? Error
+                guard !isCancelled else { return }
+
+                if let image {
+                    let cost = Int(image.size.width * image.size.height * 4)
+                    self?.imageCache.setObject(image, forKey: cacheKey, cost: cost)
+                    completion(image)
+                } else if isInCloud && error == nil {
+                    return
+                } else {
+                    completion(nil)
+                }
             }
         }
     }

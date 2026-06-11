@@ -15,12 +15,14 @@ import MessageUI
 
 struct SettingsView: View {
     @EnvironmentObject var dataManager: DataManager
+    @EnvironmentObject var purchaseManager: PurchaseManager
     @AppStorage("hasSeenPhotoDelIntro") private var hasSeenPhotoDelIntro = false
     @AppStorage(AppConstants.hapticsEnabledKey) private var hapticsEnabled = true
     @State private var showingMailCompose = false
     @State private var showingAbout = false
     @State private var showingAuthor = false
     @State private var showingPrivacyInfo = false
+    @State private var showingSupporter = false
     @State private var showingWeChatCopied = false
     @State private var settingsToast: PhotoDelToast?
     
@@ -45,6 +47,9 @@ struct SettingsView: View {
                         
                         // 使用统计
                         statsSection
+
+                        // 支持者版
+                        supporterSection
 
                         // 应用设置
                         appSettingsSection
@@ -97,6 +102,11 @@ struct SettingsView: View {
         .sheet(isPresented: $showingPrivacyInfo) {
             PrivacyInfoView()
         }
+        .sheet(isPresented: $showingSupporter) {
+            SupporterView()
+                .environmentObject(dataManager)
+                .environmentObject(purchaseManager)
+        }
     }
     
     // MARK: - 使用统计
@@ -135,6 +145,31 @@ struct SettingsView: View {
                 )
             }
             .padding(20)
+            .photoDelCard()
+        }
+    }
+
+    // MARK: - 支持者版
+    private var supporterSection: some View {
+        VStack(spacing: 16) {
+            HStack {
+                Text("支持者版")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.primaryText)
+                Spacer()
+            }
+
+            VStack(spacing: 0) {
+                SettingRow(
+                    icon: purchaseManager.isSupporter ? "seal.fill" : "sparkles",
+                    iconColor: purchaseManager.isSupporter ? PhotoDelStyle.positive : PhotoDelStyle.accent,
+                    title: "PhotoDel 支持者版",
+                    subtitle: purchaseManager.isSupporter ? "已解锁长期统计和支持者功能" : "长期统计、月度记录和徽章",
+                    action: {
+                        showingSupporter = true
+                    }
+                )
+            }
             .photoDelCard()
         }
     }
@@ -859,4 +894,5 @@ struct AboutView: View {
 #Preview {
     SettingsView()
         .environmentObject(DataManager())
+        .environmentObject(PurchaseManager())
 }

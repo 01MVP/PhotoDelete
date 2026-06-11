@@ -81,4 +81,5 @@ struct MainTabView: View {
 #Preview {
     MainTabView()
         .environmentObject(DataManager())
+        .environmentObject(PurchaseManager())
 }

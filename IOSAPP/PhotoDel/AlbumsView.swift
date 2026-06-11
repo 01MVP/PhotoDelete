@@ -190,22 +190,12 @@ struct AlbumsView: View {
         .environment(\.defaultMinListRowHeight, 0)
         .environment(\.editMode, $editMode)
         .refreshable {
-            dataManager.loadAlbums(showLoading: false)
+            if showSearchBar {
+                dataManager.loadAlbums(showLoading: false)
+            } else {
+                showSearch()
+            }
         }
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 30)
-                .onEnded { value in
-                    let verticalDistance = abs(value.translation.height)
-                    let horizontalDistance = abs(value.translation.width)
-                    guard verticalDistance > horizontalDistance * 1.6 else { return }
-
-                    if value.translation.height > 46 {
-                        showSearch()
-                    } else if value.translation.height < -46 {
-                        hideSearch()
-                    }
-                }
-        )
         .safeAreaInset(edge: .bottom) {
             Color.clear.frame(height: 88)
         }

@@ -11,11 +11,13 @@ struct ContentView: View {
     @AppStorage("hasCompletedPhotoDelOnboarding") private var hasCompletedOnboarding = false
     @AppStorage("hasSeenPhotoDelIntro") private var hasSeenHomeIntro = false
     @StateObject private var dataManager = DataManager()
+    @StateObject private var purchaseManager = PurchaseManager()
 
     var body: some View {
         if hasCompletedOnboarding {
             MainTabView()
                 .environmentObject(dataManager)
+                .environmentObject(purchaseManager)
         } else {
             OnboardingFlowView {
                 hasSeenHomeIntro = true

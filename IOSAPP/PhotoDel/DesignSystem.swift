@@ -118,6 +118,9 @@ enum AppConstants {
     static let landscapeBreakpoint: CGFloat = 700
     static let hapticsEnabledKey = "photoDelHapticsEnabled"
     static let customAlbumOrderKey = "photoDelCustomAlbumOrder"
+    static let supporterProductID = "com.01mvp.photodel.supporter.stats"
+    static let supporterEntitlementKey = "photoDelSupporterUnlocked"
+    static let supporterThemeKey = "photoDelSupporterTheme"
     static let privacyShortText = "照片整理只在本机完成。不需要账号，也不会上传你的照片。"
 }
 

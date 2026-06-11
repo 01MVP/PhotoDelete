@@ -31,7 +31,6 @@ IOSAPP/PhotoDel/
 ├── DataManager.swift         # 数据管理器
 ├── PhotoDelApp.swift         # 应用入口
 ├── ContentView.swift         # 主视图
-├── SplashView.swift          # 启动页面
 ├── MainTabView.swift         # 主导航
 ├── HomeView.swift            # 主页面
 ├── SwipePhotoView.swift      # 照片整理页面
@@ -49,7 +48,6 @@ IOSAPP/PhotoDel/
 - **DataManager.swift**: 管理照片数据、相册数据和操作统计
 
 #### 视图层
-- **SplashView**: 应用启动动画和加载
 - **MainTabView**: 底部标签导航（整理、相册、设置）
 - **HomeView**: 主页面，显示照片分类和时间分组
 - **SwipePhotoView**: 核心功能页面，支持滑动手势整理照片
@@ -148,4 +146,4 @@ Copyright © 2025 PhotoDel Team. All rights reserved.
 
 ---
 
-**注意**: 这是一个演示项目，使用虚拟数据进行功能展示。在实际部署前需要集成真实的照片库访问权限和删除功能。 
+**注意**: 这是一个演示项目，使用虚拟数据进行功能展示。在实际部署前需要集成真实的照片库访问权限和删除功能。

@@ -27,6 +27,7 @@ class DataManager: ObservableObject {
     @Published var userAlbums: [AlbumInfo] = []
     @Published var isLoadingAlbums = false
     @Published private(set) var reviewedAssetIDs: Set<String> = []
+    let cleanupStatsStore: CleanupStatsStore
 
     private var isReloadingLibrary = false
     private var hasLoadedAlbums = false
@@ -34,7 +35,8 @@ class DataManager: ObservableObject {
     private var progressRefreshWorkItem: DispatchWorkItem?
     private let reviewedAssetIDsKey = "photoDelReviewedAssetIDs"
 
-    init() {
+    init(cleanupStatsStore: CleanupStatsStore = CleanupStatsStore()) {
+        self.cleanupStatsStore = cleanupStatsStore
         loadReviewedAssetIDs()
         setupPhotoLibraryManager()
     }
@@ -109,7 +111,7 @@ class DataManager: ObservableObject {
         isPreparingLibrary = showPreparing
         isReloadingLibrary = true
 
-        photoLibraryManager.loadPhotos { [weak self] in
+        photoLibraryManager.loadPhotos(preserveExistingData: !showPreparing) { [weak self] in
             guard let self else { return }
             self.loadTimeGroups()
             self.loadAlbums(showLoading: !self.hasLoadedAlbums)
@@ -222,6 +224,12 @@ class DataManager: ObservableObject {
                 self.photoLibraryManager.applyCommittedBatchChanges(
                     deletedAssets: Array(originalDeleteCandidates),
                     favoritedAssets: Array(originalFavoriteCandidates)
+                )
+                self.cleanupStatsStore.recordSession(
+                    deletedPhotos: originalDeleteCandidates.count,
+                    favoritedPhotos: originalFavoriteCandidates.count,
+                    organizedPhotos: originalDeleteCandidates.count + originalFavoriteCandidates.count,
+                    estimatedSpaceSavedMB: Double(originalDeleteCandidates.count) * 3.0
                 )
                 self.deleteCandidates.removeAll()
                 self.favoriteCandidates.removeAll()

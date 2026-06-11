@@ -226,13 +226,15 @@ struct HomeView: View {
             ScanningSwipeGlyph()
 
             VStack(spacing: 8) {
-                Text("正在准备照片")
+                Text("正在读取照片")
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.primaryText)
 
-                Text("\(Int(dataManager.photoLibraryManager.loadingProgress * 100))%")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundColor(PhotoDelStyle.secondaryText)
+                if dataManager.photoLibraryManager.loadingProgress > 0.01 {
+                    Text("\(Int(dataManager.photoLibraryManager.loadingProgress * 100))%")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(PhotoDelStyle.secondaryText)
+                }
 
                 Text("准备完成后会自动显示分类和数量。整理过程只在本机完成。")
                     .font(.system(size: 15, weight: .regular))
@@ -240,9 +242,14 @@ struct HomeView: View {
                     .multilineTextAlignment(.center)
             }
 
-            ProgressView(value: dataManager.photoLibraryManager.loadingProgress)
-                .progressViewStyle(LinearProgressViewStyle(tint: PhotoDelStyle.accent))
-                .frame(maxWidth: .infinity)
+            if dataManager.photoLibraryManager.loadingProgress > 0.01 {
+                ProgressView(value: dataManager.photoLibraryManager.loadingProgress)
+                    .progressViewStyle(LinearProgressViewStyle(tint: PhotoDelStyle.accent))
+                    .frame(maxWidth: .infinity)
+            } else {
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: PhotoDelStyle.accent))
+            }
         }
         .padding(24)
         .photoDelCard()

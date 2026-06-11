@@ -317,22 +317,16 @@ struct SwipePhotoView: View {
                         }
                     )
                 } else if shouldShowInitialPreparingState {
-                    VStack(spacing: 18) {
-                        ProgressView(value: dataManager.photoLibraryManager.loadingProgress)
-                            .progressViewStyle(LinearProgressViewStyle(tint: PhotoDelStyle.accent))
-                            .frame(width: min(260, geometry.size.width - 80))
-
-                        Text("正在准备照片")
-                            .font(.system(size: 22, weight: .semibold))
-                            .foregroundColor(PhotoDelStyle.primaryText)
-
-                        Text("首次读取完成后会显示当前分类。")
-                            .font(.system(size: 15, weight: .regular))
-                            .foregroundColor(PhotoDelStyle.secondaryText)
-                            .multilineTextAlignment(.center)
-                    }
-                    .padding(24)
-                    .photoDelCard()
+                    PhotoSelectionLoadingCard(
+                        title: "正在读取照片",
+                        message: "读取完成后会直接进入当前整理。"
+                    )
+                    .padding(.horizontal, 24)
+                } else if shouldShowBackgroundLoadingState {
+                    PhotoSelectionLoadingCard(
+                        title: "正在读取当前相册",
+                        message: "照片很多时可能需要几秒，完成后会自动开始。"
+                    )
                     .padding(.horizontal, 24)
                 } else {
                     // 没有更多照片
@@ -621,7 +615,15 @@ struct SwipePhotoView: View {
     private var shouldShowInitialPreparingState: Bool {
         !didInitializeSession &&
             sessionPhotos.isEmpty &&
-            (dataManager.photoLibraryManager.isLoading || dataManager.isPreparingLibrary)
+            dataManager.isPreparingLibrary
+    }
+
+    private var shouldShowBackgroundLoadingState: Bool {
+        !didInitializeSession &&
+            sessionPhotos.isEmpty &&
+            !dataManager.isPreparingLibrary &&
+            dataManager.photoLibraryManager.isLoading &&
+            !dataManager.photoLibraryManager.hasLoadedPhotoLibrary
     }
 
     private var progressSubtitle: String {
@@ -945,6 +947,7 @@ struct RealPhotoCard: View {
     @State private var isLoading = true
     @State private var thumbnailRequestID: PHImageRequestID?
     @State private var previewRequestID: PHImageRequestID?
+    @State private var fallbackRequestID: PHImageRequestID?
     @State private var loadingAssetIdentifier: String?
 
     var body: some View {
@@ -1014,6 +1017,7 @@ struct RealPhotoCard: View {
         .onDisappear {
             photoLibraryManager.cancelImageRequest(thumbnailRequestID)
             photoLibraryManager.cancelImageRequest(previewRequestID)
+            photoLibraryManager.cancelImageRequest(fallbackRequestID)
             loadingAssetIdentifier = nil
         }
     }
@@ -1073,14 +1077,16 @@ struct RealPhotoCard: View {
     private func loadImage() {
         photoLibraryManager.cancelImageRequest(thumbnailRequestID)
         photoLibraryManager.cancelImageRequest(previewRequestID)
+        photoLibraryManager.cancelImageRequest(fallbackRequestID)
         isLoading = true
         image = nil
+        fallbackRequestID = nil
         let requestedAssetID = asset.localIdentifier
         loadingAssetIdentifier = requestedAssetID
 
         let thumbnailSize = CGSize(
-            width: min(targetSize.width, 700),
-            height: min(targetSize.height, 900)
+            width: min(targetSize.width, 1_100),
+            height: min(targetSize.height, 1_500)
         )
 
         thumbnailRequestID = photoLibraryManager.loadFastThumbnail(for: asset, size: thumbnailSize) { loadedImage in
@@ -1098,10 +1104,54 @@ struct RealPhotoCard: View {
                 self.image = loadedImage
                 self.isLoading = false
             } else if self.image == nil {
-                self.isLoading = false
+                self.loadFallbackImage(for: requestedAssetID)
             }
             self.previewRequestID = nil
         }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) {
+            guard loadingAssetIdentifier == requestedAssetID, image == nil else { return }
+            loadFallbackImage(for: requestedAssetID)
+        }
+    }
+
+    private func loadFallbackImage(for requestedAssetID: String) {
+        guard fallbackRequestID == nil else { return }
+
+        fallbackRequestID = photoLibraryManager.loadHighQualityPreview(for: asset, size: targetSize) { loadedImage in
+            guard loadingAssetIdentifier == requestedAssetID else { return }
+            if let loadedImage {
+                self.image = loadedImage
+                self.isLoading = false
+            }
+            self.fallbackRequestID = nil
+        }
+    }
+}
+
+private struct PhotoSelectionLoadingCard: View {
+    let title: String
+    let message: String
+
+    var body: some View {
+        VStack(spacing: 16) {
+            ProgressView()
+                .progressViewStyle(CircularProgressViewStyle(tint: PhotoDelStyle.accent))
+                .scaleEffect(1.05)
+
+            VStack(spacing: 7) {
+                Text(title)
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.primaryText)
+
+                Text(message)
+                    .font(.system(size: 15, weight: .regular))
+                    .foregroundColor(PhotoDelStyle.secondaryText)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .padding(24)
+        .photoDelCard()
     }
 }
 

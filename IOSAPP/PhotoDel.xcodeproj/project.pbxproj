@@ -29,9 +29,22 @@
 		C8964B192E2162AE00B434E4 /* PhotoDelUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PhotoDelUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		C8964B3A2E2162AF00B434E4 /* Exceptions for "PhotoDel" folder in "PhotoDel" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				PhotoDel.storekit,
+			);
+			target = C8964B012E2162AB00B434E4 /* PhotoDel */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		C8964B042E2162AB00B434E4 /* PhotoDel */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				C8964B3A2E2162AF00B434E4 /* Exceptions for "PhotoDel" folder in "PhotoDel" target */,
+			);
 			path = PhotoDel;
 			sourceTree = "<group>";
 		};

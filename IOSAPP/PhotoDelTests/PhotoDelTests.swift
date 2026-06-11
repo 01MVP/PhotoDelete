@@ -129,6 +129,78 @@ struct PhotoDelTests {
         #expect(stats.formattedSpaceSaved == "0.0 MB")
     }
 
+    // MARK: - CleanupStatsStore tests
+
+    @Test func cleanupStatsStoreRecordsAndPersistsSessions() async throws {
+        let fileURL = temporaryStatsURL()
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+
+        let store = CleanupStatsStore(fileURL: fileURL)
+        let date = makeDate(year: 2026, month: 6, day: 11, calendar: Calendar(identifier: .gregorian))
+        store.recordSession(
+            deletedPhotos: 3,
+            favoritedPhotos: 2,
+            organizedPhotos: 5,
+            estimatedSpaceSavedMB: 9,
+            date: date
+        )
+
+        #expect(store.sessions.count == 1)
+        #expect(store.summary.deletedPhotos == 3)
+        #expect(store.summary.favoritedPhotos == 2)
+        #expect(store.summary.organizedPhotos == 5)
+        #expect(store.summary.formattedSpaceSaved == "9.0 MB")
+
+        let reloadedStore = CleanupStatsStore(fileURL: fileURL)
+        #expect(reloadedStore.sessions.count == 1)
+        #expect(reloadedStore.summary.organizedPhotos == 5)
+    }
+
+    @Test func cleanupStatsStoreBuildsMonthlySummariesNewestFirst() async throws {
+        let fileURL = temporaryStatsURL()
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+
+        let store = CleanupStatsStore(fileURL: fileURL)
+        store.recordSession(
+            deletedPhotos: 1,
+            favoritedPhotos: 1,
+            organizedPhotos: 2,
+            estimatedSpaceSavedMB: 3,
+            date: makeDate(year: 2026, month: 5, day: 20, calendar: calendar)
+        )
+        store.recordSession(
+            deletedPhotos: 4,
+            favoritedPhotos: 0,
+            organizedPhotos: 4,
+            estimatedSpaceSavedMB: 12,
+            date: makeDate(year: 2026, month: 6, day: 11, calendar: calendar)
+        )
+
+        let summaries = store.monthlySummaries
+        #expect(summaries.count == 2)
+        #expect(summaries[0].monthKey == "2026-06")
+        #expect(summaries[0].deletedPhotos == 4)
+        #expect(summaries[1].monthKey == "2026-05")
+        #expect(summaries[1].organizedPhotos == 2)
+    }
+
+    @Test func cleanupStatsStoreSkipsEmptySessionsAndCanClear() async throws {
+        let fileURL = temporaryStatsURL()
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+
+        let store = CleanupStatsStore(fileURL: fileURL)
+        store.recordSession(deletedPhotos: 0, favoritedPhotos: 0, organizedPhotos: 0, estimatedSpaceSavedMB: 0)
+        #expect(store.sessions.isEmpty)
+
+        store.recordSession(deletedPhotos: 1, favoritedPhotos: 0, organizedPhotos: 1, estimatedSpaceSavedMB: 3)
+        #expect(store.sessions.count == 1)
+
+        store.clearAll()
+        #expect(store.sessions.isEmpty)
+    }
+
     // MARK: - AlbumInfo tests
 
     @Test func albumInfoWithNilAssetCollectionUsesTypeRawValue() async throws {
@@ -308,6 +380,12 @@ struct PhotoDelTests {
     private func makeDate(year: Int, month: Int, day: Int, hour: Int, minute: Int, second: Int, calendar: Calendar) -> Date {
         let components = DateComponents(calendar: calendar, timeZone: calendar.timeZone, year: year, month: month, day: day, hour: hour, minute: minute, second: second)
         return components.date!
+    }
+
+    private func temporaryStatsURL() -> URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("photodel-tests-\(UUID().uuidString)")
+            .appendingPathExtension("json")
     }
 
 }
