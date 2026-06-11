@@ -22,6 +22,8 @@ struct AlbumsView: View {
     @AppStorage(AppConstants.customAlbumOrderKey) private var customAlbumOrderData = "[]"
     @State private var searchText = ""
     @State private var activeSheet: AlbumSheet?
+    @State private var selectedSwipeAlbum: AlbumInfo?
+    @State private var isShowingSwipeAlbum = false
     @State private var showSearchBar = false
     @State private var sortMode: AlbumSortMode = .custom
     @State private var editMode: EditMode = .inactive
@@ -50,6 +52,12 @@ struct AlbumsView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        .navigationDestination(isPresented: $isShowingSwipeAlbum) {
+            if let selectedSwipeAlbum {
+                SwipePhotoView(selectedCategory: nil, selectedTimeGroup: nil, selectedAlbumInfo: selectedSwipeAlbum)
+                    .environmentObject(dataManager)
+            }
+        }
         .sheet(item: $activeSheet) { sheet in
             switch sheet {
             case .create:
@@ -57,9 +65,6 @@ struct AlbumsView: View {
                     .environmentObject(dataManager)
             case .edit(let album):
                 EditAlbumView(album: album)
-                    .environmentObject(dataManager)
-            case .swipe(let albumInfo):
-                SwipePhotoView(selectedCategory: nil, selectedTimeGroup: nil, selectedAlbumInfo: albumInfo)
                     .environmentObject(dataManager)
             }
         }
@@ -475,7 +480,8 @@ struct AlbumsView: View {
         }
 
         HapticManager.impact(.light)
-        activeSheet = .swipe(albumInfo)
+        selectedSwipeAlbum = albumInfo
+        isShowingSwipeAlbum = true
     }
 
     private func confirmDeleteAlbum(_ album: PHAssetCollection) {
@@ -533,7 +539,6 @@ struct AlbumsView: View {
 private enum AlbumSheet: Identifiable {
     case create
     case edit(PHAssetCollection)
-    case swipe(AlbumInfo)
 
     var id: String {
         switch self {
@@ -541,8 +546,6 @@ private enum AlbumSheet: Identifiable {
             return "create"
         case .edit(let album):
             return "edit-\(album.localIdentifier)"
-        case .swipe(let albumInfo):
-            return "swipe-\(albumInfo.id)"
         }
     }
 }
