@@ -29,8 +29,10 @@ class DataManager: ObservableObject {
     @Published var albumLoadingProgress: Double = 0
     @Published private(set) var reviewedAssetIDs: Set<String> = []
     let cleanupStatsStore: CleanupStatsStore
+    private let albumSnapshotStore = AlbumListSnapshotStore()
 
     private var isReloadingLibrary = false
+    private var isRestoringLibrarySnapshot = false
     private var hasLoadedAlbums = false
     private var isFetchingAlbums = false
     private var timeGroupCache: [TimeGroup: [PHAsset]] = [:]
@@ -81,6 +83,7 @@ class DataManager: ObservableObject {
         guard photoLibraryManager.hasPhotoLibraryAccess else {
             isPreparingLibrary = false
             isReloadingLibrary = false
+            isRestoringLibrarySnapshot = false
             timeGroups = []
             systemAlbums = []
             userAlbums = []
@@ -91,10 +94,13 @@ class DataManager: ObservableObject {
             return
         }
 
-        if !hadAccess ||
-            previousStatus != photoLibraryManager.authorizationStatus ||
-            (!photoLibraryManager.hasLoadedPhotoLibrary && !photoLibraryManager.isLoading) {
-            reloadLibraryData(showPreparing: showPreparing)
+        let needsInitialLoad = !photoLibraryManager.hasLoadedPhotoLibrary && !photoLibraryManager.isLoading
+        if !hadAccess || previousStatus != photoLibraryManager.authorizationStatus || needsInitialLoad {
+            if needsInitialLoad, photoLibraryManager.hasCachedPhotoLibrarySnapshot {
+                restoreCachedLibraryThenRefreshIfNeeded()
+            } else {
+                reloadLibraryData(showPreparing: showPreparing || needsInitialLoad)
+            }
         }
     }
 
@@ -123,6 +129,38 @@ class DataManager: ObservableObject {
             self.updateStats()
             self.isPreparingLibrary = false
             self.isReloadingLibrary = false
+        }
+    }
+
+    private func restoreCachedLibraryThenRefreshIfNeeded() {
+        guard !isRestoringLibrarySnapshot else { return }
+        isRestoringLibrarySnapshot = true
+        isPreparingLibrary = false
+
+        photoLibraryManager.restoreCachedPhotoLibrary { [weak self] restored in
+            guard let self else { return }
+            self.isRestoringLibrarySnapshot = false
+
+            guard restored else {
+                self.reloadLibraryData(showPreparing: true)
+                return
+            }
+
+            self.loadTimeGroups()
+            _ = self.restoreCachedAlbums()
+            self.updateStats()
+
+            self.photoLibraryManager.refreshPhotoLibraryIfNeeded { [weak self] didRefreshLibrary in
+                guard let self else { return }
+                self.loadTimeGroups()
+                if didRefreshLibrary {
+                    self.hasLoadedAlbums = false
+                    self.loadAlbums(showLoading: false)
+                } else {
+                    self.loadAlbumsIfNeeded()
+                }
+                self.updateStats()
+            }
         }
     }
 
@@ -258,7 +296,6 @@ class DataManager: ObservableObject {
 
     private func refreshDerivedLibraryData() {
         loadTimeGroups()
-        loadAlbums(showLoading: false)
         updateStats()
     }
 
@@ -427,6 +464,7 @@ class DataManager: ObservableObject {
     // MARK: - 相册数据加载
     func loadAlbumsIfNeeded() {
         guard !hasLoadedAlbums, !isFetchingAlbums else { return }
+        if restoreCachedAlbums() { return }
         loadAlbums(showLoading: true)
     }
 
@@ -535,8 +573,73 @@ class DataManager: ObservableObject {
                 self.isFetchingAlbums = false
                 self.albumLoadingProgress = 1
                 self.isLoadingAlbums = false
+                self.saveAlbumSnapshot()
             }
         }
+    }
+
+    @discardableResult
+    private func restoreCachedAlbums() -> Bool {
+        guard let snapshot = albumSnapshotStore.load() else { return false }
+
+        let restoredSystemAlbums = snapshot.systemAlbums.compactMap(restoreAlbumInfo)
+        let restoredUserAlbums = snapshot.userAlbums.compactMap(restoreAlbumInfo)
+        systemAlbums = restoredSystemAlbums
+        userAlbums = restoredUserAlbums
+        hasLoadedAlbums = true
+        isLoadingAlbums = false
+        isFetchingAlbums = false
+        albumLoadingProgress = 1
+        return true
+    }
+
+    private func restoreAlbumInfo(_ record: CachedAlbumRecord) -> AlbumInfo? {
+        guard let albumType = AlbumType(rawValue: record.typeRawValue) else { return nil }
+        let collection = fetchAssetCollection(withIdentifier: record.id)
+        if albumType == .userCreated && collection == nil { return nil }
+
+        return AlbumInfo(
+            id: record.id,
+            title: record.title,
+            assetCollection: collection,
+            type: albumType,
+            photosCount: record.photosCount,
+            thumbnailAsset: fetchAsset(withIdentifier: record.thumbnailAssetID)
+        )
+    }
+
+    private func fetchAssetCollection(withIdentifier identifier: String) -> PHAssetCollection? {
+        PHAssetCollection.fetchAssetCollections(
+            withLocalIdentifiers: [identifier],
+            options: nil
+        ).firstObject
+    }
+
+    private func fetchAsset(withIdentifier identifier: String?) -> PHAsset? {
+        guard let identifier else { return nil }
+        return PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: nil).firstObject
+    }
+
+    private func saveAlbumSnapshot() {
+        let snapshot = AlbumListSnapshot(
+            createdAt: Date(),
+            systemAlbums: systemAlbums.map { cachedAlbumRecord(from: $0) },
+            userAlbums: userAlbums.map { cachedAlbumRecord(from: $0) }
+        )
+        let store = albumSnapshotStore
+        DispatchQueue.global(qos: .utility).async {
+            store.save(snapshot)
+        }
+    }
+
+    private func cachedAlbumRecord(from album: AlbumInfo) -> CachedAlbumRecord {
+        CachedAlbumRecord(
+            id: album.id,
+            title: album.title,
+            typeRawValue: album.type.rawValue,
+            photosCount: album.photosCount,
+            thumbnailAssetID: album.thumbnailAsset?.localIdentifier
+        )
     }
 
     // MARK: - 时间筛选方法
@@ -613,11 +716,103 @@ class DataManager: ObservableObject {
         return userAlbums
     }
 
+    func insertCreatedUserAlbum(withIdentifier identifier: String?) {
+        guard let identifier else { return }
+        let collections = PHAssetCollection.fetchAssetCollections(
+            withLocalIdentifiers: [identifier],
+            options: nil
+        )
+        guard let collection = collections.firstObject else { return }
+
+        let albumInfo = AlbumInfo(
+            assetCollection: collection,
+            type: .userCreated,
+            photosCount: 0,
+            thumbnailAsset: nil
+        )
+        upsertUserAlbum(albumInfo)
+        hasLoadedAlbums = true
+        saveAlbumSnapshot()
+    }
+
+    func renameUserAlbum(id: String, title: String) {
+        guard let index = userAlbums.firstIndex(where: { $0.id == id }) else { return }
+        let album = userAlbums[index]
+        userAlbums[index] = AlbumInfo(
+            id: album.id,
+            title: title,
+            assetCollection: album.assetCollection,
+            type: album.type,
+            photosCount: album.photosCount,
+            thumbnailAsset: album.thumbnailAsset
+        )
+        saveAlbumSnapshot()
+    }
+
+    func removeUserAlbum(id: String) {
+        userAlbums.removeAll { $0.id == id }
+        saveAlbumSnapshot()
+    }
+
+    func recordAddedPhotoToAlbum(_ asset: PHAsset, albumID: String) {
+        updateUserAlbumCount(id: albumID, delta: 1, replacementThumbnail: asset)
+    }
+
+    func recordDeletedPhotosFromAlbum(albumID: String?, deletedAssets: [PHAsset]) {
+        guard let albumID, !deletedAssets.isEmpty else { return }
+        guard let index = userAlbums.firstIndex(where: { $0.id == albumID }) else { return }
+        let album = userAlbums[index]
+
+        if let collection = album.assetCollection {
+            let assets = PHAsset.fetchAssets(in: collection, options: nil)
+            userAlbums[index] = AlbumInfo(
+                id: album.id,
+                title: album.title,
+                assetCollection: album.assetCollection,
+                type: album.type,
+                photosCount: assets.count,
+                thumbnailAsset: assets.firstObject
+            )
+            saveAlbumSnapshot()
+            return
+        }
+
+        updateUserAlbumCount(id: albumID, delta: -deletedAssets.count, replacementThumbnail: nil)
+    }
+
+    private func upsertUserAlbum(_ albumInfo: AlbumInfo) {
+        if let index = userAlbums.firstIndex(where: { $0.id == albumInfo.id }) {
+            userAlbums[index] = albumInfo
+        } else {
+            userAlbums.insert(albumInfo, at: 0)
+        }
+    }
+
+    private func updateUserAlbumCount(id: String, delta: Int, replacementThumbnail: PHAsset?) {
+        guard let index = userAlbums.firstIndex(where: { $0.id == id }) else { return }
+        let album = userAlbums[index]
+        let nextCount = max(album.photosCount + delta, 0)
+        let nextThumbnail = replacementThumbnail ?? (nextCount == 0 ? nil : album.thumbnailAsset)
+
+        userAlbums[index] = AlbumInfo(
+            id: album.id,
+            title: album.title,
+            assetCollection: album.assetCollection,
+            type: album.type,
+            photosCount: nextCount,
+            thumbnailAsset: nextThumbnail
+        )
+        saveAlbumSnapshot()
+    }
+
     // MARK: - 相册照片操作
     func addPhotoToAlbum(_ asset: PHAsset, album: PHAssetCollection, completion: @escaping (Bool) -> Void) {
         photoLibraryManager.addPhotosToAlbum([asset], album: album) { success, error in
             if let error = error {
                 print("添加照片到相册失败: \(error.localizedDescription)")
+            }
+            if success {
+                self.recordAddedPhotoToAlbum(asset, albumID: album.localIdentifier)
             }
             completion(success)
         }

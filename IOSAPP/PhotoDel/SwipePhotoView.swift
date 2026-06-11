@@ -139,7 +139,7 @@ struct SwipePhotoView: View {
         .sheet(isPresented: $showBatchConfirm, onDismiss: {
             didInitializeSession = false
         }) {
-            BatchConfirmView {
+            BatchConfirmView(albumInfo: selectedAlbumInfo) {
                 if shouldDismissAfterBatch {
                     dismiss()
                 }
@@ -1395,9 +1395,11 @@ struct BatchConfirmView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var isProcessing = false
     @State private var errorMessage: String?
+    let albumInfo: AlbumInfo?
     let onComplete: (() -> Void)?
 
-    init(onComplete: (() -> Void)? = nil) {
+    init(albumInfo: AlbumInfo? = nil, onComplete: (() -> Void)? = nil) {
+        self.albumInfo = albumInfo
         self.onComplete = onComplete
     }
 
@@ -1513,10 +1515,15 @@ struct BatchConfirmView: View {
 
         isProcessing = true
         errorMessage = nil
+        let deletedAssets = Array(dataManager.deleteCandidates)
         dataManager.executeBatchOperations { success, error in
             isProcessing = false
             if success {
                 DispatchQueue.main.async {
+                    dataManager.recordDeletedPhotosFromAlbum(
+                        albumID: albumInfo?.id,
+                        deletedAssets: deletedAssets
+                    )
                     dismiss()
                     onComplete?()
                 }

@@ -281,6 +281,15 @@ struct AlbumInfo: Identifiable {
         self.photosCount = photosCount
         self.thumbnailAsset = thumbnailAsset
     }
+
+    init(id: String, title: String, assetCollection: PHAssetCollection?, type: AlbumType, photosCount: Int = 0, thumbnailAsset: PHAsset? = nil) {
+        self.id = id
+        self.title = title
+        self.assetCollection = assetCollection
+        self.type = type
+        self.photosCount = photosCount
+        self.thumbnailAsset = thumbnailAsset
+    }
 }
 
 // MARK: - 时间组信息

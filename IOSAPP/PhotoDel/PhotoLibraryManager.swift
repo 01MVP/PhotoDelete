@@ -15,14 +15,20 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     private var allPhotosResult: PHFetchResult<PHAsset>?
     private let imageManager = PHCachingImageManager()
     private let imageCache = NSCache<NSString, UIImage>()
+    private let snapshotStore = PhotoLibrarySnapshotStore()
     private var pendingLoadCompletions: [() -> Void] = []
     private var localChangeNotificationsRemaining = 0
     private var localChangeResetWorkItem: DispatchWorkItem?
+    private var isRestoringSnapshot = false
 
     private var isObserverRegistered = false
 
     var hasPhotoLibraryAccess: Bool {
         authorizationStatus == .authorized || authorizationStatus == .limited
+    }
+
+    var hasCachedPhotoLibrarySnapshot: Bool {
+        snapshotStore.hasSnapshot
     }
 
     override init() {
@@ -72,6 +78,69 @@ class PhotoLibraryManager: NSObject, ObservableObject {
 
     // MARK: - Load Photos
 
+    func restoreCachedPhotoLibrary(completion: @escaping (Bool) -> Void) {
+        guard hasPhotoLibraryAccess, !isLoading, !isRestoringSnapshot else {
+            completion(false)
+            return
+        }
+
+        guard let snapshot = snapshotStore.load() else {
+            completion(false)
+            return
+        }
+
+        isRestoringSnapshot = true
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+
+            let restoredAssets = self.fetchAssetsPreservingOrder(snapshot.allPhotoIDs)
+            let assetByID = Dictionary(uniqueKeysWithValues: restoredAssets.map { ($0.localIdentifier, $0) })
+            let restoredVideos = snapshot.videoIDs.compactMap { assetByID[$0] }
+            let restoredScreenshots = snapshot.screenshotIDs.compactMap { assetByID[$0] }
+            let restoredFavorites = snapshot.favoriteIDs.compactMap { assetByID[$0] }
+            let fetchResult = PHAsset.fetchAssets(with: self.defaultPhotoFetchOptions())
+
+            DispatchQueue.main.async {
+                self.allPhotosResult = fetchResult
+                self.allPhotos = restoredAssets
+                self.videos = restoredVideos
+                self.screenshots = restoredScreenshots
+                self.favorites = restoredFavorites
+                self.loadingProgress = 1
+                self.isLoading = false
+                self.hasLoadedPhotoLibrary = true
+                self.isRestoringSnapshot = false
+                completion(!restoredAssets.isEmpty || snapshot.allPhotoIDs.isEmpty)
+            }
+        }
+    }
+
+    func refreshPhotoLibraryIfNeeded(completion: ((Bool) -> Void)? = nil) {
+        guard hasPhotoLibraryAccess, hasLoadedPhotoLibrary, !isLoading else {
+            completion?(false)
+            return
+        }
+
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            guard let self else { return }
+            let countsChanged =
+                PHAsset.fetchAssets(with: self.defaultPhotoFetchOptions()).count != self.allPhotos.count ||
+                self.fetchAssetCount(mediaType: .video) != self.videos.count ||
+                self.fetchFavoriteAssetCount() != self.favorites.count ||
+                self.fetchSmartAlbumAssetCount(.smartAlbumScreenshots) != self.screenshots.count
+
+            DispatchQueue.main.async {
+                if countsChanged {
+                    self.loadPhotos(preserveExistingData: true) {
+                        completion?(true)
+                    }
+                } else {
+                    completion?(false)
+                }
+            }
+        }
+    }
+
     func loadPhotos(preserveExistingData: Bool = false, completion: (() -> Void)? = nil) {
         guard hasPhotoLibraryAccess else { return }
         guard !isLoading else {
@@ -100,8 +169,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             let batchSize = 500 // 每批加载500张照片
 
             // 获取所有照片的数量
-            let fetchOptions = PHFetchOptions()
-            fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+            let fetchOptions = self.defaultPhotoFetchOptions()
 
             let allPhotosResult = PHAsset.fetchAssets(with: fetchOptions)
             DispatchQueue.main.async {
@@ -120,6 +188,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                     self.loadingProgress = 1.0
                     self.isLoading = false
                     self.hasLoadedPhotoLibrary = true
+                    self.saveSnapshot(allPhotos: [], videos: [], screenshots: [], favorites: [])
                     self.finishLoadingPhotos()
                 }
                 return
@@ -159,6 +228,12 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                     self.loadingProgress = 1.0
                     self.isLoading = false
                     self.hasLoadedPhotoLibrary = true
+                    self.saveSnapshot(
+                        allPhotos: allPhotosArray,
+                        videos: videos,
+                        screenshots: screenshots,
+                        favorites: favorites
+                    )
                     self.finishLoadingPhotos()
                 }
             }
@@ -405,6 +480,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         loadingProgress = 1
         isLoading = false
         hasLoadedPhotoLibrary = true
+        saveSnapshot(allPhotos: allPhotos, videos: videos, screenshots: screenshots, favorites: favorites)
     }
 
     func preloadImagesForAssets(_ assets: [PHAsset], size: CGSize, maxCount: Int = 10) {
@@ -544,6 +620,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         loadingProgress = 1
         isLoading = false
         hasLoadedPhotoLibrary = true
+        saveSnapshot(allPhotos: allPhotos, videos: videos, screenshots: screenshots, favorites: favorites)
         finishLoadingPhotos()
     }
 
@@ -565,6 +642,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                     self.loadingProgress = 1
                     self.isLoading = false
                     self.hasLoadedPhotoLibrary = true
+                    self.saveSnapshot(allPhotos: photos, videos: videos, screenshots: screenshots, favorites: favorites)
                     self.finishLoadingPhotos()
                 }
             }
@@ -620,6 +698,60 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             favorites[index] = asset
         } else {
             favorites.insert(asset, at: 0)
+        }
+    }
+
+    private func defaultPhotoFetchOptions() -> PHFetchOptions {
+        let fetchOptions = PHFetchOptions()
+        fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+        return fetchOptions
+    }
+
+    private func fetchAssetsPreservingOrder(_ identifiers: [String]) -> [PHAsset] {
+        guard !identifiers.isEmpty else { return [] }
+
+        let result = PHAsset.fetchAssets(withLocalIdentifiers: identifiers, options: nil)
+        var assetsByID: [String: PHAsset] = [:]
+        assetsByID.reserveCapacity(result.count)
+        result.enumerateObjects { asset, _, _ in
+            assetsByID[asset.localIdentifier] = asset
+        }
+        return identifiers.compactMap { assetsByID[$0] }
+    }
+
+    private func fetchAssetCount(mediaType: PHAssetMediaType) -> Int {
+        let options = PHFetchOptions()
+        options.predicate = NSPredicate(format: "mediaType == %d", mediaType.rawValue)
+        return PHAsset.fetchAssets(with: options).count
+    }
+
+    private func fetchFavoriteAssetCount() -> Int {
+        let options = PHFetchOptions()
+        options.predicate = NSPredicate(format: "isFavorite == YES")
+        return PHAsset.fetchAssets(with: options).count
+    }
+
+    private func fetchSmartAlbumAssetCount(_ subtype: PHAssetCollectionSubtype) -> Int {
+        let collections = PHAssetCollection.fetchAssetCollections(
+            with: .smartAlbum,
+            subtype: subtype,
+            options: nil
+        )
+        guard let collection = collections.firstObject else { return 0 }
+        return PHAsset.fetchAssets(in: collection, options: nil).count
+    }
+
+    private func saveSnapshot(allPhotos: [PHAsset], videos: [PHAsset], screenshots: [PHAsset], favorites: [PHAsset]) {
+        let snapshot = PhotoLibrarySnapshot(
+            createdAt: Date(),
+            allPhotoIDs: allPhotos.map(\.localIdentifier),
+            videoIDs: videos.map(\.localIdentifier),
+            screenshotIDs: screenshots.map(\.localIdentifier),
+            favoriteIDs: favorites.map(\.localIdentifier)
+        )
+        let store = snapshotStore
+        DispatchQueue.global(qos: .utility).async {
+            store.save(snapshot)
         }
     }
 

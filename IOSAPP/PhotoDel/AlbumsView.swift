@@ -48,17 +48,11 @@ struct AlbumsView: View {
         .sheet(isPresented: $showingCreateAlbum) {
             CreateAlbumView()
                 .environmentObject(dataManager)
-                .onDisappear {
-                    dataManager.loadAlbums(showLoading: false)
-                }
         }
         .sheet(isPresented: $showingEditAlbum) {
             if let album = editingAlbum {
                 EditAlbumView(album: album)
                     .environmentObject(dataManager)
-                    .onDisappear {
-                        dataManager.loadAlbums(showLoading: false)
-                    }
             }
         }
         .sheet(item: $selectedAlbumInfo) { albumInfo in
@@ -466,6 +460,7 @@ struct AlbumsView: View {
 
     private func deleteAlbum(_ album: PHAssetCollection) {
         guard album.assetCollectionType == .album else { return }
+        let albumID = album.localIdentifier
 
         PHPhotoLibrary.shared().performChanges({
             PHAssetCollectionChangeRequest.deleteAssetCollections([album] as NSArray)
@@ -474,7 +469,7 @@ struct AlbumsView: View {
                 if success {
                     HapticManager.notify(.success)
                     self.showAlbumToast(L10n.string("相册已删除"), icon: "trash", style: .positive)
-                    self.dataManager.loadAlbums(showLoading: false)
+                    self.dataManager.removeUserAlbum(id: albumID)
                 } else if let error = error {
                     HapticManager.notify(.error)
                     self.showAlbumToast(L10n.string("删除失败，请再试一次"), icon: "exclamationmark.triangle", style: .warning)
@@ -702,7 +697,7 @@ struct CreateAlbumView: View {
                             }
                         }
                         .photoDelPrimaryButton()
-                        .disabled(albumName.isEmpty || isCreating)
+                        .disabled(albumName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isCreating)
 
                         Button(action: { dismiss() }) {
                             Text("取消")
@@ -729,16 +724,20 @@ struct CreateAlbumView: View {
     }
 
     private func createAlbum() {
-        guard !albumName.isEmpty else { return }
+        let trimmedName = albumName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return }
 
         isCreating = true
+        var createdAlbumIdentifier: String?
 
         PHPhotoLibrary.shared().performChanges({
-            PHAssetCollectionChangeRequest.creationRequestForAssetCollection(withTitle: albumName)
+            let request = PHAssetCollectionChangeRequest.creationRequestForAssetCollection(withTitle: trimmedName)
+            createdAlbumIdentifier = request.placeholderForCreatedAssetCollection.localIdentifier
         }) { success, error in
             DispatchQueue.main.async {
                 self.isCreating = false
                 if success {
+                    self.dataManager.insertCreatedUserAlbum(withIdentifier: createdAlbumIdentifier)
                     self.dismiss()
                 } else if let error = error {
                     print("创建相册失败: \(error.localizedDescription)")
@@ -823,7 +822,7 @@ struct EditAlbumView: View {
                             }
                         }
                         .photoDelPrimaryButton()
-                        .disabled(newName.isEmpty || isUpdating)
+                        .disabled(newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isUpdating)
 
                         Button(action: { dismiss() }) {
                             Text("取消")
@@ -850,17 +849,20 @@ struct EditAlbumView: View {
     }
 
     private func updateAlbum() {
-        guard !newName.isEmpty, album.assetCollectionType == .album else { return }
+        let trimmedName = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty, album.assetCollectionType == .album else { return }
 
         isUpdating = true
+        let albumID = album.localIdentifier
 
         PHPhotoLibrary.shared().performChanges({
             let request = PHAssetCollectionChangeRequest(for: album)
-            request?.title = newName
+            request?.title = trimmedName
         }) { success, error in
             DispatchQueue.main.async {
                 self.isUpdating = false
                 if success {
+                    self.dataManager.renameUserAlbum(id: albumID, title: trimmedName)
                     self.dismiss()
                 } else if let error = error {
                     print("更新相册失败: \(error.localizedDescription)")
