@@ -168,7 +168,7 @@ struct SwipePhotoView: View {
                             resetCardPosition()
                         }
                         .padding(.horizontal, 24)
-                        .padding(.bottom, isLandscape ? 24 : 126)
+                        .padding(.bottom, isLandscape ? 24 : portraitToastBottomPadding)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
@@ -395,12 +395,6 @@ struct SwipePhotoView: View {
                     .padding(.horizontal, 24)
                 }
 
-                // 操作提示
-                if currentRealPhoto != nil && reviewMode == .card {
-                    gestureHintStrip
-                        .padding(.bottom, 20)
-                }
-
                 Spacer()
             }
         }
@@ -410,13 +404,16 @@ struct SwipePhotoView: View {
         let cardSize = photoCardSize(in: containerSize)
 
         return ZStack {
-            RealPhotoCard(
+            SwipePhotoCardFrame(
                 asset: asset,
                 photoLibraryManager: dataManager.photoLibraryManager,
                 isInDeleteCandidates: isAssetQueuedForDelete(asset),
                 isInFavoriteCandidates: isAssetQueuedForFavorite(asset),
                 displaySize: cardSize,
-                targetSize: imageTargetSize(for: cardSize)
+                targetSize: imageTargetSize(for: cardSize),
+                leftAction: configuredAction(for: SwipeGestureDirection.left),
+                rightAction: configuredAction(for: SwipeGestureDirection.right),
+                upAction: configuredAction(for: SwipeGestureDirection.up)
             )
             .id(asset.localIdentifier)
             .offset(dragOffset)
@@ -570,15 +567,22 @@ struct SwipePhotoView: View {
 
     // MARK: - 底部控制区域
     private var bottomControls: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 10) {
             albumShortcutStrip(horizontalPadding: 24)
             actionToolbar
         }
-        .padding(.top, 12)
-        .padding(.bottom, 30)
+        .padding(.top, 8)
+        .padding(.bottom, 24)
         .background(
-            PhotoDelStyle.background.opacity(0.92)
-                .overlay(PhotoDelStyle.hairline.frame(height: 1), alignment: .top)
+            LinearGradient(
+                colors: [
+                    PhotoDelStyle.background.opacity(0.08),
+                    PhotoDelStyle.background.opacity(0.94)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .overlay(PhotoDelStyle.hairline.opacity(0.65).frame(height: 1), alignment: .top)
         )
     }
 
@@ -719,78 +723,87 @@ struct SwipePhotoView: View {
     @ViewBuilder
     private func albumShortcutStrip(horizontalPadding: CGFloat) -> some View {
         if !isAlbumMode && canPerformPhotoAction && !dataManager.userAlbums.isEmpty {
-            let rows = [
-                GridItem(.fixed(32), spacing: 8),
-                GridItem(.fixed(32), spacing: 8)
-            ]
+            let rows = albumShortcutRows
 
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHGrid(rows: rows, spacing: 8) {
-                    ForEach(dataManager.userAlbums) { albumInfo in
-                        Button(action: {
-                            handleAddToAlbum(albumInfo)
-                        }) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "folder")
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .foregroundColor(PhotoDelStyle.accent)
-
-                                Text(albumInfo.title)
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundColor(PhotoDelStyle.primaryText)
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.82)
+                VStack(alignment: .leading, spacing: 7) {
+                    HStack(spacing: 7) {
+                        ForEach(rows.top) { albumInfo in
+                            AlbumMicroButton(title: albumInfo.title) {
+                                handleAddToAlbum(albumInfo)
                             }
-                            .padding(.horizontal, 11)
-                            .frame(width: 118, height: 32)
-                            .background(
-                                Capsule(style: .continuous)
-                                    .fill(PhotoDelStyle.surface)
-                                    .overlay(
-                                        Capsule(style: .continuous)
-                                            .stroke(PhotoDelStyle.hairline, lineWidth: 1)
-                                    )
-                            )
                         }
-                        .buttonStyle(.plain)
                     }
+
+                    HStack(spacing: 7) {
+                        ForEach(rows.bottom) { albumInfo in
+                            AlbumMicroButton(title: albumInfo.title) {
+                                handleAddToAlbum(albumInfo)
+                            }
+                        }
+                    }
+                    .padding(.leading, rows.bottom.isEmpty ? 0 : 24)
                 }
                 .padding(.horizontal, horizontalPadding)
+                .padding(.vertical, 2)
             }
-            .frame(height: 76)
+            .frame(height: 67)
+            .mask(
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0),
+                        .init(color: .black, location: 0.04),
+                        .init(color: .black, location: 0.94),
+                        .init(color: .clear, location: 1)
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
         }
     }
 
     private var actionToolbar: some View {
         HStack(spacing: 0) {
-            Spacer()
+            Spacer(minLength: 0)
             ActionButton(icon: "arrow.uturn.backward", title: "撤销", color: PhotoDelStyle.secondaryText) {
                 handleUndoAction()
                 resetCardPosition()
             }
-            Spacer()
+            Spacer(minLength: 0)
             ActionButton(icon: isCurrentPhotoFavorited ? "heart.fill" : "heart", title: "收藏", color: PhotoDelStyle.iconTint(for: "favorite")) {
                 handleFavoriteAction()
                 resetCardPosition()
             }
-            Spacer()
+            Spacer(minLength: 0)
             ActionButton(icon: "trash", title: "删除", color: PhotoDelStyle.destructive) {
                 handleDeleteAction()
                 resetCardPosition()
             }
-            Spacer()
+            Spacer(minLength: 0)
             ActionButton(icon: "arrow.right", title: "跳过", color: PhotoDelStyle.accent) {
                 handleSkipAction()
                 resetCardPosition()
             }
-            Spacer()
+            Spacer(minLength: 0)
             ActionButton(icon: "checkmark", title: "完成", color: PhotoDelStyle.positive) {
                 handleFinishAction()
                 resetCardPosition()
             }
-            Spacer()
+            Spacer(minLength: 0)
         }
-        .padding(.horizontal, 24)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(PhotoDelStyle.surface.opacity(0.86))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 30, style: .continuous)
+                        .stroke(PhotoDelStyle.hairline, lineWidth: 1)
+                )
+        )
+        .shadow(color: .black.opacity(0.22), radius: 20, x: 0, y: 10)
+        .padding(.horizontal, 18)
         .disabled(!canPerformPhotoAction)
         .opacity(canPerformPhotoAction ? 1 : 0.45)
     }
@@ -822,22 +835,28 @@ struct SwipePhotoView: View {
         return L10n.string("\(getDisplayTitle()) · 已整理 \(organizedProgress)/\(totalPhotosCount)")
     }
 
-    private var hasUnreviewedPhotos: Bool {
-        sessionReviewedCount < totalPhotosCount
+    private var portraitToastBottomPadding: CGFloat {
+        if !isAlbumMode && canPerformPhotoAction && !dataManager.userAlbums.isEmpty {
+            return 176
+        }
+        return 116
     }
 
-    private var gestureHintStrip: some View {
-        HStack(spacing: 8) {
-            ForEach(SwipeGestureDirection.allCases) { direction in
-                let action = configuredAction(for: direction)
-                GestureHintPill(
-                    icon: direction.icon,
-                    title: "\(direction.title)\(action.title)",
-                    color: action.tint
-                )
+    private var albumShortcutRows: (top: [AlbumInfo], bottom: [AlbumInfo]) {
+        var top: [AlbumInfo] = []
+        var bottom: [AlbumInfo] = []
+        for (index, album) in dataManager.userAlbums.enumerated() {
+            if index.isMultiple(of: 2) {
+                top.append(album)
+            } else {
+                bottom.append(album)
             }
         }
-        .padding(.horizontal, 24)
+        return (top, bottom)
+    }
+
+    private var hasUnreviewedPhotos: Bool {
+        sessionReviewedCount < totalPhotosCount
     }
 
     private func initializeSessionIfNeeded() {
@@ -895,7 +914,7 @@ struct SwipePhotoView: View {
         let availableWidth = max(containerSize.width - 40, 180)
         let availableHeight = max(containerSize.height - 72, 220)
         let width = min(availableWidth, 390)
-        let height = min(availableHeight, 540)
+        let height = min(availableHeight, 590)
         return CGSize(width: width, height: height)
     }
 
@@ -1219,7 +1238,7 @@ struct SwipePhotoView: View {
         let wasReviewed = dataManager.markReviewed(asset)
         recordSessionReviewedChange(wasReviewed: wasReviewed)
         HapticManager.impact(.light)
-        showFeedback(L10n.string("正在归类到 \(albumInfo.title)"), icon: "folder", style: .neutral, duration: 1.0)
+        showFeedback(L10n.string("正在归类到 \(albumInfo.title)"), icon: "tray.and.arrow.down", style: .neutral, duration: 1.0)
         dataManager.addPhotoToAlbum(asset, album: assetCollection) { success in
             DispatchQueue.main.async {
                 if success {
@@ -1668,6 +1687,151 @@ private struct BrowserPhotoBadge: View {
     }
 }
 
+private struct SwipePhotoCardFrame: View {
+    let asset: PHAsset
+    let photoLibraryManager: PhotoLibraryManager
+    let isInDeleteCandidates: Bool
+    let isInFavoriteCandidates: Bool
+    let displaySize: CGSize
+    let targetSize: CGSize
+    let leftAction: SwipeGestureAction
+    let rightAction: SwipeGestureAction
+    let upAction: SwipeGestureAction
+
+    var body: some View {
+        RealPhotoCard(
+            asset: asset,
+            photoLibraryManager: photoLibraryManager,
+            isInDeleteCandidates: isInDeleteCandidates,
+            isInFavoriteCandidates: isInFavoriteCandidates,
+            displaySize: displaySize,
+            targetSize: targetSize
+        )
+        .overlay {
+            PhotoSwipeEdgeGlow(
+                leftColor: leftAction.tint,
+                rightColor: rightAction.tint,
+                topColor: upAction.tint
+            )
+            .allowsHitTesting(false)
+        }
+        .overlay(alignment: .top) {
+            SwipeEdgeHint(
+                icon: SwipeGestureDirection.up.icon,
+                title: "\(SwipeGestureDirection.up.title)\(upAction.title)",
+                color: upAction.tint
+            )
+            .padding(.top, 16)
+        }
+        .overlay(alignment: .bottomLeading) {
+            SwipeEdgeHint(
+                icon: SwipeGestureDirection.left.icon,
+                title: "\(SwipeGestureDirection.left.title)\(leftAction.title)",
+                color: leftAction.tint
+            )
+            .padding(.leading, 14)
+            .padding(.bottom, 16)
+        }
+        .overlay(alignment: .bottomTrailing) {
+            SwipeEdgeHint(
+                icon: SwipeGestureDirection.right.icon,
+                title: "\(SwipeGestureDirection.right.title)\(rightAction.title)",
+                color: rightAction.tint,
+                iconPlacement: .trailing
+            )
+            .padding(.trailing, 14)
+            .padding(.bottom, 16)
+        }
+    }
+}
+
+private struct PhotoSwipeEdgeGlow: View {
+    let leftColor: Color
+    let rightColor: Color
+    let topColor: Color
+
+    var body: some View {
+        ZStack {
+            HStack(spacing: 0) {
+                LinearGradient(
+                    colors: [leftColor.opacity(0.52), leftColor.opacity(0.18), .clear],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+                .frame(width: 52)
+
+                Spacer(minLength: 0)
+
+                LinearGradient(
+                    colors: [.clear, rightColor.opacity(0.18), rightColor.opacity(0.52)],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+                .frame(width: 52)
+            }
+
+            VStack(spacing: 0) {
+                LinearGradient(
+                    colors: [topColor.opacity(0.24), .clear],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 86)
+
+                Spacer(minLength: 0)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+}
+
+private struct SwipeEdgeHint: View {
+    enum IconPlacement {
+        case leading
+        case trailing
+    }
+
+    let icon: String
+    let title: String
+    let color: Color
+    var iconPlacement: IconPlacement = .leading
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if iconPlacement == .leading {
+                iconView
+            }
+
+            Text(title.appLocalized)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+
+            if iconPlacement == .trailing {
+                iconView
+            }
+        }
+        .padding(.horizontal, 11)
+        .padding(.vertical, 8)
+        .background(
+            Capsule(style: .continuous)
+                .fill(PhotoDelStyle.background.opacity(0.58))
+                .overlay(
+                    Capsule(style: .continuous)
+                        .stroke(color.opacity(0.24), lineWidth: 1)
+                )
+        )
+        .shadow(color: .black.opacity(0.22), radius: 10, x: 0, y: 6)
+    }
+
+    private var iconView: some View {
+        Image(systemName: icon)
+            .font(.system(size: 11, weight: .bold))
+            .foregroundColor(color)
+    }
+}
+
 private enum AdvancedSwipeDateFormatter {
     static let dayTitle: DateFormatter = {
         let formatter = DateFormatter()
@@ -1940,34 +2104,41 @@ private struct PhotoSelectionLoadingCard: View {
     }
 }
 
-private struct GestureHintPill: View {
-    let icon: String
+private struct AlbumMicroButton: View {
     let title: String
-    let color: Color
+    let action: () -> Void
 
     var body: some View {
-        HStack(spacing: 5) {
-            Image(systemName: icon)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(color)
-
+        Button(action: action) {
             Text(title.appLocalized)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(PhotoDelStyle.secondaryText)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(PhotoDelStyle.primaryText.opacity(0.82))
                 .lineLimit(1)
-                .minimumScaleFactor(0.78)
-        }
-        .padding(.horizontal, 9)
-        .padding(.vertical, 7)
-        .frame(maxWidth: .infinity)
-        .background(
-            Capsule(style: .continuous)
-                .fill(PhotoDelStyle.surface)
-                .overlay(
+                .minimumScaleFactor(0.72)
+                .truncationMode(.tail)
+                .frame(width: 82)
+                .padding(.horizontal, 10)
+                .frame(height: 28)
+                .background(
                     Capsule(style: .continuous)
-                        .stroke(color.opacity(0.24), lineWidth: 1)
+                        .fill(PhotoDelStyle.surface.opacity(0.64))
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .stroke(PhotoDelStyle.hairline.opacity(0.78), lineWidth: 1)
+                        )
                 )
-        )
+        }
+        .buttonStyle(PhotoDelPressScaleButtonStyle())
+        .accessibilityLabel(Text(L10n.string("归类到 \(title)")))
+    }
+}
+
+private struct PhotoDelPressScaleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.94 : 1)
+            .opacity(configuration.isPressed ? 0.78 : 1)
+            .animation(.interactiveSpring(response: 0.2, dampingFraction: 0.82), value: configuration.isPressed)
     }
 }
 
@@ -2030,7 +2201,7 @@ struct ActionButton: View {
                             Circle()
                                 .stroke(color.opacity(0.38), lineWidth: 1)
                         )
-                        .frame(width: 44, height: 44)
+                        .frame(width: 48, height: 48)
 
                     Image(systemName: icon)
                         .font(.system(size: 18, weight: .medium))
@@ -2045,7 +2216,7 @@ struct ActionButton: View {
             }
             .frame(width: 60)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PhotoDelPressScaleButtonStyle())
     }
 }
 
