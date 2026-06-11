@@ -37,13 +37,13 @@ private struct OnboardingFlowView: View {
         OnboardingPage(
             icon: "photo.on.rectangle.angled",
             title: L10n.string("快速整理相册"),
-            message: L10n.string("用滑动浏览照片，把想删除的先放进候选列表。完成前不会真正删除。"),
+            message: L10n.string("用滑动快速判断照片去留。想删除的照片会先进入待确认列表，完成前不会真正删除。"),
             visual: .organize
         ),
         OnboardingPage(
             icon: "hand.draw",
             title: L10n.string("手势很简单"),
-            message: L10n.string("滑动时可以执行删除、保留或收藏。默认手势够直接，也可以在设置里调整。"),
+            message: L10n.string("左滑删除，右滑跳过，上滑收藏。所有删除都会在最后统一确认。"),
             visual: .swipe
         ),
         OnboardingPage(
@@ -244,7 +244,7 @@ private struct OrganizeIntroVisual: View {
 
                 HStack(spacing: 8) {
                     Image(systemName: "tray.full")
-                    Text(L10n.string("候选列表"))
+                    Text(L10n.string("待确认列表"))
                 }
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(PhotoDelStyle.primaryText.opacity(0.78))
@@ -274,9 +274,30 @@ private struct SwipeIntroVisual: View {
 
     var body: some View {
         ZStack {
-            swipeDestination(symbol: "arrow.left", text: L10n.string("左滑"), color: PhotoDelStyle.accent, x: -102, y: 8)
-            swipeDestination(symbol: "arrow.right", text: L10n.string("右滑"), color: PhotoDelStyle.accent, x: 102, y: 8)
-            swipeDestination(symbol: "arrow.up", text: L10n.string("上滑"), color: PhotoDelStyle.accent, x: 0, y: -104)
+            swipeDestination(
+                symbol: "arrow.left",
+                direction: L10n.string("左滑"),
+                action: L10n.string("删除"),
+                color: PhotoDelStyle.destructive,
+                x: -108,
+                y: 8
+            )
+            swipeDestination(
+                symbol: "arrow.right",
+                direction: L10n.string("右滑"),
+                action: L10n.string("跳过"),
+                color: PhotoDelStyle.positive,
+                x: 108,
+                y: 8
+            )
+            swipeDestination(
+                symbol: "arrow.up",
+                direction: L10n.string("上滑"),
+                action: L10n.string("收藏"),
+                color: PhotoDelStyle.iconTint(for: "favorite"),
+                x: 0,
+                y: -110
+            )
 
             RoundedRectangle(cornerRadius: 30, style: .continuous)
                 .fill(PhotoDelStyle.surface)
@@ -306,16 +327,25 @@ private struct SwipeIntroVisual: View {
         }
     }
 
-    private func swipeDestination(symbol: String, text: String, color: Color, x: CGFloat, y: CGFloat) -> some View {
-        VStack(spacing: 7) {
+    private func swipeDestination(symbol: String, direction: String, action: String, color: Color, x: CGFloat, y: CGFloat) -> some View {
+        VStack(spacing: 5) {
             Image(systemName: symbol)
                 .font(.system(size: 18, weight: .semibold))
 
-            Text(text.appLocalized)
-                .font(.system(size: 12, weight: .semibold))
+            VStack(spacing: 1) {
+                Text(direction)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(PhotoDelStyle.secondaryText)
+
+                Text(action)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(color)
+            }
+            .lineLimit(1)
+            .minimumScaleFactor(0.78)
         }
         .foregroundColor(color)
-        .frame(width: 70, height: 58)
+        .frame(width: 82, height: 68)
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(color.opacity(0.12))

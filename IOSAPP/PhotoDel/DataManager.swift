@@ -488,7 +488,7 @@ class DataManager: ObservableObject {
         isFetchingAlbums = true
         if shouldShowLoading {
             isLoadingAlbums = true
-            albumLoadingProgress = 0
+            albumLoadingProgress = 0.03
         }
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in

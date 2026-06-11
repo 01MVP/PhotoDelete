@@ -221,20 +221,15 @@ struct AlbumsView: View {
         let progress = activeAlbumLoadingProgress
 
         return VStack(spacing: 14) {
-            if progress > 0.01 {
-                VStack(spacing: 8) {
-                    ProgressView(value: progress)
-                        .progressViewStyle(LinearProgressViewStyle(tint: PhotoDelStyle.accent))
-                        .frame(maxWidth: 220)
-                        .clipShape(Capsule(style: .continuous))
+            VStack(spacing: 8) {
+                ProgressView(value: max(progress, 0.03))
+                    .progressViewStyle(LinearProgressViewStyle(tint: PhotoDelStyle.accent))
+                    .frame(maxWidth: 220)
+                    .clipShape(Capsule(style: .continuous))
 
-                    Text(L10n.percent(Int(progress * 100)))
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(PhotoDelStyle.tertiaryText)
-                }
-            } else {
-                ProgressView()
-                    .progressViewStyle(CircularProgressViewStyle(tint: PhotoDelStyle.accent))
+                Text(progress > 0.01 ? L10n.percent(Int(progress * 100)) : L10n.string("准备中"))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.tertiaryText)
             }
 
             VStack(spacing: 5) {
@@ -328,10 +323,10 @@ struct AlbumsView: View {
 
         let albumCount = dataManager.getUserAlbums().count
         if isLoadingPhotoLibraryForAlbums {
-            return L10n.string("正在读取照片库")
+            return L10n.string("正在初始化照片库")
         }
         if dataManager.isLoadingAlbums && albumCount == 0 {
-            return L10n.string("正在读取相册")
+            return L10n.string("正在更新相册列表")
         }
         return L10n.string("\(albumCount) 个我的相册")
     }
@@ -355,13 +350,13 @@ struct AlbumsView: View {
     }
 
     private var albumLoadingTitle: String {
-        isLoadingPhotoLibraryForAlbums ? L10n.string("正在读取照片库") : L10n.string("正在读取相册")
+        isLoadingPhotoLibraryForAlbums ? L10n.string("正在初始化照片库") : L10n.string("正在更新相册列表")
     }
 
     private var albumLoadingMessage: String {
         isLoadingPhotoLibraryForAlbums
-            ? L10n.string("首次读取完成后会自动显示相册。")
-            : L10n.string("正在整理相册列表和照片数量。")
+            ? L10n.string("首次初始化会读取照片数量和分类。完成后下次会优先使用本机缓存。")
+            : L10n.string("正在统计相册数量和封面。")
     }
 
     private func filteredAlbums(_ albums: [AlbumInfo]) -> [AlbumInfo] {

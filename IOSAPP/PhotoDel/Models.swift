@@ -53,8 +53,8 @@ enum SwipeGestureAction: String, CaseIterable, Identifiable {
 
     var detailTitle: String {
         switch self {
-        case .delete: return L10n.string("删除候选")
-        case .keep: return L10n.string("保留跳过")
+        case .delete: return L10n.string("加入待删除")
+        case .keep: return L10n.string("跳过")
         case .favorite: return L10n.string("加入收藏")
         }
     }

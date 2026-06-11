@@ -2,11 +2,11 @@ import Foundation
 
 enum L10n {
     static func string(_ value: String.LocalizationValue) -> String {
-        String(localized: value, table: "Localizable", bundle: .main)
+        String(localized: value, table: "Localizable", bundle: AppLanguage.current.localizationBundle)
     }
 
     static func key(_ key: String) -> String {
-        Bundle.main.localizedString(forKey: key, value: key, table: "Localizable")
+        AppLanguage.current.localizationBundle.localizedString(forKey: key, value: key, table: "Localizable")
     }
 
     static func percent(_ value: Int) -> String {

@@ -49,11 +49,11 @@ struct SupporterView: View {
                     .padding(.bottom, 40)
                 }
             }
-            .navigationTitle("支持者版")
+            .navigationTitle(L10n.string("支持者版"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("完成") {
+                    Button(L10n.string("完成")) {
                         dismiss()
                     }
                     .foregroundColor(PhotoDelStyle.secondaryText)
@@ -88,11 +88,11 @@ private struct SupporterPaywallContent: View {
                 }
 
                 VStack(spacing: 8) {
-                    Text("PhotoDel 支持者版")
+                    Text(L10n.string("PhotoDel 支持者版"))
                         .font(.system(size: 28, weight: .semibold))
                         .foregroundColor(PhotoDelStyle.primaryText)
 
-                    Text("基础清理功能始终免费。支持者版解锁长期统计，并支持 PhotoDel 继续维护。")
+                    Text(L10n.string("基础清理功能始终免费。支持者版解锁长期统计，并支持 PhotoDel 继续维护。"))
                         .font(.system(size: 16, weight: .regular))
                         .foregroundColor(PhotoDelStyle.secondaryText)
                         .multilineTextAlignment(.center)
@@ -103,13 +103,13 @@ private struct SupporterPaywallContent: View {
             .photoDelCard()
 
             VStack(spacing: 0) {
-                SupporterBenefitRow(icon: "chart.bar.xaxis", title: "长期清理统计", detail: "累计整理、删除和节省空间")
+                SupporterBenefitRow(icon: "chart.bar.xaxis", title: L10n.string("长期清理统计"), detail: L10n.string("累计整理、删除和节省空间"))
                 SupporterDivider()
-                SupporterBenefitRow(icon: "calendar", title: "月度统计", detail: "按月份查看清理成果")
+                SupporterBenefitRow(icon: "calendar", title: L10n.string("月度统计"), detail: L10n.string("按月份查看清理成果"))
                 SupporterDivider()
-                SupporterBenefitRow(icon: "clock.arrow.circlepath", title: "清理历史", detail: "每次确认后的本机记录")
+                SupporterBenefitRow(icon: "clock.arrow.circlepath", title: L10n.string("清理历史"), detail: L10n.string("每次确认后的本机记录"))
                 SupporterDivider()
-                SupporterBenefitRow(icon: "seal.fill", title: "支持者徽章与主题色", detail: "给自己的整理报告一点个人标记")
+                SupporterBenefitRow(icon: "seal.fill", title: L10n.string("支持者徽章与主题色"), detail: L10n.string("给自己的整理报告一点个人标记"))
             }
             .photoDelCard()
 
@@ -121,14 +121,14 @@ private struct SupporterPaywallContent: View {
                                 .progressViewStyle(CircularProgressViewStyle(tint: Color.black.opacity(0.86)))
                                 .scaleEffect(0.82)
                         }
-                        Text(isLoading ? "处理中..." : "永久解锁 \(priceText)")
+                        Text(isLoading ? L10n.string("处理中...") : L10n.string("永久解锁 \(priceText)"))
                     }
                 }
                 .photoDelPrimaryButton()
                 .disabled(isLoading)
 
                 Button(action: onRestore) {
-                    Text("恢复购买")
+                    Text(L10n.string("恢复购买"))
                 }
                 .photoDelSecondaryButton()
                 .disabled(isLoading)
@@ -159,10 +159,10 @@ private struct SupporterUnlockedContent: View {
             SupporterBadgeCard(theme: theme)
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                SupporterMetricCard(value: "\(summary.organizedPhotos)", label: "累计整理", tint: theme.color)
-                SupporterMetricCard(value: "\(summary.deletedPhotos)", label: "累计删除", tint: PhotoDelStyle.destructive)
-                SupporterMetricCard(value: summary.formattedSpaceSaved, label: "估算节省", tint: PhotoDelStyle.positive)
-                SupporterMetricCard(value: "\(summary.sessions)", label: "清理次数", tint: PhotoDelStyle.accent)
+                SupporterMetricCard(value: "\(summary.organizedPhotos)", label: L10n.string("累计整理"), tint: theme.color)
+                SupporterMetricCard(value: "\(summary.deletedPhotos)", label: L10n.string("累计删除"), tint: PhotoDelStyle.destructive)
+                SupporterMetricCard(value: summary.formattedSpaceSaved, label: L10n.string("估算节省"), tint: PhotoDelStyle.positive)
+                SupporterMetricCard(value: "\(summary.sessions)", label: L10n.string("清理次数"), tint: PhotoDelStyle.accent)
             }
 
             SupporterThemeSection(selectedThemeID: $selectedThemeID)
@@ -174,18 +174,18 @@ private struct SupporterUnlockedContent: View {
             Button(role: .destructive) {
                 showingClearConfirmation = true
             } label: {
-                Text("清空统计记录")
+                Text(L10n.string("清空统计记录"))
                     .frame(maxWidth: .infinity)
             }
             .photoDelSecondaryButton()
         }
-        .confirmationDialog("清空本机统计记录？", isPresented: $showingClearConfirmation, titleVisibility: .visible) {
-            Button("清空统计记录", role: .destructive) {
+        .confirmationDialog(L10n.string("清空本机统计记录？"), isPresented: $showingClearConfirmation, titleVisibility: .visible) {
+            Button(L10n.string("清空统计记录"), role: .destructive) {
                 statsStore.clearAll()
             }
-            Button("取消", role: .cancel) {}
+            Button(L10n.string("取消"), role: .cancel) {}
         } message: {
-            Text("只会清空 PhotoDel 的本机统计，不会影响照片。")
+            Text(L10n.string("只会清空 PhotoDel 的本机统计，不会影响照片。"))
         }
     }
 }
@@ -207,11 +207,11 @@ private struct SupporterBadgeCard: View {
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("支持者版已解锁")
+                    Text(L10n.string("支持者版已解锁"))
                         .font(.system(size: 22, weight: .semibold))
                         .foregroundColor(PhotoDelStyle.primaryText)
 
-                    Text("谢谢你支持这个免费的小工具继续维护。")
+                    Text(L10n.string("谢谢你支持这个免费的小工具继续维护。"))
                         .font(.system(size: 15, weight: .regular))
                         .foregroundColor(PhotoDelStyle.secondaryText)
                 }
@@ -236,7 +236,7 @@ private struct SupporterMetricCard: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.72)
 
-            Text(label.appLocalized)
+            Text(label)
                 .font(.system(size: 13, weight: .medium))
                 .foregroundColor(PhotoDelStyle.secondaryText)
         }
@@ -251,7 +251,7 @@ private struct SupporterThemeSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("主题色")
+            Text(L10n.string("主题色"))
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundColor(PhotoDelStyle.primaryText)
 
@@ -270,7 +270,7 @@ private struct SupporterThemeSection: View {
                                         .stroke(PhotoDelStyle.primaryText.opacity(selectedThemeID == theme.rawValue ? 0.9 : 0), lineWidth: 2)
                                 )
 
-                            Text(theme.title.appLocalized)
+                            Text(theme.title)
                                 .font(.system(size: 12, weight: .medium))
                                 .foregroundColor(PhotoDelStyle.secondaryText)
                         }
@@ -290,12 +290,12 @@ private struct SupporterMonthlySection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("月度统计")
+            Text(L10n.string("月度统计"))
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundColor(PhotoDelStyle.primaryText)
 
             if summaries.isEmpty {
-                SupporterEmptyText("完成一次整理后，这里会出现月度记录。")
+                SupporterEmptyText(L10n.string("完成一次整理后，这里会出现月度记录。"))
             } else {
                 VStack(spacing: 0) {
                     ForEach(summaries.prefix(6)) { summary in
@@ -335,12 +335,12 @@ private struct SupporterHistorySection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("清理历史")
+            Text(L10n.string("清理历史"))
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundColor(PhotoDelStyle.primaryText)
 
             if sessions.isEmpty {
-                SupporterEmptyText("确认删除或收藏后，会在本机留下清理记录。")
+                SupporterEmptyText(L10n.string("确认删除或收藏后，会在本机留下清理记录。"))
             } else {
                 VStack(spacing: 0) {
                     ForEach(sessions) { session in
@@ -393,11 +393,11 @@ private struct SupporterBenefitRow: View {
                 .frame(width: 24)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(title.appLocalized)
+                Text(title)
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.primaryText)
 
-                Text(detail.appLocalized)
+                Text(detail)
                     .font(.system(size: 13, weight: .regular))
                     .foregroundColor(PhotoDelStyle.secondaryText)
             }
@@ -424,7 +424,7 @@ private struct SupporterEmptyText: View {
     }
 
     var body: some View {
-        Text(text.appLocalized)
+        Text(text)
             .font(.system(size: 14, weight: .regular))
             .foregroundColor(PhotoDelStyle.secondaryText)
             .frame(maxWidth: .infinity, alignment: .leading)

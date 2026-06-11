@@ -18,6 +18,7 @@ struct SettingsView: View {
     @EnvironmentObject var purchaseManager: PurchaseManager
     @AppStorage("hasSeenPhotoDelIntro") private var hasSeenPhotoDelIntro = false
     @AppStorage(AppConstants.hapticsEnabledKey) private var hapticsEnabled = true
+    @AppStorage(AppConstants.appLanguageKey) private var appLanguageValue = AppLanguage.system.rawValue
     @AppStorage(AppConstants.leftSwipeActionKey) private var leftSwipeActionValue = SwipeGesturePreset.standard.leftAction.rawValue
     @AppStorage(AppConstants.rightSwipeActionKey) private var rightSwipeActionValue = SwipeGesturePreset.standard.rightAction.rawValue
     @AppStorage(AppConstants.upSwipeActionKey) private var upSwipeActionValue = SwipeGesturePreset.standard.upAction.rawValue
@@ -27,9 +28,10 @@ struct SettingsView: View {
     @State private var showingPrivacyInfo = false
     @State private var showingSupporter = false
     @State private var showingGestureSettings = false
+    @State private var showingLanguageSettings = false
     @State private var showingWeChatCopied = false
     @State private var settingsToast: PhotoDelToast?
-    
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -39,16 +41,16 @@ struct SettingsView: View {
                     VStack(spacing: 24) {
                         // 顶部标题
                         VStack(spacing: 8) {
-                            Text("设置")
+                            Text(L10n.string("设置"))
                                 .font(.system(size: 28, weight: .semibold))
                                 .foregroundColor(PhotoDelStyle.primaryText)
-                            
-                            Text("个人设置与偏好")
+
+                            Text(L10n.string("个人设置与偏好"))
                                 .font(.system(size: 16, weight: .regular))
                                 .foregroundColor(PhotoDelStyle.secondaryText)
                         }
                         .padding(.top, 20)
-                        
+
                         // 使用统计
                         statsSection
 
@@ -57,13 +59,13 @@ struct SettingsView: View {
 
                         // 应用设置
                         appSettingsSection
-                        
+
                         // 关于与支持
                         aboutSection
-                        
+
                         // 版本信息
                         versionInfo
-                        
+
                         // 底部安全区域
                         Spacer()
                             .frame(height: 100)
@@ -114,44 +116,63 @@ struct SettingsView: View {
         .sheet(isPresented: $showingGestureSettings) {
             GestureSettingsView()
         }
+        .sheet(isPresented: $showingLanguageSettings) {
+            LanguageSettingsView()
+        }
     }
-    
+
     // MARK: - 使用统计
     private var statsSection: some View {
         VStack(spacing: 16) {
             HStack {
-                Text("使用统计")
+                Text(L10n.string("使用统计"))
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.primaryText)
                 Spacer()
             }
-            
-            HStack(spacing: 0) {
-                StatCard(
-                    value: "\(dataManager.organizeStats.totalPhotos)",
-                    label: "总照片",
-                    color: PhotoDelStyle.accent
-                )
-                
-                StatCard(
-                    value: "\(dataManager.organizeStats.deletedPhotos)",
-                    label: "已删除",
-                    color: PhotoDelStyle.destructive
-                )
-                
-                StatCard(
-                    value: "\(dataManager.getVideosCount())",
-                    label: "视频",
-                    color: PhotoDelStyle.iconTint(for: "video")
-                )
-                
-                StatCard(
-                    value: dataManager.organizeStats.formattedSpaceSaved,
-                    label: "节省空间",
-                    color: PhotoDelStyle.positive
+
+            VStack(spacing: 0) {
+                HStack(spacing: 0) {
+                    StatCard(
+                        value: "\(dataManager.organizeStats.totalPhotos)",
+                        label: L10n.string("总照片"),
+                        color: PhotoDelStyle.accent
+                    )
+
+                    StatCard(
+                        value: "\(dataManager.organizeStats.deletedPhotos)",
+                        label: L10n.string("已删除"),
+                        color: PhotoDelStyle.destructive
+                    )
+
+                    StatCard(
+                        value: "\(dataManager.getVideosCount())",
+                        label: L10n.string("视频"),
+                        color: PhotoDelStyle.iconTint(for: "video")
+                    )
+
+                    StatCard(
+                        value: dataManager.organizeStats.formattedSpaceSaved,
+                        label: L10n.string("节省空间"),
+                        color: PhotoDelStyle.positive
+                    )
+                }
+                .padding(20)
+
+                Divider()
+                    .background(PhotoDelStyle.hairline)
+                    .padding(.horizontal, 16)
+
+                SettingRow(
+                    icon: purchaseManager.isSupporter ? "chart.bar.xaxis" : "lock.fill",
+                    iconColor: purchaseManager.isSupporter ? PhotoDelStyle.positive : PhotoDelStyle.accent,
+                    title: purchaseManager.isSupporter ? L10n.string("查看长期统计") : L10n.string("长期统计"),
+                    subtitle: purchaseManager.isSupporter ? L10n.string("月度记录、清理历史和节省空间") : L10n.string("支持者版解锁月度记录和清理历史"),
+                    action: {
+                        showingSupporter = true
+                    }
                 )
             }
-            .padding(20)
             .photoDelCard()
         }
     }
@@ -160,7 +181,7 @@ struct SettingsView: View {
     private var supporterSection: some View {
         VStack(spacing: 16) {
             HStack {
-                Text("支持者版")
+                Text(L10n.string("支持者版"))
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.primaryText)
                 Spacer()
@@ -170,8 +191,8 @@ struct SettingsView: View {
                 SettingRow(
                     icon: purchaseManager.isSupporter ? "seal.fill" : "sparkles",
                     iconColor: purchaseManager.isSupporter ? PhotoDelStyle.positive : PhotoDelStyle.accent,
-                    title: "PhotoDel 支持者版",
-                    subtitle: purchaseManager.isSupporter ? "已解锁长期统计和支持者功能" : "长期统计、月度记录和徽章",
+                    title: L10n.string("PhotoDel 支持者版"),
+                    subtitle: purchaseManager.isSupporter ? L10n.string("已解锁长期统计和支持者功能") : L10n.string("长期统计、月度记录和徽章"),
                     action: {
                         showingSupporter = true
                     }
@@ -180,23 +201,23 @@ struct SettingsView: View {
             .photoDelCard()
         }
     }
-    
+
     // MARK: - 关于与支持
     private var aboutSection: some View {
         VStack(spacing: 16) {
             HStack {
-                Text("关于与支持")
+                Text(L10n.string("关于与支持"))
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.primaryText)
                 Spacer()
             }
-            
+
             VStack(spacing: 0) {
                 SettingRow(
                     icon: "lock.shield.fill",
                     iconColor: PhotoDelStyle.positive,
-                    title: "隐私说明",
-                    subtitle: "本机整理，不上传照片",
+                    title: L10n.string("隐私说明"),
+                    subtitle: L10n.string("本机整理，不上传照片"),
                     action: {
                         showingPrivacyInfo = true
                     }
@@ -209,21 +230,21 @@ struct SettingsView: View {
                 SettingRow(
                     icon: "person.text.rectangle.fill",
                     iconColor: PhotoDelStyle.accent,
-                    title: "了解作者",
-                    subtitle: "01MVP 与小产品创作",
+                    title: L10n.string("了解作者"),
+                    subtitle: L10n.string("01MVP 与小产品创作"),
                     action: {
                         showingAuthor = true
                     }
                 )
-                
+
                 Divider()
                     .background(PhotoDelStyle.hairline)
                     .padding(.horizontal, 16)
-                
+
                 SettingRow(
                     icon: "bubble.left.and.bubble.right.fill",
                     iconColor: PhotoDelStyle.positive,
-                    title: "微信反馈",
+                    title: L10n.string("微信反馈"),
                     subtitle: AppConstants.wechatID,
                     action: copyWeChatID
                 )
@@ -236,23 +257,23 @@ struct SettingsView: View {
                 SettingRow(
                     icon: "envelope.fill",
                     iconColor: PhotoDelStyle.secondaryText,
-                    title: "邮件反馈",
+                    title: L10n.string("邮件反馈"),
                     subtitle: AppConstants.feedbackEmail,
                     action: {
                         handleMailAction()
                     }
                 )
-                
+
                 Divider()
                     .background(PhotoDelStyle.hairline)
                     .padding(.horizontal, 16)
-                
+
                 // 关于应用
                 SettingRow(
                     icon: "info.circle.fill",
                     iconColor: PhotoDelStyle.secondaryText,
-                    title: "关于 PhotoDel",
-                    subtitle: L10n.string("版本 \(AppConstants.version)"),
+                    title: L10n.string("关于 PhotoDel"),
+                    subtitle: L10n.string("版本 \(AppConstants.displayVersion)"),
                     action: {
                         showingAbout = true
                     }
@@ -266,7 +287,7 @@ struct SettingsView: View {
     private var appSettingsSection: some View {
         VStack(spacing: 16) {
             HStack {
-                Text("应用设置")
+                Text(L10n.string("应用设置"))
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.primaryText)
                 Spacer()
@@ -276,7 +297,7 @@ struct SettingsView: View {
                 SettingRow(
                     icon: "photo.badge.checkmark",
                     iconColor: PhotoDelStyle.accent,
-                    title: "照片访问权限",
+                    title: L10n.string("照片访问权限"),
                     subtitle: photoAccessSubtitle,
                     action: {
                         dataManager.openPhotoLibrarySettings()
@@ -290,7 +311,7 @@ struct SettingsView: View {
                 SettingRow(
                     icon: "hand.draw.fill",
                     iconColor: PhotoDelStyle.accent,
-                    title: "手势控制",
+                    title: L10n.string("手势控制"),
                     subtitle: gestureSettingsSubtitle,
                     action: {
                         showingGestureSettings = true
@@ -302,9 +323,23 @@ struct SettingsView: View {
                     .padding(.horizontal, 16)
 
                 SettingRow(
+                    icon: "globe",
+                    iconColor: PhotoDelStyle.accent,
+                    title: L10n.string("语言"),
+                    subtitle: selectedLanguage.title,
+                    action: {
+                        showingLanguageSettings = true
+                    }
+                )
+
+                Divider()
+                    .background(PhotoDelStyle.hairline)
+                    .padding(.horizontal, 16)
+
+                SettingRow(
                     icon: "tray.full.fill",
                     iconColor: PhotoDelStyle.positive,
-                    title: "本机整理数据",
+                    title: L10n.string("本机整理数据"),
                     subtitle: localDataSubtitle,
                     showsChevron: false,
                     action: clearLocalOrganizeData
@@ -317,8 +352,8 @@ struct SettingsView: View {
                 SettingRow(
                     icon: "questionmark.circle.fill",
                     iconColor: PhotoDelStyle.secondaryText,
-                    title: "重新查看引导",
-                    subtitle: "下次打开 App 时显示使用说明",
+                    title: L10n.string("重新查看引导"),
+                    subtitle: L10n.string("下次打开 App 时显示使用说明"),
                     showsChevron: false,
                     action: resetIntro
                 )
@@ -330,26 +365,30 @@ struct SettingsView: View {
                 SettingToggleRow(
                     icon: "hand.tap.fill",
                     iconColor: PhotoDelStyle.accent,
-                    title: "触感反馈",
-                    subtitle: "滑动、撤销和归类时提供轻微反馈",
+                    title: L10n.string("触感反馈"),
+                    subtitle: L10n.string("滑动、撤销和归类时提供轻微反馈"),
                     isOn: $hapticsEnabled
                 )
             }
             .photoDelCard()
         }
     }
-    
+
     // MARK: - 版本信息
     private var versionInfo: some View {
         VStack(spacing: 8) {
-            Text("PhotoDel v\(AppConstants.version)")
+            Text("PhotoDel v\(AppConstants.displayVersion)")
                 .font(.system(size: 14, weight: .regular))
                 .foregroundColor(PhotoDelStyle.secondaryText)
-            
-            Text("让照片整理变得简单")
+
+            Text(L10n.string("让照片整理变得简单"))
                 .font(.system(size: 12, weight: .regular))
                 .foregroundColor(PhotoDelStyle.tertiaryText)
         }
+    }
+
+    private var selectedLanguage: AppLanguage {
+        AppLanguage(rawValue: appLanguageValue) ?? .system
     }
 
     private var copyToast: some View {
@@ -361,7 +400,7 @@ struct SettingsView: View {
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.positive)
 
-                Text("已复制微信号 \(AppConstants.wechatID)")
+                Text(L10n.string("已复制微信号 \(AppConstants.wechatID)"))
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(PhotoDelStyle.primaryText)
             }
@@ -411,7 +450,7 @@ struct SettingsView: View {
         if reviewedCount == 0 && pendingCount == 0 {
             return L10n.string("没有本机整理记录")
         }
-        return L10n.string("已整理 \(reviewedCount) 张 · 候选 \(pendingCount) 张")
+        return L10n.string("已整理 \(reviewedCount) 张 · 待确认 \(pendingCount) 张")
     }
 
     private var gestureSettingsSubtitle: String {
@@ -431,7 +470,7 @@ struct SettingsView: View {
             return SwipeGesturePreferences.normalizedAction(upSwipeActionValue, fallback: SwipeGesturePreferences.defaultAction(for: .up))
         }
     }
-    
+
     private func handleMailAction() {
         #if canImport(MessageUI)
         if MFMailComposeViewController.canSendMail() {
@@ -443,11 +482,18 @@ struct SettingsView: View {
         openFeedbackMailURL()
         #endif
     }
-    
+
     // MARK: - 方法
     private func openFeedbackMailURL() {
-        let subject = L10n.string("PhotoDel App 反馈").addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        if let url = URL(string: "mailto:\(AppConstants.feedbackEmail)?subject=\(subject)") {
+        var components = URLComponents()
+        components.scheme = "mailto"
+        components.path = AppConstants.feedbackEmail
+        components.queryItems = [
+            URLQueryItem(name: "subject", value: L10n.string("PhotoDel App 反馈")),
+            URLQueryItem(name: "body", value: FeedbackDiagnostics.emailBody())
+        ]
+
+        if let url = components.url {
             #if canImport(UIKit)
             UIApplication.shared.open(url)
             #endif
@@ -498,7 +544,7 @@ struct StatCard: View {
     let value: String
     let label: String
     let color: Color
-    
+
     var body: some View {
         VStack(spacing: 8) {
             Text(value)
@@ -506,8 +552,8 @@ struct StatCard: View {
                 .foregroundColor(color)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
-            
-            Text(label.appLocalized)
+
+            Text(label)
                 .font(.system(size: 12, weight: .regular))
                 .foregroundColor(PhotoDelStyle.secondaryText)
         }
@@ -523,7 +569,7 @@ struct SettingRow: View {
     let subtitle: String
     var showsChevron = true
     let action: () -> Void
-    
+
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
@@ -536,25 +582,25 @@ struct SettingRow: View {
                                 .stroke(iconColor.opacity(0.36), lineWidth: 1)
                         )
                         .frame(width: 32, height: 32)
-                    
+
                     Image(systemName: icon)
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(iconColor)
                 }
-                
+
                 // 文字信息
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title.appLocalized)
                         .font(.system(size: 16, weight: .medium))
                         .foregroundColor(PhotoDelStyle.primaryText)
-                    
+
                     Text(subtitle.appLocalized)
                         .font(.system(size: 14, weight: .regular))
                         .foregroundColor(PhotoDelStyle.secondaryText)
                 }
-                
+
                 Spacer()
-                
+
                 if showsChevron {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 12, weight: .medium))
@@ -638,11 +684,11 @@ struct GestureSettingsView: View {
                     .padding(.bottom, 20)
                 }
             }
-            .navigationTitle("手势控制")
+            .navigationTitle(L10n.string("手势控制"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("完成") {
+                    Button(L10n.string("完成")) {
                         dismiss()
                     }
                     .foregroundColor(PhotoDelStyle.accent)
@@ -653,7 +699,7 @@ struct GestureSettingsView: View {
 
     private var currentGesturePreview: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("当前手势")
+            Text(L10n.string("当前手势"))
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundColor(PhotoDelStyle.primaryText)
 
@@ -670,7 +716,7 @@ struct GestureSettingsView: View {
 
     private var presetSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("快速方案")
+            Text(L10n.string("快速方案"))
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundColor(PhotoDelStyle.primaryText)
 
@@ -689,7 +735,7 @@ struct GestureSettingsView: View {
 
     private var customGestureSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("自定义")
+            Text(L10n.string("自定义"))
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundColor(PhotoDelStyle.primaryText)
 
@@ -721,7 +767,7 @@ struct GestureSettingsView: View {
             HStack(spacing: 8) {
                 Image(systemName: "arrow.counterclockwise")
                     .font(.system(size: 14, weight: .semibold))
-                Text("恢复默认")
+                Text(L10n.string("恢复默认"))
             }
         }
         .photoDelSecondaryButton()
@@ -902,44 +948,116 @@ private struct GestureActionPickerRow: View {
     }
 }
 
+// MARK: - 语言设置
+private struct LanguageSettingsView: View {
+    @Environment(\.dismiss) private var dismiss
+    @AppStorage(AppConstants.appLanguageKey) private var selectedLanguageID = AppLanguage.system.rawValue
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                PhotoDelScreenBackground()
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(L10n.string("显示语言"))
+                                .font(.system(size: 24, weight: .semibold))
+                                .foregroundColor(PhotoDelStyle.primaryText)
+
+                            Text(L10n.string("默认跟随 iPhone 系统语言。也可以在这里固定 PhotoDel 的显示语言。"))
+                                .font(.system(size: 15, weight: .regular))
+                                .foregroundColor(PhotoDelStyle.secondaryText)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        VStack(spacing: 0) {
+                            ForEach(AppLanguage.allCases) { language in
+                                Button {
+                                    selectedLanguageID = language.rawValue
+                                    HapticManager.impact(.light)
+                                } label: {
+                                    HStack(spacing: 12) {
+                                        Image(systemName: selectedLanguage == language ? "checkmark.circle.fill" : "circle")
+                                            .font(.system(size: 20, weight: .semibold))
+                                            .foregroundColor(selectedLanguage == language ? PhotoDelStyle.positive : PhotoDelStyle.tertiaryText)
+
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            Text(language.title)
+                                                .font(.system(size: 16, weight: .semibold))
+                                                .foregroundColor(PhotoDelStyle.primaryText)
+
+                                            Text(language.detail)
+                                                .font(.system(size: 13, weight: .regular))
+                                                .foregroundColor(PhotoDelStyle.secondaryText)
+                                                .fixedSize(horizontal: false, vertical: true)
+                                        }
+
+                                        Spacer()
+                                    }
+                                    .padding(16)
+                                }
+                                .buttonStyle(.plain)
+
+                                if language != AppLanguage.allCases.last {
+                                    Divider()
+                                        .background(PhotoDelStyle.hairline)
+                                        .padding(.leading, 16)
+                                }
+                            }
+                        }
+                        .photoDelCard()
+                    }
+                    .padding(24)
+                    .padding(.bottom, 24)
+                }
+            }
+            .navigationTitle(L10n.string("语言"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(L10n.string("完成")) {
+                        dismiss()
+                    }
+                    .foregroundColor(PhotoDelStyle.accent)
+                }
+            }
+        }
+    }
+
+    private var selectedLanguage: AppLanguage {
+        AppLanguage(rawValue: selectedLanguageID) ?? .system
+    }
+}
+
 // MARK: - 邮件编写视图
 #if canImport(MessageUI)
 struct MailComposeView: UIViewControllerRepresentable {
     @Environment(\.dismiss) private var dismiss
-    
+
     func makeUIViewController(context: Context) -> MFMailComposeViewController {
         let composer = MFMailComposeViewController()
         composer.mailComposeDelegate = context.coordinator
         composer.setSubject(L10n.string("PhotoDel App 反馈"))
         composer.setToRecipients([AppConstants.feedbackEmail])
-        
-        let body = L10n.string("""
-        请在此处写下您的反馈和建议：
-        
-        
-        
-        ---
-        App版本: \(AppConstants.version)
-        设备信息: \(UIDevice.current.systemName) \(UIDevice.current.systemVersion)
-        """)
-        composer.setMessageBody(body, isHTML: false)
-        
+        composer.setMessageBody(FeedbackDiagnostics.emailBody(), isHTML: false)
+
         return composer
     }
-    
+
     func updateUIViewController(_ uiViewController: MFMailComposeViewController, context: Context) {}
-    
+
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
-    
+
     class Coordinator: NSObject, MFMailComposeViewControllerDelegate {
         var parent: MailComposeView
-        
+
         init(_ parent: MailComposeView) {
             self.parent = parent
         }
-        
+
         func mailComposeController(_ controller: MFMailComposeViewController, didFinishWith result: MFMailComposeResult, error: Error?) {
             parent.dismiss()
         }
@@ -967,13 +1085,13 @@ struct AuthorView: View {
                                         .font(.system(size: 24, weight: .semibold))
                                         .foregroundColor(PhotoDelStyle.primaryText)
 
-                                    Text("免费的小相册整理工具")
+                                    Text(L10n.string("免费的小相册整理工具"))
                                         .font(.system(size: 15, weight: .regular))
                                         .foregroundColor(PhotoDelStyle.secondaryText)
                                 }
                             }
 
-                            Text("PhotoDel 是一个免费的相册整理小工具，目标是把删照片、归类照片这件事做得足够直接。")
+                            Text(L10n.string("PhotoDel 是一个免费的相册整理小工具，目标是把删照片、归类照片这件事做得足够直接。"))
                                 .font(.system(size: 16, weight: .regular))
                                 .foregroundColor(PhotoDelStyle.secondaryText)
                                 .lineSpacing(4)
@@ -985,7 +1103,7 @@ struct AuthorView: View {
                                 .font(.system(size: 20, weight: .semibold))
                                 .foregroundColor(PhotoDelStyle.primaryText)
 
-                            Text("如果你也想用 AI 开发类似的小 App，可以看看 01mvp.com 的实战教程。")
+                            Text(L10n.string("如果你也想用 AI 开发类似的小 App，可以看看 01mvp.com 的实战教程。"))
                                 .font(.system(size: 15, weight: .regular))
                                 .foregroundColor(PhotoDelStyle.secondaryText)
                                 .lineSpacing(4)
@@ -993,7 +1111,7 @@ struct AuthorView: View {
 
                             Button(action: openWebsite) {
                                 HStack(spacing: 8) {
-                                    Text("打开 01mvp.com")
+                                    Text(L10n.string("打开 01mvp.com"))
                                     Image(systemName: "arrow.up.right")
                                         .font(.system(size: 14, weight: .semibold))
                                 }
@@ -1004,8 +1122,8 @@ struct AuthorView: View {
                         .photoDelCard(radius: 18)
 
                         VStack(alignment: .leading, spacing: 10) {
-                            Label("微信反馈：\(AppConstants.wechatID)", systemImage: "bubble.left.and.bubble.right.fill")
-                            Label("邮件反馈：\(AppConstants.feedbackEmail)", systemImage: "envelope.fill")
+                            Label(L10n.string("微信反馈：\(AppConstants.wechatID)"), systemImage: "bubble.left.and.bubble.right.fill")
+                            Label(L10n.string("邮件反馈：\(AppConstants.feedbackEmail)"), systemImage: "envelope.fill")
                         }
                         .font(.system(size: 15, weight: .medium))
                         .foregroundColor(PhotoDelStyle.secondaryText)
@@ -1015,11 +1133,11 @@ struct AuthorView: View {
                     .padding(24)
                 }
             }
-            .navigationTitle("了解作者")
+            .navigationTitle(L10n.string("了解作者"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("完成") {
+                    Button(L10n.string("完成")) {
                         dismiss()
                     }
                     .foregroundColor(PhotoDelStyle.accent)
@@ -1068,7 +1186,7 @@ struct PrivacyInfoView: View {
 
                 VStack(alignment: .leading, spacing: 18) {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("隐私优先")
+                        Text(L10n.string("隐私优先"))
                             .font(.system(size: 28, weight: .semibold))
                             .foregroundColor(PhotoDelStyle.primaryText)
 
@@ -1081,20 +1199,20 @@ struct PrivacyInfoView: View {
                     VStack(spacing: 12) {
                         PrivacyInfoRow(
                             icon: "iphone",
-                            title: "本机整理",
-                            detail: "预览、候选列表和删除确认都保存在你的设备上。"
+                            title: L10n.string("本机整理"),
+                            detail: L10n.string("预览、待确认列表和删除确认都保存在你的设备上。")
                         )
 
                         PrivacyInfoRow(
                             icon: "icloud.slash",
-                            title: "不上传照片",
-                            detail: "PhotoDel 不接入自己的云端服务，也不会把照片发到服务器。"
+                            title: L10n.string("不上传照片"),
+                            detail: L10n.string("PhotoDel 不接入自己的云端服务，也不会把照片发到服务器。")
                         )
 
                         PrivacyInfoRow(
                             icon: "person.crop.circle.badge.xmark",
-                            title: "不需要账号",
-                            detail: "授权照片后即可使用，不需要注册或登录。"
+                            title: L10n.string("不需要账号"),
+                            detail: L10n.string("授权照片后即可使用，不需要注册或登录。")
                         )
                     }
 
@@ -1102,11 +1220,11 @@ struct PrivacyInfoView: View {
                 }
                 .padding(24)
             }
-            .navigationTitle("隐私")
+            .navigationTitle(L10n.string("隐私"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("完成") {
+                    Button(L10n.string("完成")) {
                         dismiss()
                     }
                     .foregroundColor(PhotoDelStyle.accent)
@@ -1133,11 +1251,11 @@ struct PrivacyInfoRow: View {
                 )
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(title.appLocalized)
+                Text(title)
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.primaryText)
 
-                Text(detail.appLocalized)
+                Text(detail)
                     .font(.system(size: 14, weight: .regular))
                     .foregroundColor(PhotoDelStyle.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1153,7 +1271,7 @@ struct PrivacyInfoRow: View {
 // MARK: - 关于视图
 struct AboutView: View {
     @Environment(\.dismiss) private var dismiss
-    
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -1169,45 +1287,40 @@ struct AboutView: View {
                                     .stroke(PhotoDelStyle.hairline, lineWidth: 1)
                             )
                             .frame(width: 120, height: 120)
-                        
+
                         Image(systemName: "photo.on.rectangle.angled")
                             .font(.system(size: 48, weight: .medium))
                             .foregroundColor(PhotoDelStyle.accent)
                     }
-                    
+
                     // App信息
                     VStack(spacing: 16) {
                         Text("PhotoDel")
                             .font(.system(size: 32, weight: .bold, design: .rounded))
                             .foregroundColor(PhotoDelStyle.primaryText)
-                        
-                        Text("版本 \(AppConstants.version)")
+
+                        Text(L10n.string("版本 \(AppConstants.displayVersion)"))
                             .font(.system(size: 16, weight: .regular))
                             .foregroundColor(PhotoDelStyle.secondaryText)
-                        
-                        Text("一个免费的相册整理工具。滑动判断照片去留，完成后再统一确认。")
+
+                        Text(L10n.string("一个免费的相册整理工具。滑动判断照片去留，完成后再统一确认。"))
                             .font(.system(size: 16, weight: .regular))
                             .foregroundColor(PhotoDelStyle.secondaryText)
                             .multilineTextAlignment(.center)
                             .lineLimit(nil)
                     }
-                    
+
                     Spacer()
-                    
-                    // 版权信息
-                    Text("Created by \(AppConstants.authorName)")
-                        .font(.system(size: 12, weight: .regular))
-                        .foregroundColor(PhotoDelStyle.tertiaryText)
                 }
                 .padding(.horizontal, 32)
                 .padding(.top, 60)
                 .padding(.bottom, 32)
             }
-            .navigationTitle("关于")
+            .navigationTitle(L10n.string("关于"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("完成") {
+                    Button(L10n.string("完成")) {
                         dismiss()
                     }
                     .foregroundColor(PhotoDelStyle.accent)

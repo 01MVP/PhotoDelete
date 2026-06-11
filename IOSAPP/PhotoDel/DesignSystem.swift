@@ -111,7 +111,19 @@ struct PhotoDelSecondaryButtonStyle: ButtonStyle {
 
 // MARK: - App Constants
 enum AppConstants {
-    static let version = "1.0.0"
+    static var version: String { bundleShortVersion }
+    static var displayVersion: String {
+        "\(bundleShortVersion) (\(bundleBuildNumber))"
+    }
+
+    private static var bundleShortVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
+    }
+
+    private static var bundleBuildNumber: String {
+        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+    }
+
     static let authorName = "maker jackie"
     static let feedbackEmail = "contact@01mvp.com"
     static let wechatID = "mvps01"
@@ -119,6 +131,8 @@ enum AppConstants {
     static let landscapeBreakpoint: CGFloat = 700
     static let hapticsEnabledKey = "photoDelHapticsEnabled"
     static let customAlbumOrderKey = "photoDelCustomAlbumOrder"
+    static let appLanguageKey = "photoDelAppLanguage"
+    static let anonymousUserIDKey = "photoDelAnonymousUserID"
     static let leftSwipeActionKey = "photoDelLeftSwipeAction"
     static let rightSwipeActionKey = "photoDelRightSwipeAction"
     static let upSwipeActionKey = "photoDelUpSwipeAction"

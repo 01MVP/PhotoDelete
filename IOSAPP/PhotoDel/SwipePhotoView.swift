@@ -422,7 +422,7 @@ struct SwipePhotoView: View {
             VStack(spacing: 10) {
                 SidebarActionButton(
                     icon: "heart",
-                    title: isCurrentPhotoFavorited ? L10n.string("已收藏") : "收藏",
+                    title: isCurrentPhotoFavorited ? L10n.string("已收藏") : L10n.string("收藏"),
                     color: PhotoDelStyle.iconTint(for: "favorite")
                 ) {
                     handleFavoriteAction()
@@ -431,7 +431,7 @@ struct SwipePhotoView: View {
 
                 SidebarActionButton(
                     icon: "trash",
-                    title: "删除候选",
+                    title: L10n.string("待删除"),
                     color: PhotoDelStyle.destructive
                 ) {
                     handleDeleteAction()
@@ -440,7 +440,7 @@ struct SwipePhotoView: View {
 
                 SidebarActionButton(
                     icon: "arrow.right",
-                    title: "跳过",
+                    title: L10n.string("跳过"),
                     color: PhotoDelStyle.accent
                 ) {
                     handleSkipAction()
@@ -450,7 +450,7 @@ struct SwipePhotoView: View {
                 HStack(spacing: 10) {
                     SidebarActionButton(
                         icon: "arrow.uturn.backward",
-                        title: "撤销",
+                        title: L10n.string("撤销"),
                         color: PhotoDelStyle.secondaryText,
                         isCompact: true
                     ) {
@@ -871,7 +871,7 @@ struct SwipePhotoView: View {
         dataManager.addToDeleteCandidates(asset)
         actionHistory.append(.delete(asset, wasReviewed: wasReviewed))
         HapticManager.impact(.medium)
-        showFeedback(L10n.string("已加入删除候选"), icon: "trash", style: .destructive, showsUndo: true)
+        showFeedback(L10n.string("已加入待删除"), icon: "trash", style: .destructive, showsUndo: true)
     }
 
     private func markFavoriteCandidate(_ asset: PHAsset) {
@@ -884,7 +884,7 @@ struct SwipePhotoView: View {
         dataManager.addToFavoriteCandidates(asset)
         actionHistory.append(.favorite(asset, wasReviewed: wasReviewed))
         HapticManager.impact(.light)
-        showFeedback(L10n.string("已加入收藏候选"), icon: "heart.fill", style: .favorite, showsUndo: true)
+        showFeedback(L10n.string("已加入待收藏"), icon: "heart.fill", style: .favorite, showsUndo: true)
     }
 
     private func markSkip(_ asset: PHAsset, message: String? = nil) {
@@ -1108,7 +1108,7 @@ struct RealPhotoCard: View {
                         .font(.system(size: 38, weight: .medium))
                         .foregroundColor(isInDeleteCandidates ? PhotoDelStyle.destructive : PhotoDelStyle.iconTint(for: "favorite"))
 
-                    Text(isInDeleteCandidates ? "删除候选" : "收藏候选")
+                    Text(isInDeleteCandidates ? L10n.string("待删除") : L10n.string("待收藏"))
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(PhotoDelStyle.primaryText)
                 }

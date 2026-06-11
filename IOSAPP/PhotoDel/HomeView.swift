@@ -128,11 +128,11 @@ struct HomeView: View {
                         .background(Circle().fill(PhotoDelStyle.elevatedSurface))
 
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("快速上手")
+                        Text(L10n.string("快速上手"))
                             .font(.system(size: 17, weight: .semibold))
                             .foregroundColor(PhotoDelStyle.primaryText)
 
-                        Text("滑动时可以执行删除、保留或收藏。点完成后再统一确认。")
+                        Text(L10n.string("左滑删除，右滑跳过，上滑收藏。点完成后再统一确认。"))
                             .font(.system(size: 14, weight: .regular))
                             .foregroundColor(PhotoDelStyle.secondaryText)
                             .fixedSize(horizontal: false, vertical: true)
@@ -146,7 +146,7 @@ struct HomeView: View {
                         .frame(width: 28, height: 28)
                         .background(Circle().fill(PhotoDelStyle.elevatedSurface))
 
-                    Text("隐私优先：\(AppConstants.privacyShortText)")
+                    Text(L10n.string("隐私优先：\(AppConstants.privacyShortText)"))
                         .font(.system(size: 14, weight: .regular))
                         .foregroundColor(PhotoDelStyle.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -157,7 +157,7 @@ struct HomeView: View {
                         hasSeenPhotoDelIntro = true
                     }
                 } label: {
-                    Text("知道了")
+                    Text(L10n.string("知道了"))
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(PhotoDelStyle.accent)
                         .frame(maxWidth: .infinity)

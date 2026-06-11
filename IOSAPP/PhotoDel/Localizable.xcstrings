@@ -163,16 +163,6 @@
         }
       }
     },
-    "Created by %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Created by %@"
-          }
-        }
-      }
-    },
     "MJ": {
       "localizations": {
         "en": {
@@ -428,16 +418,6 @@
         }
       }
     },
-    "候选列表": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Candidate list"
-          }
-        }
-      }
-    },
     "免费的小相册整理工具": {
       "localizations": {
         "en": {
@@ -581,16 +561,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Delete %lld photos"
-          }
-        }
-      }
-    },
-    "删除候选": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Delete candidate"
           }
         }
       }
@@ -869,26 +839,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Deleted"
-          }
-        }
-      }
-    },
-    "已加入删除候选": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Added to delete candidates"
-          }
-        }
-      }
-    },
-    "已加入收藏候选": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Added to favorite candidates"
           }
         }
       }
@@ -1414,16 +1364,6 @@
         }
       }
     },
-    "收藏候选": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Favorite candidate"
-          }
-        }
-      }
-    },
     "数量": {
       "localizations": {
         "en": {
@@ -1931,16 +1871,6 @@
         }
       }
     },
-    "用滑动浏览照片，把想删除的先放进候选列表。完成前不会真正删除。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Swipe through photos and add the ones you want to delete to a candidate list. Nothing is deleted before you finish."
-          }
-        }
-      }
-    },
     "相册": {
       "localizations": {
         "en": {
@@ -2198,22 +2128,6 @@
         }
       }
     },
-    "请在此处写下您的反馈和建议：\n\n\n\n---\nApp版本: %@\n设备信息: %@ %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Write your feedback here:\n\n\n\n---\nApp version: %@\nDevice: %@ %@"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "请在此处写下您的反馈和建议：\n\n\n\n---\nApp版本: %1$@\n设备信息: %2$@ %3$@"
-          }
-        }
-      }
-    },
     "读取中": {
       "localizations": {
         "en": {
@@ -2397,6 +2311,302 @@
         }
       }
     },
+    "Always use English": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "始终使用英文"
+          }
+        }
+      }
+    },
+    "English": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "English"
+          }
+        }
+      }
+    },
+    "加入待删除": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mark to delete"
+          }
+        }
+      }
+    },
+    "发自我的 iPhone": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sent from my iPhone"
+          }
+        }
+      }
+    },
+    "左滑删除，右滑跳过，上滑收藏。所有删除都会在最后统一确认。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swipe left to delete, right to skip, and up to favorite. Deletes are confirmed at the end."
+          }
+        }
+      }
+    },
+    "已加入待删除": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marked to delete"
+          }
+        }
+      }
+    },
+    "已加入待收藏": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marked to favorite"
+          }
+        }
+      }
+    },
+    "已整理 %lld 张 · 待确认 %lld 张": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld reviewed · %2$lld pending"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "已整理 %1$lld 张 · 待确认 %2$lld 张"
+          }
+        }
+      }
+    },
+    "待收藏": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To favorite"
+          }
+        }
+      }
+    },
+    "待确认列表": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pending review"
+          }
+        }
+      }
+    },
+    "支持者版解锁月度记录和清理历史": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supporter unlocks monthly records and cleanup history"
+          }
+        }
+      }
+    },
+    "显示语言": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Display Language"
+          }
+        }
+      }
+    },
+    "月度记录、清理历史和节省空间": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monthly records, cleanup history, and saved space"
+          }
+        }
+      }
+    },
+    "查看长期统计": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View Long-term Stats"
+          }
+        }
+      }
+    },
+    "正在初始化照片库": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Initializing photo library"
+          }
+        }
+      }
+    },
+    "正在更新相册列表": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updating album list"
+          }
+        }
+      }
+    },
+    "正在统计相册数量和封面。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Counting albums and preparing covers."
+          }
+        }
+      }
+    },
+    "用滑动快速判断照片去留。想删除的照片会先进入待确认列表，完成前不会真正删除。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swipe quickly to decide what stays. Photos you want to delete go into a pending list first, and nothing is deleted until you finish."
+          }
+        }
+      }
+    },
+    "简体中文": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Simplified Chinese"
+          }
+        }
+      }
+    },
+    "自动匹配 iPhone 的首选语言": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Match the iPhone preferred language automatically"
+          }
+        }
+      }
+    },
+    "始终使用简体中文": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Always use Simplified Chinese"
+          }
+        }
+      }
+    },
+    "首次初始化会读取照片数量和分类。完成后下次会优先使用本机缓存。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The first initialization reads photo counts and categories. Next time, PhotoDel will prefer the local cache."
+          }
+        }
+      }
+    },
+    "默认跟随 iPhone 系统语言。也可以在这里固定 PhotoDel 的显示语言。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "By default, PhotoDel follows your iPhone language. You can also pin a display language here."
+          }
+        }
+      }
+    },
+    "长期统计": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Long-term Stats"
+          }
+        }
+      }
+    },
+    "跟随系统": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Follow System"
+          }
+        }
+      }
+    },
+    "语言": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Language"
+          }
+        }
+      }
+    },
+    "左滑删除，右滑跳过，上滑收藏。点完成后再统一确认。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swipe left to delete, right to skip, and up to favorite. Tap Done to confirm everything together."
+          }
+        }
+      }
+    },
+    "已解锁长期统计和支持者功能": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Long-term stats and Supporter features are unlocked"
+          }
+        }
+      }
+    },
+    "预览、待确认列表和删除确认都保存在你的设备上。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Previews, pending lists, and delete confirmations stay on your device."
+          }
+        }
+      }
+    },
     "长期统计、月度记录和徽章": {
       "extractionState": "manual",
       "localizations": {
@@ -2475,17 +2685,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Photo library access needed"
-          }
-        }
-      }
-    },
-    "预览、候选列表和删除确认都保存在你的设备上。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Previews, candidate lists, and delete confirmations stay on your device."
           }
         }
       }
