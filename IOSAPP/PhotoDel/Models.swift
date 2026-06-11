@@ -347,7 +347,93 @@ struct OrganizeStats {
     }
 }
 
+// MARK: - App Appearance
+enum AppAppearance: String, CaseIterable, Identifiable {
+    case system
+    case light
+    case dark
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .system: return L10n.string("跟随系统")
+        case .light: return L10n.string("日间模式")
+        case .dark: return L10n.string("夜间模式")
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .system: return L10n.string("根据 iPhone 外观自动切换")
+        case .light: return L10n.string("明亮背景，适合白天整理")
+        case .dark: return L10n.string("深色背景，适合夜间整理")
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .system: return "circle.lefthalf.filled"
+        case .light: return "sun.max.fill"
+        case .dark: return "moon.fill"
+        }
+    }
+
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: return nil
+        case .light: return .light
+        case .dark: return .dark
+        }
+    }
+}
+
 // MARK: - 进阶功能
+enum AdvancedTimeScope: String, CaseIterable, Identifiable {
+    case day
+    case week
+    case month
+    case year
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .day: return L10n.string("日")
+        case .week: return L10n.string("周")
+        case .month: return L10n.string("月")
+        case .year: return L10n.string("年")
+        }
+    }
+
+    var actionTitle: String {
+        switch self {
+        case .day: return L10n.string("整理这一天")
+        case .week: return L10n.string("整理这一周")
+        case .month: return L10n.string("整理这个月")
+        case .year: return L10n.string("整理这一年")
+        }
+    }
+
+    var rangeDescription: String {
+        switch self {
+        case .day: return L10n.string("按当天照片继续整理")
+        case .week: return L10n.string("按这一周照片继续整理")
+        case .month: return L10n.string("按这个月照片继续整理")
+        case .year: return L10n.string("按这一年照片继续整理")
+        }
+    }
+
+    var calendarComponent: Calendar.Component {
+        switch self {
+        case .day: return .day
+        case .week: return .weekOfYear
+        case .month: return .month
+        case .year: return .year
+        }
+    }
+}
+
 enum AdvancedCleanupKind: String, CaseIterable, Identifiable {
     case similarPhotos
     case largeFiles
@@ -440,6 +526,67 @@ struct PhotoMonthSummary: Identifiable, Equatable {
 
     var formattedEstimatedSize: String {
         CleanupStatsFormatter.space(estimatedSizeMB)
+    }
+}
+
+struct PhotoPeriodSummary: Identifiable, Equatable {
+    let scope: AdvancedTimeScope
+    let intervalStart: Date
+    let intervalEnd: Date
+    let assetCount: Int
+    let screenshotCount: Int
+    let videoCount: Int
+    let reviewedCount: Int
+    let estimatedSizeMB: Double
+
+    var id: String {
+        let start = Int(intervalStart.timeIntervalSince1970)
+        return "\(scope.rawValue)-\(start)"
+    }
+
+    var progress: Double {
+        guard assetCount > 0 else { return 0 }
+        return min(Double(reviewedCount) / Double(assetCount), 1)
+    }
+
+    var remainingCount: Int {
+        max(assetCount - reviewedCount, 0)
+    }
+
+    var formattedEstimatedSize: String {
+        CleanupStatsFormatter.space(estimatedSizeMB)
+    }
+
+    static func empty(
+        scope: AdvancedTimeScope,
+        containing date: Date,
+        calendar: Calendar = .current
+    ) -> PhotoPeriodSummary {
+        let interval = calendar.dateInterval(for: scope, containing: date)
+        return PhotoPeriodSummary(
+            scope: scope,
+            intervalStart: interval.start,
+            intervalEnd: interval.end,
+            assetCount: 0,
+            screenshotCount: 0,
+            videoCount: 0,
+            reviewedCount: 0,
+            estimatedSizeMB: 0
+        )
+    }
+}
+
+extension Calendar {
+    func dateInterval(for scope: AdvancedTimeScope, containing date: Date) -> DateInterval {
+        if let interval = dateInterval(of: scope.calendarComponent, for: date) {
+            return interval
+        }
+
+        let start = startOfDay(for: date)
+        let end = self.date(byAdding: scope.calendarComponent, value: 1, to: start)
+            ?? self.date(byAdding: .day, value: 1, to: start)
+            ?? start
+        return DateInterval(start: start, end: end)
     }
 }
 
@@ -602,6 +749,45 @@ struct AdvancedSimilarPhotoGroup: Identifiable {
 
     var formattedEstimatedSpace: String {
         CleanupStatsFormatter.space(estimatedSpaceMB)
+    }
+}
+
+struct CleanupCelebration: Identifiable, Equatable {
+    let id: UUID
+    let deletedPhotos: Int
+    let favoritedPhotos: Int
+    let organizedPhotos: Int
+    let estimatedSpaceSavedMB: Double
+    let totalDeletedPhotos: Int
+    let totalSpaceSavedMB: Double
+    let date: Date
+
+    init(
+        id: UUID = UUID(),
+        deletedPhotos: Int,
+        favoritedPhotos: Int,
+        organizedPhotos: Int,
+        estimatedSpaceSavedMB: Double,
+        totalDeletedPhotos: Int,
+        totalSpaceSavedMB: Double,
+        date: Date = Date()
+    ) {
+        self.id = id
+        self.deletedPhotos = deletedPhotos
+        self.favoritedPhotos = favoritedPhotos
+        self.organizedPhotos = organizedPhotos
+        self.estimatedSpaceSavedMB = estimatedSpaceSavedMB
+        self.totalDeletedPhotos = totalDeletedPhotos
+        self.totalSpaceSavedMB = totalSpaceSavedMB
+        self.date = date
+    }
+
+    var formattedSpaceSaved: String {
+        CleanupStatsFormatter.space(estimatedSpaceSavedMB)
+    }
+
+    var formattedTotalSpaceSaved: String {
+        CleanupStatsFormatter.space(totalSpaceSavedMB)
     }
 }
 

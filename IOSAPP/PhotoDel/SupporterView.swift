@@ -118,7 +118,7 @@ private struct SupporterPaywallContent: View {
                     HStack(spacing: 8) {
                         if isLoading {
                             ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: Color.black.opacity(0.86)))
+                                .progressViewStyle(CircularProgressViewStyle(tint: PhotoDelStyle.primaryButtonText))
                                 .scaleEffect(0.82)
                         }
                         Text(isLoading ? L10n.string("处理中...") : L10n.string("永久解锁 \(priceText)"))

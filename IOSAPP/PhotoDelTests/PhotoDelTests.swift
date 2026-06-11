@@ -260,6 +260,51 @@ struct PhotoDelTests {
         #expect(summary.formattedEstimatedSize == "42.0 MB")
     }
 
+    @Test func photoPeriodSummaryProgressAndRemainingClamp() async throws {
+        let calendar = Calendar(identifier: .gregorian)
+        let start = makeDate(year: 2026, month: 6, day: 1, calendar: calendar)
+        let end = makeDate(year: 2026, month: 7, day: 1, calendar: calendar)
+        let summary = PhotoPeriodSummary(
+            scope: .month,
+            intervalStart: start,
+            intervalEnd: end,
+            assetCount: 10,
+            screenshotCount: 2,
+            videoCount: 1,
+            reviewedCount: 14,
+            estimatedSizeMB: 128
+        )
+
+        #expect(summary.progress == 1)
+        #expect(summary.remainingCount == 0)
+        #expect(summary.formattedEstimatedSize == "128.0 MB")
+    }
+
+    @Test func advancedTimeScopeDateIntervalsCoverExpectedRanges() async throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let date = makeDate(year: 2026, month: 6, day: 11, hour: 12, minute: 0, second: 0, calendar: calendar)
+
+        let day = calendar.dateInterval(for: .day, containing: date)
+        #expect(day.start == makeDate(year: 2026, month: 6, day: 11, hour: 0, minute: 0, second: 0, calendar: calendar))
+        #expect(day.end == makeDate(year: 2026, month: 6, day: 12, hour: 0, minute: 0, second: 0, calendar: calendar))
+
+        let month = calendar.dateInterval(for: .month, containing: date)
+        #expect(month.start == makeDate(year: 2026, month: 6, day: 1, hour: 0, minute: 0, second: 0, calendar: calendar))
+        #expect(month.end == makeDate(year: 2026, month: 7, day: 1, hour: 0, minute: 0, second: 0, calendar: calendar))
+
+        let year = calendar.dateInterval(for: .year, containing: date)
+        #expect(year.start == makeDate(year: 2026, month: 1, day: 1, hour: 0, minute: 0, second: 0, calendar: calendar))
+        #expect(year.end == makeDate(year: 2027, month: 1, day: 1, hour: 0, minute: 0, second: 0, calendar: calendar))
+    }
+
+    @Test func appAppearanceExposesExpectedColorSchemes() async throws {
+        #expect(AppAppearance.system.colorScheme == nil)
+        #expect(AppAppearance.light.colorScheme == .light)
+        #expect(AppAppearance.dark.colorScheme == .dark)
+        #expect(AppAppearance.allCases.map(\.rawValue) == ["system", "light", "dark"])
+    }
+
     @Test func advancedDemoSnapshotIncludesCalendarAndCleanupQueues() async throws {
         let snapshot = AdvancedLibrarySnapshot.demo(
             referenceDate: makeDate(year: 2026, month: 6, day: 11, calendar: Calendar(identifier: .gregorian)),

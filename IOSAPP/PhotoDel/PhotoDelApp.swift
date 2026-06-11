@@ -10,6 +10,7 @@ import SwiftUI
 @main
 struct PhotoDelApp: App {
     @AppStorage(AppConstants.appLanguageKey) private var appLanguageValue = AppLanguage.system.rawValue
+    @AppStorage(AppConstants.appAppearanceKey) private var appAppearanceValue = AppAppearance.system.rawValue
 
     init() {
         #if DEBUG
@@ -21,13 +22,17 @@ struct PhotoDelApp: App {
         WindowGroup {
             ContentView()
                 .environment(\.locale, selectedLanguage.locale)
-                .preferredColorScheme(.dark)
+                .preferredColorScheme(selectedAppearance.colorScheme)
                 .statusBarHidden(false)
         }
     }
 
     private var selectedLanguage: AppLanguage {
         AppLanguage(rawValue: appLanguageValue) ?? .system
+    }
+
+    private var selectedAppearance: AppAppearance {
+        AppAppearance(rawValue: appAppearanceValue) ?? .system
     }
 }
 
@@ -64,7 +69,8 @@ private enum PhotoDelUITestDefaults {
             AppConstants.leftSwipeActionKey,
             AppConstants.rightSwipeActionKey,
             AppConstants.upSwipeActionKey,
-            AppConstants.customAlbumOrderKey
+            AppConstants.customAlbumOrderKey,
+            AppConstants.appAppearanceKey
         ].forEach(defaults.removeObject)
     }
 

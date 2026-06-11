@@ -5,6 +5,73 @@ import UIKit
 #endif
 
 enum PhotoDelStyle {
+    #if canImport(UIKit)
+    static let background = Color(uiColor: dynamicUIColor(
+        light: UIColor(red: 0.955, green: 0.965, blue: 0.98, alpha: 1),
+        dark: UIColor(red: 0.035, green: 0.037, blue: 0.042, alpha: 1)
+    ))
+    static let backgroundTop = Color(uiColor: dynamicUIColor(
+        light: UIColor(red: 0.985, green: 0.988, blue: 0.995, alpha: 1),
+        dark: UIColor(red: 0.058, green: 0.06, blue: 0.068, alpha: 1)
+    ))
+    static let surface = Color(uiColor: dynamicUIColor(
+        light: UIColor(white: 1, alpha: 0.82),
+        dark: UIColor(white: 1, alpha: 0.075)
+    ))
+    static let elevatedSurface = Color(uiColor: dynamicUIColor(
+        light: UIColor(white: 1, alpha: 0.96),
+        dark: UIColor(white: 1, alpha: 0.105)
+    ))
+    static let hairline = Color(uiColor: dynamicUIColor(
+        light: UIColor(white: 0, alpha: 0.09),
+        dark: UIColor(white: 1, alpha: 0.115)
+    ))
+    static let primaryText = Color(uiColor: dynamicUIColor(
+        light: UIColor(red: 0.07, green: 0.08, blue: 0.1, alpha: 0.96),
+        dark: UIColor(white: 1, alpha: 0.96)
+    ))
+    static let secondaryText = Color(uiColor: dynamicUIColor(
+        light: UIColor(red: 0.24, green: 0.27, blue: 0.32, alpha: 0.72),
+        dark: UIColor(white: 1, alpha: 0.62)
+    ))
+    static let tertiaryText = Color(uiColor: dynamicUIColor(
+        light: UIColor(red: 0.24, green: 0.27, blue: 0.32, alpha: 0.46),
+        dark: UIColor(white: 1, alpha: 0.42)
+    ))
+    static let accent = Color(uiColor: dynamicUIColor(
+        light: UIColor(red: 0, green: 0.36, blue: 0.9, alpha: 1),
+        dark: UIColor(red: 0.64, green: 0.78, blue: 1, alpha: 1)
+    ))
+    static let destructive = Color(uiColor: dynamicUIColor(
+        light: UIColor(red: 0.86, green: 0.13, blue: 0.12, alpha: 1),
+        dark: UIColor(red: 1, green: 0.38, blue: 0.34, alpha: 1)
+    ))
+    static let positive = Color(uiColor: dynamicUIColor(
+        light: UIColor(red: 0.06, green: 0.5, blue: 0.22, alpha: 1),
+        dark: UIColor(red: 0.5, green: 0.9, blue: 0.64, alpha: 1)
+    ))
+    static let warning = Color(uiColor: dynamicUIColor(
+        light: UIColor(red: 0.78, green: 0.45, blue: 0.02, alpha: 1),
+        dark: UIColor(red: 1, green: 0.79, blue: 0.47, alpha: 1)
+    ))
+    static let primaryButtonText = Color(uiColor: dynamicUIColor(
+        light: UIColor.white,
+        dark: UIColor(white: 0, alpha: 0.88)
+    ))
+
+    static let uiBackground = dynamicUIColor(
+        light: UIColor(red: 0.955, green: 0.965, blue: 0.98, alpha: 1),
+        dark: UIColor(red: 0.035, green: 0.037, blue: 0.042, alpha: 1)
+    )
+    static let uiAccent = dynamicUIColor(
+        light: UIColor(red: 0, green: 0.36, blue: 0.9, alpha: 1),
+        dark: UIColor(red: 0.64, green: 0.78, blue: 1, alpha: 1)
+    )
+    static let uiSecondaryText = dynamicUIColor(
+        light: UIColor(red: 0.24, green: 0.27, blue: 0.32, alpha: 0.62),
+        dark: UIColor(white: 1.0, alpha: 0.58)
+    )
+    #else
     static let background = Color(red: 0.035, green: 0.037, blue: 0.042)
     static let backgroundTop = Color(red: 0.058, green: 0.06, blue: 0.068)
     static let surface = Color.white.opacity(0.075)
@@ -17,11 +84,7 @@ enum PhotoDelStyle {
     static let destructive = Color(red: 1.0, green: 0.38, blue: 0.34)
     static let positive = Color(red: 0.5, green: 0.9, blue: 0.64)
     static let warning = Color(red: 1.0, green: 0.79, blue: 0.47)
-
-    #if canImport(UIKit)
-    static let uiBackground = UIColor(red: 0.035, green: 0.037, blue: 0.042, alpha: 1)
-    static let uiAccent = UIColor(red: 0.64, green: 0.78, blue: 1.0, alpha: 1)
-    static let uiSecondaryText = UIColor(white: 1.0, alpha: 0.58)
+    static let primaryButtonText = Color.black.opacity(0.88)
     #endif
 
     static let cardRadius: CGFloat = 18
@@ -30,11 +93,25 @@ enum PhotoDelStyle {
     static func iconTint(for key: String) -> Color {
         switch key {
         case "delete", "trash": return destructive
-        case "favorite", "heart": return Color(red: 1.0, green: 0.62, blue: 0.72)
-        case "video": return Color(red: 0.72, green: 0.7, blue: 1.0)
+        case "favorite", "heart": return Color(uiColor: dynamicUIColor(
+            light: UIColor(red: 0.82, green: 0.16, blue: 0.38, alpha: 1),
+            dark: UIColor(red: 1.0, green: 0.62, blue: 0.72, alpha: 1)
+        ))
+        case "video": return Color(uiColor: dynamicUIColor(
+            light: UIColor(red: 0.44, green: 0.31, blue: 0.88, alpha: 1),
+            dark: UIColor(red: 0.72, green: 0.7, blue: 1.0, alpha: 1)
+        ))
         default: return accent
         }
     }
+
+    #if canImport(UIKit)
+    private static func dynamicUIColor(light: UIColor, dark: UIColor) -> UIColor {
+        UIColor { traits in
+            traits.userInterfaceStyle == .dark ? dark : light
+        }
+    }
+    #endif
 }
 
 struct PhotoDelScreenBackground: View {
@@ -73,7 +150,7 @@ struct PhotoDelPrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 16, weight: .semibold))
-            .foregroundColor(Color.black.opacity(0.88))
+            .foregroundColor(PhotoDelStyle.primaryButtonText)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 15)
             .background(
@@ -139,6 +216,7 @@ enum AppConstants {
     static let leftSwipeActionKey = "photoDelLeftSwipeAction"
     static let rightSwipeActionKey = "photoDelRightSwipeAction"
     static let upSwipeActionKey = "photoDelUpSwipeAction"
+    static let appAppearanceKey = "photoDelAppAppearance"
     static let supporterProductID = "com.01mvp.photodel.supporter.stats"
     static let supporterEntitlementKey = "photoDelSupporterUnlocked"
     static let supporterThemeKey = "photoDelSupporterTheme"

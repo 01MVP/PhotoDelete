@@ -23,6 +23,7 @@ struct SettingsView: View {
     @AppStorage(AppConstants.leftSwipeActionKey) private var leftSwipeActionValue = SwipeGesturePreset.standard.leftAction.rawValue
     @AppStorage(AppConstants.rightSwipeActionKey) private var rightSwipeActionValue = SwipeGesturePreset.standard.rightAction.rawValue
     @AppStorage(AppConstants.upSwipeActionKey) private var upSwipeActionValue = SwipeGesturePreset.standard.upAction.rawValue
+    @AppStorage(AppConstants.appAppearanceKey) private var appAppearanceValue = AppAppearance.system.rawValue
     @State private var activeSheet: SettingsSheet?
     @State private var showingWeChatCopied = false
     @State private var showingClearLocalDataConfirmation = false
@@ -103,6 +104,8 @@ struct SettingsView: View {
                 GestureSettingsView()
             case .languageSettings:
                 LanguageSettingsView()
+            case .appearanceSettings:
+                AppearanceSettingsView()
             }
         }
         .confirmationDialog(
@@ -331,6 +334,20 @@ struct SettingsView: View {
                     .padding(.horizontal, 16)
 
                 SettingRow(
+                    icon: selectedAppearance.icon,
+                    iconColor: PhotoDelStyle.warning,
+                    title: L10n.string("外观"),
+                    subtitle: selectedAppearance.title,
+                    action: {
+                        activeSheet = .appearanceSettings
+                    }
+                )
+
+                Divider()
+                    .background(PhotoDelStyle.hairline)
+                    .padding(.horizontal, 16)
+
+                SettingRow(
                     icon: "tray.full.fill",
                     iconColor: PhotoDelStyle.positive,
                     title: L10n.string("本机整理数据"),
@@ -385,6 +402,10 @@ struct SettingsView: View {
 
     private var selectedLanguage: AppLanguage {
         AppLanguage(rawValue: appLanguageValue) ?? .system
+    }
+
+    private var selectedAppearance: AppAppearance {
+        AppAppearance(rawValue: appAppearanceValue) ?? .system
     }
 
     private var copyToast: some View {
@@ -544,6 +565,7 @@ private enum SettingsSheet: Identifiable {
     case supporter
     case gestureSettings
     case languageSettings
+    case appearanceSettings
 
     var id: String {
         switch self {
@@ -554,6 +576,7 @@ private enum SettingsSheet: Identifiable {
         case .supporter: return "supporter"
         case .gestureSettings: return "gestureSettings"
         case .languageSettings: return "languageSettings"
+        case .appearanceSettings: return "appearanceSettings"
         }
     }
 }
@@ -1090,6 +1113,93 @@ private struct LanguageSettingsView: View {
     }
 }
 
+// MARK: - 外观设置
+private struct AppearanceSettingsView: View {
+    @Environment(\.dismiss) private var dismiss
+    @AppStorage(AppConstants.appAppearanceKey) private var selectedAppearanceID = AppAppearance.system.rawValue
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                PhotoDelScreenBackground()
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(L10n.string("外观"))
+                                .font(.system(size: 24, weight: .semibold))
+                                .foregroundColor(PhotoDelStyle.primaryText)
+
+                            Text(L10n.string("选择日间、夜间，或跟随 iPhone 系统外观。"))
+                                .font(.system(size: 15, weight: .regular))
+                                .foregroundColor(PhotoDelStyle.secondaryText)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        VStack(spacing: 0) {
+                            ForEach(AppAppearance.allCases) { appearance in
+                                Button {
+                                    selectedAppearanceID = appearance.rawValue
+                                    HapticManager.impact(.light)
+                                } label: {
+                                    HStack(spacing: 12) {
+                                        Image(systemName: appearance.icon)
+                                            .font(.system(size: 20, weight: .semibold))
+                                            .foregroundColor(selectedAppearance == appearance ? PhotoDelStyle.accent : PhotoDelStyle.tertiaryText)
+                                            .frame(width: 24)
+
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            Text(appearance.title)
+                                                .font(.system(size: 16, weight: .semibold))
+                                                .foregroundColor(PhotoDelStyle.primaryText)
+
+                                            Text(appearance.detail)
+                                                .font(.system(size: 13, weight: .regular))
+                                                .foregroundColor(PhotoDelStyle.secondaryText)
+                                                .fixedSize(horizontal: false, vertical: true)
+                                        }
+
+                                        Spacer()
+
+                                        Image(systemName: selectedAppearance == appearance ? "checkmark.circle.fill" : "circle")
+                                            .font(.system(size: 20, weight: .semibold))
+                                            .foregroundColor(selectedAppearance == appearance ? PhotoDelStyle.positive : PhotoDelStyle.tertiaryText)
+                                    }
+                                    .padding(16)
+                                }
+                                .buttonStyle(.plain)
+
+                                if appearance != AppAppearance.allCases.last {
+                                    Divider()
+                                        .background(PhotoDelStyle.hairline)
+                                        .padding(.leading, 16)
+                                }
+                            }
+                        }
+                        .photoDelCard()
+                    }
+                    .padding(24)
+                    .padding(.bottom, 24)
+                }
+            }
+            .navigationTitle(L10n.string("外观"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(L10n.string("完成")) {
+                        dismiss()
+                    }
+                    .foregroundColor(PhotoDelStyle.accent)
+                }
+            }
+        }
+    }
+
+    private var selectedAppearance: AppAppearance {
+        AppAppearance(rawValue: selectedAppearanceID) ?? .system
+    }
+}
+
 // MARK: - 邮件编写视图
 #if canImport(MessageUI)
 struct MailComposeView: UIViewControllerRepresentable {
@@ -1227,7 +1337,7 @@ struct AuthorAvatar: View {
 
             Text("MJ")
                 .font(.system(size: 22, weight: .bold, design: .rounded))
-                .foregroundColor(Color.black.opacity(0.84))
+                .foregroundColor(PhotoDelStyle.primaryButtonText)
         }
         .frame(width: 62, height: 62)
         .shadow(color: PhotoDelStyle.accent.opacity(0.2), radius: 18, x: 0, y: 10)

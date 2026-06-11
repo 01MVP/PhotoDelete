@@ -134,7 +134,7 @@ struct AlbumsView: View {
                 }) {
                     Image(systemName: "plus")
                         .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(Color.black.opacity(0.86))
+                        .foregroundColor(PhotoDelStyle.primaryButtonText)
                         .frame(width: 42, height: 42)
                         .background(Circle().fill(PhotoDelStyle.accent))
                 }

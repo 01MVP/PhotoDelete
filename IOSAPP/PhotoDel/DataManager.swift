@@ -34,6 +34,7 @@ class DataManager: ObservableObject {
     @Published var userAlbums: [AlbumInfo] = []
     @Published var isLoadingAlbums = false
     @Published var albumLoadingProgress: Double = 0
+    @Published var latestCleanupCelebration: CleanupCelebration?
     @Published private(set) var reviewedAssetIDs: Set<String> = []
     let cleanupStatsStore: CleanupStatsStore
     private let albumSnapshotStore = AlbumListSnapshotStore()
@@ -280,6 +281,9 @@ class DataManager: ObservableObject {
         // 保存操作前的状态用于回滚
         let originalDeleteCandidates = deleteCandidates
         let originalFavoriteCandidates = favoriteCandidates
+        let estimatedSpaceSaved = originalDeleteCandidates.reduce(0) { partial, asset in
+            partial + estimatedAssetSizeMB(asset)
+        }
 
         photoLibraryManager.commitBatchChanges(
             deleteAssets: Array(originalDeleteCandidates),
@@ -307,8 +311,19 @@ class DataManager: ObservableObject {
                 deletedPhotos: originalDeleteCandidates.count,
                 favoritedPhotos: originalFavoriteCandidates.count,
                 organizedPhotos: originalDeleteCandidates.count + originalFavoriteCandidates.count,
-                estimatedSpaceSavedMB: Double(originalDeleteCandidates.count) * 3.0
+                estimatedSpaceSavedMB: estimatedSpaceSaved
             )
+            let summary = self.cleanupStatsStore.summary
+            if originalDeleteCandidates.count > 0 {
+                self.latestCleanupCelebration = CleanupCelebration(
+                    deletedPhotos: originalDeleteCandidates.count,
+                    favoritedPhotos: originalFavoriteCandidates.count,
+                    organizedPhotos: originalDeleteCandidates.count + originalFavoriteCandidates.count,
+                    estimatedSpaceSavedMB: estimatedSpaceSaved,
+                    totalDeletedPhotos: summary.deletedPhotos,
+                    totalSpaceSavedMB: summary.estimatedSpaceSavedMB
+                )
+            }
             self.deleteCandidates.removeAll()
             self.favoriteCandidates.removeAll()
             self.refreshDerivedLibraryData()
@@ -488,11 +503,19 @@ class DataManager: ObservableObject {
     }
 
     func getPhotosForMonth(_ monthStart: Date, calendar: Calendar = .current) -> [PHAsset] {
-        guard let interval = calendar.dateInterval(of: .month, for: monthStart) else { return [] }
+        getPhotosForPeriod(.month, containing: monthStart, calendar: calendar)
+    }
+
+    func getPhotosForPeriod(
+        _ scope: AdvancedTimeScope,
+        containing date: Date,
+        calendar: Calendar = .current
+    ) -> [PHAsset] {
+        let interval = calendar.dateInterval(for: scope, containing: date)
         return photoLibraryManager.allPhotos
             .filter { asset in
                 guard let creationDate = asset.creationDate else { return false }
-                return interval.contains(creationDate)
+                return creationDate >= interval.start && creationDate < interval.end
             }
             .sorted {
                 let lhsDate = $0.creationDate ?? .distantPast
@@ -560,6 +583,22 @@ class DataManager: ObservableObject {
     func makePhotoMonthSummaries(
         calendar: Calendar = .current
     ) -> [PhotoMonthSummary] {
+        makePhotoPeriodSummaries(for: .month, calendar: calendar).map { summary in
+            PhotoMonthSummary(
+                monthStart: summary.intervalStart,
+                assetCount: summary.assetCount,
+                screenshotCount: summary.screenshotCount,
+                videoCount: summary.videoCount,
+                reviewedCount: summary.reviewedCount,
+                estimatedSizeMB: summary.estimatedSizeMB
+            )
+        }
+    }
+
+    func makePhotoPeriodSummaries(
+        for scope: AdvancedTimeScope,
+        calendar: Calendar = .current
+    ) -> [PhotoPeriodSummary] {
         let screenshotIDs = Set(photoLibraryManager.screenshots.map(\.localIdentifier))
         let reviewedIDs = reviewedAssetIDs
         let deleteCandidateIDs = Set(deleteCandidates.map(\.localIdentifier))
@@ -567,27 +606,30 @@ class DataManager: ObservableObject {
         var buckets: [Date: DaySummaryAccumulator] = [:]
 
         for asset in photoLibraryManager.allPhotos {
-            guard let creationDate = asset.creationDate,
-                  let month = calendar.dateInterval(of: .month, for: creationDate)?.start else { continue }
+            guard let creationDate = asset.creationDate else { continue }
+            let interval = calendar.dateInterval(for: scope, containing: creationDate)
 
             let identifier = asset.localIdentifier
             let isReviewed = reviewedIDs.contains(identifier) ||
                 deleteCandidateIDs.contains(identifier) ||
                 favoriteCandidateIDs.contains(identifier) ||
                 asset.isFavorite
-            var accumulator = buckets[month] ?? DaySummaryAccumulator()
+            var accumulator = buckets[interval.start] ?? DaySummaryAccumulator()
             accumulator.add(
                 asset: asset,
                 isScreenshot: screenshotIDs.contains(identifier),
                 isReviewed: isReviewed,
                 estimatedSizeMB: estimatedAssetSizeMB(asset)
             )
-            buckets[month] = accumulator
+            buckets[interval.start] = accumulator
         }
 
-        return buckets.map { month, accumulator in
-            PhotoMonthSummary(
-                monthStart: month,
+        return buckets.map { periodStart, accumulator in
+            let interval = calendar.dateInterval(for: scope, containing: periodStart)
+            return PhotoPeriodSummary(
+                scope: scope,
+                intervalStart: interval.start,
+                intervalEnd: interval.end,
                 assetCount: accumulator.photoCount,
                 screenshotCount: accumulator.screenshotCount,
                 videoCount: accumulator.videoCount,
@@ -595,7 +637,7 @@ class DataManager: ObservableObject {
                 estimatedSizeMB: accumulator.estimatedSizeMB
             )
         }
-        .sorted { $0.monthStart > $1.monthStart }
+        .sorted { $0.intervalStart > $1.intervalStart }
     }
 
     private func makeAdvancedCleanupQueues() -> [AdvancedCleanupQueue] {

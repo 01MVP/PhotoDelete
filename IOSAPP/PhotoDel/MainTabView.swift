@@ -14,7 +14,10 @@ struct MainTabView: View {
     @EnvironmentObject var dataManager: DataManager
     @EnvironmentObject var purchaseManager: PurchaseManager
     @Environment(\.scenePhase) private var scenePhase
+    @AppStorage(AppConstants.appAppearanceKey) private var appAppearanceValue = AppAppearance.system.rawValue
     @State private var selectedTab = 0
+    @State private var displayedCelebration: CleanupCelebration?
+    @State private var celebrationDismissWorkItem: DispatchWorkItem?
     
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -57,36 +60,73 @@ struct MainTabView: View {
                 .tag(3)
         }
         .tint(PhotoDelStyle.accent)
-        .preferredColorScheme(.dark)
+        .overlay {
+            if let displayedCelebration {
+                CleanupCelebrationOverlay(
+                    celebration: displayedCelebration,
+                    onDismiss: dismissCelebration
+                )
+            }
+        }
         .onAppear {
-            // 自定义TabBar外观
-            let appearance = UITabBarAppearance()
-            appearance.configureWithTransparentBackground()
-            appearance.backgroundColor = PhotoDelStyle.uiBackground.withAlphaComponent(0.92)
-            appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterialDark)
-            appearance.selectionIndicatorTintColor = PhotoDelStyle.uiAccent
-            
-            // 未选中状态
-            appearance.stackedLayoutAppearance.normal.iconColor = PhotoDelStyle.uiSecondaryText
-            appearance.stackedLayoutAppearance.normal.titleTextAttributes = [
-                .foregroundColor: PhotoDelStyle.uiSecondaryText
-            ]
-            
-            // 选中状态
-            appearance.stackedLayoutAppearance.selected.iconColor = PhotoDelStyle.uiAccent
-            appearance.stackedLayoutAppearance.selected.titleTextAttributes = [
-                .foregroundColor: PhotoDelStyle.uiAccent
-            ]
-            
-            UITabBar.appearance().standardAppearance = appearance
-            UITabBar.appearance().scrollEdgeAppearance = appearance
-
+            configureTabBarAppearance()
             dataManager.syncPhotoLibraryAuthorization()
+        }
+        .onChange(of: appAppearanceValue) { _ in
+            configureTabBarAppearance()
+        }
+        .onChange(of: dataManager.latestCleanupCelebration) { celebration in
+            guard let celebration else { return }
+            presentCelebration(celebration)
         }
         .onChange(of: scenePhase) { phase in
             guard phase == .active else { return }
+            configureTabBarAppearance()
             dataManager.syncPhotoLibraryAuthorization()
         }
+    }
+
+    private func presentCelebration(_ celebration: CleanupCelebration) {
+        celebrationDismissWorkItem?.cancel()
+        HapticManager.notify(.success)
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.78)) {
+            displayedCelebration = celebration
+        }
+
+        let workItem = DispatchWorkItem {
+            dismissCelebration()
+        }
+        celebrationDismissWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.4, execute: workItem)
+    }
+
+    private func dismissCelebration() {
+        celebrationDismissWorkItem?.cancel()
+        celebrationDismissWorkItem = nil
+        withAnimation(.easeOut(duration: 0.2)) {
+            displayedCelebration = nil
+        }
+    }
+
+    private func configureTabBarAppearance() {
+        let appearance = UITabBarAppearance()
+        appearance.configureWithTransparentBackground()
+        appearance.backgroundColor = PhotoDelStyle.uiBackground.withAlphaComponent(0.92)
+        appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterial)
+        appearance.selectionIndicatorTintColor = PhotoDelStyle.uiAccent
+
+        appearance.stackedLayoutAppearance.normal.iconColor = PhotoDelStyle.uiSecondaryText
+        appearance.stackedLayoutAppearance.normal.titleTextAttributes = [
+            .foregroundColor: PhotoDelStyle.uiSecondaryText
+        ]
+
+        appearance.stackedLayoutAppearance.selected.iconColor = PhotoDelStyle.uiAccent
+        appearance.stackedLayoutAppearance.selected.titleTextAttributes = [
+            .foregroundColor: PhotoDelStyle.uiAccent
+        ]
+
+        UITabBar.appearance().standardAppearance = appearance
+        UITabBar.appearance().scrollEdgeAppearance = appearance
     }
 }
 

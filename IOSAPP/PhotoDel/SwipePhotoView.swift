@@ -1685,6 +1685,7 @@ struct BatchConfirmView: View {
     var body: some View {
         let deleteAssets = sortedAssets(Array(dataManager.deleteCandidates))
         let favoriteAssets = sortedAssets(Array(dataManager.favoriteCandidates))
+        let estimatedSpaceSaved = deleteAssets.reduce(0) { $0 + dataManager.estimatedSizeMB(for: $1) }
 
         ZStack {
             PhotoDelScreenBackground()
@@ -1704,6 +1705,10 @@ struct BatchConfirmView: View {
                             Text("删除 \(dataManager.deleteCandidates.count) 张照片")
                                 .font(.system(size: 16, weight: .regular))
                                 .foregroundColor(PhotoDelStyle.destructive)
+
+                            Text("预计节省 \(CleanupStatsFormatter.space(estimatedSpaceSaved))")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(PhotoDelStyle.positive)
                         }
 
                         if !dataManager.favoriteCandidates.isEmpty {

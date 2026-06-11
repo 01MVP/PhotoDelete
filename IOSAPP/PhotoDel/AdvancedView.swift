@@ -11,7 +11,8 @@ import Photos
 struct AdvancedView: View {
     @EnvironmentObject var dataManager: DataManager
     @EnvironmentObject var purchaseManager: PurchaseManager
-    @State private var selectedMonthID: String?
+    @State private var selectedScope: AdvancedTimeScope = .month
+    @State private var selectedPeriodDate = Date()
 
     private var isLocked: Bool {
         !purchaseManager.isSupporter
@@ -26,7 +27,10 @@ struct AdvancedView: View {
                     let snapshot = isLocked ?
                         AdvancedLibrarySnapshot.demo(referenceDate: Date()) :
                         dataManager.makeAdvancedLibrarySnapshot()
-                    let selectedMonth = selectedMonthSummary(in: snapshot)
+                    let periodSummaries = isLocked ?
+                        demoPeriodSummaries(for: selectedScope) :
+                        dataManager.makePhotoPeriodSummaries(for: selectedScope)
+                    let selectedPeriod = selectedPeriodSummary(in: periodSummaries)
 
                     VStack(spacing: 18) {
                         header
@@ -38,15 +42,24 @@ struct AdvancedView: View {
                             )
                         }
 
-                        AdvancedMonthProgressCard(summary: selectedMonth, isDemo: isLocked)
+                        AdvancedTimeScopePicker(selectedScope: $selectedScope)
 
-                        monthProgressSection(
-                            summaries: snapshot.monthSummaries,
-                            selectedMonth: selectedMonth,
+                        AdvancedPeriodNavigator(
+                            summary: selectedPeriod,
+                            canGoForward: canAdvance(from: selectedPeriod),
+                            onPrevious: { moveSelectedPeriod(by: -1) },
+                            onNext: { moveSelectedPeriod(by: 1) }
+                        )
+
+                        AdvancedPeriodProgressCard(summary: selectedPeriod, isDemo: isLocked)
+
+                        periodProgressSection(
+                            summaries: periodSummaries,
+                            selectedPeriod: selectedPeriod,
                             isLocked: isLocked
                         )
 
-                        monthActionCard(summary: selectedMonth, isLocked: isLocked)
+                        periodActionCard(summary: selectedPeriod, isLocked: isLocked)
 
                         cleanupEntrySection(
                             queues: snapshot.cleanupQueues,
@@ -74,6 +87,9 @@ struct AdvancedView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        .onChange(of: selectedScope) { _ in
+            selectedPeriodDate = Date()
+        }
         .task {
             await purchaseManager.loadProducts()
             await purchaseManager.refreshEntitlements()
@@ -96,7 +112,7 @@ struct AdvancedView: View {
                     }
                 }
 
-                Text(isLocked ? L10n.string("示例展示，解锁后查看真实清理队列") : L10n.string("按月份进度和清理队列整理照片"))
+                Text(isLocked ? L10n.string("示例展示，解锁后查看真实清理队列") : L10n.string("按日周月年和清理队列整理照片"))
                     .font(.system(size: 15, weight: .regular))
                     .foregroundColor(PhotoDelStyle.secondaryText)
             }
@@ -114,14 +130,14 @@ struct AdvancedView: View {
         }
     }
 
-    private func monthProgressSection(
-        summaries: [PhotoMonthSummary],
-        selectedMonth: PhotoMonthSummary,
+    private func periodProgressSection(
+        summaries: [PhotoPeriodSummary],
+        selectedPeriod: PhotoPeriodSummary,
         isLocked: Bool
     ) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(L10n.string("月份进度"))
+                Text(L10n.string("时间进度"))
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.primaryText)
 
@@ -129,7 +145,7 @@ struct AdvancedView: View {
 
                 if !isLocked, !summaries.isEmpty {
                     NavigationLink {
-                        AdvancedMonthListView(summaries: summaries)
+                        AdvancedPeriodListView(scope: selectedScope, summaries: summaries)
                             .environmentObject(dataManager)
                     } label: {
                         Text(L10n.string("全部"))
@@ -148,11 +164,11 @@ struct AdvancedView: View {
                 HStack(spacing: 10) {
                     ForEach(summaries.prefix(18)) { summary in
                         Button {
-                            selectedMonthID = summary.id
+                            selectedPeriodDate = summary.intervalStart
                         } label: {
-                            AdvancedMonthChip(
+                            AdvancedPeriodChip(
                                 summary: summary,
-                                isSelected: summary.id == selectedMonth.id
+                                isSelected: summary.id == selectedPeriod.id
                             )
                         }
                         .buttonStyle(.plain)
@@ -163,22 +179,22 @@ struct AdvancedView: View {
         }
     }
 
-    private func monthActionCard(
-        summary: PhotoMonthSummary,
+    private func periodActionCard(
+        summary: PhotoPeriodSummary,
         isLocked: Bool
     ) -> some View {
         Group {
             if isLocked {
                 Button(action: purchaseSupporter) {
-                    AdvancedMonthActionContent(summary: summary)
+                    AdvancedPeriodActionContent(summary: summary)
                 }
                 .buttonStyle(.plain)
             } else {
                 NavigationLink {
-                    AdvancedAssetListView(mode: .month(summary.monthStart))
+                    AdvancedAssetListView(mode: .period(summary.scope, summary.intervalStart))
                         .environmentObject(dataManager)
                 } label: {
-                    AdvancedMonthActionContent(summary: summary)
+                    AdvancedPeriodActionContent(summary: summary)
                 }
                 .buttonStyle(.plain)
             }
@@ -241,25 +257,77 @@ struct AdvancedView: View {
         }
     }
 
-    private func selectedMonthSummary(in snapshot: AdvancedLibrarySnapshot) -> PhotoMonthSummary {
-        if let selectedMonthID,
-           let selected = snapshot.monthSummaries.first(where: { $0.id == selectedMonthID }) {
+    private func selectedPeriodSummary(in summaries: [PhotoPeriodSummary]) -> PhotoPeriodSummary {
+        let selectedInterval = Calendar.current.dateInterval(for: selectedScope, containing: selectedPeriodDate)
+        if let selected = summaries.first(where: { Calendar.current.isDate($0.intervalStart, inSameDayAs: selectedInterval.start) || $0.intervalStart == selectedInterval.start }) {
             return selected
         }
 
-        if let first = snapshot.monthSummaries.first {
-            return first
+        if let containing = summaries.first(where: { selectedPeriodDate >= $0.intervalStart && selectedPeriodDate < $0.intervalEnd }) {
+            return containing
         }
 
-        let monthStart = Calendar.current.dateInterval(of: .month, for: Date())?.start ?? Date()
-        return PhotoMonthSummary(
-            monthStart: monthStart,
-            assetCount: 0,
-            screenshotCount: 0,
-            videoCount: 0,
-            reviewedCount: 0,
-            estimatedSizeMB: 0
-        )
+        return PhotoPeriodSummary.empty(scope: selectedScope, containing: selectedPeriodDate)
+    }
+
+    private func demoPeriodSummaries(for scope: AdvancedTimeScope) -> [PhotoPeriodSummary] {
+        let calendar = Calendar.current
+        let currentInterval = calendar.dateInterval(for: scope, containing: Date())
+        let count: Int
+        switch scope {
+        case .day: count = 14
+        case .week: count = 12
+        case .month: count = 18
+        case .year: count = 5
+        }
+
+        return (0..<count).compactMap { index in
+            let offset = -index
+            guard let start = calendar.date(byAdding: scope.calendarComponent, value: offset, to: currentInterval.start) else { return nil }
+            let interval = calendar.dateInterval(for: scope, containing: start)
+            let base = max(1, count - index)
+            let assets = scope == .year ? 1_800 + base * 220 : scope == .month ? 320 + base * 42 : scope == .week ? 72 + base * 9 : 18 + base * 3
+            let reviewed = Int(Double(assets) * min(0.82, 0.28 + Double(index % 6) * 0.1))
+            return PhotoPeriodSummary(
+                scope: scope,
+                intervalStart: interval.start,
+                intervalEnd: interval.end,
+                assetCount: assets,
+                screenshotCount: max(assets / 5, 0),
+                videoCount: max(assets / 16, 0),
+                reviewedCount: reviewed,
+                estimatedSizeMB: Double(assets) * (scope == .year ? 3.8 : 3.1)
+            )
+        }
+    }
+
+    private func moveSelectedPeriod(by offset: Int) {
+        guard let next = Calendar.current.date(
+            byAdding: selectedScope.calendarComponent,
+            value: offset,
+            to: selectedPeriodDate
+        ) else { return }
+
+        guard offset < 0 || canAdvance(to: next) else { return }
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+            selectedPeriodDate = next
+        }
+        HapticManager.impact(.light)
+    }
+
+    private func canAdvance(from summary: PhotoPeriodSummary) -> Bool {
+        guard let next = Calendar.current.date(
+            byAdding: selectedScope.calendarComponent,
+            value: 1,
+            to: summary.intervalStart
+        ) else { return false }
+        return canAdvance(to: next)
+    }
+
+    private func canAdvance(to date: Date) -> Bool {
+        let nextStart = Calendar.current.dateInterval(for: selectedScope, containing: date).start
+        let currentStart = Calendar.current.dateInterval(for: selectedScope, containing: Date()).start
+        return nextStart <= currentStart
     }
 
     private func purchaseSupporter() {
@@ -271,8 +339,71 @@ struct AdvancedView: View {
     }
 }
 
-private struct AdvancedMonthProgressCard: View {
-    let summary: PhotoMonthSummary
+private struct AdvancedTimeScopePicker: View {
+    @Binding var selectedScope: AdvancedTimeScope
+
+    var body: some View {
+        Picker(L10n.string("时间维度"), selection: $selectedScope) {
+            ForEach(AdvancedTimeScope.allCases) { scope in
+                Text(scope.title)
+                    .tag(scope)
+            }
+        }
+        .pickerStyle(.segmented)
+    }
+}
+
+private struct AdvancedPeriodNavigator: View {
+    let summary: PhotoPeriodSummary
+    let canGoForward: Bool
+    let onPrevious: () -> Void
+    let onNext: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Button(action: onPrevious) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 15, weight: .bold))
+                    .frame(width: 38, height: 38)
+                    .background(Circle().fill(PhotoDelStyle.surface))
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(PhotoDelStyle.primaryText)
+            .accessibilityLabel(L10n.string("上一段时间"))
+
+            VStack(spacing: 3) {
+                Text(AdvancedPeriodFormatter.title(for: summary))
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.primaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+
+                Text(AdvancedPeriodFormatter.subtitle(for: summary))
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundColor(PhotoDelStyle.secondaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+            .frame(maxWidth: .infinity)
+
+            Button(action: onNext) {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 15, weight: .bold))
+                    .frame(width: 38, height: 38)
+                    .background(Circle().fill(PhotoDelStyle.surface))
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(canGoForward ? PhotoDelStyle.primaryText : PhotoDelStyle.tertiaryText)
+            .disabled(!canGoForward)
+            .accessibilityLabel(L10n.string("下一段时间"))
+        }
+        .padding(12)
+        .photoDelCard(radius: 16)
+    }
+}
+
+private struct AdvancedPeriodProgressCard: View {
+    let summary: PhotoPeriodSummary
     let isDemo: Bool
 
     var body: some View {
@@ -286,7 +417,7 @@ private struct AdvancedMonthProgressCard: View {
             VStack(alignment: .leading, spacing: 10) {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
-                        Text(L10n.string("\(AdvancedMonthFormatter.monthTitle.string(from: summary.monthStart))清理进度"))
+                        Text(L10n.string("\(AdvancedPeriodFormatter.compactTitle(for: summary))清理进度"))
                             .font(.system(size: 20, weight: .semibold))
                             .foregroundColor(PhotoDelStyle.primaryText)
                             .lineLimit(1)
@@ -343,8 +474,8 @@ private struct AdvancedMiniMetric: View {
     }
 }
 
-private struct AdvancedMonthChip: View {
-    let summary: PhotoMonthSummary
+private struct AdvancedPeriodChip: View {
+    let summary: PhotoPeriodSummary
     let isSelected: Bool
 
     var body: some View {
@@ -354,7 +485,7 @@ private struct AdvancedMonthChip: View {
             }
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(AdvancedMonthFormatter.shortMonth.string(from: summary.monthStart))
+                Text(AdvancedPeriodFormatter.chipTitle(for: summary))
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.primaryText)
                     .lineLimit(1)
@@ -379,8 +510,8 @@ private struct AdvancedMonthChip: View {
     }
 }
 
-private struct AdvancedMonthActionContent: View {
-    let summary: PhotoMonthSummary
+private struct AdvancedPeriodActionContent: View {
+    let summary: PhotoPeriodSummary
 
     var body: some View {
         HStack(spacing: 14) {
@@ -389,19 +520,19 @@ private struct AdvancedMonthActionContent: View {
                     .fill(PhotoDelStyle.accent.opacity(0.16))
                     .frame(width: 42, height: 42)
 
-                Image(systemName: "calendar.badge.checkmark")
+                Image(systemName: summary.scope == .day ? "calendar" : "calendar.badge.checkmark")
                     .font(.system(size: 19, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.accent)
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(L10n.string("继续清理 \(AdvancedMonthFormatter.monthTitle.string(from: summary.monthStart))"))
+                Text(summary.scope.actionTitle)
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.primaryText)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
 
-                Text(L10n.string("剩余 \(summary.remainingCount) 项，按时间列表继续整理"))
+                Text(L10n.string("剩余 \(summary.remainingCount) 项，\(summary.scope.rangeDescription)"))
                     .font(.system(size: 12, weight: .regular))
                     .foregroundColor(PhotoDelStyle.secondaryText)
                     .lineLimit(1)
@@ -487,7 +618,7 @@ private struct AdvancedBottomPaywall: View {
                 }
                 .foregroundColor(PhotoDelStyle.primaryText)
 
-                Text(L10n.string("查看完整清理队列，按月份、大小和相似组释放更多空间。"))
+                Text(L10n.string("查看完整清理队列，按日周月年、大小和相似组释放更多空间。"))
                     .font(.system(size: 13, weight: .regular))
                     .foregroundColor(PhotoDelStyle.secondaryText)
                     .multilineTextAlignment(.center)
@@ -498,7 +629,7 @@ private struct AdvancedBottomPaywall: View {
                 HStack(spacing: 8) {
                     if isLoading {
                         ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: Color.black.opacity(0.86)))
+                            .progressViewStyle(CircularProgressViewStyle(tint: PhotoDelStyle.primaryButtonText))
                             .scaleEffect(0.78)
                     }
                     Text(isLoading ? L10n.string("处理中...") : L10n.string("解锁进阶 \(priceText)"))
@@ -539,10 +670,11 @@ private struct AdvancedBottomPaywall: View {
     }
 }
 
-private struct AdvancedMonthListView: View {
+private struct AdvancedPeriodListView: View {
     @EnvironmentObject var dataManager: DataManager
     @Environment(\.dismiss) private var dismiss
-    let summaries: [PhotoMonthSummary]
+    let scope: AdvancedTimeScope
+    let summaries: [PhotoPeriodSummary]
 
     var body: some View {
         ZStack {
@@ -551,8 +683,8 @@ private struct AdvancedMonthListView: View {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 16) {
                     AdvancedFeatureHeader(
-                        title: L10n.string("月份进度"),
-                        subtitle: L10n.string("按月份查看照片清理比例"),
+                        title: L10n.string("时间进度"),
+                        subtitle: L10n.string("按\(scope.title)查看照片清理比例"),
                         showsBackButton: true,
                         onBack: { dismiss() }
                     )
@@ -560,10 +692,10 @@ private struct AdvancedMonthListView: View {
                     VStack(spacing: 0) {
                         ForEach(Array(summaries.enumerated()), id: \.element.id) { index, summary in
                             NavigationLink {
-                                AdvancedAssetListView(mode: .month(summary.monthStart))
+                                AdvancedAssetListView(mode: .period(summary.scope, summary.intervalStart))
                                     .environmentObject(dataManager)
                             } label: {
-                                AdvancedMonthListRow(summary: summary)
+                                AdvancedPeriodListRow(summary: summary)
                             }
                             .buttonStyle(.plain)
 
@@ -586,8 +718,8 @@ private struct AdvancedMonthListView: View {
     }
 }
 
-private struct AdvancedMonthListRow: View {
-    let summary: PhotoMonthSummary
+private struct AdvancedPeriodListRow: View {
+    let summary: PhotoPeriodSummary
 
     var body: some View {
         HStack(spacing: 13) {
@@ -596,7 +728,7 @@ private struct AdvancedMonthListRow: View {
             }
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(AdvancedMonthFormatter.fullMonth.string(from: summary.monthStart))
+                Text(AdvancedPeriodFormatter.title(for: summary))
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(PhotoDelStyle.primaryText)
 
@@ -631,8 +763,8 @@ private struct AdvancedAssetListView: View {
         switch mode {
         case .cleanup(let kind):
             return dataManager.getPhotosForAdvancedCleanup(kind)
-        case .month(let monthStart):
-            return dataManager.getPhotosForMonth(monthStart)
+        case .period(let scope, let date):
+            return dataManager.getPhotosForPeriod(scope, containing: date)
         }
     }
 
@@ -724,7 +856,7 @@ private struct AdvancedAssetListView: View {
             return L10n.string("共 \(assets.count) 个视频")
         case .cleanup(.similarPhotos):
             return L10n.string("共 \(assets.count) 张相似照片")
-        case .month:
+        case .period:
             return L10n.string("共 \(assets.count) 项")
         }
     }
@@ -740,8 +872,8 @@ private struct AdvancedAssetListView: View {
             return L10n.string("按视频占用优先处理，合计约 \(CleanupStatsFormatter.space(totalSize))。")
         case .cleanup(.similarPhotos):
             return L10n.string("建议优先处理相似组，合计约 \(CleanupStatsFormatter.space(totalSize))。")
-        case .month:
-            return L10n.string("按时间浏览这个月份，合计约 \(CleanupStatsFormatter.space(totalSize))。")
+        case .period(let scope, _):
+            return L10n.string("按时间浏览这个\(scope.title)，合计约 \(CleanupStatsFormatter.space(totalSize))。")
         }
     }
 
@@ -985,7 +1117,7 @@ private struct AdvancedAssetListSummaryCard: View {
             Button(action: action) {
                 Text(buttonTitle)
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(Color.black.opacity(0.86))
+                    .foregroundColor(PhotoDelStyle.primaryButtonText)
                     .padding(.horizontal, 15)
                     .frame(height: 36)
                     .background(
@@ -1087,7 +1219,7 @@ private struct AdvancedSelectableThumbnail: View {
             if showsRecommendedBadge {
                 Text(L10n.string("保留"))
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(Color.black.opacity(0.82))
+                    .foregroundColor(PhotoDelStyle.primaryButtonText)
                     .padding(.horizontal, 5)
                     .padding(.vertical, 3)
                     .background(Capsule(style: .continuous).fill(PhotoDelStyle.positive))
@@ -1245,7 +1377,7 @@ private struct AdvancedSelectionActionBar: View {
                 Text(L10n.string("加入待删除 \(count) 项"))
             }
             .font(.system(size: 15, weight: .semibold))
-            .foregroundColor(Color.black.opacity(0.86))
+            .foregroundColor(PhotoDelStyle.primaryButtonText)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 15)
             .background(
@@ -1409,14 +1541,14 @@ private struct AdvancedEmptyState: View {
 
 private enum AdvancedAssetListMode {
     case cleanup(AdvancedCleanupKind)
-    case month(Date)
+    case period(AdvancedTimeScope, Date)
 
     var title: String {
         switch self {
         case .cleanup(let kind):
             return kind.title
-        case .month(let monthStart):
-            return AdvancedMonthFormatter.fullMonth.string(from: monthStart)
+        case .period(let scope, let date):
+            return AdvancedPeriodFormatter.title(for: PhotoPeriodSummary.empty(scope: scope, containing: date))
         }
     }
 
@@ -1430,8 +1562,8 @@ private enum AdvancedAssetListMode {
             return L10n.string("按视频占用和时间整理")
         case .cleanup(.similarPhotos):
             return L10n.string("按相似组整理，保留最好的一张")
-        case .month:
-            return L10n.string("按时间浏览这个月份的照片")
+        case .period(let scope, _):
+            return L10n.string("按时间浏览这个\(scope.title)的照片")
         }
     }
 
@@ -1439,7 +1571,7 @@ private enum AdvancedAssetListMode {
         switch self {
         case .cleanup(let kind):
             return kind.icon
-        case .month:
+        case .period:
             return "calendar"
         }
     }
@@ -1500,22 +1632,122 @@ private enum AdvancedAssetFormatter {
     }
 }
 
-private enum AdvancedMonthFormatter {
-    static let monthTitle: DateFormatter = {
+private enum AdvancedPeriodFormatter {
+    static func title(for summary: PhotoPeriodSummary) -> String {
+        switch summary.scope {
+        case .day:
+            return dayTitle.string(from: summary.intervalStart)
+        case .week:
+            return weekTitle(for: summary.intervalStart)
+        case .month:
+            return fullMonth.string(from: summary.intervalStart)
+        case .year:
+            return yearTitle.string(from: summary.intervalStart)
+        }
+    }
+
+    static func compactTitle(for summary: PhotoPeriodSummary) -> String {
+        switch summary.scope {
+        case .day:
+            return dayCompact.string(from: summary.intervalStart)
+        case .week:
+            return weekCompact(for: summary.intervalStart)
+        case .month:
+            return monthTitle.string(from: summary.intervalStart)
+        case .year:
+            return yearTitle.string(from: summary.intervalStart)
+        }
+    }
+
+    static func chipTitle(for summary: PhotoPeriodSummary) -> String {
+        switch summary.scope {
+        case .day:
+            return dayChip.string(from: summary.intervalStart)
+        case .week:
+            return weekChip(for: summary.intervalStart)
+        case .month:
+            return shortMonth.string(from: summary.intervalStart)
+        case .year:
+            return yearTitle.string(from: summary.intervalStart)
+        }
+    }
+
+    static func subtitle(for summary: PhotoPeriodSummary) -> String {
+        switch summary.scope {
+        case .day:
+            return L10n.string("当天")
+        case .week:
+            let start = dayRange.string(from: summary.intervalStart)
+            let endDate = Calendar.current.date(byAdding: .day, value: -1, to: summary.intervalEnd) ?? summary.intervalEnd
+            let end = dayRange.string(from: endDate)
+            return "\(start) - \(end)"
+        case .month:
+            return L10n.string("本月照片清理进度")
+        case .year:
+            return L10n.string("全年照片清理进度")
+        }
+    }
+
+    private static func weekTitle(for date: Date) -> String {
+        let components = Calendar.current.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date)
+        return L10n.string("\(components.yearForWeekOfYear ?? 0) 年第 \(components.weekOfYear ?? 0) 周")
+    }
+
+    private static func weekCompact(for date: Date) -> String {
+        let week = Calendar.current.component(.weekOfYear, from: date)
+        return L10n.string("第 \(week) 周")
+    }
+
+    private static func weekChip(for date: Date) -> String {
+        let week = Calendar.current.component(.weekOfYear, from: date)
+        return L10n.string("周 \(week)")
+    }
+
+    private static let dayTitle: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("y年M月d日")
+        return formatter
+    }()
+
+    private static let dayCompact: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("M月d日")
+        return formatter
+    }()
+
+    private static let dayChip: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("M/d")
+        return formatter
+    }()
+
+    private static let dayRange: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("M/d")
+        return formatter
+    }()
+
+    private static let monthTitle: DateFormatter = {
         let formatter = DateFormatter()
         formatter.setLocalizedDateFormatFromTemplate("M月")
         return formatter
     }()
 
-    static let shortMonth: DateFormatter = {
+    private static let shortMonth: DateFormatter = {
         let formatter = DateFormatter()
         formatter.setLocalizedDateFormatFromTemplate("M月")
         return formatter
     }()
 
-    static let fullMonth: DateFormatter = {
+    private static let fullMonth: DateFormatter = {
         let formatter = DateFormatter()
         formatter.setLocalizedDateFormatFromTemplate("y年M月")
+        return formatter
+    }()
+
+    private static let yearTitle: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("y年")
         return formatter
     }()
 }
