@@ -7,8 +7,18 @@
     <xhtml:link rel="alternate" hreflang="en" href="https://photodelete.01mvp.com/en/" />
   </url>
   <url>
+    <loc>https://photodelete.01mvp.com/privacy/</loc>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://photodelete.01mvp.com/privacy/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://photodelete.01mvp.com/en/privacy/" />
+  </url>
+  <url>
     <loc>https://photodelete.01mvp.com/en/</loc>
     <xhtml:link rel="alternate" hreflang="zh" href="https://photodelete.01mvp.com/" />
     <xhtml:link rel="alternate" hreflang="en" href="https://photodelete.01mvp.com/en/" />
+  </url>
+  <url>
+    <loc>https://photodelete.01mvp.com/en/privacy/</loc>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://photodelete.01mvp.com/privacy/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://photodelete.01mvp.com/en/privacy/" />
   </url>
 </urlset>
