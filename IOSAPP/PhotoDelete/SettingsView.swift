@@ -28,7 +28,6 @@ struct SettingsView: View {
     @AppStorage(AppConstants.upSwipeActionKey) private var upSwipeActionValue = SwipeGesturePreset.standard.upAction.rawValue
     @AppStorage(AppConstants.appAppearanceKey) private var appAppearanceValue = AppAppearance.system.rawValue
     @State private var activeSheet: SettingsSheet?
-    @State private var showingWeChatCopied = false
     @State private var showingClearLocalDataConfirmation = false
     @State private var settingsToast: PhotoDeleteToast?
 
@@ -77,10 +76,6 @@ struct SettingsView: View {
                     .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
                 }
 
-                if showingWeChatCopied {
-                    copyToast
-                }
-
                 if let settingsToast {
                     settingsToastView(settingsToast)
                 }
@@ -103,10 +98,6 @@ struct SettingsView: View {
                 AuthorView()
             case .privacy:
                 PrivacyInfoView()
-            case .mvpGuide:
-                MVPGuideView()
-            case .creationPhilosophy:
-                CreationPhilosophyView()
             case .supporter:
                 SupporterView()
                     .environmentObject(dataManager)
@@ -238,24 +229,8 @@ struct SettingsView: View {
                     iconColor: PhotoDeleteStyle.secondaryText,
                     title: L10n.string("邮件反馈"),
                     subtitle: AppConstants.feedbackEmail,
-                    action: {
-                        handleMailAction()
-                    }
+                    action: handleMailAction
                 )
-
-                if shouldShowWeChatFeedback {
-                    Divider()
-                        .background(PhotoDeleteStyle.hairline)
-                        .padding(.horizontal, 16)
-
-                    SettingRow(
-                        icon: "bubble.left.and.bubble.right",
-                        iconColor: PhotoDeleteStyle.positive,
-                        title: L10n.string("微信反馈"),
-                        subtitle: AppConstants.wechatID,
-                        action: copyWeChatID
-                    )
-                }
 
                 Divider()
                     .background(PhotoDeleteStyle.hairline)
@@ -264,35 +239,9 @@ struct SettingsView: View {
                 SettingRow(
                     icon: "person.text.rectangle",
                     iconColor: PhotoDeleteStyle.accent,
-                    title: L10n.string("作者信息"),
+                    title: L10n.string("关于创作者"),
                     action: {
                         activeSheet = .author
-                    }
-                )
-
-                Divider()
-                    .background(PhotoDeleteStyle.hairline)
-                    .padding(.horizontal, 16)
-
-                SettingRow(
-                    icon: "graduationcap",
-                    iconColor: PhotoDeleteStyle.accent,
-                    title: L10n.string("MVP 教程"),
-                    action: {
-                        activeSheet = .mvpGuide
-                    }
-                )
-
-                Divider()
-                    .background(PhotoDeleteStyle.hairline)
-                    .padding(.horizontal, 16)
-
-                SettingRow(
-                    icon: "lightbulb",
-                    iconColor: PhotoDeleteStyle.warning,
-                    title: L10n.string("创作理念"),
-                    action: {
-                        activeSheet = .creationPhilosophy
                     }
                 )
 
@@ -465,39 +414,6 @@ struct SettingsView: View {
         AppAppearance(rawValue: appAppearanceValue) ?? .system
     }
 
-    private var shouldShowWeChatFeedback: Bool {
-        selectedLanguage.showsSimplifiedChineseOnlyContent
-    }
-
-    private var copyToast: some View {
-        VStack {
-            Spacer()
-
-            HStack(spacing: 8) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.positive)
-
-                Text(L10n.string("已复制微信号 \(AppConstants.wechatID)"))
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(PhotoDeleteStyle.primaryText)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(
-                Capsule()
-                    .fill(PhotoDeleteStyle.surface)
-                    .overlay(
-                        Capsule()
-                            .stroke(PhotoDeleteStyle.hairline, lineWidth: 1)
-                    )
-            )
-            .shadow(color: PhotoDeleteStyle.floatingShadow, radius: 10, x: 0, y: 5)
-            .padding(.bottom, 96)
-            .transition(.move(edge: .bottom).combined(with: .opacity))
-        }
-    }
-
     private func settingsToastView(_ toast: PhotoDeleteToast) -> some View {
         VStack {
             Spacer()
@@ -665,21 +581,6 @@ struct SettingsView: View {
         }
     }
 
-    private func copyWeChatID() {
-        #if canImport(UIKit)
-        guard shouldShowWeChatFeedback else { return }
-        UIPasteboard.general.string = AppConstants.wechatID
-        withAnimation(.easeInOut(duration: 0.18)) {
-            showingWeChatCopied = true
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
-            withAnimation(.easeInOut(duration: 0.18)) {
-                showingWeChatCopied = false
-            }
-        }
-        #endif
-    }
-
     private func clearLocalOrganizeData() {
         dataManager.clearLocalOrganizeData()
         showSettingsToast(L10n.string("已清空本机整理记录"), icon: "checkmark.circle.fill", style: .positive)
@@ -734,8 +635,6 @@ private enum SettingsSheet: Identifiable {
     case about
     case author
     case privacy
-    case mvpGuide
-    case creationPhilosophy
     case supporter
     case gestureSettings
     case languageSettings
@@ -747,8 +646,6 @@ private enum SettingsSheet: Identifiable {
         case .about: return "about"
         case .author: return "author"
         case .privacy: return "privacy"
-        case .mvpGuide: return "mvpGuide"
-        case .creationPhilosophy: return "creationPhilosophy"
         case .supporter: return "supporter"
         case .gestureSettings: return "gestureSettings"
         case .languageSettings: return "languageSettings"
@@ -1367,6 +1264,7 @@ struct MailComposeView: UIViewControllerRepresentable {
 // MARK: - 作者介绍视图
 struct AuthorView: View {
     @Environment(\.dismiss) private var dismiss
+    @State private var authorToast: PhotoDeleteToast?
 
     var body: some View {
         NavigationStack {
@@ -1384,50 +1282,62 @@ struct AuthorView: View {
                                         .font(.system(size: 24, weight: .semibold))
                                         .foregroundColor(PhotoDeleteStyle.primaryText)
 
-                                    Text(L10n.string("免费的小相册整理工具"))
+                                    Text(L10n.string("独立开发者 / 数字游民"))
                                         .font(.system(size: 15, weight: .regular))
                                         .foregroundColor(PhotoDeleteStyle.secondaryText)
+                                        .fixedSize(horizontal: false, vertical: true)
                                 }
                             }
 
-                            Text(L10n.string("删图是一个免费的相册整理小工具，目标是把删照片、归类照片这件事做得足够直接。"))
-                                .font(.system(size: 16, weight: .regular))
-                                .foregroundColor(PhotoDeleteStyle.secondaryText)
-                                .lineSpacing(4)
-                                .fixedSize(horizontal: false, vertical: true)
+                            Text(try! AttributedString(
+                                markdown: L10n.string("喜欢旅行和探索世界，也用 AI 做一些有趣的小产品。博客和作品集在 [makerjackie.com](https://makerjackie.com)。"),
+                                options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+                            ))
+                            .font(.system(size: 16, weight: .regular))
+                            .foregroundColor(PhotoDeleteStyle.secondaryText)
+                            .lineSpacing(4)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .tint(PhotoDeleteStyle.accent)
                         }
 
-                        VStack(alignment: .leading, spacing: 14) {
-                            Text("01MVP")
-                                .font(.system(size: 20, weight: .semibold))
-                                .foregroundColor(PhotoDeleteStyle.primaryText)
+                        if AppLanguage.current.showsSimplifiedChineseOnlyContent {
+                            HStack(alignment: .center, spacing: 12) {
+                                PhotoDeleteIconTile(icon: "bubble.left.and.bubble.right.fill", tint: PhotoDeleteStyle.positive, size: 38, cornerRadius: 11)
+                                    .accessibilityHidden(true)
 
-                            Text(L10n.string("如果你也想用 AI 开发类似的小 App，可以看看 01mvp.com 的实战教程。"))
-                                .font(.system(size: 15, weight: .regular))
-                                .foregroundColor(PhotoDeleteStyle.secondaryText)
-                                .lineSpacing(4)
-                                .fixedSize(horizontal: false, vertical: true)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(L10n.string("联系作者微信"))
+                                        .font(.system(size: 17, weight: .semibold))
+                                        .foregroundColor(PhotoDeleteStyle.primaryText)
 
-                            Button(action: openWebsite) {
-                                HStack(spacing: 8) {
-                                    Text(L10n.string("打开 01mvp.com"))
-                                    Image(systemName: "arrow.up.right")
-                                        .font(.system(size: 14, weight: .semibold))
+                                    Text(AppConstants.wechatID)
+                                        .font(.system(size: 16, weight: .medium))
+                                        .foregroundColor(PhotoDeleteStyle.secondaryText)
                                 }
-                            }
-                            .photoDeletePrimaryButton()
-                        }
-                        .padding(18)
-                        .photoDeleteCard()
 
-                        VStack(alignment: .leading, spacing: 10) {
-                            if AppLanguage.current.showsSimplifiedChineseOnlyContent {
-                                Label(L10n.string("微信反馈：\(AppConstants.wechatID)"), systemImage: "bubble.left.and.bubble.right.fill")
+                                Spacer(minLength: 8)
+
+                                Button(action: copyWeChatID) {
+                                    Text(authorToast == nil ? L10n.string("复制") : L10n.string("已复制"))
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundColor(PhotoDeleteStyle.primaryButtonText)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 7)
+                                        .background(
+                                            Capsule(style: .continuous)
+                                                .fill(PhotoDeleteStyle.accent)
+                                        )
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel(String(format: L10n.string("复制微信号 %@"), AppConstants.wechatID))
+                                .accessibilityHint(L10n.string("轻点复制"))
                             }
-                            Label(L10n.string("邮件反馈：\(AppConstants.feedbackEmail)"), systemImage: "envelope.fill")
+                            .padding(18)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .photoDeleteCard()
                         }
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundColor(PhotoDeleteStyle.secondaryText)
+
+                        CreatorMVPGuideSection()
 
                         Spacer(minLength: 24)
                     }
@@ -1435,8 +1345,12 @@ struct AuthorView: View {
                     .padding(.top, 20)
                     .padding(.bottom, 24)
                 }
+
+                if let authorToast {
+                    authorToastView(authorToast)
+                }
             }
-            .navigationTitle(L10n.string("作者信息"))
+            .navigationTitle(L10n.string("关于创作者"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -1449,32 +1363,54 @@ struct AuthorView: View {
         }
     }
 
-    private func openWebsite() {
-        if let url = URL(string: AppConstants.websiteURL) {
-            #if canImport(UIKit)
-            UIApplication.shared.open(url)
-            #endif
+    private func authorToastView(_ toast: PhotoDeleteToast) -> some View {
+        VStack {
+            Spacer()
+
+            PhotoDeleteToastView(toast: toast)
+                .padding(.bottom, 36)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .allowsHitTesting(false)
+    }
+
+    private func copyWeChatID() {
+        #if canImport(UIKit)
+        UIPasteboard.general.string = AppConstants.wechatID
+        showAuthorToast(L10n.string("已复制微信号 \(AppConstants.wechatID)"), icon: "checkmark.circle.fill", style: .positive)
+        #endif
+    }
+
+    private func showAuthorToast(_ message: String, icon: String, style: PhotoDeleteToastStyle) {
+        let toast = PhotoDeleteToast(message: message, icon: icon, style: style)
+
+        withAnimation(.easeInOut(duration: 0.18)) {
+            authorToast = toast
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
+            guard authorToast?.id == toast.id else { return }
+            withAnimation(.easeInOut(duration: 0.18)) {
+                authorToast = nil
+            }
         }
     }
 }
 
 struct AuthorAvatar: View {
     var body: some View {
-        ZStack {
-            Circle()
-                .fill(PhotoDeleteStyle.accent)
-                .overlay(
-                    Circle()
-                        .stroke(PhotoDeleteStyle.primaryText.opacity(0.22), lineWidth: 1)
-                )
-
-            Text("MJ")
-                .font(.system(size: 22, weight: .bold, design: .rounded))
-                .foregroundColor(PhotoDeleteStyle.primaryButtonText)
-        }
-        .frame(width: 62, height: 62)
-        .shadow(color: PhotoDeleteStyle.accent.opacity(0.2), radius: 18, x: 0, y: 10)
-        .accessibilityLabel(AppConstants.authorName)
+        Image("MakerJackieAvatar")
+            .resizable()
+            .scaledToFill()
+            .frame(width: 62, height: 62)
+            .clipShape(Circle())
+            .overlay(
+                Circle()
+                    .stroke(PhotoDeleteStyle.primaryText.opacity(0.22), lineWidth: 1)
+            )
+            .shadow(color: PhotoDeleteStyle.accent.opacity(0.2), radius: 18, x: 0, y: 10)
+            .accessibilityLabel(AppConstants.authorName)
     }
 }
 

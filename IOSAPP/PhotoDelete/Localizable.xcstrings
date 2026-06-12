@@ -203,6 +203,28 @@
         }
       }
     },
+    "%lld 个相册": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld albums"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 个相册"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個相冊"
+          }
+        }
+      }
+    },
     "%lld 年第 %lld 周": {
       "localizations": {
         "en": {
@@ -500,6 +522,402 @@
           "stringUnit": {
             "state": "translated",
             "value": "01MVP 與小產品創作"
+          }
+        }
+      }
+    },
+    "01MVP 小产品教程": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "01MVP Small Product Guide"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "01MVP 小产品教程"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "01MVP 小產品教程"
+          }
+        }
+      }
+    },
+    "01MVP 是 MakerJackie 的 AI 产品实战教程，帮你把模糊想法拆成可验证的 MVP，并一步步走到开发、上线和迭代。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "01MVP is MakerJackie's practical AI product guide. It helps you turn a rough idea into a testable MVP, then move through development, launch, and iteration."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "01MVP 是 MakerJackie 的 AI 产品实战教程，帮你把模糊想法拆成可验证的 MVP，并一步步走到开发、上线和迭代。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "01MVP 是 MakerJackie 的 AI 產品實戰教程，幫你把模糊想法拆成可驗證的 MVP，並一步步走到開發、上線和迭代。"
+          }
+        }
+      }
+    },
+    "MakerJackie 记录 AI 实践、独立开发和项目实验，也把从想法到上线的小产品过程整理在 01MVP。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MakerJackie writes about AI practice, indie development, and product experiments, and turns the path from idea to launch into 01MVP."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MakerJackie 记录 AI 实践、独立开发和项目实验，也把从想法到上线的小产品过程整理在 01MVP。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MakerJackie 記錄 AI 實踐、獨立開發和項目實驗，也把從想法到上線的小產品過程整理在 01MVP。"
+          }
+        }
+      }
+    },
+    "把想法做成能上线的小产品": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn an Idea Into a Launchable Small Product"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把想法做成能上线的小产品"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把想法做成能上線的小產品"
+          }
+        }
+      }
+    },
+    "适合想做自己小产品，但不知道如何定范围、用 AI 写代码、处理上线细节的人。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "For people who want to build their own small product but need help scoping it, coding with AI, and handling launch details."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "适合想做自己小产品，但不知道如何定范围、用 AI 写代码、处理上线细节的人。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "適合想做自己小產品，但不知道如何定範圍、用 AI 寫代碼、處理上線細節的人。"
+          }
+        }
+      }
+    },
+    "独立开发者 / 爱折腾生活的玩家": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Independent developer / curious maker"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "独立开发者 / 爱折腾生活的玩家"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "獨立開發者 / 愛折騰生活的玩家"
+          }
+        }
+      }
+    },
+    "独立开发者 / 数字游民": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Independent developer / digital nomad"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "独立开发者 / 数字游民"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "獨立開發者 / 數字遊民"
+          }
+        }
+      }
+    },
+    "喜欢旅行和探索世界，也用 AI 做一些有趣的小产品。博客和作品集在 [makerjackie.com](https://makerjackie.com)。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I like traveling, exploring the world, and building small AI-powered products. Blog and portfolio at [makerjackie.com](https://makerjackie.com)."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "喜欢旅行和探索世界，也用 AI 做一些有趣的小产品。博客和作品集在 [makerjackie.com](https://makerjackie.com)。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "喜歡旅行和探索世界，也用 AI 做一些有趣的小產品。博客和作品集在 [makerjackie.com](https://makerjackie.com)。"
+          }
+        }
+      }
+    },
+    "想要做自己的小产品？": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Want to Build Your Own Small Product?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "想要做自己的小产品？"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "想要做自己的小產品？"
+          }
+        }
+      }
+    },
+    "「删图」是我用 AI 从 0 到 1 做出来的——发现痛点、写代码、上架，全程记录在 01MVP。不管你是想做自己的小产品，还是单纯好奇 AI 写代码能到什么程度，都可以看看。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I built 「删图」 from scratch with AI — from finding the pain point to coding and launching. The whole journey is documented in 01MVP. Whether you want to build your own small product or are just curious how far AI coding can go, take a look."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「删图」是我用 AI 从 0 到 1 做出来的——发现痛点、写代码、上架，全程记录在 01MVP。不管你是想做自己的小产品，还是单纯好奇 AI 写代码能到什么程度，都可以看看。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「删图」是我用 AI 從 0 到 1 做出來的——發現痛點、寫代碼、上架，全程記錄在 01MVP。不管你是想做自己的小產品，還是單純好奇 AI 寫代碼能到什麼程度，都可以看看。"
+          }
+        }
+      }
+    },
+    "看真实项目拆解": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Real Project Breakdown"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "看真实项目拆解"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "看真實項目拆解"
+          }
+        }
+      }
+    },
+    "从想法到上架的完整过程。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The complete journey from idea to launch."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从想法到上架的完整过程。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "從想法到上架的完整過程。"
+          }
+        }
+      }
+    },
+    "拿能直接改的代码模板": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ready-to-Use Code Templates"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拿能直接改的代码模板"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拿能直接改的代碼模板"
+          }
+        }
+      }
+    },
+    "包括这个 App 的源码。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Includes this app's source code."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "包括这个 App 的源码。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "包括這個 App 的源碼。"
+          }
+        }
+      }
+    },
+    "学用 AI 写代码的方法": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Learn to Code With AI"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "学用 AI 写代码的方法"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "學用 AI 寫代碼的方法"
+          }
+        }
+      }
+    },
+    "从零开始，一步步走。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start from zero, one step at a time."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从零开始，一步步走。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "從零開始，一步步走。"
+          }
+        }
+      }
+    },
+            "value": "會員可以拿代碼模板和這個 App 的源碼，少從空白項目開始。"
+          }
+        }
+      }
+    },
+    "适合想把一个小想法真正做出来的人。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "For anyone who wants to turn a small idea into something real."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "适合想把一个小想法真正做出来的人。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "適合想把一個小想法真正做出來的人。"
           }
         }
       }
@@ -1001,6 +1419,52 @@
         }
       }
     },
+    "从真实痛点出发，确认第一版必须解决什么，避免一开始就做成大而全。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start from a real pain point, decide what version one must solve, and avoid building too broadly too early."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从真实痛点出发，确认第一版必须解决什么，避免一开始就做成大而全。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "從真實痛點出發，確認第一版必須解決什麼，避免一開始就做成大而全。"
+          }
+        }
+      }
+    },
+    "付费会员可以获得可复用模板，也包含这个 App 的源码，方便从真实项目改起。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paid members get reusable code templates, including the source code for this app, so they can start from a real project."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "付费会员可以获得可复用模板，也包含这个 App 的源码，方便从真实项目改起。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "付費會員可以獲得可複用模板，也包含這個 App 的源碼，方便從真實項目改起。"
+          }
+        }
+      }
+    },
     "从本次批量操作中移除": {
       "localizations": {
         "en": {
@@ -1096,6 +1560,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "作者信息"
+          }
+        }
+      }
+    },
+    "关于创作者": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "About the Creator"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关于创作者"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "關於創作者"
           }
         }
       }
@@ -1302,6 +1789,29 @@
         }
       }
     },
+    "先把范围收小": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Narrow the Scope First"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先把范围收小"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先把範圍收小"
+          }
+        }
+      }
+    },
     "免费的小相册整理工具": {
       "localizations": {
         "en": {
@@ -1314,6 +1824,75 @@
           "stringUnit": {
             "state": "translated",
             "value": "免費的小相冊整理工具"
+          }
+        }
+      }
+    },
+    "免费和付费教程都能学": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Learn From Free and Paid Guides"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "免费和付费教程都能学"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "免費和付費教程都能學"
+          }
+        }
+      }
+    },
+    "免费内容适合先入门，付费会员可以继续看更完整的实战拆解。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Free content is good for getting started; paid members can keep going with deeper practical breakdowns."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "免费内容适合先入门，付费会员可以继续看更完整的实战拆解。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "免費內容適合先入門，付費會員可以繼續看更完整的實戰拆解。"
+          }
+        }
+      }
+    },
+    "会员可拿代码模板": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Members Get Code Templates"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会员可拿代码模板"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "會員可拿代碼模板"
           }
         }
       }
@@ -2884,7 +3463,7 @@
         }
       }
     },
-    "如果你也想用 AI 开发类似的小 App，可以看看 01mvp.com 的实战教程。": {
+    "如果你想要用 AI 开发类似的小 App，可以看看 01mvp.com 的实战教程。": {
       "localizations": {
         "en": {
           "stringUnit": {
@@ -2895,7 +3474,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "如果你也想用 AI 開發類似的小 App，可以看看 01mvp.com 的實戰教程。"
+            "value": "如果你想要用 AI 開發類似的小 App，可以看看 01mvp.com 的實戰教程。"
           }
         }
       }
@@ -3399,6 +3978,28 @@
         }
       }
     },
+    "左滑相册可编辑或删除": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swipe left on an album to edit or delete it"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "左滑相册可编辑或删除"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "左滑相冊可編輯或刪除"
+          }
+        }
+      }
+    },
     "左留右删": {
       "localizations": {
         "en": {
@@ -3524,6 +4125,75 @@
           "stringUnit": {
             "state": "translated",
             "value": "已在待刪除"
+          }
+        }
+      }
+    },
+    "复制": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "複製"
+          }
+        }
+      }
+    },
+    "复制微信号 %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy WeChat ID %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制微信号 %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "複製微信號 %@"
+          }
+        }
+      }
+    },
+    "已复制": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copied"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已复制"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已複製"
           }
         }
       }
@@ -4437,6 +5107,52 @@
         }
       }
     },
+    "联系作者微信": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Contact on WeChat"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "联系作者微信"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "聯絡作者微信"
+          }
+        }
+      }
+    },
+    "轻点复制": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Double-tap to copy"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "轻点复制"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "輕點複製"
+          }
+        }
+      }
+    },
     "快速上手": {
       "localizations": {
         "en": {
@@ -4740,6 +5456,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "打開 01mvp.com"
+          }
+        }
+      }
+    },
+    "查看 01MVP 教程": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View 01MVP Guides"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看 01MVP 教程"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看 01MVP 教程"
           }
         }
       }
@@ -7754,6 +8493,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Got it"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "知道了"
           }
         },
         "zh-Hant": {

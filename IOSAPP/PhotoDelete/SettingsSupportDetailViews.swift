@@ -4,75 +4,67 @@ import SwiftUI
 import UIKit
 #endif
 
-struct MVPGuideView: View {
-    @Environment(\.dismiss) private var dismiss
-
+struct CreatorMVPGuideSection: View {
     var body: some View {
-        NavigationStack {
-            ZStack {
-                PhotoDeleteScreenBackground()
+        VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(L10n.string("想要做自己的小产品？"))
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.primaryText)
 
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(L10n.string("从一个小功能开始"))
-                                .font(.system(size: 28, weight: .semibold))
-                                .foregroundColor(PhotoDeleteStyle.primaryText)
+                Text(L10n.string("「删图」是我用 AI 从 0 到 1 做出来的——发现痛点、写代码、上架，全程记录在 01MVP。不管你是想做自己的小产品，还是单纯好奇 AI 写代码能到什么程度，都可以看看。"))
+                    .font(.system(size: 15, weight: .regular))
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                    .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
-                            Text(L10n.string("删图来自 01MVP 的小产品实践：先把一个真实问题做顺，再逐步补上体验和边界。"))
-                                .font(.system(size: 16, weight: .regular))
-                                .foregroundColor(PhotoDeleteStyle.secondaryText)
-                                .lineSpacing(4)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
+            VStack(spacing: 0) {
+                MVPGuidePointRow(
+                    icon: "scope",
+                    title: L10n.string("看真实项目拆解"),
+                    detail: L10n.string("从想法到上架的完整过程。")
+                )
 
-                        VStack(spacing: 12) {
-                            SettingsDetailRow(
-                                icon: "scope",
-                                title: L10n.string("先收窄问题"),
-                                detail: L10n.string("只做相册整理里最常见的判断：删、留、收藏。")
-                            )
+                Divider()
+                    .background(PhotoDeleteStyle.hairline)
+                    .padding(.leading, 48)
 
-                            SettingsDetailRow(
-                                icon: "hand.tap",
-                                title: L10n.string("让交互可重复"),
-                                detail: L10n.string("用短手势处理高频动作，最后统一确认。")
-                            )
+                MVPGuidePointRow(
+                    icon: "book.closed",
+                    title: L10n.string("拿能直接改的代码模板"),
+                    detail: L10n.string("包括这个 App 的源码。")
+                )
 
-                            SettingsDetailRow(
-                                icon: "checkmark.seal",
-                                title: L10n.string("再补可信细节"),
-                                detail: L10n.string("权限、撤销、反馈和隐私说明都围绕实际使用补齐。")
-                            )
-                        }
+                Divider()
+                    .background(PhotoDeleteStyle.hairline)
+                    .padding(.leading, 48)
 
-                        Button(action: openWebsite) {
-                            HStack(spacing: 8) {
-                                Text(L10n.string("打开 01mvp.com"))
-                                Image(systemName: "arrow.up.right")
-                                    .font(.system(size: 14, weight: .semibold))
-                            }
-                        }
-                        .photoDeletePrimaryButton()
+                MVPGuidePointRow(
+                    icon: "shippingbox",
+                    title: L10n.string("学用 AI 写代码的方法"),
+                    detail: L10n.string("从零开始，一步步走。")
+                )
+            }
+            .padding(.vertical, 2)
 
-                        Spacer(minLength: 24)
-                    }
-                    .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
-                    .padding(.top, 20)
-                    .padding(.bottom, 24)
+            Text(L10n.string("适合想把一个小想法真正做出来的人。"))
+                .font(.system(size: 14, weight: .regular))
+                .foregroundColor(PhotoDeleteStyle.secondaryText)
+                .lineSpacing(3)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button(action: openWebsite) {
+                HStack(spacing: 8) {
+                    Text(L10n.string("查看 01MVP 教程"))
+                    Image(systemName: "arrow.up.right")
+                        .font(.system(size: 14, weight: .semibold))
                 }
             }
-            .navigationTitle(L10n.string("MVP 教程"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(L10n.string("完成")) {
-                        dismiss()
-                    }
-                    .foregroundColor(PhotoDeleteStyle.accent)
-                }
-            }
+            .photoDeletePrimaryButton()
         }
+        .padding(18)
+        .photoDeleteCard()
     }
 
     private func openWebsite() {
@@ -83,70 +75,7 @@ struct MVPGuideView: View {
     }
 }
 
-struct CreationPhilosophyView: View {
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                PhotoDeleteScreenBackground()
-
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(L10n.string("少打扰，多确认"))
-                                .font(.system(size: 28, weight: .semibold))
-                                .foregroundColor(PhotoDeleteStyle.primaryText)
-
-                            Text(L10n.string("删图的核心不是替你决定，而是让你更快、更安心地完成判断。"))
-                                .font(.system(size: 16, weight: .regular))
-                                .foregroundColor(PhotoDeleteStyle.secondaryText)
-                                .lineSpacing(4)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-
-                        VStack(spacing: 12) {
-                            SettingsDetailRow(
-                                icon: "rectangle.stack.badge.play",
-                                title: L10n.string("先判断，再执行"),
-                                detail: L10n.string("删除和收藏先进入候选列表，确认后才真正写入照片库。")
-                            )
-
-                            SettingsDetailRow(
-                                icon: "iphone",
-                                title: L10n.string("尽量留在本机"),
-                                detail: L10n.string("整理进度、候选列表和统计都围绕本机照片库工作。")
-                            )
-
-                            SettingsDetailRow(
-                                icon: "text.alignleft",
-                                title: L10n.string("文案保持短"),
-                                detail: L10n.string("高频界面只保留能帮助当下操作的信息。")
-                            )
-                        }
-
-                        Spacer(minLength: 24)
-                    }
-                    .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
-                    .padding(.top, 20)
-                    .padding(.bottom, 24)
-                }
-            }
-            .navigationTitle(L10n.string("创作理念"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(L10n.string("完成")) {
-                        dismiss()
-                    }
-                    .foregroundColor(PhotoDeleteStyle.accent)
-                }
-            }
-        }
-    }
-}
-
-private struct SettingsDetailRow: View {
+private struct MVPGuidePointRow: View {
     let icon: String
     let title: String
     let detail: String
@@ -154,6 +83,7 @@ private struct SettingsDetailRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             PhotoDeleteIconTile(icon: icon, tint: PhotoDeleteStyle.accent, size: 34, cornerRadius: 10)
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
@@ -170,7 +100,6 @@ private struct SettingsDetailRow: View {
 
             Spacer(minLength: 0)
         }
-        .padding(16)
-        .photoDeleteCard()
+        .padding(.vertical, 12)
     }
 }
