@@ -16,8 +16,6 @@ struct MainTabView: View {
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage(AppConstants.appAppearanceKey) private var appAppearanceValue = AppAppearance.system.rawValue
     @State private var selectedTab = 0
-    @State private var displayedCelebration: CleanupCelebration?
-    @State private var celebrationDismissWorkItem: DispatchWorkItem?
     
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -60,14 +58,6 @@ struct MainTabView: View {
                 .tag(3)
         }
         .tint(PhotoDelStyle.accent)
-        .overlay {
-            if let displayedCelebration {
-                CleanupCelebrationOverlay(
-                    celebration: displayedCelebration,
-                    onDismiss: dismissCelebration
-                )
-            }
-        }
         .onAppear {
             configureTabBarAppearance()
             dataManager.syncPhotoLibraryAuthorization()
@@ -75,36 +65,10 @@ struct MainTabView: View {
         .onChange(of: appAppearanceValue) { _ in
             configureTabBarAppearance()
         }
-        .onChange(of: dataManager.latestCleanupCelebration) { celebration in
-            guard let celebration else { return }
-            presentCelebration(celebration)
-        }
         .onChange(of: scenePhase) { phase in
             guard phase == .active else { return }
             configureTabBarAppearance()
             dataManager.syncPhotoLibraryAuthorization()
-        }
-    }
-
-    private func presentCelebration(_ celebration: CleanupCelebration) {
-        celebrationDismissWorkItem?.cancel()
-        HapticManager.notify(.success)
-        withAnimation(.spring(response: 0.34, dampingFraction: 0.78)) {
-            displayedCelebration = celebration
-        }
-
-        let workItem = DispatchWorkItem {
-            dismissCelebration()
-        }
-        celebrationDismissWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3.4, execute: workItem)
-    }
-
-    private func dismissCelebration() {
-        celebrationDismissWorkItem?.cancel()
-        celebrationDismissWorkItem = nil
-        withAnimation(.easeOut(duration: 0.2)) {
-            displayedCelebration = nil
         }
     }
 

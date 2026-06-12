@@ -139,17 +139,17 @@ struct PhotoDelTests {
     // MARK: - Gesture settings tests
 
     @Test func swipeGestureStandardPresetMatchesDefaultActions() async throws {
-        #expect(SwipeGesturePreferences.defaultAction(for: .left) == .keep)
-        #expect(SwipeGesturePreferences.defaultAction(for: .right) == .delete)
+        #expect(SwipeGesturePreferences.defaultAction(for: .left) == .delete)
+        #expect(SwipeGesturePreferences.defaultAction(for: .right) == .keep)
         #expect(SwipeGesturePreferences.defaultAction(for: .up) == .favorite)
     }
 
     @Test func swipeGesturePresetsCoverRequestedLayouts() async throws {
-        #expect(SwipeGesturePreset.standard.leftAction == .keep)
-        #expect(SwipeGesturePreset.standard.rightAction == .delete)
+        #expect(SwipeGesturePreset.standard.leftAction == .delete)
+        #expect(SwipeGesturePreset.standard.rightAction == .keep)
 
-        #expect(SwipeGesturePreset.reversed.leftAction == .delete)
-        #expect(SwipeGesturePreset.reversed.rightAction == .keep)
+        #expect(SwipeGesturePreset.reversed.leftAction == .keep)
+        #expect(SwipeGesturePreset.reversed.rightAction == .delete)
 
         #expect(SwipeGesturePreset.verticalDelete.upAction == .delete)
         #expect(SwipeGesturePreset.verticalDelete.leftAction == .keep)
@@ -158,6 +158,38 @@ struct PhotoDelTests {
     @Test func swipeGestureActionNormalizationFallsBackForUnknownValues() async throws {
         #expect(SwipeGesturePreferences.normalizedAction("favorite", fallback: .delete) == .favorite)
         #expect(SwipeGesturePreferences.normalizedAction("unknown", fallback: .keep) == .keep)
+    }
+
+    @Test func swipeGestureMigrationMovesPreviousDefaultToLeftDelete() async throws {
+        let suiteName = "PhotoDelGestureMigration-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        defaults.set(SwipeGestureAction.keep.rawValue, forKey: AppConstants.leftSwipeActionKey)
+        defaults.set(SwipeGestureAction.delete.rawValue, forKey: AppConstants.rightSwipeActionKey)
+        defaults.set(SwipeGestureAction.favorite.rawValue, forKey: AppConstants.upSwipeActionKey)
+
+        SwipeGesturePreferences.migrateStoredDefaultsIfNeeded(defaults: defaults)
+
+        #expect(defaults.string(forKey: AppConstants.leftSwipeActionKey) == SwipeGestureAction.delete.rawValue)
+        #expect(defaults.string(forKey: AppConstants.rightSwipeActionKey) == SwipeGestureAction.keep.rawValue)
+        #expect(defaults.string(forKey: AppConstants.upSwipeActionKey) == SwipeGestureAction.favorite.rawValue)
+    }
+
+    @Test func swipeGestureMigrationDoesNotOverwriteCustomLayout() async throws {
+        let suiteName = "PhotoDelGestureMigrationCustom-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        defaults.set(SwipeGestureAction.favorite.rawValue, forKey: AppConstants.leftSwipeActionKey)
+        defaults.set(SwipeGestureAction.delete.rawValue, forKey: AppConstants.rightSwipeActionKey)
+        defaults.set(SwipeGestureAction.keep.rawValue, forKey: AppConstants.upSwipeActionKey)
+
+        SwipeGesturePreferences.migrateStoredDefaultsIfNeeded(defaults: defaults)
+
+        #expect(defaults.string(forKey: AppConstants.leftSwipeActionKey) == SwipeGestureAction.favorite.rawValue)
+        #expect(defaults.string(forKey: AppConstants.rightSwipeActionKey) == SwipeGestureAction.delete.rawValue)
+        #expect(defaults.string(forKey: AppConstants.upSwipeActionKey) == SwipeGestureAction.keep.rawValue)
     }
 
     @Test func photoReviewModeNormalizesStoredValues() async throws {
@@ -239,6 +271,57 @@ struct PhotoDelTests {
 
         store.clearAll()
         #expect(store.sessions.isEmpty)
+    }
+
+    @Test func cleanupStatsStoreReturnsNewAchievementsForReachedMilestones() async throws {
+        let fileURL = temporaryStatsURL()
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+
+        let store = CleanupStatsStore(fileURL: fileURL)
+        let achievements = store.recordSession(
+            deletedPhotos: 10,
+            favoritedPhotos: 0,
+            organizedPhotos: 10,
+            estimatedSpaceSavedMB: 120
+        )
+        let achievementIDs = Set(achievements.map(\.id))
+
+        #expect(achievementIDs.contains("first_cleanup"))
+        #expect(achievementIDs.contains("delete_10"))
+        #expect(achievementIDs.contains("save_100mb"))
+    }
+
+    @Test func cleanupStatsStoreComputesConsecutiveCleanupStreaks() async throws {
+        let fileURL = temporaryStatsURL()
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+
+        let store = CleanupStatsStore(fileURL: fileURL)
+        store.recordSession(
+            deletedPhotos: 1,
+            favoritedPhotos: 0,
+            organizedPhotos: 1,
+            estimatedSpaceSavedMB: 1,
+            date: makeDate(year: 2026, month: 6, day: 10, calendar: calendar)
+        )
+        store.recordSession(
+            deletedPhotos: 1,
+            favoritedPhotos: 0,
+            organizedPhotos: 1,
+            estimatedSpaceSavedMB: 1,
+            date: makeDate(year: 2026, month: 6, day: 11, calendar: calendar)
+        )
+        let achievements = store.recordSession(
+            deletedPhotos: 1,
+            favoritedPhotos: 0,
+            organizedPhotos: 1,
+            estimatedSpaceSavedMB: 1,
+            date: makeDate(year: 2026, month: 6, day: 12, calendar: calendar)
+        )
+
+        #expect(store.streakDays(referenceDate: makeDate(year: 2026, month: 6, day: 12, calendar: calendar), calendar: calendar) == 3)
+        #expect(achievements.map(\.id).contains("streak_3"))
     }
 
     // MARK: - Advanced feature models

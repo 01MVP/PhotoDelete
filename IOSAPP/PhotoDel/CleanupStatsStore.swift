@@ -142,14 +142,47 @@ final class CleanupStatsStore: ObservableObject {
         .sorted { $0.monthKey > $1.monthKey }
     }
 
+    var currentStreakDays: Int {
+        streakDays()
+    }
+
+    var unlockedAchievements: [CleanupAchievement] {
+        CleanupAchievementEvaluator.unlockedAchievements(
+            summary: summary,
+            streakDays: currentStreakDays
+        )
+    }
+
+    var nextAchievementProgress: CleanupAchievementProgress? {
+        CleanupAchievementEvaluator.nextProgress(
+            summary: summary,
+            streakDays: currentStreakDays
+        )
+    }
+
+    func streakDays(
+        referenceDate: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Int {
+        Self.currentStreakDays(
+            for: sessions,
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
+    }
+
+    @discardableResult
     func recordSession(
         deletedPhotos: Int,
         favoritedPhotos: Int,
         organizedPhotos: Int,
         estimatedSpaceSavedMB: Double,
         date: Date = Date()
-    ) {
-        guard deletedPhotos > 0 || favoritedPhotos > 0 || organizedPhotos > 0 else { return }
+    ) -> [CleanupAchievement] {
+        guard deletedPhotos > 0 || favoritedPhotos > 0 || organizedPhotos > 0 else { return [] }
+
+        let previousSummary = summary
+        let previousStreakDays = streakDays(referenceDate: date)
 
         let session = CleanupSession(
             date: date,
@@ -160,6 +193,15 @@ final class CleanupStatsStore: ObservableObject {
         )
         sessions.insert(session, at: 0)
         save()
+
+        let currentSummary = summary
+        let currentStreakDays = streakDays(referenceDate: date)
+        return CleanupAchievementEvaluator.newlyUnlockedAchievements(
+            previousSummary: previousSummary,
+            currentSummary: currentSummary,
+            previousStreakDays: previousStreakDays,
+            currentStreakDays: currentStreakDays
+        )
     }
 
     func clearAll() {
@@ -198,6 +240,38 @@ final class CleanupStatsStore: ObservableObject {
         return baseURL
             .appendingPathComponent("PhotoDel", isDirectory: true)
             .appendingPathComponent("cleanup-history.json")
+    }
+
+    static func currentStreakDays(
+        for sessions: [CleanupSession],
+        referenceDate: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Int {
+        guard !sessions.isEmpty else { return 0 }
+
+        let sessionDays = Set(sessions.map { calendar.startOfDay(for: $0.date) })
+        let today = calendar.startOfDay(for: referenceDate)
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: today) ?? today
+
+        let anchor: Date
+        if sessionDays.contains(today) {
+            anchor = today
+        } else if sessionDays.contains(yesterday) {
+            anchor = yesterday
+        } else {
+            return 0
+        }
+
+        var streak = 0
+        var cursor = anchor
+        while sessionDays.contains(cursor) {
+            streak += 1
+            guard let previousDay = calendar.date(byAdding: .day, value: -1, to: cursor) else {
+                break
+            }
+            cursor = previousDay
+        }
+        return streak
     }
 }
 

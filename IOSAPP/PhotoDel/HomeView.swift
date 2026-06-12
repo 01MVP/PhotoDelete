@@ -133,7 +133,7 @@ struct HomeView: View {
                             .font(.system(size: 17, weight: .semibold))
                             .foregroundColor(PhotoDelStyle.primaryText)
 
-                        Text(L10n.string("左滑保留，右滑删除，上滑收藏。点完成后再统一确认。"))
+                        Text(L10n.string("左滑删除，右滑保留，上滑收藏。点完成后再统一确认。"))
                             .font(.system(size: 14, weight: .regular))
                             .foregroundColor(PhotoDelStyle.secondaryText)
                             .fixedSize(horizontal: false, vertical: true)

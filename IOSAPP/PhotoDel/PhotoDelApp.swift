@@ -16,6 +16,7 @@ struct PhotoDelApp: App {
         #if DEBUG
         PhotoDelUITestDefaults.applyIfNeeded()
         #endif
+        SwipeGesturePreferences.migrateStoredDefaultsIfNeeded()
     }
 
     var body: some Scene {
@@ -69,6 +70,7 @@ private enum PhotoDelUITestDefaults {
             AppConstants.leftSwipeActionKey,
             AppConstants.rightSwipeActionKey,
             AppConstants.upSwipeActionKey,
+            AppConstants.gestureDefaultMigrationKey,
             AppConstants.reviewModeKey,
             AppConstants.customAlbumOrderKey,
             AppConstants.appAppearanceKey

@@ -104,7 +104,7 @@ struct AdvancedView: View {
         .onChange(of: purchaseManager.isSupporter) { _ in
             refreshAdvancedDashboard(resetSelectedPeriod: true)
         }
-        .onChange(of: dataManager.latestCleanupCelebration) { _ in
+        .onChange(of: dataManager.cleanupStatsRevision) { _ in
             scheduleAdvancedDashboardRefresh()
         }
         .onReceive(dataManager.photoLibraryManager.$isLoading) { isLoading in
@@ -980,6 +980,7 @@ private struct AdvancedAssetListView: View {
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $showBatchConfirm, onDismiss: {
             selectedAssetIDs.removeAll()
+            reloadAssets()
         }) {
             BatchConfirmView()
                 .environmentObject(dataManager)
@@ -1144,6 +1145,7 @@ private struct AdvancedSimilarPhotoGroupsView: View {
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $showBatchConfirm, onDismiss: {
             selectedAssetIDs.removeAll()
+            reloadGroups()
         }) {
             BatchConfirmView()
                 .environmentObject(dataManager)

@@ -126,6 +126,9 @@ struct SettingsView: View {
     // MARK: - 使用统计
     private var statsSection: some View {
         let stats = dataManager.makeSettingsStatsSummary()
+        let streakDays = dataManager.cleanupStatsStore.currentStreakDays
+        let unlockedAchievementCount = dataManager.cleanupStatsStore.unlockedAchievements.count
+        let nextAchievementProgress = dataManager.cleanupStatsStore.nextAchievementProgress
 
         return VStack(spacing: 16) {
             HStack {
@@ -170,6 +173,18 @@ struct SettingsView: View {
                 SettingsStorageSummaryRow(storage: stats.storageSnapshot)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 14)
+
+                Divider()
+                    .background(PhotoDelStyle.hairline)
+                    .padding(.horizontal, 16)
+
+                SettingsAchievementSummaryRow(
+                    streakDays: streakDays,
+                    unlockedAchievementCount: unlockedAchievementCount,
+                    nextAchievementProgress: nextAchievementProgress
+                )
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
             }
             .photoDelCard()
         }
@@ -634,6 +649,73 @@ private struct SettingsStorageSummaryRow: View {
             .font(.system(size: 12, weight: .medium))
             .foregroundColor(PhotoDelStyle.tertiaryText)
         }
+    }
+}
+
+private struct SettingsAchievementSummaryRow: View {
+    let streakDays: Int
+    let unlockedAchievementCount: Int
+    let nextAchievementProgress: CleanupAchievementProgress?
+
+    var body: some View {
+        VStack(spacing: 11) {
+            HStack(spacing: 10) {
+                Image(systemName: streakDays > 1 ? "flame" : "seal")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(streakDays > 1 ? PhotoDelStyle.warning : PhotoDelStyle.accent)
+                    .frame(width: 22)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(PhotoDelStyle.primaryText)
+
+                    Text(subtitle)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(PhotoDelStyle.secondaryText)
+                        .lineLimit(2)
+                }
+
+                Spacer()
+            }
+
+            if let nextAchievementProgress {
+                VStack(alignment: .leading, spacing: 7) {
+                    HStack {
+                        Text(L10n.string("下一个目标：\(nextAchievementProgress.achievement.title)"))
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(PhotoDelStyle.primaryText)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+
+                        Spacer()
+
+                        Text(nextAchievementProgress.remainingDescription)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(PhotoDelStyle.secondaryText)
+                            .lineLimit(1)
+                    }
+
+                    ProgressView(value: nextAchievementProgress.progress)
+                        .progressViewStyle(LinearProgressViewStyle(tint: nextAchievementProgress.achievement.tint.color))
+                        .clipShape(Capsule(style: .continuous))
+                }
+            }
+        }
+    }
+
+    private var title: String {
+        if streakDays > 1 {
+            return L10n.string("连续 \(streakDays) 天整理")
+        }
+        return L10n.string("清理成就")
+    }
+
+    private var subtitle: String {
+        if unlockedAchievementCount > 0 {
+            return L10n.string("已获得 \(unlockedAchievementCount) 枚徽章")
+        }
+        return L10n.string("完成一次清理后开始累计徽章")
     }
 }
 

@@ -44,7 +44,7 @@ private struct OnboardingFlowView: View {
         OnboardingPage(
             icon: "hand.draw",
             title: L10n.string("手势很简单"),
-            message: L10n.string("左滑保留，右滑删除，上滑收藏。所有删除都会在最后统一确认。"),
+            message: L10n.string("左滑删除，右滑保留，上滑收藏。所有删除都会在最后统一确认。"),
             visual: .swipe
         ),
         OnboardingPage(

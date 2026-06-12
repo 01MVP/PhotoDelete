@@ -118,19 +118,19 @@ struct SwipeGesturePreset: Identifiable, Equatable {
 
     static let standard = SwipeGesturePreset(
         id: "standard",
-        title: L10n.string("左留右删"),
-        subtitle: L10n.string("左滑保留，右滑删除，上滑收藏"),
-        leftAction: .keep,
-        rightAction: .delete,
+        title: L10n.string("左删右留"),
+        subtitle: L10n.string("左滑删除，右滑保留，上滑收藏"),
+        leftAction: .delete,
+        rightAction: .keep,
         upAction: .favorite
     )
 
     static let reversed = SwipeGesturePreset(
         id: "reversed",
-        title: L10n.string("左删右留"),
-        subtitle: L10n.string("左滑删除，右滑保留，上滑收藏"),
-        leftAction: .delete,
-        rightAction: .keep,
+        title: L10n.string("左留右删"),
+        subtitle: L10n.string("左滑保留，右滑删除，上滑收藏"),
+        leftAction: .keep,
+        rightAction: .delete,
         upAction: .favorite
     )
 
@@ -151,12 +151,36 @@ struct SwipeGesturePreset: Identifiable, Equatable {
 }
 
 enum SwipeGesturePreferences {
+    private static let gestureMigrationVersion = "left-delete-right-keep-v1"
+
     static func defaultAction(for direction: SwipeGestureDirection) -> SwipeGestureAction {
         SwipeGesturePreset.standard.action(for: direction)
     }
 
     static func normalizedAction(_ rawValue: String, fallback: SwipeGestureAction) -> SwipeGestureAction {
         SwipeGestureAction(rawValue: rawValue) ?? fallback
+    }
+
+    static func migrateStoredDefaultsIfNeeded(defaults: UserDefaults = .standard) {
+        guard defaults.string(forKey: AppConstants.gestureDefaultMigrationKey) != gestureMigrationVersion else {
+            return
+        }
+
+        let leftValue = defaults.string(forKey: AppConstants.leftSwipeActionKey)
+        let rightValue = defaults.string(forKey: AppConstants.rightSwipeActionKey)
+        let upValue = defaults.string(forKey: AppConstants.upSwipeActionKey)
+
+        let matchesPreviousDefault = leftValue == SwipeGestureAction.keep.rawValue &&
+            rightValue == SwipeGestureAction.delete.rawValue &&
+            (upValue == nil || upValue == SwipeGestureAction.favorite.rawValue)
+
+        if matchesPreviousDefault {
+            defaults.set(SwipeGestureAction.delete.rawValue, forKey: AppConstants.leftSwipeActionKey)
+            defaults.set(SwipeGestureAction.keep.rawValue, forKey: AppConstants.rightSwipeActionKey)
+            defaults.set(SwipeGestureAction.favorite.rawValue, forKey: AppConstants.upSwipeActionKey)
+        }
+
+        defaults.set(gestureMigrationVersion, forKey: AppConstants.gestureDefaultMigrationKey)
     }
 }
 
@@ -822,6 +846,9 @@ struct CleanupCelebration: Identifiable, Equatable {
     let estimatedSpaceSavedMB: Double
     let totalDeletedPhotos: Int
     let totalSpaceSavedMB: Double
+    let currentStreakDays: Int
+    let newAchievements: [CleanupAchievement]
+    let nextAchievementProgress: CleanupAchievementProgress?
     let date: Date
 
     init(
@@ -832,6 +859,9 @@ struct CleanupCelebration: Identifiable, Equatable {
         estimatedSpaceSavedMB: Double,
         totalDeletedPhotos: Int,
         totalSpaceSavedMB: Double,
+        currentStreakDays: Int = 0,
+        newAchievements: [CleanupAchievement] = [],
+        nextAchievementProgress: CleanupAchievementProgress? = nil,
         date: Date = Date()
     ) {
         self.id = id
@@ -841,6 +871,9 @@ struct CleanupCelebration: Identifiable, Equatable {
         self.estimatedSpaceSavedMB = estimatedSpaceSavedMB
         self.totalDeletedPhotos = totalDeletedPhotos
         self.totalSpaceSavedMB = totalSpaceSavedMB
+        self.currentStreakDays = currentStreakDays
+        self.newAchievements = newAchievements
+        self.nextAchievementProgress = nextAchievementProgress
         self.date = date
     }
 

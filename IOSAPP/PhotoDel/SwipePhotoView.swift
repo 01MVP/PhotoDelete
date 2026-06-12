@@ -2664,7 +2664,7 @@ struct BatchConfirmView: View {
         let deletedAssets = Array(dataManager.deleteCandidates)
         let favoriteAssets = Array(dataManager.favoriteCandidates)
         let estimatedSpaceSaved = deletedAssets.reduce(0) { $0 + dataManager.estimatedSizeMB(for: $1) }
-        dataManager.executeBatchOperations(publishCelebration: false) { success, error, celebration in
+        dataManager.executeBatchOperations { success, error, celebration in
             DispatchQueue.main.async {
                 isProcessing = false
                 if success {
@@ -2678,7 +2678,9 @@ struct BatchConfirmView: View {
                         organizedPhotos: deletedAssets.count + favoriteAssets.count,
                         estimatedSpaceSavedMB: estimatedSpaceSaved,
                         totalDeletedPhotos: dataManager.cleanupStatsStore.summary.deletedPhotos,
-                        totalSpaceSavedMB: dataManager.cleanupStatsStore.summary.estimatedSpaceSavedMB
+                        totalSpaceSavedMB: dataManager.cleanupStatsStore.summary.estimatedSpaceSavedMB,
+                        currentStreakDays: dataManager.cleanupStatsStore.currentStreakDays,
+                        nextAchievementProgress: dataManager.cleanupStatsStore.nextAchievementProgress
                     )
                     HapticManager.notify(.success)
                 } else {
@@ -2725,84 +2727,102 @@ private struct BatchCleanupCompletionView: View {
     ]
 
     var body: some View {
-        VStack(spacing: 20) {
-            ZStack {
-                if reduceMotion {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 52, weight: .semibold))
-                        .foregroundColor(PhotoDelStyle.warning)
-                } else {
-                    ForEach(0..<34, id: \.self) { index in
-                        particle(index)
-                    }
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 18) {
+                celebrationVisual
 
-                    Circle()
-                        .fill(PhotoDelStyle.accent.opacity(0.16))
-                        .frame(width: animate ? 118 : 70, height: animate ? 118 : 70)
-                        .opacity(animate ? 0 : 1)
-                        .animation(.easeOut(duration: 0.72), value: animate)
+                VStack(spacing: 8) {
+                    Text(L10n.string("清理完成"))
+                        .font(.system(size: 28, weight: .semibold))
+                        .foregroundColor(PhotoDelStyle.primaryText)
 
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 46, weight: .semibold))
-                        .foregroundColor(PhotoDelStyle.warning)
-                        .scaleEffect(animate ? 1.08 : 0.82)
-                        .animation(.spring(response: 0.36, dampingFraction: 0.58), value: animate)
+                    Text(completionSentence)
+                        .font(.system(size: 16, weight: .regular))
+                        .foregroundColor(PhotoDelStyle.secondaryText)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(3)
                 }
+
+                HStack(spacing: 10) {
+                    completionMetric(
+                        value: "\(celebration.deletedPhotos)",
+                        label: L10n.string("本次删除"),
+                        tint: PhotoDelStyle.destructive
+                    )
+
+                    completionMetric(
+                        value: celebration.formattedSpaceSaved,
+                        label: L10n.string("本次节省"),
+                        tint: PhotoDelStyle.positive
+                    )
+                }
+
+                HStack(spacing: 10) {
+                    completionMetric(
+                        value: "\(celebration.totalDeletedPhotos)",
+                        label: L10n.string("累计删除"),
+                        tint: PhotoDelStyle.accent
+                    )
+
+                    completionMetric(
+                        value: celebration.formattedTotalSpaceSaved,
+                        label: L10n.string("累计节省"),
+                        tint: PhotoDelStyle.positive
+                    )
+                }
+
+                if !celebration.newAchievements.isEmpty {
+                    newAchievementSection
+                } else if celebration.currentStreakDays > 1 {
+                    streakSection
+                }
+
+                if let nextAchievementProgress = celebration.nextAchievementProgress {
+                    nextGoalSection(nextAchievementProgress)
+                }
+
+                Button(action: onContinue) {
+                    Text(L10n.string("继续整理"))
+                }
+                .photoDelPrimaryButton()
             }
-            .frame(height: 150)
-
-            VStack(spacing: 8) {
-                Text(L10n.string("清理完成"))
-                    .font(.system(size: 28, weight: .semibold))
-                    .foregroundColor(PhotoDelStyle.primaryText)
-
-                Text(completionSentence)
-                    .font(.system(size: 16, weight: .regular))
-                    .foregroundColor(PhotoDelStyle.secondaryText)
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(3)
-            }
-
-            HStack(spacing: 10) {
-                completionMetric(
-                    value: "\(celebration.deletedPhotos)",
-                    label: L10n.string("本次删除"),
-                    tint: PhotoDelStyle.destructive
-                )
-
-                completionMetric(
-                    value: celebration.formattedSpaceSaved,
-                    label: L10n.string("本次节省"),
-                    tint: PhotoDelStyle.positive
-                )
-            }
-
-            HStack(spacing: 10) {
-                completionMetric(
-                    value: "\(celebration.totalDeletedPhotos)",
-                    label: L10n.string("累计删除"),
-                    tint: PhotoDelStyle.accent
-                )
-
-                completionMetric(
-                    value: celebration.formattedTotalSpaceSaved,
-                    label: L10n.string("累计节省"),
-                    tint: PhotoDelStyle.positive
-                )
-            }
-
-            Button(action: onContinue) {
-                Text(L10n.string("继续整理"))
-            }
-            .photoDelPrimaryButton()
+            .padding(.horizontal, 28)
+            .padding(.vertical, 30)
+            .photoDelCard()
+            .padding(.vertical, 28)
         }
-        .padding(.horizontal, 28)
-        .padding(.vertical, 30)
-        .photoDelCard()
+        .frame(maxHeight: 690)
         .onAppear {
             guard !reduceMotion else { return }
             animate = true
         }
+    }
+
+    private var celebrationVisual: some View {
+        ZStack {
+            if reduceMotion {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 52, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.warning)
+            } else {
+                ForEach(0..<34, id: \.self) { index in
+                    particle(index)
+                }
+
+                Circle()
+                    .fill(PhotoDelStyle.accent.opacity(0.16))
+                    .frame(width: animate ? 118 : 70, height: animate ? 118 : 70)
+                    .opacity(animate ? 0 : 1)
+                    .animation(.easeOut(duration: 0.72), value: animate)
+
+                Image(systemName: "sparkles")
+                    .font(.system(size: 46, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.warning)
+                    .scaleEffect(animate ? 1.08 : 0.82)
+                    .animation(.spring(response: 0.36, dampingFraction: 0.58), value: animate)
+            }
+        }
+        .frame(height: 132)
     }
 
     private var completionSentence: String {
@@ -2830,6 +2850,120 @@ private struct BatchCleanupCompletionView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(PhotoDelStyle.elevatedSurface)
         )
+    }
+
+    private var newAchievementSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 7) {
+                Image(systemName: "seal.fill")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.warning)
+
+                Text(L10n.string("新徽章"))
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.primaryText)
+
+                Spacer()
+            }
+
+            ForEach(celebration.newAchievements.prefix(3)) { achievement in
+                achievementRow(achievement)
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(PhotoDelStyle.elevatedSurface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(PhotoDelStyle.warning.opacity(0.24), lineWidth: 1)
+                )
+        )
+    }
+
+    private var streakSection: some View {
+        HStack(spacing: 12) {
+            PhotoDelIconTile(
+                icon: "flame",
+                tint: PhotoDelStyle.warning,
+                size: 34,
+                cornerRadius: 10
+            )
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(L10n.string("连续 \(celebration.currentStreakDays) 天整理"))
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.primaryText)
+
+                Text(L10n.string("保持节奏，相册会越来越轻。"))
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundColor(PhotoDelStyle.secondaryText)
+            }
+
+            Spacer()
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(PhotoDelStyle.elevatedSurface)
+        )
+    }
+
+    private func nextGoalSection(_ progress: CleanupAchievementProgress) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                PhotoDelIconTile(
+                    icon: progress.achievement.systemImage,
+                    tint: progress.achievement.tint.color,
+                    size: 34,
+                    cornerRadius: 10
+                )
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(L10n.string("下一个目标：\(progress.achievement.title)"))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(PhotoDelStyle.primaryText)
+
+                    Text(progress.remainingDescription)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(PhotoDelStyle.secondaryText)
+                }
+
+                Spacer()
+            }
+
+            ProgressView(value: progress.progress)
+                .progressViewStyle(LinearProgressViewStyle(tint: progress.achievement.tint.color))
+                .clipShape(Capsule(style: .continuous))
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(PhotoDelStyle.surface)
+        )
+    }
+
+    private func achievementRow(_ achievement: CleanupAchievement) -> some View {
+        HStack(spacing: 10) {
+            PhotoDelIconTile(
+                icon: achievement.systemImage,
+                tint: achievement.tint.color,
+                size: 34,
+                cornerRadius: 10
+            )
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(achievement.title)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(PhotoDelStyle.primaryText)
+
+                Text(achievement.subtitle)
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundColor(PhotoDelStyle.secondaryText)
+            }
+
+            Spacer()
+        }
     }
 
     private func particle(_ index: Int) -> some View {

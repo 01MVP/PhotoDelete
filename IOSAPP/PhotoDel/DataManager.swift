@@ -34,7 +34,7 @@ class DataManager: ObservableObject {
     @Published var userAlbums: [AlbumInfo] = []
     @Published var isLoadingAlbums = false
     @Published var albumLoadingProgress: Double = 0
-    @Published var latestCleanupCelebration: CleanupCelebration?
+    @Published private(set) var cleanupStatsRevision = UUID()
     @Published private(set) var reviewedAssetIDs: Set<String> = []
     let cleanupStatsStore: CleanupStatsStore
     private let albumSnapshotStore = AlbumListSnapshotStore()
@@ -264,13 +264,12 @@ class DataManager: ObservableObject {
 
     // MARK: - 批量操作（离开页面时执行）
     func executeBatchOperations(completion: @escaping (Bool, Error?) -> Void) {
-        executeBatchOperations(publishCelebration: true) { success, error, _ in
+        executeBatchOperations { success, error, _ in
             completion(success, error)
         }
     }
 
     func executeBatchOperations(
-        publishCelebration: Bool,
         completion: @escaping (Bool, Error?, CleanupCelebration?) -> Void
     ) {
         guard !deleteCandidates.isEmpty || !favoriteCandidates.isEmpty else {
@@ -316,26 +315,31 @@ class DataManager: ObservableObject {
                 deletedAssets: Array(originalDeleteCandidates),
                 favoritedAssets: Array(originalFavoriteCandidates)
             )
-            self.cleanupStatsStore.recordSession(
+            let completedAt = Date()
+            let newAchievements = self.cleanupStatsStore.recordSession(
                 deletedPhotos: originalDeleteCandidates.count,
                 favoritedPhotos: originalFavoriteCandidates.count,
                 organizedPhotos: originalDeleteCandidates.count + originalFavoriteCandidates.count,
-                estimatedSpaceSavedMB: estimatedSpaceSaved
+                estimatedSpaceSavedMB: estimatedSpaceSaved,
+                date: completedAt
             )
             let summary = self.cleanupStatsStore.summary
+            let currentStreakDays = self.cleanupStatsStore.streakDays(referenceDate: completedAt)
             let celebration = CleanupCelebration(
                 deletedPhotos: originalDeleteCandidates.count,
                 favoritedPhotos: originalFavoriteCandidates.count,
                 organizedPhotos: originalDeleteCandidates.count + originalFavoriteCandidates.count,
                 estimatedSpaceSavedMB: estimatedSpaceSaved,
                 totalDeletedPhotos: summary.deletedPhotos,
-                totalSpaceSavedMB: summary.estimatedSpaceSavedMB
+                totalSpaceSavedMB: summary.estimatedSpaceSavedMB,
+                currentStreakDays: currentStreakDays,
+                newAchievements: newAchievements,
+                nextAchievementProgress: self.cleanupStatsStore.nextAchievementProgress,
+                date: completedAt
             )
-            if publishCelebration && originalDeleteCandidates.count > 0 {
-                self.latestCleanupCelebration = celebration
-            }
             self.deleteCandidates.removeAll()
             self.favoriteCandidates.removeAll()
+            self.cleanupStatsRevision = UUID()
             self.refreshDerivedLibraryData()
             completion(true, nil, celebration)
         }

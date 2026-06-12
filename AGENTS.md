@@ -62,8 +62,8 @@ xcodebuild clean -project IOSAPP/PhotoDel.xcodeproj -scheme PhotoDel
 ## Photo Management Workflow
 
 ### Swipe Gestures
-- Left swipe: Skip/keep photo
-- Right swipe: Add to delete candidates
+- Left swipe: Add to delete candidates
+- Right swipe: Skip/keep photo
 - Up swipe: Add to favorites
 - Down swipe: Skip photo
 
