@@ -232,6 +232,18 @@ final class CleanupStatsStore: ObservableObject {
                 .sorted { $0.date > $1.date }
         } catch {
             sessions = []
+            backupCorruptStoreFile(loadError: error)
+        }
+    }
+
+    private func backupCorruptStoreFile(loadError: Error) {
+        let backupURL = Self.corruptBackupURL(for: fileURL)
+
+        do {
+            try FileManager.default.moveItem(at: fileURL, to: backupURL)
+            cleanupStatsLogger.error("Failed to load cleanup stats. Moved corrupt file to \(backupURL.lastPathComponent, privacy: .public): \(loadError.localizedDescription, privacy: .public)")
+        } catch {
+            cleanupStatsLogger.error("Failed to back up corrupt cleanup stats: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -254,6 +266,16 @@ final class CleanupStatsStore: ObservableObject {
         return baseURL
             .appendingPathComponent("PhotoDelete", isDirectory: true)
             .appendingPathComponent("cleanup-history.json")
+    }
+
+    static func corruptBackupURL(for fileURL: URL, timestamp: Int = Int(Date().timeIntervalSince1970), id: UUID = UUID()) -> URL {
+        let baseURL = fileURL.deletingPathExtension()
+        let fileExtension = fileURL.pathExtension
+        let backupName = "\(baseURL.lastPathComponent).corrupt-\(timestamp)-\(id.uuidString)"
+        let backupFileName = fileExtension.isEmpty ? backupName : "\(backupName).\(fileExtension)"
+        return fileURL
+            .deletingLastPathComponent()
+            .appendingPathComponent(backupFileName)
     }
 
     static func currentStreakDays(
@@ -305,8 +327,8 @@ enum CleanupStatsFormatter {
 
     static func space(_ megabytes: Double) -> String {
         if megabytes < 1000 {
-            return String(format: "%.1f MB", megabytes)
+            return "\(megabytes.formatted(.number.grouping(.never).precision(.fractionLength(1)))) MB"
         }
-        return String(format: "%.1f GB", megabytes / 1000)
+        return "\((megabytes / 1000).formatted(.number.grouping(.never).precision(.fractionLength(1)))) GB"
     }
 }

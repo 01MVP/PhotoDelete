@@ -7714,6 +7714,72 @@
         }
       }
     },
+    "正在读取当前相册": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading Current Album"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "正在读取当前相册"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在讀取當前相冊"
+          }
+        }
+      }
+    },
+    "正在确认购买状态。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checking purchase status."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "正在确认购买状态。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在確認購買狀態。"
+          }
+        }
+      }
+    },
+    "正在确认购买状态，暂时使用本机记录解锁。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checking purchase status. Using this device's saved unlock for now."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "正在确认购买状态，暂时使用本机记录解锁。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在確認購買狀態，暫時使用本機記錄解鎖。"
+          }
+        }
+      }
+    },
     "正在从 iCloud 下载照片": {
       "localizations": {
         "en": {
@@ -10037,6 +10103,28 @@
         }
       }
     },
+    "请输入相册名称。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter an album name."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "请输入相册名称。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請輸入相冊名稱。"
+          }
+        }
+      }
+    },
     "返回": {
       "localizations": {
         "en": {
@@ -10219,6 +10307,50 @@
           "stringUnit": {
             "state": "translated",
             "value": "這個相冊不支持添加照片。"
+          }
+        }
+      }
+    },
+    "这个相册不支持删除。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This album does not support deletion."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "这个相册不支持删除。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這個相冊不支持刪除。"
+          }
+        }
+      }
+    },
+    "这个相册不支持重命名。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This album does not support renaming."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "这个相册不支持重命名。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這個相冊不支持重命名。"
           }
         }
       }
@@ -10772,6 +10904,28 @@
         }
       }
     },
+    "请允许访问您的照片库来开始整理照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow photo library access to start organizing photos"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "请允许访问您的照片库来开始整理照片"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請允許訪問您的照片庫來開始整理照片"
+          }
+        }
+      }
+    },
     "需要访问照片库": {
       "localizations": {
         "en": {
@@ -10926,6 +11080,50 @@
           "stringUnit": {
             "state": "translated",
             "value": "首次讀取完成後會自動顯示相冊。"
+          }
+        }
+      }
+    },
+    "读取完成后会直接进入当前整理。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When reading finishes, this cleanup will start automatically."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "读取完成后会直接进入当前整理。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "讀取完成後會直接進入當前整理。"
+          }
+        }
+      }
+    },
+    "照片很多时可能需要几秒，完成后会自动开始。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Large libraries can take a few seconds. Cleanup starts automatically when ready."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "照片很多时可能需要几秒，完成后会自动开始。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "照片很多時可能需要幾秒，完成後會自動開始。"
           }
         }
       }

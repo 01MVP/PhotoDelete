@@ -714,9 +714,9 @@ struct DeviceStorageSnapshot: Equatable {
         guard bytes > 0 else { return "0 GB" }
         let gigabytes = Double(bytes) / 1_073_741_824
         if gigabytes >= 100 {
-            return String(format: "%.0f GB", gigabytes)
+            return "\(gigabytes.formatted(.number.grouping(.never).precision(.fractionLength(0)))) GB"
         }
-        return String(format: "%.1f GB", gigabytes)
+        return "\(gigabytes.formatted(.number.grouping(.never).precision(.fractionLength(1)))) GB"
     }
 }
 

@@ -23,6 +23,27 @@ struct AdvancedView: View {
         !purchaseManager.isSupporter
     }
 
+    private var entitlementStatusMessage: String? {
+        switch purchaseManager.entitlementState {
+        case .unknown, .verifying:
+            L10n.string("正在确认购买状态。")
+        case .cachedOffline:
+            L10n.string("正在确认购买状态，暂时使用本机记录解锁。")
+        case .verified, .locked:
+            nil
+        }
+    }
+
+    private var headerSubtitle: String {
+        if purchaseManager.isUsingCachedSupporterAccess {
+            L10n.string("正在确认购买状态，暂时使用本机记录解锁。")
+        } else if isLocked {
+            L10n.string("示例展示，解锁后查看真实清理队列")
+        } else {
+            L10n.string("按日周月年和清理队列整理照片")
+        }
+    }
+
     var body: some View {
         NavigationStack {
             advancedRootContent
@@ -40,7 +61,7 @@ struct AdvancedView: View {
         .onChange(of: selectedScope) { _ in
             selectedPeriodDate = Date()
         }
-        .onChange(of: purchaseManager.isSupporter) { _ in
+        .onChange(of: purchaseManager.entitlementState) { _ in
             refreshAdvancedDashboard(resetSelectedPeriod: true)
         }
         .onChange(of: dataManager.cleanupStatsRevision) { _ in
@@ -129,6 +150,7 @@ struct AdvancedView: View {
                     priceText: purchaseManager.supporterPriceText,
                     isLoading: purchaseManager.isLoading,
                     errorMessage: purchaseManager.errorMessage,
+                    statusMessage: entitlementStatusMessage,
                     onPurchase: purchaseSupporter,
                     onRestore: restorePurchases
                 )
@@ -185,7 +207,7 @@ struct AdvancedView: View {
                     }
                 }
 
-                Text(isLocked ? L10n.string("示例展示，解锁后查看真实清理队列") : L10n.string("按日周月年和清理队列整理照片"))
+                Text(headerSubtitle)
                     .font(.system(size: 15, weight: .regular))
                     .foregroundColor(PhotoDeleteStyle.secondaryText)
             }
@@ -771,6 +793,7 @@ private struct AdvancedBottomPaywall: View {
     let priceText: String
     let isLoading: Bool
     let errorMessage: String?
+    let statusMessage: String?
     let onPurchase: () -> Void
     let onRestore: () -> Void
 
@@ -817,6 +840,14 @@ private struct AdvancedBottomPaywall: View {
             }
             .buttonStyle(.plain)
             .disabled(isLoading)
+
+            if let statusMessage {
+                Text(statusMessage)
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             if let errorMessage {
                 Text(errorMessage)
@@ -1682,7 +1713,7 @@ private struct AdvancedProgressRing<Content: View>: View {
     let progress: Double
     let size: CGFloat
     let lineWidth: CGFloat
-    @ViewBuilder let content: () -> Content
+    @ViewBuilder let content: Content
 
     var body: some View {
         ZStack {
@@ -1697,7 +1728,7 @@ private struct AdvancedProgressRing<Content: View>: View {
                 )
                 .rotationEffect(.degrees(-90))
 
-            content()
+            content
         }
         .frame(width: size, height: size)
     }

@@ -17,6 +17,17 @@ struct SupporterView: View {
         SupporterTheme(rawValue: selectedThemeID) ?? .sky
     }
 
+    private var entitlementStatusMessage: String? {
+        switch purchaseManager.entitlementState {
+        case .unknown, .verifying:
+            L10n.string("正在确认购买状态。")
+        case .cachedOffline:
+            L10n.string("正在确认购买状态，暂时使用本机记录解锁。")
+        case .verified, .locked:
+            nil
+        }
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -28,13 +39,15 @@ struct SupporterView: View {
                             SupporterUnlockedContent(
                                 statsStore: dataManager.cleanupStatsStore,
                                 selectedThemeID: $selectedThemeID,
-                                theme: selectedTheme
+                                theme: selectedTheme,
+                                accessNotice: purchaseManager.isUsingCachedSupporterAccess ? entitlementStatusMessage : nil
                             )
                         } else {
                             SupporterPaywallContent(
                                 priceText: purchaseManager.supporterPriceText,
                                 isLoading: purchaseManager.isLoading,
                                 errorMessage: purchaseManager.errorMessage,
+                                statusMessage: entitlementStatusMessage,
                                 onPurchase: {
                                     Task { await purchaseManager.purchaseSupporter() }
                                 },
@@ -71,6 +84,7 @@ private struct SupporterPaywallContent: View {
     let priceText: String
     let isLoading: Bool
     let errorMessage: String?
+    let statusMessage: String?
     let onPurchase: () -> Void
     let onRestore: () -> Void
 
@@ -133,6 +147,13 @@ private struct SupporterPaywallContent: View {
                 .photoDeleteSecondaryButton()
                 .disabled(isLoading)
 
+                if let statusMessage {
+                    Text(statusMessage)
+                        .font(.system(size: 13, weight: .regular))
+                        .foregroundColor(PhotoDeleteStyle.secondaryText)
+                        .multilineTextAlignment(.center)
+                }
+
                 if let errorMessage {
                     Text(errorMessage)
                         .font(.system(size: 13, weight: .regular))
@@ -148,6 +169,7 @@ private struct SupporterUnlockedContent: View {
     @ObservedObject var statsStore: CleanupStatsStore
     @Binding var selectedThemeID: String
     let theme: SupporterTheme
+    let accessNotice: String?
     @State private var showingClearConfirmation = false
 
     private var summary: CleanupStatsSummary {
@@ -157,6 +179,10 @@ private struct SupporterUnlockedContent: View {
     var body: some View {
         VStack(spacing: 20) {
             SupporterBadgeCard(theme: theme)
+
+            if let accessNotice {
+                SupporterEntitlementNotice(message: accessNotice)
+            }
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                 SupporterMetricCard(value: "\(summary.organizedPhotos)", label: L10n.string("累计整理"), tint: theme.color)
@@ -187,6 +213,26 @@ private struct SupporterUnlockedContent: View {
         } message: {
             Text(L10n.string("只会清空删图的本机统计，不会影响照片。"))
         }
+    }
+}
+
+private struct SupporterEntitlementNotice: View {
+    let message: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "checkmark.shield")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(PhotoDeleteStyle.accent)
+
+            Text(message)
+                .font(.system(size: 13, weight: .regular))
+                .foregroundColor(PhotoDeleteStyle.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .photoDeleteCard()
     }
 }
 

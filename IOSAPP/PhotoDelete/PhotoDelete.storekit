@@ -13,6 +13,11 @@
           "locale": "zh-Hans"
         },
         {
+          "description": "永久解鎖長期統計和支持者功能。基礎清理功能始終免費，無廣告，無訂閱。",
+          "displayName": "刪圖支持者版",
+          "locale": "zh-Hant"
+        },
+        {
           "description": "Unlock long-term cleanup stats and supporter features. Core cleanup stays free.",
           "displayName": "Photo Delete Supporter",
           "locale": "en-US"

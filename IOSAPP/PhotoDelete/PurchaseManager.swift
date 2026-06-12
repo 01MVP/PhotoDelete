@@ -8,10 +8,39 @@
 import Foundation
 import StoreKit
 
+enum SupporterEntitlementState: Equatable {
+    case unknown
+    case verifying
+    case verified
+    case cachedOffline
+    case locked
+
+    var allowsSupporterAccess: Bool {
+        switch self {
+        case .verified, .cachedOffline:
+            true
+        case .unknown, .verifying, .locked:
+            false
+        }
+    }
+
+    var isCachedAccess: Bool {
+        self == .cachedOffline
+    }
+
+    static func initial(hasCachedEntitlement: Bool) -> SupporterEntitlementState {
+        hasCachedEntitlement ? .cachedOffline : .unknown
+    }
+
+    static func verificationStarted(hasCachedEntitlement: Bool) -> SupporterEntitlementState {
+        hasCachedEntitlement ? .cachedOffline : .verifying
+    }
+}
+
 @MainActor
 final class PurchaseManager: ObservableObject {
     @Published private(set) var products: [Product] = []
-    @Published private(set) var isSupporter: Bool
+    @Published private(set) var entitlementState: SupporterEntitlementState
     @Published private(set) var isLoading = false
     @Published var errorMessage: String?
 
@@ -27,9 +56,17 @@ final class PurchaseManager: ObservableObject {
         supporterProduct?.displayPrice ?? L10n.string("读取价格中")
     }
 
+    var isSupporter: Bool {
+        entitlementState.allowsSupporterAccess
+    }
+
+    var isUsingCachedSupporterAccess: Bool {
+        entitlementState.isCachedAccess
+    }
+
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
-        self.isSupporter = userDefaults.bool(forKey: AppConstants.supporterEntitlementKey)
+        self.entitlementState = .initial(hasCachedEntitlement: userDefaults.bool(forKey: AppConstants.supporterEntitlementKey))
 
         updatesTask = Task { [weak self] in
             await self?.listenForTransactions()
@@ -85,7 +122,7 @@ final class PurchaseManager: ObservableObject {
             case .success(let verification):
                 let transaction = try checkVerified(verification)
                 await transaction.finish()
-                setSupporter(true)
+                setVerifiedSupporterAccess(true)
                 errorMessage = nil
             case .pending:
                 errorMessage = L10n.string("购买正在处理中，完成后会自动解锁。")
@@ -110,11 +147,15 @@ final class PurchaseManager: ObservableObject {
                 errorMessage = L10n.string("没有找到可恢复的支持者版购买。")
             }
         } catch {
+            if hasCachedSupporterEntitlement {
+                entitlementState = .cachedOffline
+            }
             errorMessage = L10n.string("恢复购买失败，请稍后再试。")
         }
     }
 
     func refreshEntitlements() async {
+        entitlementState = .verificationStarted(hasCachedEntitlement: hasCachedSupporterEntitlement)
         var hasCurrentSupporterEntitlement = false
 
         for await result in Transaction.currentEntitlements {
@@ -126,7 +167,7 @@ final class PurchaseManager: ObservableObject {
             }
         }
 
-        setSupporter(hasCurrentSupporterEntitlement)
+        setVerifiedSupporterAccess(hasCurrentSupporterEntitlement)
         if hasCurrentSupporterEntitlement {
             errorMessage = nil
         }
@@ -141,16 +182,20 @@ final class PurchaseManager: ObservableObject {
             }
 
             if transaction.revocationDate == nil {
-                setSupporter(true)
+                setVerifiedSupporterAccess(true)
             } else {
-                setSupporter(false)
+                setVerifiedSupporterAccess(false)
             }
             await transaction.finish()
         }
     }
 
-    private func setSupporter(_ value: Bool) {
-        isSupporter = value
+    private var hasCachedSupporterEntitlement: Bool {
+        userDefaults.bool(forKey: AppConstants.supporterEntitlementKey)
+    }
+
+    private func setVerifiedSupporterAccess(_ value: Bool) {
+        entitlementState = value ? .verified : .locked
         userDefaults.set(value, forKey: AppConstants.supporterEntitlementKey)
     }
 

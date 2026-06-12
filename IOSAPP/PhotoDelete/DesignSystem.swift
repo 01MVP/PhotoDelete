@@ -449,7 +449,7 @@ struct PhotoAuthorizationCard: View {
                 .font(.title2.weight(.semibold))
                 .foregroundStyle(PhotoDeleteStyle.primaryText)
 
-            Text(subtitle.appLocalized)
+            Text(subtitle)
                 .font(.body)
                 .foregroundStyle(PhotoDeleteStyle.secondaryText)
                 .multilineTextAlignment(.center)

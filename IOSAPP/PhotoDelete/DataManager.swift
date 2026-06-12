@@ -143,10 +143,13 @@ class DataManager: ObservableObject {
             timeGroups = []
             systemAlbums = []
             userAlbums = []
+            deleteCandidates.removeAll()
+            favoriteCandidates.removeAll()
             hasLoadedAlbums = false
             isLoadingAlbums = false
             isFetchingAlbums = false
             albumLoadingProgress = 0
+            updateStats()
             return
         }
 
@@ -189,6 +192,7 @@ class DataManager: ObservableObject {
         photoLibraryManager.loadPhotos(preserveExistingData: !showPreparing) { [weak self] in
             guard let self else { return }
             self.pruneReviewedAssetIDs()
+            self.prunePendingCandidates()
             self.loadTimeGroups()
             self.loadAlbums(showLoading: !self.hasLoadedAlbums)
             self.updateStats()
@@ -212,6 +216,7 @@ class DataManager: ObservableObject {
             }
 
             self.pruneReviewedAssetIDs()
+            self.prunePendingCandidates()
             self.loadTimeGroups()
             _ = self.restoreCachedAlbums()
             self.updateStats()
@@ -219,6 +224,7 @@ class DataManager: ObservableObject {
             self.photoLibraryManager.refreshPhotoLibraryIfNeeded { [weak self] didRefreshLibrary in
                 guard let self else { return }
                 self.pruneReviewedAssetIDs()
+                self.prunePendingCandidates()
                 self.loadTimeGroups()
                 if didRefreshLibrary {
                     self.hasLoadedAlbums = false
@@ -263,6 +269,29 @@ class DataManager: ObservableObject {
         favoriteCandidates.contains(asset)
     }
 
+    static func remainingCandidateIdentifiers(
+        deleteIDs: Set<String>,
+        favoriteIDs: Set<String>,
+        committedDeleteIDs: Set<String>,
+        committedFavoriteIDs: Set<String>
+    ) -> (deleteIDs: Set<String>, favoriteIDs: Set<String>) {
+        (
+            deleteIDs: deleteIDs.subtracting(committedDeleteIDs),
+            favoriteIDs: favoriteIDs.subtracting(committedFavoriteIDs.union(committedDeleteIDs))
+        )
+    }
+
+    static func candidateIdentifiers(
+        deleteIDs: Set<String>,
+        favoriteIDs: Set<String>,
+        keepingValidIDs validIDs: Set<String>
+    ) -> (deleteIDs: Set<String>, favoriteIDs: Set<String>) {
+        (
+            deleteIDs: deleteIDs.intersection(validIDs),
+            favoriteIDs: favoriteIDs.intersection(validIDs)
+        )
+    }
+
     // MARK: - 批量操作（离开页面时执行）
     func executeBatchOperations(completion: @escaping (Bool, Error?) -> Void) {
         executeBatchOperations { success, error, _ in
@@ -295,10 +324,9 @@ class DataManager: ObservableObject {
             return
         }
 
-        // 检查网络状态和iCloud同步状态
-        guard checkSystemReadiness() else {
+        guard photoLibraryManager.hasPhotoLibraryAccess else {
             let error = NSError(domain: "PhotoDeleteError", code: 1001, userInfo: [
-                NSLocalizedDescriptionKey: L10n.string("系统未准备就绪，请检查网络连接和存储空间")
+                NSLocalizedDescriptionKey: L10n.string("当前照片权限不可用")
             ])
             completion(false, error, nil)
             return
@@ -321,9 +349,12 @@ class DataManager: ObservableObject {
                 self.deleteCandidates = originalDeleteCandidates
                 self.favoriteCandidates = originalFavoriteCandidates
                 self.updateStats()
+                if let error {
+                    dataManagerLogger.error("Batch operation failed: \(error.localizedDescription, privacy: .public)")
+                }
 
                 let enhancedError = NSError(domain: "PhotoDeleteError", code: 1002, userInfo: [
-                    NSLocalizedDescriptionKey: L10n.string("批量操作失败: \(error?.localizedDescription ?? L10n.string("未知错误"))"),
+                    NSLocalizedDescriptionKey: L10n.string("操作失败，请稍后重试。"),
                     NSLocalizedFailureReasonErrorKey: L10n.string("真实照片库未完成这次批量操作，请稍后重试")
                 ])
                 completion(false, enhancedError, nil)
@@ -360,40 +391,32 @@ class DataManager: ObservableObject {
                 ),
                 date: completedAt
             )
-            self.deleteCandidates.removeAll()
-            self.favoriteCandidates.removeAll()
+            self.removeCommittedCandidates(
+                deleteIDs: Set(committedDeleteCandidates.map(\.localIdentifier)),
+                favoriteIDs: Set(committedFavoriteCandidates.map(\.localIdentifier))
+            )
             self.updateStats()
             self.cleanupStatsRevision = UUID()
             completion(true, nil, celebration)
         }
     }
 
-    private func refreshDerivedLibraryData() {
-        pruneReviewedAssetIDs()
-        loadTimeGroups()
-        updateStats()
+    private func removeCommittedCandidates(deleteIDs: Set<String>, favoriteIDs: Set<String>) {
+        let remainingIDs = Self.remainingCandidateIdentifiers(
+            deleteIDs: Set(deleteCandidates.map(\.localIdentifier)),
+            favoriteIDs: Set(favoriteCandidates.map(\.localIdentifier)),
+            committedDeleteIDs: deleteIDs,
+            committedFavoriteIDs: favoriteIDs
+        )
+        deleteCandidates = Set(deleteCandidates.filter { remainingIDs.deleteIDs.contains($0.localIdentifier) })
+        favoriteCandidates = Set(favoriteCandidates.filter { remainingIDs.favoriteIDs.contains($0.localIdentifier) })
     }
 
-    private func checkSystemReadiness() -> Bool {
-        // 检查照片库权限
-        guard photoLibraryManager.hasPhotoLibraryAccess else {
-            return false
-        }
-
-        // 检查存储空间（简化实现）
-        let fileManager = FileManager.default
-        do {
-            let systemAttributes = try fileManager.attributesOfFileSystem(forPath: NSHomeDirectory())
-            if let freeSpace = systemAttributes[.systemFreeSize] as? NSNumber {
-                let freeSpaceInBytes = freeSpace.int64Value
-                let minimumRequired: Int64 = 100 * 1024 * 1024 // 100MB
-                return freeSpaceInBytes > minimumRequired
-            }
-        } catch {
-            dataManagerLogger.error("Unable to check free disk space: \(error.localizedDescription, privacy: .public)")
-        }
-
-        return true
+    private func refreshDerivedLibraryData() {
+        pruneReviewedAssetIDs()
+        prunePendingCandidates()
+        loadTimeGroups()
+        updateStats()
     }
 
     func cancelAllOperations() {
@@ -898,6 +921,24 @@ class DataManager: ObservableObject {
         saveReviewedAssetIDsNow()
     }
 
+    private func prunePendingCandidates() {
+        let validAssetIDs = Set(photoLibraryManager.allPhotos.map(\.localIdentifier))
+        guard !validAssetIDs.isEmpty else { return }
+
+        let prunedIDs = Self.candidateIdentifiers(
+            deleteIDs: Set(deleteCandidates.map(\.localIdentifier)),
+            favoriteIDs: Set(favoriteCandidates.map(\.localIdentifier)),
+            keepingValidIDs: validAssetIDs
+        )
+        guard prunedIDs.deleteIDs.count != deleteCandidates.count ||
+            prunedIDs.favoriteIDs.count != favoriteCandidates.count else {
+            return
+        }
+
+        deleteCandidates = Set(deleteCandidates.filter { prunedIDs.deleteIDs.contains($0.localIdentifier) })
+        favoriteCandidates = Set(favoriteCandidates.filter { prunedIDs.favoriteIDs.contains($0.localIdentifier) })
+    }
+
     private func scheduleLibraryDataRefresh() {
         libraryDataRefreshWorkItem?.cancel()
         let delay = nextLibraryDataRefreshDelay ?? 0.15
@@ -1186,6 +1227,20 @@ class DataManager: ObservableObject {
         saveAlbumSnapshot()
     }
 
+    func createUserAlbum(named title: String, completion: @escaping (Bool) -> Void) {
+        photoLibraryManager.createAlbum(named: title) { identifier, error in
+            if let error {
+                dataManagerLogger.error("Failed to create album: \(error.localizedDescription, privacy: .public)")
+            }
+            if let identifier {
+                self.insertCreatedUserAlbum(withIdentifier: identifier)
+                completion(true)
+            } else {
+                completion(false)
+            }
+        }
+    }
+
     func renameUserAlbum(id: String, title: String) {
         guard let index = userAlbums.firstIndex(where: { $0.id == id }) else { return }
         let album = userAlbums[index]
@@ -1200,9 +1255,33 @@ class DataManager: ObservableObject {
         saveAlbumSnapshot()
     }
 
+    func renameUserAlbum(_ album: PHAssetCollection, title: String, completion: @escaping (Bool) -> Void) {
+        photoLibraryManager.renameAlbum(album, title: title) { success, error in
+            if let error {
+                dataManagerLogger.error("Failed to update album: \(error.localizedDescription, privacy: .public)")
+            }
+            if success {
+                self.renameUserAlbum(id: album.localIdentifier, title: title)
+            }
+            completion(success)
+        }
+    }
+
     func removeUserAlbum(id: String) {
         userAlbums.removeAll { $0.id == id }
         saveAlbumSnapshot()
+    }
+
+    func deleteUserAlbum(_ album: PHAssetCollection, completion: @escaping (Bool) -> Void) {
+        photoLibraryManager.deleteAlbum(album) { success, error in
+            if let error {
+                dataManagerLogger.error("Failed to delete album: \(error.localizedDescription, privacy: .public)")
+            }
+            if success {
+                self.removeUserAlbum(id: album.localIdentifier)
+            }
+            completion(success)
+        }
     }
 
     func recordAddedPhotoToAlbum(_ asset: PHAsset, albumID: String) {

@@ -7,15 +7,9 @@
 
 import SwiftUI
 import Photos
-import OSLog
 #if canImport(UIKit)
 import UIKit
 #endif
-
-private let albumsLogger = Logger(
-    subsystem: Bundle.main.bundleIdentifier ?? "PhotoDelete",
-    category: "Albums"
-)
 
 struct AlbumsView: View {
     @EnvironmentObject var dataManager: DataManager
@@ -391,7 +385,7 @@ struct AlbumsView: View {
     private func filteredAlbums(_ albums: [AlbumInfo]) -> [AlbumInfo] {
         let sorted = sortedAlbums(albums)
         if searchText.isEmpty { return sorted }
-        return sorted.filter { $0.title.localizedCaseInsensitiveContains(searchText) }
+        return sorted.filter { $0.title.localizedStandardContains(searchText) }
     }
 
     private var filteredUserAlbums: [AlbumInfo] {
@@ -537,22 +531,13 @@ struct AlbumsView: View {
     }
 
     private func deleteAlbum(_ album: PHAssetCollection) {
-        guard album.assetCollectionType == .album else { return }
-        let albumID = album.localIdentifier
-
-        PHPhotoLibrary.shared().performChanges({
-            PHAssetCollectionChangeRequest.deleteAssetCollections([album] as NSArray)
-        }) { success, error in
-            DispatchQueue.main.async {
-                if success {
-                    HapticManager.notify(.success)
-                    self.showAlbumToast(L10n.string("相册已删除"), icon: "trash", style: .positive)
-                    self.dataManager.removeUserAlbum(id: albumID)
-                } else if let error = error {
-                    HapticManager.notify(.error)
-                    self.showAlbumToast(L10n.string("删除失败，请再试一次"), icon: "exclamationmark.triangle", style: .warning)
-                    albumsLogger.error("Failed to delete album: \(error.localizedDescription, privacy: .public)")
-                }
+        dataManager.deleteUserAlbum(album) { success in
+            if success {
+                HapticManager.notify(.success)
+                self.showAlbumToast(L10n.string("相册已删除"), icon: "trash", style: .positive)
+            } else {
+                HapticManager.notify(.error)
+                self.showAlbumToast(L10n.string("删除失败，请再试一次"), icon: "exclamationmark.triangle", style: .warning)
             }
         }
     }
@@ -920,21 +905,12 @@ struct CreateAlbumView: View {
         guard !trimmedName.isEmpty else { return }
 
         isCreating = true
-        var createdAlbumIdentifier: String?
-
-        PHPhotoLibrary.shared().performChanges({
-            let request = PHAssetCollectionChangeRequest.creationRequestForAssetCollection(withTitle: trimmedName)
-            createdAlbumIdentifier = request.placeholderForCreatedAssetCollection.localIdentifier
-        }) { success, error in
-            DispatchQueue.main.async {
-                self.isCreating = false
-                if success {
-                    self.dataManager.insertCreatedUserAlbum(withIdentifier: createdAlbumIdentifier)
-                    self.dismiss()
-                } else if let error = error {
-                    albumsLogger.error("Failed to create album: \(error.localizedDescription, privacy: .public)")
-                    self.errorMessage = L10n.string("创建相册失败，请再试一次")
-                }
+        dataManager.createUserAlbum(named: trimmedName) { success in
+            self.isCreating = false
+            if success {
+                self.dismiss()
+            } else {
+                self.errorMessage = L10n.string("创建相册失败，请再试一次")
             }
         }
     }
@@ -1045,21 +1021,12 @@ struct EditAlbumView: View {
         guard !trimmedName.isEmpty, album.assetCollectionType == .album else { return }
 
         isUpdating = true
-        let albumID = album.localIdentifier
-
-        PHPhotoLibrary.shared().performChanges({
-            let request = PHAssetCollectionChangeRequest(for: album)
-            request?.title = trimmedName
-        }) { success, error in
-            DispatchQueue.main.async {
-                self.isUpdating = false
-                if success {
-                    self.dataManager.renameUserAlbum(id: albumID, title: trimmedName)
-                    self.dismiss()
-                } else if let error = error {
-                    albumsLogger.error("Failed to update album: \(error.localizedDescription, privacy: .public)")
-                    self.errorMessage = L10n.string("更新相册失败，请再试一次")
-                }
+        dataManager.renameUserAlbum(album, title: trimmedName) { success in
+            self.isUpdating = false
+            if success {
+                self.dismiss()
+            } else {
+                self.errorMessage = L10n.string("更新相册失败，请再试一次")
             }
         }
     }

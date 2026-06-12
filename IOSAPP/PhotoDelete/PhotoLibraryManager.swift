@@ -440,12 +440,13 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                 let isCancelled = (info?[PHImageCancelledKey] as? Bool) == true
                 let isInCloud = (info?[PHImageResultIsInCloudKey] as? Bool) == true
                 let isDegraded = (info?[PHImageResultIsDegradedKey] as? Bool) == true
+                let error = info?[PHImageErrorKey] as? Error
                 guard !isCancelled else { return }
 
                 // 缓存图片
                 if let image = image {
                     self?.cacheImage(image, forKey: cacheKey, isDegraded: isDegraded)
-                } else if isInCloud {
+                } else if isInCloud && error == nil {
                     return
                 }
                 completion(image)
@@ -478,11 +479,12 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                 let isCancelled = (info?[PHImageCancelledKey] as? Bool) == true
                 let isInCloud = (info?[PHImageResultIsInCloudKey] as? Bool) == true
                 let isDegraded = (info?[PHImageResultIsDegradedKey] as? Bool) == true
+                let error = info?[PHImageErrorKey] as? Error
                 guard !isCancelled else { return }
 
                 if let image {
                     self?.cacheImage(image, forKey: cacheKey, isDegraded: isDegraded)
-                } else if isInCloud {
+                } else if isInCloud && error == nil {
                     return
                 }
                 completion(image)
@@ -762,11 +764,12 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                 let isCancelled = (info?[PHImageCancelledKey] as? Bool) == true
                 let isInCloud = (info?[PHImageResultIsInCloudKey] as? Bool) == true
                 let isDegraded = (info?[PHImageResultIsDegradedKey] as? Bool) == true
+                let error = info?[PHImageErrorKey] as? Error
                 guard !isCancelled else { return }
 
                 if let image {
                     self?.cacheImage(image, forKey: cacheKey, isDegraded: isDegraded)
-                } else if isInCloud {
+                } else if isInCloud && error == nil {
                     return
                 }
                 completion(image)
@@ -1046,6 +1049,76 @@ class PhotoLibraryManager: NSObject, ObservableObject {
 
     // MARK: - Albums
 
+    func createAlbum(named title: String, completion: @escaping (String?, Error?) -> Void) {
+        guard hasPhotoLibraryAccess else {
+            completion(nil, PhotoLibraryWriteError.noLibraryAccess)
+            return
+        }
+
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTitle.isEmpty else {
+            completion(nil, PhotoLibraryWriteError.invalidAlbumTitle)
+            return
+        }
+
+        var createdAlbumIdentifier: String?
+        PHPhotoLibrary.shared().performChanges({
+            let request = PHAssetCollectionChangeRequest.creationRequestForAssetCollection(withTitle: trimmedTitle)
+            createdAlbumIdentifier = request.placeholderForCreatedAssetCollection.localIdentifier
+        }) { success, error in
+            DispatchQueue.main.async {
+                completion(success ? createdAlbumIdentifier : nil, error)
+            }
+        }
+    }
+
+    func renameAlbum(_ album: PHAssetCollection, title: String, completion: @escaping (Bool, Error?) -> Void) {
+        guard hasPhotoLibraryAccess else {
+            completion(false, PhotoLibraryWriteError.noLibraryAccess)
+            return
+        }
+
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTitle.isEmpty else {
+            completion(false, PhotoLibraryWriteError.invalidAlbumTitle)
+            return
+        }
+
+        guard album.assetCollectionType == .album, album.canPerform(.rename) else {
+            completion(false, PhotoLibraryWriteError.unsupportedAlbumRename)
+            return
+        }
+
+        PHPhotoLibrary.shared().performChanges({
+            let request = PHAssetCollectionChangeRequest(for: album)
+            request?.title = trimmedTitle
+        }) { success, error in
+            DispatchQueue.main.async {
+                completion(success, error)
+            }
+        }
+    }
+
+    func deleteAlbum(_ album: PHAssetCollection, completion: @escaping (Bool, Error?) -> Void) {
+        guard hasPhotoLibraryAccess else {
+            completion(false, PhotoLibraryWriteError.noLibraryAccess)
+            return
+        }
+
+        guard album.assetCollectionType == .album, album.canPerform(.delete) else {
+            completion(false, PhotoLibraryWriteError.unsupportedAlbumDelete)
+            return
+        }
+
+        PHPhotoLibrary.shared().performChanges({
+            PHAssetCollectionChangeRequest.deleteAssetCollections([album] as NSArray)
+        }) { success, error in
+            DispatchQueue.main.async {
+                completion(success, error)
+            }
+        }
+    }
+
     func addPhotosToAlbum(_ assets: [PHAsset], album: PHAssetCollection, completion: @escaping (Bool, Error?) -> Void) {
         guard hasPhotoLibraryAccess else {
             completion(false, PhotoLibraryWriteError.noLibraryAccess)
@@ -1096,6 +1169,9 @@ private enum PhotoLibraryWriteError: LocalizedError {
     case unsupportedDelete
     case unsupportedFavorite
     case unsupportedAlbumAdd
+    case unsupportedAlbumRename
+    case unsupportedAlbumDelete
+    case invalidAlbumTitle
 
     var errorDescription: String? {
         switch self {
@@ -1107,6 +1183,12 @@ private enum PhotoLibraryWriteError: LocalizedError {
             return L10n.string("有照片无法收藏，请先在系统照片中检查权限或来源。")
         case .unsupportedAlbumAdd:
             return L10n.string("这个相册不支持添加照片。")
+        case .unsupportedAlbumRename:
+            return L10n.string("这个相册不支持重命名。")
+        case .unsupportedAlbumDelete:
+            return L10n.string("这个相册不支持删除。")
+        case .invalidAlbumTitle:
+            return L10n.string("请输入相册名称。")
         }
     }
 }

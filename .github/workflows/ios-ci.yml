@@ -50,3 +50,40 @@ jobs:
             -derivedDataPath IOSAPP/DerivedData \
             -only-testing:PhotoDeleteTests \
             CODE_SIGNING_ALLOWED=NO
+
+  ui-smoke-tests:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          sudo xcode-select -s /Applications/Xcode_16.4.app || true
+          xcodebuild -version
+
+      - name: Resolve simulator
+        id: simulator
+        run: |
+          destination="$(scripts/resolve-ios-simulator-destination.sh)"
+          echo "destination=$destination" >> "$GITHUB_OUTPUT"
+          echo "$destination"
+
+      - name: Build for UI testing
+        run: |
+          xcodebuild build-for-testing \
+            -project IOSAPP/PhotoDelete.xcodeproj \
+            -scheme PhotoDelete \
+            -destination "${{ steps.simulator.outputs.destination }}" \
+            -derivedDataPath IOSAPP/DerivedData \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Run UI smoke tests
+        run: |
+          xcodebuild test-without-building \
+            -project IOSAPP/PhotoDelete.xcodeproj \
+            -scheme PhotoDelete \
+            -destination "${{ steps.simulator.outputs.destination }}" \
+            -derivedDataPath IOSAPP/DerivedData \
+            -only-testing:PhotoDeleteUITests \
+            -only-testing:PhotoDeleteUITestsLaunchTests \
+            CODE_SIGNING_ALLOWED=NO

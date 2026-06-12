@@ -9,7 +9,8 @@ BUNDLE_ID="${BUNDLE_ID:-com.01mvp.photodelete}"
 PROFILE_SPECIFIER="${PROFILE_SPECIFIER:-}"
 CODE_SIGN_IDENTITY="${CODE_SIGN_IDENTITY:-Apple Distribution}"
 CODE_SIGN_STYLE="${CODE_SIGN_STYLE:-Automatic}"
-ARCHIVE_CODE_SIGNING_ALLOWED="${ARCHIVE_CODE_SIGNING_ALLOWED:-NO}"
+ARCHIVE_CODE_SIGNING_ALLOWED="${ARCHIVE_CODE_SIGNING_ALLOWED:-YES}"
+ARCHIVE_CODE_SIGNING_ALLOWED="$(printf '%s' "$ARCHIVE_CODE_SIGNING_ALLOWED" | tr '[:lower:]' '[:upper:]')"
 MARKETING_VERSION="${MARKETING_VERSION:-1.0}"
 BUILD_NUMBER="${BUILD_NUMBER:-$(TZ=Asia/Shanghai date +%Y%m%d%H%M)}"
 SIMULATOR_DESTINATION="$("$ROOT_DIR/scripts/resolve-ios-simulator-destination.sh")"
@@ -55,9 +56,34 @@ write_export_options() {
   fi
   /usr/libexec/PlistBuddy -c 'Add :stripSwiftSymbols bool true' "$EXPORT_OPTIONS"
   /usr/libexec/PlistBuddy -c 'Add :uploadSymbols bool true' "$EXPORT_OPTIONS"
-  /usr/libexec/PlistBuddy -c 'Add :manageAppVersionAndBuildNumber bool true' "$EXPORT_OPTIONS"
+  /usr/libexec/PlistBuddy -c 'Add :manageAppVersionAndBuildNumber bool false' "$EXPORT_OPTIONS"
   plutil -lint "$EXPORT_OPTIONS"
 }
+
+verify_archive_version() {
+  local info_plist="$ARCHIVE_PATH/Products/Applications/PhotoDelete.app/Info.plist"
+  local archived_build_number
+
+  if [[ ! -f "$info_plist" ]]; then
+    printf 'Archive Info.plist not found at %s.\n' "$info_plist" >&2
+    return 1
+  fi
+
+  archived_build_number="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$info_plist")"
+  if [[ "$archived_build_number" != "$BUILD_NUMBER" ]]; then
+    printf 'Archive CFBundleVersion mismatch: expected %s, got %s.\n' "$BUILD_NUMBER" "$archived_build_number" >&2
+    return 1
+  fi
+}
+
+case "$ARCHIVE_CODE_SIGNING_ALLOWED" in
+  YES|NO)
+    ;;
+  *)
+    printf 'ARCHIVE_CODE_SIGNING_ALLOWED must be YES or NO, got %s.\n' "$ARCHIVE_CODE_SIGNING_ALLOWED" >&2
+    exit 1
+    ;;
+esac
 
 if [[ "$SKIP_TESTS" != "1" ]]; then
   xcodebuild test \
@@ -97,6 +123,13 @@ xcodebuild archive \
   -archivePath "$ARCHIVE_PATH" \
   -allowProvisioningUpdates \
   "${archive_signing_args[@]}"
+
+verify_archive_version
+
+if [[ "$ARCHIVE_CODE_SIGNING_ALLOWED" == "NO" ]]; then
+  printf 'Dry-run archive completed for PhotoDelete %s (%s); skipped export and upload because ARCHIVE_CODE_SIGNING_ALLOWED=NO.\n' "$MARKETING_VERSION" "$BUILD_NUMBER"
+  exit 0
+fi
 
 write_export_options
 

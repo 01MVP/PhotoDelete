@@ -5,6 +5,14 @@ enum L10n {
         String(localized: value, table: "Localizable", bundle: AppLanguage.current.localizationBundle)
     }
 
+    static func attributedMarkdown(_ value: String.LocalizationValue) -> AttributedString {
+        let markdown = string(value)
+        return (try? AttributedString(
+            markdown: markdown,
+            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        )) ?? AttributedString(markdown)
+    }
+
     static func key(_ key: String) -> String {
         AppLanguage.current.localizationBundle.localizedString(forKey: key, value: key, table: "Localizable")
     }

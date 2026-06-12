@@ -527,7 +527,7 @@ struct SettingsView: View {
         if rounded.rounded() == rounded {
             return String(Int(rounded))
         }
-        return String(format: "%.1f", rounded)
+        return rounded.formatted(.number.grouping(.never).precision(.fractionLength(1)))
     }
 
     private func currentGestureAction(for direction: SwipeGestureDirection) -> SwipeGestureAction {
@@ -1296,9 +1296,8 @@ struct AuthorView: View {
                                 }
                             }
 
-                            Text(try! AttributedString(
-                                markdown: L10n.string("喜欢旅行和探索世界，也用 AI 做一些有趣的小产品。博客和作品集在 [makerjackie.com](https://makerjackie.com)。"),
-                                options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+                            Text(L10n.attributedMarkdown(
+                                "喜欢旅行和探索世界，也用 AI 做一些有趣的小产品。博客和作品集在 [makerjackie.com](https://makerjackie.com)。"
                             ))
                             .font(.system(size: 16, weight: .regular))
                             .foregroundColor(PhotoDeleteStyle.secondaryText)

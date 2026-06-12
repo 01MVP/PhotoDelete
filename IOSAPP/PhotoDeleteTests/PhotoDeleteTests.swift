@@ -136,6 +136,14 @@ struct PhotoDeleteTests {
         #expect(!body.contains("Sent from my iPhone"))
     }
 
+    @Test func localizedMarkdownHelperReturnsReadableText() async throws {
+        let text = L10n.attributedMarkdown("喜欢旅行和探索世界，也用 AI 做一些有趣的小产品。博客和作品集在 [makerjackie.com](https://makerjackie.com)。")
+        let plainText = String(text.characters)
+
+        #expect(plainText.contains("makerjackie.com"))
+        #expect(!plainText.contains("https://makerjackie.com"))
+    }
+
     // MARK: - Gesture settings tests
 
     @Test func swipeGestureStandardPresetMatchesDefaultActions() async throws {
@@ -213,6 +221,27 @@ struct PhotoDeleteTests {
         #expect(!AppLanguage.en.showsSimplifiedChineseOnlyContent)
     }
 
+    @Test func supporterEntitlementStateOnlyUnlocksVerifiedOrCachedOffline() async throws {
+        #expect(!SupporterEntitlementState.unknown.allowsSupporterAccess)
+        #expect(!SupporterEntitlementState.verifying.allowsSupporterAccess)
+        #expect(SupporterEntitlementState.verified.allowsSupporterAccess)
+        #expect(SupporterEntitlementState.cachedOffline.allowsSupporterAccess)
+        #expect(!SupporterEntitlementState.locked.allowsSupporterAccess)
+    }
+
+    @Test func supporterEntitlementCacheDoesNotStartAsVerified() async throws {
+        let initialState = SupporterEntitlementState.initial(hasCachedEntitlement: true)
+
+        #expect(initialState == .cachedOffline)
+        #expect(initialState != .verified)
+        #expect(initialState.allowsSupporterAccess)
+    }
+
+    @Test func supporterEntitlementVerificationStateKeepsCacheExplicit() async throws {
+        #expect(SupporterEntitlementState.verificationStarted(hasCachedEntitlement: true) == .cachedOffline)
+        #expect(SupporterEntitlementState.verificationStarted(hasCachedEntitlement: false) == .verifying)
+    }
+
     // MARK: - CleanupStatsStore tests
 
     @Test func cleanupStatsStoreRecordsAndPersistsSessions() async throws {
@@ -238,6 +267,28 @@ struct PhotoDeleteTests {
         let reloadedStore = CleanupStatsStore(fileURL: fileURL)
         #expect(reloadedStore.sessions.count == 1)
         #expect(reloadedStore.summary.organizedPhotos == 5)
+    }
+
+    @Test func cleanupStatsStoreBacksUpCorruptHistoryFile() async throws {
+        let directoryURL = temporaryDirectoryURL()
+        let fileURL = directoryURL.appendingPathComponent("cleanup-history.json")
+        let corruptData = Data("{not valid json".utf8)
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+
+        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+        try corruptData.write(to: fileURL)
+
+        let store = CleanupStatsStore(fileURL: fileURL)
+        let backupURLs = try FileManager.default.contentsOfDirectory(
+            at: directoryURL,
+            includingPropertiesForKeys: nil
+        )
+        .filter { $0.lastPathComponent.hasPrefix("cleanup-history.corrupt-") }
+
+        #expect(store.sessions.isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: fileURL.path))
+        #expect(backupURLs.count == 1)
+        #expect((try? Data(contentsOf: backupURLs[0])) == corruptData)
     }
 
     @Test func cleanupStatsStoreBuildsMonthlySummariesNewestFirst() async throws {
@@ -566,6 +617,41 @@ struct PhotoDeleteTests {
         #expect(dm.favoriteCandidates.isEmpty)
     }
 
+    @Test func candidateIdentifiersKeepUnselectedItemsAfterPartialCommit() async throws {
+        let remaining = DataManager.remainingCandidateIdentifiers(
+            deleteIDs: ["delete-a", "delete-b"],
+            favoriteIDs: ["favorite-a", "favorite-b"],
+            committedDeleteIDs: ["delete-a"],
+            committedFavoriteIDs: ["favorite-a"]
+        )
+
+        #expect(remaining.deleteIDs == ["delete-b"])
+        #expect(remaining.favoriteIDs == ["favorite-b"])
+    }
+
+    @Test func candidateIdentifiersDropFavoriteWhenAssetWasDeleted() async throws {
+        let remaining = DataManager.remainingCandidateIdentifiers(
+            deleteIDs: ["asset-a"],
+            favoriteIDs: ["asset-a", "asset-b"],
+            committedDeleteIDs: ["asset-a"],
+            committedFavoriteIDs: []
+        )
+
+        #expect(remaining.deleteIDs.isEmpty)
+        #expect(remaining.favoriteIDs == ["asset-b"])
+    }
+
+    @Test func candidateIdentifiersPruneUnavailableAssets() async throws {
+        let pruned = DataManager.candidateIdentifiers(
+            deleteIDs: ["asset-a", "asset-b"],
+            favoriteIDs: ["asset-c", "asset-d"],
+            keepingValidIDs: ["asset-b", "asset-d", "asset-e"]
+        )
+
+        #expect(pruned.deleteIDs == ["asset-b"])
+        #expect(pruned.favoriteIDs == ["asset-d"])
+    }
+
     @Test func settingsStatsSummaryUsesPersistedCleanupStats() async throws {
         let fileURL = temporaryStatsURL()
         defer { try? FileManager.default.removeItem(at: fileURL) }
@@ -736,6 +822,11 @@ struct PhotoDeleteTests {
         FileManager.default.temporaryDirectory
             .appendingPathComponent("photodelete-tests-\(UUID().uuidString)")
             .appendingPathExtension("json")
+    }
+
+    private func temporaryDirectoryURL() -> URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("photodelete-tests-\(UUID().uuidString)", isDirectory: true)
     }
 
 }
