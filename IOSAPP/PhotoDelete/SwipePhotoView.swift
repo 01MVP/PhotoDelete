@@ -20,6 +20,7 @@ struct SwipePhotoView: View {
     @AppStorage(AppConstants.rightSwipeActionKey) private var rightSwipeActionValue = SwipeGesturePreset.standard.rightAction.rawValue
     @AppStorage(AppConstants.upSwipeActionKey) private var upSwipeActionValue = SwipeGesturePreset.standard.upAction.rawValue
     @AppStorage(AppConstants.reviewModeKey) private var reviewModeValue = PhotoReviewMode.card.rawValue
+    @AppStorage(AppConstants.hasSeenReviewModeHintKey) private var hasSeenReviewModeHint = false
 
     let selectedCategory: PhotoCategory?
     let selectedTimeGroup: String?
@@ -47,6 +48,11 @@ struct SwipePhotoView: View {
     @State private var browserPreloadedAssets: [PHAsset] = []
     @State private var browserPreloadTargetSize: CGSize?
     @State private var previewAsset: CandidatePreviewAsset?
+    @State private var inlinePlayingVideoAssetID: String?
+    @State private var cardModeReviewActionCount = 0
+    @State private var showReviewModeHint = false
+
+    private let reviewModeHintThreshold = 5
 
     init(
         selectedCategory: PhotoCategory?,
@@ -226,6 +232,7 @@ struct SwipePhotoView: View {
                 .environmentObject(dataManager)
         }
         .onDisappear {
+            stopInlineVideoPlayback()
             flushPendingSwipeMutations()
             dataManager.photoLibraryManager.stopCachingImages(
                 preloadedAssets,
@@ -249,6 +256,7 @@ struct SwipePhotoView: View {
             initializeSessionIfNeeded()
         }
         .onChange(of: currentPhotoIndex) { _ in
+            stopInlineVideoPlaybackIfNeeded(forNextIndex: currentPhotoIndex)
             persistSessionProgressIfPossible()
         }
     }
@@ -287,9 +295,18 @@ struct SwipePhotoView: View {
 
                 Spacer()
 
-                HStack(spacing: 8) {
-                    ReviewModeToggleButton(mode: reviewMode, action: toggleReviewMode)
-                    PendingDeleteCounter(count: pendingDeleteCount)
+                ZStack(alignment: .topTrailing) {
+                    HStack(spacing: 8) {
+                        ReviewModeToggleButton(mode: reviewMode, action: toggleReviewMode)
+                        PendingDeleteCounter(count: pendingDeleteCount)
+                    }
+
+                    if showReviewModeHint {
+                        ReviewModeHintBubble(action: toggleReviewMode)
+                            .offset(y: 43)
+                            .transition(.opacity.combined(with: .scale(scale: 0.94, anchor: .topTrailing)))
+                            .zIndex(1)
+                    }
                 }
                 .frame(width: 116, alignment: .trailing)
             }
@@ -418,8 +435,10 @@ struct SwipePhotoView: View {
                 photoLibraryManager: dataManager.photoLibraryManager,
                 isInDeleteCandidates: isAssetQueuedForDelete(asset),
                 isInFavoriteCandidates: isAssetQueuedForFavorite(asset),
+                isVideoPlaying: inlinePlayingVideoAssetID == asset.localIdentifier,
                 displaySize: cardSize,
-                targetSize: imageTargetSize(for: cardSize)
+                targetSize: imageTargetSize(for: cardSize),
+                onStopVideoPlayback: stopInlineVideoPlayback
             )
             .id(asset.localIdentifier)
             .overlay {
@@ -432,9 +451,9 @@ struct SwipePhotoView: View {
             .rotationEffect(.degrees(rotationAngle))
             .scaleEffect(1.0 - abs(dragOffset.width) / 1000)
             .gesture(createDragGesture())
-            .simultaneousGesture(TapGesture().onEnded {
+            .photoDeleteSimultaneousTapGesture(enabled: inlinePlayingVideoAssetID != asset.localIdentifier) {
                 openAssetPreview(asset)
-            })
+            }
             .accessibilityAction(named: Text(L10n.string("加入待删除"))) {
                 handleDeleteAction()
                 resetCardPosition()
@@ -551,6 +570,7 @@ struct SwipePhotoView: View {
                     isInFavoriteCandidates: isAssetQueuedForFavorite(asset),
                     isScreenshot: item.isScreenshot,
                     isVideo: item.isVideo,
+                    isVideoPlaying: inlinePlayingVideoAssetID == asset.localIdentifier,
                     displaySize: tileSize,
                     targetSize: thumbnailTargetSize,
                     selectedTargetSize: browserSelectedImageTargetSize(for: tileSize),
@@ -567,13 +587,43 @@ struct SwipePhotoView: View {
                     },
                     onCancelDelete: {
                         cancelDeleteCandidate(asset, at: item.index)
-                    }
+                    },
+                    onStopVideoPlayback: stopInlineVideoPlayback
                 )
                 .id(asset.localIdentifier)
             }
         }
     }
 
+    private func openAssetPreview(_ asset: PHAsset) {
+        if asset.mediaType == .video {
+            toggleInlineVideoPlayback(for: asset)
+        } else {
+            previewAsset = CandidatePreviewAsset(asset: asset)
+        }
+    }
+
+    private func toggleInlineVideoPlayback(for asset: PHAsset) {
+        let assetID = asset.localIdentifier
+        if inlinePlayingVideoAssetID == assetID {
+            inlinePlayingVideoAssetID = nil
+        } else {
+            inlinePlayingVideoAssetID = assetID
+        }
+    }
+
+    private func stopInlineVideoPlayback() {
+        inlinePlayingVideoAssetID = nil
+    }
+
+    private func stopInlineVideoPlaybackIfNeeded(forNextIndex index: Int) {
+        guard let inlinePlayingVideoAssetID,
+              isValidPhotoIndex(index),
+              sessionPhotos[index].localIdentifier != inlinePlayingVideoAssetID else {
+            return
+        }
+        self.inlinePlayingVideoAssetID = nil
+    }
     private var browserStatusStrip: some View {
         VStack(spacing: 7) {
             HStack(spacing: 10) {
@@ -978,6 +1028,10 @@ struct SwipePhotoView: View {
         let photos = photos ?? filteredRealPhotos
         sessionPhotos = photos
         rebuildBrowserRows(for: photos)
+        if let inlinePlayingVideoAssetID,
+           !photos.contains(where: { $0.localIdentifier == inlinePlayingVideoAssetID }) {
+            self.inlinePlayingVideoAssetID = nil
+        }
         sessionReviewedCount = dataManager.reviewedCount(in: photos)
         if didInitializeSession {
             currentPhotoIndex = min(currentPhotoIndex, max(photos.count - 1, 0))
@@ -1147,6 +1201,7 @@ struct SwipePhotoView: View {
 
     private func selectBrowserPhoto(at index: Int) {
         guard isValidPhotoIndex(index) else { return }
+        stopInlineVideoPlaybackIfNeeded(forNextIndex: index)
         currentPhotoIndex = index
         preloadUpcomingImages(from: index)
     }
@@ -1179,6 +1234,7 @@ struct SwipePhotoView: View {
 
     private func toggleReviewMode() {
         let nextMode = reviewMode.toggled
+        dismissReviewModeHint(markSeen: true)
         reviewModeValue = nextMode.rawValue
         resetCardPosition()
         if nextMode == .card {
@@ -1189,8 +1245,36 @@ struct SwipePhotoView: View {
         showFeedback(nextMode.switchAnnouncement, icon: nextMode.icon, style: .neutral, duration: 1.6)
     }
 
-    private func openAssetPreview(_ asset: PHAsset) {
-        previewAsset = CandidatePreviewAsset(asset: asset)
+    private func recordReviewModeHintOpportunity() {
+        guard reviewMode == .card,
+              !hasSeenReviewModeHint,
+              !showReviewModeHint,
+              sessionPhotos.count >= reviewModeHintThreshold + 1 else {
+            return
+        }
+
+        cardModeReviewActionCount += 1
+        guard cardModeReviewActionCount >= reviewModeHintThreshold else { return }
+
+        hasSeenReviewModeHint = true
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+            showReviewModeHint = true
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.5) {
+            dismissReviewModeHint()
+        }
+    }
+
+    private func dismissReviewModeHint(markSeen: Bool = false) {
+        if markSeen {
+            hasSeenReviewModeHint = true
+        }
+
+        guard showReviewModeHint else { return }
+        withAnimation(.easeOut(duration: 0.18)) {
+            showReviewModeHint = false
+        }
     }
 
     private func createDragGesture() -> some Gesture {
@@ -1289,6 +1373,7 @@ struct SwipePhotoView: View {
     private func moveToNextPhoto() {
         guard !sessionPhotos.isEmpty else { return }
 
+        stopInlineVideoPlayback()
         let nextSearchStart = currentPhotoIndex + 1
         let newIndex = firstLocallyUnreviewedPhotoIndex(startingAt: nextSearchStart) ?? nextSearchStart
         if newIndex < sessionPhotos.count {
@@ -1511,6 +1596,7 @@ struct SwipePhotoView: View {
         actionHistory.append(.delete(asset, originalIndex: originalIndex, wasReviewed: wasReviewed))
         HapticManager.impact(.medium)
         showFeedback(L10n.string("已加入待删除"), icon: "trash", style: .destructive, showsUndo: true)
+        recordReviewModeHintOpportunity()
     }
 
     private func markFavoriteCandidate(_ asset: PHAsset) {
@@ -1527,6 +1613,7 @@ struct SwipePhotoView: View {
         actionHistory.append(.favorite(asset, originalIndex: originalIndex, wasReviewed: wasReviewed))
         HapticManager.impact(.light)
         showFeedback(L10n.string("已加入待收藏"), icon: "heart.fill", style: .favorite, showsUndo: true)
+        recordReviewModeHintOpportunity()
     }
 
     private func markSkip(_ asset: PHAsset, message: String? = nil) {
@@ -1537,6 +1624,7 @@ struct SwipePhotoView: View {
         actionHistory.append(.skip(asset, originalIndex: originalIndex, wasReviewed: wasReviewed))
         HapticManager.impact(.light)
         showFeedback(message ?? L10n.string("已跳过"), icon: "arrow.right", style: .neutral)
+        recordReviewModeHintOpportunity()
     }
 
     private func handleAddToAlbum(_ albumInfo: AlbumInfo) {
@@ -1759,6 +1847,7 @@ private struct BrowserPhotoTile: View {
     let isInFavoriteCandidates: Bool
     let isScreenshot: Bool
     let isVideo: Bool
+    let isVideoPlaying: Bool
     let displaySize: CGSize
     let targetSize: CGSize
     let selectedTargetSize: CGSize
@@ -1766,6 +1855,7 @@ private struct BrowserPhotoTile: View {
     let onSelect: () -> Void
     let onSwipeUpToDelete: () -> Void
     let onCancelDelete: () -> Void
+    let onStopVideoPlayback: () -> Void
 
     @State private var image: UIImage?
     @State private var isLoading = true
@@ -1785,6 +1875,12 @@ private struct BrowserPhotoTile: View {
                 .padding(9)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
 
+            if isVideoPlaying {
+                InlineVideoCloseButton(action: onStopVideoPlayback)
+                    .padding(8)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
+
             stateOverlay
 
             if showsDeleteCue {
@@ -1800,7 +1896,7 @@ private struct BrowserPhotoTile: View {
         .shadow(color: isSelected ? .black.opacity(0.18) : .clear, radius: isSelected ? 6 : 0, x: 0, y: isSelected ? 3 : 0)
         .offset(y: verticalOffset)
         .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        .onTapGesture(perform: onSelect)
+        .photoDeleteTapGesture(enabled: !isVideoPlaying, action: onSelect)
         .simultaneousGesture(deleteGesture)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(L10n.string("浏览照片"))
@@ -1818,6 +1914,7 @@ private struct BrowserPhotoTile: View {
                 onCancelDelete()
             }
         }
+        .inlineVideoCloseAccessibility(isActive: isVideoPlaying, action: onStopVideoPlayback)
         .onAppear(perform: loadImage)
         .onChange(of: prefersHighQualityPreview) { shouldLoadPreview in
             if shouldLoadPreview {
@@ -1838,7 +1935,13 @@ private struct BrowserPhotoTile: View {
 
     @ViewBuilder
     private var tileImage: some View {
-        if let image {
+        if isVideoPlaying {
+            PhotoAssetVideoPlayerView(
+                asset: asset,
+                photoLibraryManager: photoLibraryManager
+            )
+            .frame(width: displaySize.width, height: displaySize.height)
+        } else if let image {
             Image(uiImage: image)
                 .resizable()
                 .scaledToFill()
@@ -1964,6 +2067,10 @@ private struct BrowserPhotoTile: View {
         var values: [String] = []
         values.append(isVideo ? L10n.string("视频") : L10n.string("照片"))
 
+        if isVideoPlaying {
+            values.append(L10n.string("视频预览"))
+        }
+
         if isSelected {
             values.append(L10n.string("当前照片"))
         }
@@ -2048,8 +2155,10 @@ private struct SwipePhotoCardFrame: View {
     let photoLibraryManager: PhotoLibraryManager
     let isInDeleteCandidates: Bool
     let isInFavoriteCandidates: Bool
+    let isVideoPlaying: Bool
     let displaySize: CGSize
     let targetSize: CGSize
+    let onStopVideoPlayback: () -> Void
 
     var body: some View {
         RealPhotoCard(
@@ -2057,9 +2166,61 @@ private struct SwipePhotoCardFrame: View {
             photoLibraryManager: photoLibraryManager,
             isInDeleteCandidates: isInDeleteCandidates,
             isInFavoriteCandidates: isInFavoriteCandidates,
+            isVideoPlaying: isVideoPlaying,
             displaySize: displaySize,
-            targetSize: targetSize
+            targetSize: targetSize,
+            onStopVideoPlayback: onStopVideoPlayback
         )
+    }
+}
+
+private struct InlineVideoCloseButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(L10n.string("关闭"), systemImage: "xmark")
+                .labelStyle(.iconOnly)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.white)
+                .frame(width: 30, height: 30)
+                .background(Circle().fill(Color.black.opacity(0.58)))
+                .overlay(Circle().stroke(Color.white.opacity(0.24), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .photoDeleteMinimumTapTarget()
+        .accessibilityLabel(L10n.string("关闭"))
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func photoDeleteTapGesture(enabled: Bool, action: @escaping () -> Void) -> some View {
+        if enabled {
+            self.onTapGesture(perform: action)
+        } else {
+            self
+        }
+    }
+
+    @ViewBuilder
+    func photoDeleteSimultaneousTapGesture(enabled: Bool, action: @escaping () -> Void) -> some View {
+        if enabled {
+            self.simultaneousGesture(TapGesture().onEnded { action() })
+        } else {
+            self
+        }
+    }
+
+    @ViewBuilder
+    func inlineVideoCloseAccessibility(isActive: Bool, action: @escaping () -> Void) -> some View {
+        if isActive {
+            self.accessibilityAction(named: Text(L10n.string("关闭"))) {
+                action()
+            }
+        } else {
+            self
+        }
     }
 }
 
@@ -2314,8 +2475,10 @@ struct RealPhotoCard: View {
     let photoLibraryManager: PhotoLibraryManager
     let isInDeleteCandidates: Bool
     let isInFavoriteCandidates: Bool
+    let isVideoPlaying: Bool
     let displaySize: CGSize
     let targetSize: CGSize
+    let onStopVideoPlayback: () -> Void
 
     @State private var image: UIImage?
     @State private var isLoading = true
@@ -2323,10 +2486,29 @@ struct RealPhotoCard: View {
     @State private var previewRequestID: PHImageRequestID?
     @State private var fallbackRequestID: PHImageRequestID?
     @State private var loadingAssetIdentifier: String?
+    @State private var isShowingDegradedPreview = false
+    @State private var isDownloadingFromCloud = false
+    @State private var cloudDownloadProgress: Double?
 
     var body: some View {
         ZStack {
-            if let image = image {
+            if isVideoPlaying {
+                PhotoAssetVideoPlayerView(
+                    asset: asset,
+                    photoLibraryManager: photoLibraryManager
+                )
+                .frame(width: displaySize.width, height: displaySize.height)
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .overlay(
+                    InlineVideoCloseButton(action: onStopVideoPlayback)
+                        .padding(12),
+                    alignment: .topLeading
+                )
+                .overlay(
+                    candidateOverlay,
+                    alignment: .center
+                )
+            } else if let image = image {
                 ZStack {
                     RoundedRectangle(cornerRadius: 20, style: .continuous)
                         .fill(Color.black.opacity(0.22))
@@ -2347,6 +2529,10 @@ struct RealPhotoCard: View {
                         candidateOverlay,
                         alignment: .center
                     )
+                    .overlay(
+                        previewStatusOverlay,
+                        alignment: .bottom
+                    )
             } else {
                 Rectangle()
                     .fill(
@@ -2362,17 +2548,21 @@ struct RealPhotoCard: View {
                     .frame(width: displaySize.width, height: displaySize.height)
                     .cornerRadius(20)
                     .overlay(
-                        Group {
-                            if isLoading {
+                        VStack(spacing: 10) {
+                            if isLoading || isDownloadingFromCloud {
                                 ProgressView()
                                     .progressViewStyle(CircularProgressViewStyle(tint: PhotoDeleteStyle.accent))
                                     .scaleEffect(1.2)
                             } else {
-                                VStack(spacing: 10) {
-                                    ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle(tint: PhotoDeleteStyle.accent))
-                                        .scaleEffect(1.0)
-                                }
+                                Image(systemName: "photo")
+                                    .font(.system(size: 30, weight: .medium))
+                                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                            }
+
+                            if isDownloadingFromCloud {
+                                Text(L10n.string("正在从 iCloud 下载照片"))
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(PhotoDeleteStyle.secondaryText)
                             }
                         }
                     )
@@ -2389,6 +2579,7 @@ struct RealPhotoCard: View {
         .accessibilityLabel(L10n.string("当前照片"))
         .accessibilityValue(accessibilityValue)
         .accessibilityHint(L10n.string("可使用可访问性操作加入待删除、加入收藏或跳过。"))
+        .inlineVideoCloseAccessibility(isActive: isVideoPlaying, action: onStopVideoPlayback)
         .onAppear {
             loadImage()
         }
@@ -2397,6 +2588,7 @@ struct RealPhotoCard: View {
             photoLibraryManager.cancelImageRequest(previewRequestID)
             photoLibraryManager.cancelImageRequest(fallbackRequestID)
             loadingAssetIdentifier = nil
+            resetPreviewLoadingState()
         }
     }
 
@@ -2452,6 +2644,42 @@ struct RealPhotoCard: View {
         }
     }
 
+    @ViewBuilder
+    private var previewStatusOverlay: some View {
+        if !isInDeleteCandidates && !isInFavoriteCandidates && (isShowingDegradedPreview || isDownloadingFromCloud) {
+            HStack(spacing: 8) {
+                if let cloudDownloadProgress {
+                    ProgressView(value: cloudDownloadProgress)
+                        .progressViewStyle(LinearProgressViewStyle(tint: PhotoDeleteStyle.accent))
+                        .frame(width: 48)
+                } else {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: PhotoDeleteStyle.accent))
+                        .scaleEffect(0.72)
+                }
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(isDownloadingFromCloud ? L10n.string("正在从 iCloud 下载照片") : L10n.string("正在加载高清预览"))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(PhotoDeleteStyle.primaryText)
+
+                    Text(L10n.string("当前可能较模糊"))
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundColor(PhotoDeleteStyle.secondaryText)
+                }
+            }
+            .padding(.horizontal, 11)
+            .padding(.vertical, 8)
+            .background(.regularMaterial, in: Capsule(style: .continuous))
+            .overlay(
+                Capsule(style: .continuous)
+                    .stroke(PhotoDeleteStyle.primaryText.opacity(0.08), lineWidth: 1)
+            )
+            .padding(.bottom, 14)
+            .accessibilityElement(children: .combine)
+        }
+    }
+
     private func loadImage() {
         photoLibraryManager.cancelImageRequest(thumbnailRequestID)
         photoLibraryManager.cancelImageRequest(previewRequestID)
@@ -2459,6 +2687,7 @@ struct RealPhotoCard: View {
         isLoading = true
         image = nil
         fallbackRequestID = nil
+        resetPreviewLoadingState()
         let requestedAssetID = asset.localIdentifier
         loadingAssetIdentifier = requestedAssetID
 
@@ -2472,19 +2701,40 @@ struct RealPhotoCard: View {
             if let loadedImage {
                 self.image = loadedImage
                 self.isLoading = false
+                self.isShowingDegradedPreview = self.previewRequestID != nil
             }
             self.thumbnailRequestID = nil
         }
 
-        previewRequestID = photoLibraryManager.loadSwipePreview(for: asset, size: targetSize) { loadedImage in
+        previewRequestID = photoLibraryManager.loadSwipePreviewResult(for: asset, size: targetSize) { result in
             guard loadingAssetIdentifier == requestedAssetID else { return }
-            if let loadedImage {
+            if result.isInCloud || result.progress != nil {
+                self.isDownloadingFromCloud = true
+                self.cloudDownloadProgress = result.progress
+            }
+
+            if result.isDegraded {
+                self.isShowingDegradedPreview = true
+            }
+
+            if let loadedImage = result.image {
                 self.image = loadedImage
                 self.isLoading = false
-            } else if self.image == nil {
-                self.loadFallbackImage(for: requestedAssetID)
             }
-            self.previewRequestID = nil
+
+            if result.isFinal {
+                self.isDownloadingFromCloud = false
+                self.cloudDownloadProgress = nil
+                self.isShowingDegradedPreview = false
+                if result.image == nil, self.image == nil {
+                    self.loadFallbackImage(for: requestedAssetID)
+                }
+                self.previewRequestID = nil
+            } else if result.image != nil {
+                self.isShowingDegradedPreview = true
+            } else if result.isInCloud, self.image == nil {
+                self.isLoading = true
+            }
         }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) {
@@ -2493,10 +2743,19 @@ struct RealPhotoCard: View {
         }
     }
 
+    private func resetPreviewLoadingState() {
+        isShowingDegradedPreview = false
+        isDownloadingFromCloud = false
+        cloudDownloadProgress = nil
+    }
+
     private var accessibilityValue: String {
         var values: [String] = []
         if asset.mediaType == .video {
             values.append(L10n.string("视频"))
+            if isVideoPlaying {
+                values.append(L10n.string("视频预览"))
+            }
         } else {
             values.append(L10n.string("照片"))
         }
@@ -2507,6 +2766,12 @@ struct RealPhotoCard: View {
 
         if asset.isFavorite || isInFavoriteCandidates {
             values.append(L10n.string("收藏"))
+        }
+
+        if isDownloadingFromCloud {
+            values.append(L10n.string("正在从 iCloud 下载照片"))
+        } else if isShowingDegradedPreview {
+            values.append(L10n.string("正在加载高清预览"))
         }
 
         if isInDeleteCandidates {
@@ -2527,6 +2792,7 @@ struct RealPhotoCard: View {
                 self.image = loadedImage
                 self.isLoading = false
             }
+            self.resetPreviewLoadingState()
             self.fallbackRequestID = nil
         }
     }
@@ -2776,6 +3042,35 @@ private struct ReviewModeToggleButton: View {
     }
 }
 
+private struct ReviewModeHintBubble: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label {
+                Text(L10n.string("试试双行布局"))
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+            } icon: {
+                Image(systemName: "rectangle.grid.2x2")
+                    .font(.system(size: 12, weight: .semibold))
+            }
+            .foregroundColor(PhotoDeleteStyle.primaryText)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 8)
+            .background(.regularMaterial, in: Capsule(style: .continuous))
+            .overlay(
+                Capsule(style: .continuous)
+                    .stroke(PhotoDeleteStyle.accent.opacity(0.24), lineWidth: 1)
+            )
+            .shadow(color: PhotoDeleteStyle.floatingShadow.opacity(0.7), radius: 10, x: 0, y: 5)
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint(L10n.string("切换到双行浏览"))
+    }
+}
+
 private struct PendingDeleteCounter: View {
     let count: Int
 
@@ -2885,6 +3180,8 @@ struct BatchConfirmView: View {
     @State private var previewAsset: CandidatePreviewAsset?
     @State private var completedCelebration: CleanupCelebration?
     @State private var showAchievements = false
+    @State private var selectedDeleteIDs: Set<String> = []
+    @State private var selectedFavoriteIDs: Set<String> = []
     let albumInfo: AlbumInfo?
     let onComplete: (() -> Void)?
 
@@ -2895,6 +3192,10 @@ struct BatchConfirmView: View {
 
     private var hasPendingOperations: Bool {
         !dataManager.deleteCandidates.isEmpty || !dataManager.favoriteCandidates.isEmpty
+    }
+
+    private var hasSelectedOperations: Bool {
+        !selectedDeleteIDs.isEmpty || !selectedFavoriteIDs.isEmpty
     }
 
     var body: some View {
@@ -2911,17 +3212,22 @@ struct BatchConfirmView: View {
             } else {
                 let deleteAssets = sortedAssets(Array(dataManager.deleteCandidates))
                 let favoriteAssets = sortedAssets(Array(dataManager.favoriteCandidates))
-                let estimatedSpaceSaved = deleteAssets.reduce(0) { $0 + dataManager.estimatedSizeMB(for: $1) }
+                let selectedDeleteAssets = deleteAssets.filter { selectedDeleteIDs.contains($0.localIdentifier) }
+                let selectedFavoriteAssets = favoriteAssets.filter { selectedFavoriteIDs.contains($0.localIdentifier) }
+                let estimatedSpaceSaved = selectedDeleteAssets.reduce(0) { $0 + dataManager.estimatedSizeMB(for: $1) }
 
                 confirmationContent(
                     deleteAssets: deleteAssets,
                     favoriteAssets: favoriteAssets,
+                    selectedDeleteAssets: selectedDeleteAssets,
+                    selectedFavoriteAssets: selectedFavoriteAssets,
                     estimatedSpaceSaved: estimatedSpaceSaved
                 )
                 .transition(.opacity)
             }
         }
         .animation(.spring(response: 0.32, dampingFraction: 0.82), value: completedCelebration?.id)
+        .onAppear(perform: selectAllPendingCandidates)
         .sheet(item: $previewAsset) { previewAsset in
             CandidatePhotoPreviewView(
                 asset: previewAsset.asset,
@@ -2941,31 +3247,39 @@ struct BatchConfirmView: View {
     private func confirmationContent(
         deleteAssets: [PHAsset],
         favoriteAssets: [PHAsset],
+        selectedDeleteAssets: [PHAsset],
+        selectedFavoriteAssets: [PHAsset],
         estimatedSpaceSaved: Double
     ) -> some View {
         VStack(spacing: 22) {
             VStack(spacing: 16) {
-                Image(systemName: dataManager.deleteCandidates.isEmpty ? "checkmark.circle.fill" : "trash.circle.fill")
+                Image(systemName: selectedDeleteAssets.isEmpty ? "checkmark.circle.fill" : "trash.circle.fill")
                     .font(.system(size: 54, weight: .medium))
-                    .foregroundColor(dataManager.deleteCandidates.isEmpty ? PhotoDeleteStyle.positive : PhotoDeleteStyle.destructive)
+                    .foregroundColor(selectedDeleteAssets.isEmpty ? PhotoDeleteStyle.positive : PhotoDeleteStyle.destructive)
 
                 Text(L10n.string("确认清理"))
                     .font(.system(size: 24, weight: .semibold))
                     .foregroundColor(PhotoDeleteStyle.primaryText)
 
                 VStack(spacing: 8) {
-                    if !dataManager.deleteCandidates.isEmpty {
-                        Text(L10n.string("删除 \(dataManager.deleteCandidates.count) 张照片"))
+                    if !deleteAssets.isEmpty {
+                        Text(L10n.string("删除 \(selectedDeleteAssets.count) 张照片"))
                             .font(.system(size: 16, weight: .regular))
                             .foregroundColor(PhotoDeleteStyle.destructive)
 
-                        Text(L10n.string("预计节省 \(CleanupStatsFormatter.space(estimatedSpaceSaved))"))
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(PhotoDeleteStyle.positive)
+                        if selectedDeleteAssets.isEmpty {
+                            Text(L10n.string("未勾选的项目不会执行。"))
+                                .font(.system(size: 14, weight: .regular))
+                                .foregroundColor(PhotoDeleteStyle.secondaryText)
+                        } else {
+                            Text(L10n.string("预计节省 \(CleanupStatsFormatter.space(estimatedSpaceSaved))"))
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(PhotoDeleteStyle.positive)
+                        }
                     }
 
-                    if !dataManager.favoriteCandidates.isEmpty {
-                        Text(L10n.string("收藏 \(dataManager.favoriteCandidates.count) 张照片"))
+                    if !favoriteAssets.isEmpty {
+                        Text(L10n.string("收藏 \(selectedFavoriteAssets.count) 张照片"))
                             .font(.system(size: 16, weight: .regular))
                             .foregroundColor(PhotoDeleteStyle.iconTint(for: "favorite"))
                     }
@@ -2984,6 +3298,14 @@ struct BatchConfirmView: View {
                             .padding(.top, 8)
                     }
                 }
+
+                if hasPendingOperations {
+                    Label(L10n.string("默认已勾选，取消勾选后不会执行。"), systemImage: "checkmark.circle.fill")
+                        .font(.system(size: 13, weight: .regular))
+                        .foregroundColor(PhotoDeleteStyle.secondaryText)
+                        .multilineTextAlignment(.center)
+                        .labelStyle(.titleAndIcon)
+                }
             }
 
             if hasPendingOperations {
@@ -2993,12 +3315,15 @@ struct BatchConfirmView: View {
                             CandidatePreviewSection(
                                 title: L10n.string("将删除"),
                                 assets: deleteAssets,
+                                selectedCount: selectedDeleteAssets.count,
+                                selectedAssetIDs: selectedDeleteIDs,
                                 color: PhotoDeleteStyle.destructive,
                                 icon: "trash.fill",
                                 photoLibraryManager: dataManager.photoLibraryManager,
-                                removeAccessibilityLabel: L10n.string("取消删除这张照片"),
+                                selectAccessibilityLabel: L10n.string("勾选这张照片"),
+                                deselectAccessibilityLabel: L10n.string("取消勾选这张照片"),
                                 onPreview: { previewAsset = CandidatePreviewAsset(asset: $0) },
-                                onRemove: { dataManager.removeFromDeleteCandidates($0) }
+                                onToggleSelection: toggleDeleteSelection
                             )
                         }
 
@@ -3006,12 +3331,15 @@ struct BatchConfirmView: View {
                             CandidatePreviewSection(
                                 title: L10n.string("将收藏"),
                                 assets: favoriteAssets,
+                                selectedCount: selectedFavoriteAssets.count,
+                                selectedAssetIDs: selectedFavoriteIDs,
                                 color: PhotoDeleteStyle.iconTint(for: "favorite"),
                                 icon: "heart.fill",
                                 photoLibraryManager: dataManager.photoLibraryManager,
-                                removeAccessibilityLabel: L10n.string("取消收藏这张照片"),
+                                selectAccessibilityLabel: L10n.string("勾选这张照片"),
+                                deselectAccessibilityLabel: L10n.string("取消勾选这张照片"),
                                 onPreview: { previewAsset = CandidatePreviewAsset(asset: $0) },
-                                onRemove: { dataManager.removeFromFavoriteCandidates($0) }
+                                onToggleSelection: toggleFavoriteSelection
                             )
                         }
                     }
@@ -3026,7 +3354,7 @@ struct BatchConfirmView: View {
                     Text(isProcessing ? L10n.string("正在执行...") : L10n.string("确认执行"))
                 }
                 .photoDeletePrimaryButton()
-                .disabled(isProcessing || !hasPendingOperations)
+                .disabled(isProcessing || !hasSelectedOperations)
 
                 Button(action: cancelOperations) {
                     Text(L10n.string("取消操作"))
@@ -3042,17 +3370,23 @@ struct BatchConfirmView: View {
     }
 
     private func executeBatchOperations() {
-        guard hasPendingOperations else {
+        let deletedAssets = sortedAssets(Array(dataManager.deleteCandidates))
+            .filter { selectedDeleteIDs.contains($0.localIdentifier) }
+        let favoriteAssets = sortedAssets(Array(dataManager.favoriteCandidates))
+            .filter { selectedFavoriteIDs.contains($0.localIdentifier) }
+
+        guard !deletedAssets.isEmpty || !favoriteAssets.isEmpty else {
             dismiss()
             return
         }
 
         isProcessing = true
         errorMessage = nil
-        let deletedAssets = Array(dataManager.deleteCandidates)
-        let favoriteAssets = Array(dataManager.favoriteCandidates)
         let estimatedSpaceSaved = deletedAssets.reduce(0) { $0 + dataManager.estimatedSizeMB(for: $1) }
-        dataManager.executeBatchOperations { success, error, celebration in
+        dataManager.executeBatchOperations(
+            deleteAssets: deletedAssets,
+            favoriteAssets: favoriteAssets
+        ) { success, error, celebration in
             DispatchQueue.main.async {
                 isProcessing = false
                 if success {
@@ -3075,6 +3409,31 @@ struct BatchConfirmView: View {
                     errorMessage = error?.localizedDescription ?? L10n.string("操作失败，请稍后重试。")
                 }
             }
+        }
+    }
+
+    private func selectAllPendingCandidates() {
+        selectedDeleteIDs = Set(dataManager.deleteCandidates.map(\.localIdentifier))
+        selectedFavoriteIDs = Set(dataManager.favoriteCandidates.map(\.localIdentifier))
+    }
+
+    private func toggleDeleteSelection(_ asset: PHAsset) {
+        HapticManager.impact(.light)
+        let id = asset.localIdentifier
+        if selectedDeleteIDs.contains(id) {
+            selectedDeleteIDs.remove(id)
+        } else {
+            selectedDeleteIDs.insert(id)
+        }
+    }
+
+    private func toggleFavoriteSelection(_ asset: PHAsset) {
+        HapticManager.impact(.light)
+        let id = asset.localIdentifier
+        if selectedFavoriteIDs.contains(id) {
+            selectedFavoriteIDs.remove(id)
+        } else {
+            selectedFavoriteIDs.insert(id)
         }
     }
 
@@ -3454,12 +3813,15 @@ private struct BatchCleanupCompletionView: View {
 private struct CandidatePreviewSection: View {
     let title: String
     let assets: [PHAsset]
+    let selectedCount: Int
+    let selectedAssetIDs: Set<String>
     let color: Color
     let icon: String
     let photoLibraryManager: PhotoLibraryManager
-    let removeAccessibilityLabel: String
+    let selectAccessibilityLabel: String
+    let deselectAccessibilityLabel: String
     let onPreview: (PHAsset) -> Void
-    let onRemove: (PHAsset) -> Void
+    let onToggleSelection: (PHAsset) -> Void
 
     private let columns = [
         GridItem(.adaptive(minimum: 64, maximum: 76), spacing: 8)
@@ -3472,7 +3834,7 @@ private struct CandidatePreviewSection: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(color)
 
-                Text(L10n.string("\(title) \(assets.count) 张"))
+                Text(L10n.string("\(title) \(selectedCount) 张"))
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(PhotoDeleteStyle.primaryText)
 
@@ -3486,9 +3848,11 @@ private struct CandidatePreviewSection: View {
                         photoLibraryManager: photoLibraryManager,
                         badgeColor: color,
                         badgeIcon: icon,
-                        removeAccessibilityLabel: removeAccessibilityLabel,
+                        isSelected: selectedAssetIDs.contains(asset.localIdentifier),
+                        selectAccessibilityLabel: selectAccessibilityLabel,
+                        deselectAccessibilityLabel: deselectAccessibilityLabel,
                         onPreview: { onPreview(asset) },
-                        onRemove: { onRemove(asset) }
+                        onToggleSelection: { onToggleSelection(asset) }
                     )
                 }
             }
@@ -3510,9 +3874,11 @@ private struct CandidateThumbnailView: View {
     let photoLibraryManager: PhotoLibraryManager
     let badgeColor: Color
     let badgeIcon: String
-    let removeAccessibilityLabel: String
+    let isSelected: Bool
+    let selectAccessibilityLabel: String
+    let deselectAccessibilityLabel: String
     let onPreview: () -> Void
-    let onRemove: () -> Void
+    let onToggleSelection: () -> Void
 
     @State private var image: UIImage?
     @State private var isLoading = true
@@ -3533,22 +3899,25 @@ private struct CandidateThumbnailView: View {
                 .font(.system(size: 9, weight: .bold))
                 .foregroundColor(.white)
                 .frame(width: 20, height: 20)
-                .background(Circle().fill(badgeColor))
+                .background(Circle().fill(isSelected ? badgeColor : PhotoDeleteStyle.tertiaryText))
                 .overlay(Circle().stroke(PhotoDeleteStyle.background.opacity(0.8), lineWidth: 1.5))
                 .offset(x: -53, y: -53)
 
-            Button(action: onRemove) {
-                Label(removeAccessibilityLabel, systemImage: "xmark")
+            Button(action: onToggleSelection) {
+                Label(
+                    isSelected ? deselectAccessibilityLabel : selectAccessibilityLabel,
+                    systemImage: isSelected ? "checkmark.circle.fill" : "circle"
+                )
                     .labelStyle(.iconOnly)
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(.white)
-                    .frame(width: 24, height: 24)
-                    .background(Circle().fill(PhotoDeleteStyle.background.opacity(0.9)))
-                    .overlay(Circle().stroke(PhotoDeleteStyle.primaryText.opacity(0.18), lineWidth: 1))
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(isSelected ? PhotoDeleteStyle.positive : PhotoDeleteStyle.tertiaryText)
+                    .frame(width: 28, height: 28)
+                    .background(Circle().fill(PhotoDeleteStyle.background.opacity(0.92)))
+                    .overlay(Circle().stroke(PhotoDeleteStyle.primaryText.opacity(isSelected ? 0.18 : 0.12), lineWidth: 1))
                     .photoDeleteMinimumTapTarget()
             }
             .buttonStyle(.plain)
-            .accessibilityHint(L10n.string("从本次批量操作中移除"))
+            .accessibilityHint(L10n.string("取消勾选后不会执行这项操作"))
             .offset(x: 3, y: 3)
         }
         .frame(width: 76, height: 76)
@@ -3565,6 +3934,8 @@ private struct CandidateThumbnailView: View {
             Image(uiImage: image)
                 .resizable()
                 .scaledToFill()
+                .saturation(isSelected ? 1 : 0.18)
+                .opacity(isSelected ? 1 : 0.42)
         } else {
             Rectangle()
                 .fill(PhotoDeleteStyle.elevatedSurface)

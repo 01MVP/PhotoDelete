@@ -323,6 +323,7 @@ enum AppConstants {
     static let upSwipeActionKey = "photoDeleteUpSwipeAction"
     static let gestureDefaultMigrationKey = "photoDeleteGestureDefaultMigration"
     static let reviewModeKey = "photoDeleteReviewMode"
+    static let hasSeenReviewModeHintKey = "photoDeleteHasSeenReviewModeHint"
     static let reviewProgressByScopeKey = "photoDeleteReviewProgressByScope"
     static let appAppearanceKey = "photoDeleteAppAppearance"
     static let supporterProductID = "com.01mvp.photodelete.supporter.stats"

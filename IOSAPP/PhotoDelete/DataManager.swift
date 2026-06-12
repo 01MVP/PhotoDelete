@@ -273,7 +273,24 @@ class DataManager: ObservableObject {
     func executeBatchOperations(
         completion: @escaping (Bool, Error?, CleanupCelebration?) -> Void
     ) {
-        guard !deleteCandidates.isEmpty || !favoriteCandidates.isEmpty else {
+        executeBatchOperations(
+            deleteAssets: Array(deleteCandidates),
+            favoriteAssets: Array(favoriteCandidates),
+            completion: completion
+        )
+    }
+
+    func executeBatchOperations(
+        deleteAssets selectedDeleteAssets: [PHAsset],
+        favoriteAssets selectedFavoriteAssets: [PHAsset],
+        completion: @escaping (Bool, Error?, CleanupCelebration?) -> Void
+    ) {
+        let selectedDeleteIDs = Set(selectedDeleteAssets.map(\.localIdentifier))
+        let selectedFavoriteIDs = Set(selectedFavoriteAssets.map(\.localIdentifier))
+        let committedDeleteCandidates = deleteCandidates.filter { selectedDeleteIDs.contains($0.localIdentifier) }
+        let committedFavoriteCandidates = favoriteCandidates.filter { selectedFavoriteIDs.contains($0.localIdentifier) }
+
+        guard !committedDeleteCandidates.isEmpty || !committedFavoriteCandidates.isEmpty else {
             completion(true, nil, nil)
             return
         }
@@ -290,14 +307,14 @@ class DataManager: ObservableObject {
         // 保存操作前的状态用于回滚
         let originalDeleteCandidates = deleteCandidates
         let originalFavoriteCandidates = favoriteCandidates
-        let estimatedSpaceSaved = originalDeleteCandidates.reduce(0) { partial, asset in
+        let estimatedSpaceSaved = committedDeleteCandidates.reduce(0) { partial, asset in
             partial + estimatedAssetSizeMB(asset)
         }
 
         nextLibraryDataRefreshDelay = 0.65
         photoLibraryManager.commitBatchChanges(
-            deleteAssets: Array(originalDeleteCandidates),
-            favoriteAssets: Array(originalFavoriteCandidates)
+            deleteAssets: Array(committedDeleteCandidates),
+            favoriteAssets: Array(committedFavoriteCandidates)
         ) { success, error in
             guard success else {
                 self.nextLibraryDataRefreshDelay = nil
@@ -315,23 +332,23 @@ class DataManager: ObservableObject {
 
             // 操作成功后先做本地增量更新，避免重新跑整库索引。
             self.photoLibraryManager.applyCommittedBatchChanges(
-                deletedAssets: Array(originalDeleteCandidates),
-                favoritedAssets: Array(originalFavoriteCandidates)
+                deletedAssets: Array(committedDeleteCandidates),
+                favoritedAssets: Array(committedFavoriteCandidates)
             )
             let completedAt = Date()
             let newAchievements = self.cleanupStatsStore.recordSession(
-                deletedPhotos: originalDeleteCandidates.count,
-                favoritedPhotos: originalFavoriteCandidates.count,
-                organizedPhotos: originalDeleteCandidates.count + originalFavoriteCandidates.count,
+                deletedPhotos: committedDeleteCandidates.count,
+                favoritedPhotos: committedFavoriteCandidates.count,
+                organizedPhotos: committedDeleteCandidates.count + committedFavoriteCandidates.count,
                 estimatedSpaceSavedMB: estimatedSpaceSaved,
                 date: completedAt
             )
             let summary = self.cleanupStatsStore.summary
             let currentStreakDays = self.cleanupStatsStore.streakDays(referenceDate: completedAt)
             let celebration = CleanupCelebration(
-                deletedPhotos: originalDeleteCandidates.count,
-                favoritedPhotos: originalFavoriteCandidates.count,
-                organizedPhotos: originalDeleteCandidates.count + originalFavoriteCandidates.count,
+                deletedPhotos: committedDeleteCandidates.count,
+                favoritedPhotos: committedFavoriteCandidates.count,
+                organizedPhotos: committedDeleteCandidates.count + committedFavoriteCandidates.count,
                 estimatedSpaceSavedMB: estimatedSpaceSaved,
                 totalDeletedPhotos: summary.deletedPhotos,
                 totalSpaceSavedMB: summary.estimatedSpaceSavedMB,

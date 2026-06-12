@@ -2854,6 +2854,28 @@
         }
       }
     },
+    "勾选这张照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check this photo"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "勾选这张照片"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "勾選這張照片"
+          }
+        }
+      }
+    },
     "加入待删除 %lld 项": {
       "localizations": {
         "en": {
@@ -3006,6 +3028,50 @@
           "stringUnit": {
             "state": "translated",
             "value": "取消操作"
+          }
+        }
+      }
+    },
+    "取消勾选后不会执行这项操作": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unchecked items will not be included in this action."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "取消勾选后不会执行这项操作"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消勾選後不會執行這項操作"
+          }
+        }
+      }
+    },
+    "取消勾选这张照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uncheck this photo"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "取消勾选这张照片"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消勾選這張照片"
           }
         }
       }
@@ -4835,6 +4901,28 @@
         }
       }
     },
+    "当前可能较模糊": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preview may look blurry"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "当前可能较模糊"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目前可能較模糊"
+          }
+        }
+      }
+    },
     "当前所有徽章都已经点亮。": {
       "localizations": {
         "en": {
@@ -5339,6 +5427,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "恢復購買失敗，請稍後再試。"
+          }
+        }
+      }
+    },
+    "默认已勾选，取消勾选后不会执行。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selected by default. Uncheck an item to skip it."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "默认已勾选，取消勾选后不会执行。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "預設已勾選，取消勾選後不會執行。"
           }
         }
       }
@@ -5951,6 +6061,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "按這個月照片繼續整理"
+          }
+        }
+      }
+    },
+    "试试双行布局": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try two-row layout"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "试试双行布局"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "試試雙行版面"
           }
         }
       }
@@ -7071,6 +7203,28 @@
         }
       }
     },
+    "未勾选的项目不会执行。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unchecked items will be skipped."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "未勾选的项目不会执行。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未勾選的項目不會執行。"
+          }
+        }
+      }
+    },
     "本周的照片": {
       "localizations": {
         "en": {
@@ -7556,6 +7710,50 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在讀取照片"
+          }
+        }
+      }
+    },
+    "正在从 iCloud 下载照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Downloading photo from iCloud"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "正在从 iCloud 下载照片"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在從 iCloud 下載照片"
+          }
+        }
+      }
+    },
+    "正在加载高清预览": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading full-quality preview"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "正在加载高清预览"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在載入高畫質預覽"
           }
         }
       }

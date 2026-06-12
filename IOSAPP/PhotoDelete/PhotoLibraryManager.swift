@@ -5,6 +5,14 @@ import PhotosUI
 import SwiftUI
 import UIKit
 
+struct PhotoLibraryImageResult {
+    let image: UIImage?
+    let isDegraded: Bool
+    let isInCloud: Bool
+    let progress: Double?
+    let isFinal: Bool
+}
+
 class PhotoLibraryManager: NSObject, ObservableObject {
     @Published var authorizationStatus: PHAuthorizationStatus = .notDetermined
     @Published var allPhotos: [PHAsset] = []
@@ -478,6 +486,71 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                     return
                 }
                 completion(image)
+            }
+        }
+    }
+
+    @discardableResult
+    func loadSwipePreviewResult(
+        for asset: PHAsset,
+        size: CGSize,
+        completion: @escaping (PhotoLibraryImageResult) -> Void
+    ) -> PHImageRequestID? {
+        let cacheKey = imageCacheKey(for: asset, purpose: "swipe", size: size)
+
+        if let cachedImage = imageCache.object(forKey: cacheKey) {
+            completion(PhotoLibraryImageResult(
+                image: cachedImage,
+                isDegraded: false,
+                isInCloud: false,
+                progress: nil,
+                isFinal: true
+            ))
+            return nil
+        }
+
+        let options = PHImageRequestOptions()
+        options.deliveryMode = .opportunistic
+        options.resizeMode = .exact
+        options.isNetworkAccessAllowed = true
+        options.isSynchronous = false
+        options.progressHandler = { progress, _, _, _ in
+            DispatchQueue.main.async {
+                completion(PhotoLibraryImageResult(
+                    image: nil,
+                    isDegraded: false,
+                    isInCloud: true,
+                    progress: progress,
+                    isFinal: false
+                ))
+            }
+        }
+
+        return imageManager.requestImage(
+            for: asset,
+            targetSize: size,
+            contentMode: .aspectFit,
+            options: options
+        ) { [weak self] image, info in
+            DispatchQueue.main.async {
+                let isCancelled = (info?[PHImageCancelledKey] as? Bool) == true
+                let isInCloud = (info?[PHImageResultIsInCloudKey] as? Bool) == true
+                let isDegraded = (info?[PHImageResultIsDegradedKey] as? Bool) == true
+                let error = info?[PHImageErrorKey] as? Error
+                guard !isCancelled else { return }
+
+                if let image {
+                    self?.cacheImage(image, forKey: cacheKey, isDegraded: isDegraded)
+                }
+
+                let isWaitingForCloudDownload = image == nil && isInCloud && error == nil
+                completion(PhotoLibraryImageResult(
+                    image: image,
+                    isDegraded: isDegraded,
+                    isInCloud: isInCloud,
+                    progress: nil,
+                    isFinal: !isDegraded && !isWaitingForCloudDownload
+                ))
             }
         }
     }
