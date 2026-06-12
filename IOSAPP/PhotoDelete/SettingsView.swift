@@ -38,18 +38,11 @@ struct SettingsView: View {
 
                 ScrollView {
                     VStack(spacing: PhotoDeleteStyle.sectionSpacing) {
-                        // 顶部标题
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(L10n.string("设置"))
-                                .font(.system(size: 34, weight: .bold))
-                                .foregroundColor(PhotoDeleteStyle.primaryText)
-
-                            Text(L10n.string("个人设置与偏好"))
-                                .font(.system(size: 16, weight: .regular))
-                                .foregroundColor(PhotoDeleteStyle.secondaryText)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.top, 44)
+                        Text(L10n.string("个人设置与偏好"))
+                            .font(.subheadline)
+                            .foregroundStyle(PhotoDeleteStyle.secondaryText)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.top, 12)
 
                         // 使用统计
                         statsSection
@@ -80,8 +73,9 @@ struct SettingsView: View {
                     settingsToastView(settingsToast)
                 }
             }
+            .navigationTitle(L10n.string("设置"))
+            .navigationBarTitleDisplayMode(.large)
         }
-        .toolbar(.hidden, for: .navigationBar)
         .sheet(item: $activeSheet) { sheet in
             switch sheet {
             case .mail:
@@ -110,18 +104,6 @@ struct SettingsView: View {
                 AppearanceSettingsView()
             }
         }
-        .confirmationDialog(
-            L10n.string("清空本机整理记录？"),
-            isPresented: $showingClearLocalDataConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button(L10n.string("清空"), role: .destructive) {
-                clearLocalOrganizeData()
-            }
-            Button(L10n.string("取消"), role: .cancel) {}
-        } message: {
-            Text(L10n.string("待删除、待收藏和已整理进度会被清空，不会删除照片库中的任何照片。"))
-        }
     }
 
     // MARK: - 使用统计
@@ -131,8 +113,7 @@ struct SettingsView: View {
         return VStack(spacing: 16) {
             HStack {
                 Text(L10n.string("使用统计"))
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.primaryText)
+                    .photoDeleteSectionHeading()
                 Spacer()
             }
 
@@ -181,8 +162,7 @@ struct SettingsView: View {
         VStack(spacing: 16) {
             HStack {
                 Text(L10n.string("购买与恢复"))
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.primaryText)
+                    .photoDeleteSectionHeading()
                 Spacer()
             }
 
@@ -206,8 +186,7 @@ struct SettingsView: View {
         VStack(spacing: 16) {
             HStack {
                 Text(L10n.string("关于与支持"))
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.primaryText)
+                    .photoDeleteSectionHeading()
                 Spacer()
             }
 
@@ -281,8 +260,7 @@ struct SettingsView: View {
         VStack(spacing: 16) {
             HStack {
                 Text(L10n.string("偏好设置"))
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.primaryText)
+                    .photoDeleteSectionHeading()
                 Spacer()
             }
 
@@ -346,8 +324,7 @@ struct SettingsView: View {
         VStack(spacing: 16) {
             HStack {
                 Text(L10n.string("数据与权限"))
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.primaryText)
+                    .photoDeleteSectionHeading()
                 Spacer()
             }
 
@@ -362,6 +339,18 @@ struct SettingsView: View {
                         showingClearLocalDataConfirmation = true
                     }
                 )
+                .confirmationDialog(
+                    L10n.string("清空本机整理记录？"),
+                    isPresented: $showingClearLocalDataConfirmation,
+                    titleVisibility: .visible
+                ) {
+                    Button(L10n.string("清空"), role: .destructive) {
+                        clearLocalOrganizeData()
+                    }
+                    Button(L10n.string("取消"), role: .cancel) {}
+                } message: {
+                    Text(L10n.string("待删除、待收藏和已整理进度会被清空，不会删除照片库中的任何照片。"))
+                }
 
                 Divider()
                     .background(PhotoDeleteStyle.hairline)
@@ -663,14 +652,14 @@ struct StatCard: View {
     var body: some View {
         VStack(spacing: 8) {
             Text(value)
-                .font(.system(size: 20, weight: .bold))
-                .foregroundColor(color)
+                .font(.headline)
+                .bold()
+                .foregroundStyle(color)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
 
             Text(label)
-                .font(.system(size: 12, weight: .regular))
-                .foregroundColor(PhotoDeleteStyle.secondaryText)
+                .photoDeleteSecondaryLabel(.caption)
         }
         .frame(maxWidth: .infinity)
     }
@@ -683,19 +672,17 @@ private struct SettingsStorageSummaryRow: View {
         VStack(spacing: 10) {
             HStack(spacing: 10) {
                 Image(systemName: "internaldrive")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.accent)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(PhotoDeleteStyle.accent)
                     .frame(width: 22)
 
                 Text(L10n.string("手机存储空间"))
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.primaryText)
+                    .photoDeletePrimaryLabel(.body.weight(.semibold))
 
                 Spacer()
 
                 Text("\(Int(storage.usedFraction * 100))%")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                    .photoDeleteSecondaryLabel(.subheadline.weight(.semibold))
             }
 
             ProgressView(value: storage.usedFraction)
@@ -707,8 +694,8 @@ private struct SettingsStorageSummaryRow: View {
                 Spacer()
                 Text(L10n.string("可用 \(storage.formattedFree)"))
             }
-            .font(.system(size: 12, weight: .medium))
-            .foregroundColor(PhotoDeleteStyle.tertiaryText)
+            .font(.caption)
+            .foregroundStyle(PhotoDeleteStyle.tertiaryText)
         }
     }
 }
@@ -727,28 +714,24 @@ struct SettingRow: View {
             HStack(spacing: 12) {
                 PhotoDeleteIconTile(icon: icon, tint: iconColor)
 
-                Text(title.appLocalized)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(PhotoDeleteStyle.primaryText)
-                    .lineLimit(1)
-                    .layoutPriority(1)
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 12) {
+                        titleLabel
+                        Spacer(minLength: 8)
+                        subtitleLabel
+                    }
 
-                Spacer(minLength: 12)
-
-                if !subtitle.isEmpty {
-                    Text(subtitle.appLocalized)
-                        .font(.system(size: 15, weight: .regular))
-                        .foregroundColor(PhotoDeleteStyle.secondaryText)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.84)
-                        .multilineTextAlignment(.trailing)
-                        .truncationMode(.tail)
+                    VStack(alignment: .leading, spacing: 3) {
+                        titleLabel
+                        subtitleLabel
+                    }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 if showsChevron {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(PhotoDeleteStyle.tertiaryText)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(PhotoDeleteStyle.tertiaryText)
                 }
             }
             .padding(.horizontal, 14)
@@ -762,6 +745,24 @@ struct SettingRow: View {
         .accessibilityLabel(Text(title.appLocalized))
         .accessibilityValue(Text(subtitle.appLocalized))
     }
+
+    private var titleLabel: some View {
+        Text(title.appLocalized)
+            .photoDeletePrimaryLabel()
+            .lineLimit(1)
+    }
+
+    @ViewBuilder
+    private var subtitleLabel: some View {
+        if !subtitle.isEmpty {
+            Text(subtitle.appLocalized)
+                .photoDeleteSecondaryLabel()
+                .lineLimit(1)
+                .minimumScaleFactor(0.84)
+                .multilineTextAlignment(.trailing)
+                .truncationMode(.tail)
+        }
+    }
 }
 
 struct SettingToggleRow: View {
@@ -772,29 +773,26 @@ struct SettingToggleRow: View {
     @Binding var isOn: Bool
 
     var body: some View {
-        HStack(spacing: 12) {
-            PhotoDeleteIconTile(icon: icon, tint: iconColor)
+        Toggle(isOn: $isOn) {
+            HStack(spacing: 12) {
+                PhotoDeleteIconTile(icon: icon, tint: iconColor)
 
-            Text(title.appLocalized)
-                .font(.system(size: 16, weight: .medium))
-                .foregroundColor(PhotoDeleteStyle.primaryText)
-                .lineLimit(1)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title.appLocalized)
+                        .photoDeletePrimaryLabel()
+                        .lineLimit(1)
 
-            Spacer()
-
-            Toggle(isOn: $isOn) {
-                EmptyView()
+                    Text(subtitle.appLocalized)
+                        .photoDeleteSecondaryLabel(.caption)
+                        .lineLimit(2)
+                }
             }
-                .labelsHidden()
-                .tint(PhotoDeleteStyle.accent)
-                .accessibilityLabel(Text(title.appLocalized))
-                .accessibilityHint(Text(subtitle.appLocalized))
         }
+        .tint(PhotoDeleteStyle.accent)
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .frame(minHeight: PhotoDeleteStyle.rowMinHeight)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
     }
 }
 
@@ -1008,6 +1006,8 @@ private struct GesturePresetButton: View {
         }
         .buttonStyle(.plain)
         .accessibilityHint(Text(preset.subtitle.appLocalized))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityValue(Text(isSelected ? L10n.string("已选") : L10n.string("未选择")))
     }
 }
 
@@ -1058,6 +1058,7 @@ private struct GestureActionPickerRow: View {
                                 .stroke(PhotoDeleteStyle.hairline, lineWidth: 1)
                         )
                     )
+                .photoDeleteMinimumTapTarget()
             }
             .accessibilityHint(Text(selectedAction.detailTitle.appLocalized))
         }
@@ -1110,6 +1111,8 @@ private struct LanguageSettingsView: View {
                                 }
                                 .buttonStyle(.plain)
                                 .accessibilityHint(Text(language.detail))
+                                .accessibilityAddTraits(selectedLanguage == language ? .isSelected : [])
+                                .accessibilityValue(Text(selectedLanguage == language ? L10n.string("已选") : L10n.string("未选择")))
 
                                 if language != AppLanguage.allCases.last {
                                     Divider()
@@ -1193,6 +1196,8 @@ private struct AppearanceSettingsView: View {
                                 }
                                 .buttonStyle(.plain)
                                 .accessibilityHint(Text(appearance.detail))
+                                .accessibilityAddTraits(selectedAppearance == appearance ? .isSelected : [])
+                                .accessibilityValue(Text(selectedAppearance == appearance ? L10n.string("已选") : L10n.string("未选择")))
 
                                 if appearance != AppAppearance.allCases.last {
                                     Divider()
@@ -1327,6 +1332,7 @@ struct AuthorView: View {
                                             Capsule(style: .continuous)
                                                 .fill(PhotoDeleteStyle.accent)
                                         )
+                                        .photoDeleteMinimumTapTarget()
                                 }
                                 .buttonStyle(.plain)
                                 .accessibilityLabel(String(format: L10n.string("复制微信号 %@"), AppConstants.wechatID))
@@ -1423,43 +1429,42 @@ struct PrivacyInfoView: View {
             ZStack {
                 PhotoDeleteScreenBackground()
 
-                VStack(alignment: .leading, spacing: 18) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(L10n.string("隐私优先"))
-                            .font(.system(size: 28, weight: .semibold))
-                            .foregroundColor(PhotoDeleteStyle.primaryText)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(L10n.string("隐私优先"))
+                                .font(.title.weight(.semibold))
+                                .foregroundStyle(PhotoDeleteStyle.primaryText)
 
-                        Text(AppConstants.privacyShortText)
-                            .font(.system(size: 16, weight: .regular))
-                            .foregroundColor(PhotoDeleteStyle.secondaryText)
-                            .fixedSize(horizontal: false, vertical: true)
+                            Text(AppConstants.privacyShortText)
+                                .photoDeleteSecondaryLabel(.body)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        VStack(spacing: 12) {
+                            PrivacyInfoRow(
+                                icon: "iphone",
+                                title: L10n.string("本机整理"),
+                                detail: L10n.string("预览、待确认列表和删除确认都保存在你的设备上。")
+                            )
+
+                            PrivacyInfoRow(
+                                icon: "icloud.slash",
+                                title: L10n.string("不上传照片"),
+                                detail: L10n.string("删图不接入自己的云端服务，也不会把照片发到服务器。")
+                            )
+
+                            PrivacyInfoRow(
+                                icon: "person.crop.circle.badge.xmark",
+                                title: L10n.string("不需要账号"),
+                                detail: L10n.string("授权照片后即可使用，不需要注册或登录。")
+                            )
+                        }
                     }
-
-                    VStack(spacing: 12) {
-                        PrivacyInfoRow(
-                            icon: "iphone",
-                            title: L10n.string("本机整理"),
-                            detail: L10n.string("预览、待确认列表和删除确认都保存在你的设备上。")
-                        )
-
-                        PrivacyInfoRow(
-                            icon: "icloud.slash",
-                            title: L10n.string("不上传照片"),
-                            detail: L10n.string("删图不接入自己的云端服务，也不会把照片发到服务器。")
-                        )
-
-                        PrivacyInfoRow(
-                            icon: "person.crop.circle.badge.xmark",
-                            title: L10n.string("不需要账号"),
-                            detail: L10n.string("授权照片后即可使用，不需要注册或登录。")
-                        )
-                    }
-
-                    Spacer()
+                    .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
+                    .padding(.top, 20)
+                    .padding(.bottom, 24)
                 }
-                .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
-                .padding(.top, 20)
-                .padding(.bottom, 24)
             }
             .navigationTitle(L10n.string("隐私"))
             .navigationBarTitleDisplayMode(.inline)
@@ -1493,12 +1498,10 @@ struct PrivacyInfoRow: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.primaryText)
+                    .photoDeletePrimaryLabel(.body.weight(.semibold))
 
                 Text(detail)
-                    .font(.system(size: 14, weight: .regular))
-                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                    .photoDeleteSecondaryLabel(.subheadline)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -1518,44 +1521,42 @@ struct AboutView: View {
             ZStack {
                 PhotoDeleteScreenBackground()
 
-                VStack(spacing: 32) {
-                    // App图标
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 24)
-                            .fill(PhotoDeleteStyle.surface)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 24)
-                                    .stroke(PhotoDeleteStyle.hairline, lineWidth: 1)
-                            )
-                            .frame(width: 120, height: 120)
+                ScrollView {
+                    VStack(spacing: 32) {
+                        // App图标
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 24)
+                                .fill(PhotoDeleteStyle.surface)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 24)
+                                        .stroke(PhotoDeleteStyle.hairline, lineWidth: 1)
+                                )
+                                .frame(width: 120, height: 120)
 
-                        Image(systemName: "photo.on.rectangle.angled")
-                            .font(.system(size: 48, weight: .medium))
-                            .foregroundColor(PhotoDeleteStyle.accent)
+                            Image(systemName: "photo.on.rectangle.angled")
+                                .font(.system(size: 48, weight: .medium))
+                                .foregroundColor(PhotoDeleteStyle.accent)
+                        }
+
+                        // App信息
+                        VStack(spacing: 16) {
+                            Text(AppConstants.appDisplayName)
+                                .font(.largeTitle.weight(.bold))
+                                .foregroundStyle(PhotoDeleteStyle.primaryText)
+
+                            Text(L10n.string("版本 \(AppConstants.displayVersion)"))
+                                .photoDeleteSecondaryLabel(.body)
+
+                            Text(L10n.string("一个免费的相册整理工具。滑动判断照片去留，完成后再统一确认。"))
+                                .photoDeleteSecondaryLabel(.body)
+                                .multilineTextAlignment(.center)
+                                .lineLimit(nil)
+                        }
                     }
-
-                    // App信息
-                    VStack(spacing: 16) {
-                        Text(AppConstants.appDisplayName)
-                            .font(.system(size: 32, weight: .bold, design: .rounded))
-                            .foregroundColor(PhotoDeleteStyle.primaryText)
-
-                        Text(L10n.string("版本 \(AppConstants.displayVersion)"))
-                            .font(.system(size: 16, weight: .regular))
-                            .foregroundColor(PhotoDeleteStyle.secondaryText)
-
-                        Text(L10n.string("一个免费的相册整理工具。滑动判断照片去留，完成后再统一确认。"))
-                            .font(.system(size: 16, weight: .regular))
-                            .foregroundColor(PhotoDeleteStyle.secondaryText)
-                            .multilineTextAlignment(.center)
-                            .lineLimit(nil)
-                    }
-
-                    Spacer()
+                    .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
+                    .padding(.top, 52)
+                    .padding(.bottom, 32)
                 }
-                .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
-                .padding(.top, 52)
-                .padding(.bottom, 32)
             }
             .navigationTitle(L10n.string("关于"))
             .navigationBarTitleDisplayMode(.inline)

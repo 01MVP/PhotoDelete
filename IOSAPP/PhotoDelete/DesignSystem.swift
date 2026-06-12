@@ -224,7 +224,7 @@ struct PhotoDeletePrimaryButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 16, weight: .semibold))
+            .font(.body.weight(.semibold))
             .foregroundColor(PhotoDeleteStyle.primaryButtonText)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 15)
@@ -243,7 +243,7 @@ struct PhotoDeleteSecondaryButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 16, weight: .semibold))
+            .font(.body.weight(.semibold))
             .foregroundColor(PhotoDeleteStyle.primaryText)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 15)
@@ -265,6 +265,21 @@ extension View {
     func photoDeleteMinimumTapTarget(_ size: CGFloat = 44) -> some View {
         frame(minWidth: size, minHeight: size)
             .contentShape(Rectangle())
+    }
+
+    func photoDeleteSectionHeading() -> some View {
+        font(.headline)
+            .foregroundStyle(PhotoDeleteStyle.primaryText)
+    }
+
+    func photoDeletePrimaryLabel(_ font: Font = .body) -> some View {
+        self.font(font)
+            .foregroundStyle(PhotoDeleteStyle.primaryText)
+    }
+
+    func photoDeleteSecondaryLabel(_ font: Font = .subheadline) -> some View {
+        self.font(font)
+            .foregroundStyle(PhotoDeleteStyle.secondaryText)
     }
 }
 

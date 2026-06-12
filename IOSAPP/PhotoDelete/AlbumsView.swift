@@ -28,7 +28,6 @@ struct AlbumsView: View {
     @State private var sortMode: AlbumSortMode = .custom
     @State private var editMode: EditMode = .inactive
     @State private var pendingAlbumToDelete: PHAssetCollection?
-    @State private var showingDeleteAlbumConfirmation = false
     @State private var albumToast: PhotoDeleteToast?
     @State private var albumProgressByID: [String: AlbumProgressSnapshot] = [:]
     @State private var albumProgressGeneration = 0
@@ -73,7 +72,14 @@ struct AlbumsView: View {
         }
         .confirmationDialog(
             L10n.string("删除这个相册？"),
-            isPresented: $showingDeleteAlbumConfirmation,
+            isPresented: Binding(
+                get: { pendingAlbumToDelete != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        pendingAlbumToDelete = nil
+                    }
+                }
+            ),
             titleVisibility: .visible
         ) {
             Button(L10n.string("删除相册"), role: .destructive) {
@@ -121,6 +127,20 @@ struct AlbumsView: View {
             Spacer()
 
             if dataManager.photoLibraryManager.hasPhotoLibraryAccess {
+                Button {
+                    showSearch()
+                } label: {
+                    Label(L10n.string("搜索相册"), systemImage: "magnifyingglass")
+                        .labelStyle(.iconOnly)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(PhotoDeleteStyle.primaryText)
+                        .frame(width: 42, height: 42)
+                        .background(Circle().fill(PhotoDeleteStyle.elevatedSurface))
+                        .photoDeleteMinimumTapTarget()
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(L10n.string("搜索相册"))
+
                 Menu {
                     Picker(L10n.string("排序"), selection: $sortMode) {
                         ForEach(AlbumSortMode.allCases) { mode in
@@ -142,6 +162,7 @@ struct AlbumsView: View {
                         .foregroundColor(PhotoDeleteStyle.primaryText)
                         .frame(width: 42, height: 42)
                         .background(Circle().fill(PhotoDeleteStyle.elevatedSurface))
+                        .photoDeleteMinimumTapTarget()
                 }
                 .menuStyle(.button)
                 .accessibilityLabel(L10n.string("排序"))
@@ -156,6 +177,7 @@ struct AlbumsView: View {
                         .foregroundColor(PhotoDeleteStyle.primaryButtonText)
                         .frame(width: 42, height: 42)
                         .background(Circle().fill(PhotoDeleteStyle.accent))
+                        .photoDeleteMinimumTapTarget()
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(L10n.string("创建相册"))
@@ -246,6 +268,7 @@ struct AlbumsView: View {
                 Image(systemName: "xmark.circle.fill")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(PhotoDeleteStyle.tertiaryText)
+                    .photoDeleteMinimumTapTarget()
             }
             .buttonStyle(.plain)
             .accessibilityLabel(L10n.string("关闭搜索"))
@@ -299,19 +322,30 @@ struct AlbumsView: View {
     }
 
     private var emptyRow: some View {
-        VStack(spacing: 18) {
-            Image(systemName: searchText.isEmpty ? "photo.stack" : "magnifyingglass")
-                .font(.system(size: 44, weight: .medium))
-                .foregroundColor(PhotoDeleteStyle.secondaryText)
+        Group {
+            if #available(iOS 17.0, *) {
+                ContentUnavailableView(
+                    emptyTitle,
+                    systemImage: searchText.isEmpty ? "photo.stack" : "magnifyingglass",
+                    description: Text(emptyMessage)
+                )
+                .foregroundStyle(PhotoDeleteStyle.secondaryText)
+            } else {
+                VStack(spacing: 18) {
+                    Image(systemName: searchText.isEmpty ? "photo.stack" : "magnifyingglass")
+                        .font(.system(size: 44, weight: .medium))
+                        .foregroundColor(PhotoDeleteStyle.secondaryText)
 
-            VStack(spacing: 6) {
-                Text(searchText.isEmpty ? L10n.string("还没有相册") : L10n.string("没有找到相册"))
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.primaryText)
+                    VStack(spacing: 6) {
+                        Text(emptyTitle)
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(PhotoDeleteStyle.primaryText)
 
-                Text(searchText.isEmpty ? L10n.string("可以点右上角加号创建一个新相册。") : L10n.string("换个关键词试试。"))
-                    .font(.system(size: 14, weight: .regular))
-                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                        Text(emptyMessage)
+                            .font(.system(size: 14, weight: .regular))
+                            .foregroundColor(PhotoDeleteStyle.secondaryText)
+                    }
+                }
             }
         }
         .frame(maxWidth: .infinity)
@@ -319,6 +353,14 @@ struct AlbumsView: View {
         .listRowInsets(EdgeInsets(top: 0, leading: PhotoDeleteStyle.screenHorizontalPadding, bottom: 0, trailing: PhotoDeleteStyle.screenHorizontalPadding))
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
+    }
+
+    private var emptyTitle: String {
+        searchText.isEmpty ? L10n.string("还没有相册") : L10n.string("没有找到相册")
+    }
+
+    private var emptyMessage: String {
+        searchText.isEmpty ? L10n.string("可以点右上角加号创建一个新相册。") : L10n.string("换个关键词试试。")
     }
 
     private func albumRow(_ albumInfo: AlbumInfo, allowsActions: Bool) -> some View {
@@ -340,7 +382,7 @@ struct AlbumsView: View {
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             if let editableAlbum {
                 Button(role: .destructive) {
-                    confirmDeleteAlbum(editableAlbum)
+                    pendingAlbumToDelete = editableAlbum
                 } label: {
                     Label(L10n.string("删除"), systemImage: "trash")
                 }
@@ -559,12 +601,6 @@ struct AlbumsView: View {
             return nil
         }
         return collection
-    }
-
-    private func confirmDeleteAlbum(_ album: PHAssetCollection) {
-        guard album.assetCollectionType == .album else { return }
-        pendingAlbumToDelete = album
-        showingDeleteAlbumConfirmation = true
     }
 
     private func deleteAlbum(_ album: PHAssetCollection) {

@@ -4677,6 +4677,50 @@
         }
       }
     },
+    "保留首张，选择其余": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep first, select rest"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "保留首张，选择其余"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保留首張，選擇其餘"
+          }
+        }
+      }
+    },
+    "选择除首张外的相似照片，稍后统一确认删除。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select similar photos except the first one, then confirm deletion later."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "选择除首张外的相似照片，稍后统一确认删除。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇首張以外的相似照片，稍後再統一確認刪除。"
+          }
+        }
+      }
+    },
     "建议选择": {
       "localizations": {
         "en": {

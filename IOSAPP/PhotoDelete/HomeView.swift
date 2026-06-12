@@ -185,6 +185,7 @@ struct HomeView: View {
                         .foregroundColor(PhotoDeleteStyle.accent)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
+                        .photoDeleteMinimumTapTarget()
                 }
                 .buttonStyle(.plain)
                 .background(
@@ -589,6 +590,7 @@ struct ScanningSwipeGlyph: View {
                 .offset(x: 76, y: 28)
         }
         .frame(height: 108)
+        .accessibilityHidden(true)
         .onAppear {
             guard !reduceMotion else {
                 animate = true

@@ -114,6 +114,7 @@ struct AdvancedView: View {
                     }
                     .opacity(isLocked ? 0.42 : 1)
                     .allowsHitTesting(!isLocked)
+                    .accessibilityHidden(isLocked)
 
                     Spacer()
                         .frame(height: isLocked ? 220 : 96)
@@ -121,7 +122,6 @@ struct AdvancedView: View {
                 .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
                 .padding(.top, 44)
             }
-            .scrollIndicators(.hidden)
 
             if isLocked {
                 AdvancedBottomPaywall(
@@ -640,22 +640,32 @@ private struct AdvancedPeriodChip: View {
     let isSelected: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            AdvancedProgressRing(progress: summary.progress, size: 34, lineWidth: 4) {
-                EmptyView()
+        ZStack(alignment: .topTrailing) {
+            VStack(alignment: .leading, spacing: 8) {
+                AdvancedProgressRing(progress: summary.progress, size: 34, lineWidth: 4) {
+                    EmptyView()
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(AdvancedPeriodFormatter.chipTitle(for: summary))
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(PhotoDeleteStyle.primaryText)
+                        .lineLimit(1)
+
+                    Text(L10n.string("\(summary.assetCount) 项 · \(Int(summary.progress * 100))%"))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(PhotoDeleteStyle.secondaryText)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.68)
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(AdvancedPeriodFormatter.chipTitle(for: summary))
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.primaryText)
-                    .lineLimit(1)
-
-                Text(L10n.string("\(summary.assetCount) 项 · \(Int(summary.progress * 100))%"))
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(PhotoDeleteStyle.secondaryText)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.68)
+            if isSelected {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.accent)
+                    .accessibilityHidden(true)
             }
         }
         .frame(width: 94, alignment: .leading)
@@ -668,6 +678,9 @@ private struct AdvancedPeriodChip: View {
                         .stroke(isSelected ? PhotoDeleteStyle.accent.opacity(0.65) : PhotoDeleteStyle.hairline, lineWidth: 1)
                 )
         )
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityValue(Text(isSelected ? L10n.string("已选") : L10n.string("未选择")))
     }
 }
 
@@ -902,7 +915,6 @@ private struct AdvancedPeriodListView: View {
                 }
                 .padding(PhotoDeleteStyle.screenHorizontalPadding)
             }
-            .scrollIndicators(.hidden)
         }
         .advancedDetailNavigation(title: L10n.string("时间进度"))
     }
@@ -997,7 +1009,6 @@ private struct AdvancedAssetListView: View {
                 }
                 .padding(PhotoDeleteStyle.screenHorizontalPadding)
             }
-            .scrollIndicators(.hidden)
 
             if !selectedAssetIDs.isEmpty {
                 AdvancedSelectionActionBar(
@@ -1149,7 +1160,6 @@ private struct AdvancedSimilarPhotoGroupsView: View {
                 }
                 .padding(24)
             }
-            .scrollIndicators(.hidden)
 
             if !selectedAssetIDs.isEmpty {
                 AdvancedSelectionActionBar(
@@ -1249,17 +1259,21 @@ private struct AdvancedSimilarPhotoGroupCard: View {
                 Spacer()
 
                 Button(action: onSelectRecommended) {
-                    Text(L10n.string("建议保留 1 张"))
+                    Text(L10n.string("保留首张，选择其余"))
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(PhotoDeleteStyle.positive)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 6)
                         .background(
                             Capsule(style: .continuous)
                                 .fill(PhotoDeleteStyle.positive.opacity(0.14))
                         )
+                        .photoDeleteMinimumTapTarget()
                 }
                 .buttonStyle(.plain)
+                .accessibilityHint(Text(L10n.string("选择除首张外的相似照片，稍后统一确认删除。")))
             }
 
             ScrollView(.horizontal) {
@@ -1385,7 +1399,8 @@ private struct AdvancedAssetRow: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(isSelected ? L10n.string("取消选择") : L10n.string("选择"))
-            .accessibilityValue("\(title), \(metadata)")
+            .accessibilityValue(Text("\(isSelected ? L10n.string("已选") : L10n.string("未选择")), \(title), \(metadata)"))
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
         }
         .padding(10)
         .photoDeleteCard()
@@ -1422,6 +1437,8 @@ private struct AdvancedSelectableThumbnail: View {
                     .photoDeleteMinimumTapTarget()
             }
             .buttonStyle(.plain)
+            .accessibilityValue(Text(isSelected ? L10n.string("已选") : L10n.string("未选择")))
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
 
             if showsRecommendedBadge {
                 Text(L10n.string("保留"))
