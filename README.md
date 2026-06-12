@@ -113,8 +113,7 @@ BUILD_NUMBER=202606111630 scripts/release-testflight.sh
 | `IOSAPP/PhotoDeleteUITests/` | XCTest UI smoke tests |
 | `IOSAPP/Config/PhotoDelete-Info.plist` | 权限、Bundle、方向等 Info.plist 配置 |
 | `site/` | 官网和隐私政策静态站点 |
-| `Marketing/PhotoDeleteCampaign/` | App Store 截图、宣传素材、HyperFrames 项目 |
-| `Prototype/` / `WebPrototypes/` | 早期 HTML 交互原型和视觉探索 |
+| `Marketing/PhotoDeleteCampaign/` | App Store 截图、宣传文案和截图生成素材 |
 | `scripts/` | 模拟器解析和 TestFlight 发布脚本 |
 
 ### 核心模块
@@ -231,8 +230,7 @@ The website and privacy policy live in `site/` and deploy to Cloudflare Pages at
 | `IOSAPP/PhotoDeleteUITests/` | XCTest UI smoke tests |
 | `IOSAPP/Config/PhotoDelete-Info.plist` | Permissions, bundle metadata, orientations |
 | `site/` | Static website and privacy policy |
-| `Marketing/PhotoDeleteCampaign/` | App Store screenshots, promo assets, HyperFrames campaign |
-| `Prototype/` / `WebPrototypes/` | Earlier HTML prototypes and visual explorations |
+| `Marketing/PhotoDeleteCampaign/` | App Store screenshots, promo copy, and screenshot generation assets |
 | `scripts/` | Simulator resolver and TestFlight release script |
 
 ### Architecture

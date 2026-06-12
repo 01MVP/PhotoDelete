@@ -123,12 +123,11 @@ BUILD_NUMBER=202606111630 scripts/release-testflight.sh
 - `SettingsSupportDetailViews.swift`: Creator/01MVP support sections used by Settings.
 - `SupporterView.swift`: Supporter paywall, unlocked long-term stats, monthly summaries, history, badge, and theme selection.
 
-### Website, Marketing, And Prototypes
+### Website And Marketing
 
 - `site/`: Static website and privacy policy. Deploys to Cloudflare Pages through `.github/workflows/deploy-site.yml`.
-- `Marketing/PhotoDeleteCampaign/`: App Store screenshots, actual iOS screenshots, promo copy, HyperFrames campaign, and generated assets.
+- `Marketing/PhotoDeleteCampaign/`: App Store screenshots, actual iOS screenshots, promo copy, and screenshot generation assets.
 - `Marketing/PhotoDeleteCampaign/actual-ios-screenshots-v4/`: Preferred source for current real-app UI screenshots. Do not use older concept art as primary UI evidence when real screenshots are needed.
-- `Prototype/` and `WebPrototypes/`: Historical HTML prototypes and visual explorations. Do not treat them as the source of truth for current app behavior.
 
 ## Photo Management Workflow
 
@@ -164,6 +163,7 @@ BUILD_NUMBER=202606111630 scripts/release-testflight.sh
 ## Development Guidelines
 
 - Prefer existing SwiftUI patterns and shared UI from `DesignSystem.swift`.
+- For native SwiftUI UI, navigation, accessibility, and iOS 26 Liquid Glass rules, use `IOSAPP/UI_GUIDELINES.md` as the source of truth.
 - Keep photo-library mutations behind `DataManager` and `PhotoLibraryManager`; do not write Photos changes directly from random views.
 - Keep user-visible strings localized. If adding text, update `Localizable.xcstrings` for Simplified Chinese, Traditional Chinese, and English.
 - Keep advanced/supporter-only behavior behind `PurchaseManager.isSupporter`. Locked advanced screens should remain demo/preview only.
@@ -173,6 +173,5 @@ BUILD_NUMBER=202606111630 scripts/release-testflight.sh
 ## Debugging References
 
 - `IOSAPP/DEBUGGING_GUIDE.md`: Photos setup, simulator vs real device notes, permission and performance debugging.
-- `DEVELOPMENT_GUIDE.md`: Broader local development notes.
-- `INFO_PLIST_GUIDE.md`: Info.plist explanation.
+- `IOSAPP/Config/PhotoDelete-Info.plist`: Source of truth for photo-library permission usage descriptions.
 - `RELEASE_CHECKLIST.md`: App Store/TestFlight readiness checklist.
