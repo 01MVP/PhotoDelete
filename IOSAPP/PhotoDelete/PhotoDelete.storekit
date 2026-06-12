@@ -1,0 +1,39 @@
+{
+  "identifier": "5C5B35C1-D638-4E2E-9A88-1557D0F76214",
+  "nonRenewingSubscriptions": [],
+  "products": [
+    {
+      "displayPrice": "9.90",
+      "familyShareable": false,
+      "internalID": "84162C1D-9E1A-4CF6-9DE3-8EEA70798D2A",
+      "localizations": [
+        {
+          "description": "永久解锁长期统计和支持者功能。基础清理功能始终免费，无广告，无订阅。",
+          "displayName": "删图支持者版",
+          "locale": "zh-Hans"
+        },
+        {
+          "description": "Unlock long-term cleanup stats and supporter features. Core cleanup stays free.",
+          "displayName": "Photo Delete Supporter",
+          "locale": "en-US"
+        }
+      ],
+      "productID": "com.01mvp.photodelete.supporter.stats",
+      "referenceName": "Photo Delete Supporter",
+      "type": "NonConsumable"
+    }
+  ],
+  "settings": {
+    "_applicationInternalID": "0",
+    "_askToBuyEnabled": false,
+    "_billingGracePeriodEnabled": false,
+    "_failTransactionsEnabled": false,
+    "_locale": "zh_CN",
+    "_storefront": "CHN"
+  },
+  "subscriptionGroups": [],
+  "version": {
+    "major": 4,
+    "minor": 0
+  }
+}

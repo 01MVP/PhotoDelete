@@ -4,14 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-PhotoDel is an iOS app for photo organization and deletion with intuitive swipe gestures. The app features a dark theme design and real Photos library integration.
+PhotoDelete is an iOS app for photo organization and deletion with intuitive swipe gestures. The app features a dark theme design and real Photos library integration.
 
 ## Development Commands
 
 ### Building and Running
 ```bash
 cd IOSAPP
-open PhotoDel.xcodeproj
+open PhotoDelete.xcodeproj
 # Build and run through Xcode interface
 # Target: iOS 15.0+
 ```
@@ -20,7 +20,7 @@ open PhotoDel.xcodeproj
 ```bash
 cd IOSAPP
 rm -rf DerivedData
-xcodebuild clean -project PhotoDel.xcodeproj -scheme PhotoDel
+xcodebuild clean -project PhotoDelete.xcodeproj -scheme PhotoDelete
 ```
 
 ### Testing Options
@@ -37,7 +37,7 @@ xcodebuild clean -project PhotoDel.xcodeproj -scheme PhotoDel
 - `PhotoLibraryManager.swift`: Photos framework integration with authorization and CRUD operations
 
 **View Layer:**
-- `PhotoDelApp.swift`: App entry point with dark mode configuration
+- `PhotoDeleteApp.swift`: App entry point with dark mode configuration
 - `ContentView.swift` + `MainTabView.swift`: Navigation structure
 - `SplashView.swift`: Loading and permissions
 - `HomeView.swift`: Photo categories and time groups with progress indicators

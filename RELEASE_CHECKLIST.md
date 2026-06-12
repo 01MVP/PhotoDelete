@@ -1,4 +1,4 @@
-# PhotoDel Release Checklist
+# PhotoDelete Release Checklist
 
 ## Ready
 
@@ -6,7 +6,7 @@
 - UI direction: iPhone portrait and landscape are supported with separate layouts for the home and swipe screens.
 - Privacy positioning: app copy says no account is required and photos are not uploaded.
 - App icon: generated app icons have no alpha channel.
-- Website: `photodel.01mvp.com` is deployed through Cloudflare Pages.
+- Website: `photodelete.01mvp.com` is deployed through Cloudflare Pages.
 - Automation: `scripts/release-testflight.sh` archives and uploads TestFlight builds.
 
 ## Before App Store Release

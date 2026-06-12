@@ -6,7 +6,7 @@ from PIL import Image, ImageDraw
 
 
 ROOT = Path(__file__).resolve().parent
-ICON_DIR = ROOT / "PhotoDel" / "Assets.xcassets" / "AppIcon.appiconset"
+ICON_DIR = ROOT / "PhotoDelete" / "Assets.xcassets" / "AppIcon.appiconset"
 SITE_ICON = ROOT.parent / "site" / "assets" / "app-icon.png"
 
 

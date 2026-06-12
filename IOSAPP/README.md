@@ -1,4 +1,4 @@
-# PhotoDel iOS App
+# PhotoDelete iOS App
 
 一款专注于照片整理和删除的iOS应用，通过直观的滑动手势帮助用户快速清理手机中的照片。
 
@@ -26,10 +26,10 @@
 ### 📂 文件结构
 
 ```
-IOSAPP/PhotoDel/
+IOSAPP/PhotoDelete/
 ├── Models.swift              # 数据模型
 ├── DataManager.swift         # 数据管理器
-├── PhotoDelApp.swift         # 应用入口
+├── PhotoDeleteApp.swift         # 应用入口
 ├── ContentView.swift         # 主视图
 ├── MainTabView.swift         # 主导航
 ├── HomeView.swift            # 主页面
@@ -139,4 +139,4 @@ IOSAPP/PhotoDel/
 
 ## 许可证
 
-Copyright © 2025 PhotoDel Team. All rights reserved.
+Copyright © 2025 PhotoDelete Team. All rights reserved.

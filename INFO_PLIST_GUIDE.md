@@ -4,11 +4,11 @@
 
 `Info.plist`（Information Property List）是 iOS 应用程序的核心配置文件，它告诉系统关于你的应用程序的重要信息。这个文件对于每个 iOS 应用都是必需的。
 
-## 在 PhotoDel 项目中的位置
+## 在 PhotoDelete 项目中的位置
 
 在我们的项目中，`Info.plist` 文件通常位于：
 ```
-IOSAPP/Config/PhotoDel-Info.plist
+IOSAPP/Config/PhotoDelete-Info.plist
 ```
 
 **注意**：在较新版本的 Xcode 中，`Info.plist` 的一些设置可能会被集成到项目的 Target 设置中，但文件本身仍然存在。
@@ -16,20 +16,20 @@ IOSAPP/Config/PhotoDel-Info.plist
 ## Info.plist 的主要作用
 
 ### 1. 应用基本信息
-- **Bundle Identifier**：应用的唯一标识符（如 `com.01MVP.PhotoDel`）
+- **Bundle Identifier**：应用的唯一标识符（如 `com.01mvp.photodelete`）
 - **应用名称**：在设备上显示的应用名称
 - **版本号**：应用的版本信息
 - **最低系统要求**：应用支持的最低 iOS 版本
 
 ### 2. 权限声明
-对于 PhotoDel 这样需要访问照片库的应用，`Info.plist` 必须包含权限说明：
+对于 PhotoDelete 这样需要访问照片库的应用，`Info.plist` 必须包含权限说明：
 
 ```xml
 <key>NSPhotoLibraryUsageDescription</key>
-<string>PhotoDel需要访问您的照片库来帮助您整理和管理照片。我们不会上传或分享您的照片。</string>
+<string>PhotoDelete需要访问您的照片库来帮助您整理和管理照片。我们不会上传或分享您的照片。</string>
 
 <key>NSPhotoLibraryAddUsageDescription</key>
-<string>PhotoDel需要权限来把照片加入您选择的相册。</string>
+<string>PhotoDelete需要权限来把照片加入您选择的相册。</string>
 ```
 
 ### 3. 应用图标和启动画面
@@ -42,26 +42,26 @@ IOSAPP/Config/PhotoDel-Info.plist
 ### 5. URL Schemes（如果需要）
 - 自定义 URL 协议支持
 
-## PhotoDel 项目中的关键配置
+## PhotoDelete 项目中的关键配置
 
 ### 必需的权限声明
 ```xml
 <!-- 访问照片库权限 -->
 <key>NSPhotoLibraryUsageDescription</key>
-<string>PhotoDel需要访问您的照片库来帮助您整理和管理照片。我们不会上传或分享您的照片。</string>
+<string>PhotoDelete需要访问您的照片库来帮助您整理和管理照片。我们不会上传或分享您的照片。</string>
 
 <!-- 添加照片到照片库权限 -->
 <key>NSPhotoLibraryAddUsageDescription</key>
-<string>PhotoDel需要权限来把照片加入您选择的相册。</string>
+<string>PhotoDelete需要权限来把照片加入您选择的相册。</string>
 ```
 
 ### 应用基本信息
 ```xml
 <key>CFBundleDisplayName</key>
-<string>PhotoDel</string>
+<string>PhotoDelete</string>
 
 <key>CFBundleIdentifier</key>
-<string>com.01MVP.PhotoDel</string>
+<string>com.01mvp.photodelete</string>
 
 <key>CFBundleVersion</key>
 <string>$(CURRENT_PROJECT_VERSION)</string>
@@ -124,6 +124,6 @@ A: 不可以，`Info.plist` 是只读的，只能在开发时修改。
 
 ## 总结
 
-`Info.plist` 是 iOS 应用的"身份证"，它包含了系统需要了解的关于应用的所有重要信息。对于 PhotoDel 这样的照片管理应用，正确配置权限说明尤其重要，这直接影响用户体验和应用的正常功能。
+`Info.plist` 是 iOS 应用的"身份证"，它包含了系统需要了解的关于应用的所有重要信息。对于 PhotoDelete 这样的照片管理应用，正确配置权限说明尤其重要，这直接影响用户体验和应用的正常功能。
 
 虽然现代 Xcode 项目中的一些设置可能通过图形界面配置，但了解 `Info.plist` 的结构和作用对于 iOS 开发者来说仍然是必要的。

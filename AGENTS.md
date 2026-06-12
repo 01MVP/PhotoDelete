@@ -4,14 +4,14 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 ## Project Overview
 
-PhotoDel is an iOS app for photo organization and deletion with intuitive swipe gestures. The app features a dark theme design and real Photos library integration.
+PhotoDelete is an iOS app for photo organization and deletion with intuitive swipe gestures. The app features a dark theme design and real Photos library integration.
 
 ## Development Commands
 
 ### Building and Running
 ```bash
 cd IOSAPP
-open PhotoDel.xcodeproj
+open PhotoDelete.xcodeproj
 # Build and run through Xcode interface
 # Target: iOS 16.0+
 ```
@@ -24,7 +24,7 @@ open PhotoDel.xcodeproj
 ### Project Cleanup
 ```bash
 rm -rf IOSAPP/DerivedData
-xcodebuild clean -project IOSAPP/PhotoDel.xcodeproj -scheme PhotoDel
+xcodebuild clean -project IOSAPP/PhotoDelete.xcodeproj -scheme PhotoDelete
 ```
 
 ### Testing Options
@@ -41,7 +41,7 @@ xcodebuild clean -project IOSAPP/PhotoDel.xcodeproj -scheme PhotoDel
 - `PhotoLibraryManager.swift`: Photos framework integration with authorization and CRUD operations
 
 **View Layer:**
-- `PhotoDelApp.swift`: App entry point with dark mode configuration
+- `PhotoDeleteApp.swift`: App entry point with dark mode configuration
 - `ContentView.swift` + `MainTabView.swift`: Navigation structure
 - `HomeView.swift`: Photo categories and time groups with progress indicators
 - `SwipePhotoView.swift`: Core swipe gesture interface
@@ -81,9 +81,9 @@ All real deletions and favorites are queued and executed via `executeBatchOperat
 ### Permissions Required
 ```xml
 <key>NSPhotoLibraryUsageDescription</key>
-<string>PhotoDel需要访问您的照片库来帮助您整理和管理照片。我们不会上传或分享您的照片。</string>
+<string>PhotoDelete需要访问您的照片库来帮助您整理和管理照片。我们不会上传或分享您的照片。</string>
 <key>NSPhotoLibraryAddUsageDescription</key>
-<string>PhotoDel需要权限来把照片加入您选择的相册。</string>
+<string>PhotoDelete需要权限来把照片加入您选择的相册。</string>
 ```
 
 ### Authorization States

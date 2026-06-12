@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://photodel.01mvp.com/sitemap.xml
+Sitemap: https://photodelete.01mvp.com/sitemap.xml

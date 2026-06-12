@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="IOSAPP/PhotoDel/Assets.xcassets/AppIcon.appiconset/Icon-1024.png" width="120" alt="PhotoDel App Icon" />
+  <img src="IOSAPP/PhotoDelete/Assets.xcassets/AppIcon.appiconset/Icon-1024.png" width="120" alt="PhotoDelete App Icon" />
 </p>
 
-<h1 align="center">PhotoDel</h1>
+<h1 align="center">PhotoDelete</h1>
 
 <p align="center">
   <strong>Free iPhone photo cleanup tool — swipe to organize your library</strong>
@@ -24,7 +24,7 @@
 ## Screenshots
 
 <p align="center">
-  <img src="site/assets/photodel-home.jpg" width="320" alt="PhotoDel Home Screen" />
+  <img src="site/assets/photodelete-home.jpg" width="320" alt="PhotoDelete Home Screen" />
 </p>
 
 <p align="center">
@@ -83,7 +83,7 @@ Create, edit, and delete custom albums. Quick-sort buttons appear in the swipe v
 
 ```bash
 cd IOSAPP
-open PhotoDel.xcodeproj
+open PhotoDelete.xcodeproj
 ```
 
 Select a simulator or device target, then build and run (Cmd+R).
@@ -92,7 +92,7 @@ Select a simulator or device target, then build and run (Cmd+R).
 
 ```bash
 SIMULATOR_DESTINATION="$(scripts/resolve-ios-simulator-destination.sh)"
-xcodebuild -project IOSAPP/PhotoDel.xcodeproj -scheme PhotoDel \
+xcodebuild -project IOSAPP/PhotoDelete.xcodeproj -scheme PhotoDelete \
   -destination "$SIMULATOR_DESTINATION" clean build
 ```
 
@@ -101,8 +101,8 @@ xcodebuild -project IOSAPP/PhotoDel.xcodeproj -scheme PhotoDel \
 ## Architecture
 
 ```
-IOSAPP/PhotoDel/
-├── PhotoDelApp.swift           # App entry point, dark mode config
+IOSAPP/PhotoDelete/
+├── PhotoDeleteApp.swift           # App entry point, dark mode config
 ├── ContentView.swift           # Root view with onboarding flow
 ├── Models.swift                # Core data structures
 ├── DataManager.swift           # Central data management & batch ops
@@ -142,9 +142,9 @@ IOSAPP/PhotoDel/
 
 ## Privacy
 
-PhotoDel processes all photos on-device. The app requests Photos library access to display and organize your images, but never uploads, transmits, or shares your photos with any server.
+PhotoDelete processes all photos on-device. The app requests Photos library access to display and organize your images, but never uploads, transmits, or shares your photos with any server.
 
-See the [Privacy Policy](https://photodel.01mvp.com) for details.
+See the [Privacy Policy](https://photodelete.01mvp.com) for details.
 
 ---
 
@@ -152,7 +152,7 @@ See the [Privacy Policy](https://photodel.01mvp.com) for details.
 
 Part of the [01MVP](https://01mvp.com) project by MakerJackie.
 
-Website: [photodel.01mvp.com](https://photodel.01mvp.com)
+Website: [photodelete.01mvp.com](https://photodelete.01mvp.com)
 
 ---
 

@@ -1,8 +1,8 @@
-# PhotoDel 调试指南
+# PhotoDelete 调试指南
 
 ## 概述
 
-PhotoDel 当前使用 Photos 框架访问真实照片库。模拟器可以导入测试照片，真机可以验证完整照片库、受限照片库和 iCloud 照片等真实场景。
+PhotoDelete 当前使用 Photos 框架访问真实照片库。模拟器可以导入测试照片，真机可以验证完整照片库、受限照片库和 iCloud 照片等真实场景。
 
 ## 调试环境选择
 
@@ -57,13 +57,13 @@ PhotoDel 当前使用 Photos 框架访问真实照片库。模拟器可以导入
 
 #### 步骤1：配置Xcode项目
 ```bash
-cd /Users/jackiexiao/code/01mvp/PhotoDelAPP/IOSAPP
-open PhotoDel.xcodeproj
+cd /Users/jackiexiao/code/01mvp/PhotoDeleteAPP/IOSAPP
+open PhotoDelete.xcodeproj
 ```
 
 #### 步骤2：设置签名
 1. 在Xcode中选择项目根目录
-2. 选择 `PhotoDel` target
+2. 选择 `PhotoDelete` target
 3. 在 `Signing & Capabilities` 中设置Team
 4. 确保Bundle Identifier唯一
 
@@ -83,9 +83,9 @@ open PhotoDel.xcodeproj
 **Info.plist 配置：**
 ```xml
 <key>NSPhotoLibraryUsageDescription</key>
-<string>PhotoDel需要访问您的照片库来帮助您整理和管理照片。我们不会上传或分享您的照片。</string>
+<string>PhotoDelete需要访问您的照片库来帮助您整理和管理照片。我们不会上传或分享您的照片。</string>
 <key>NSPhotoLibraryAddUsageDescription</key>
-<string>PhotoDel需要权限来把照片加入您选择的相册。</string>
+<string>PhotoDelete需要权限来把照片加入您选择的相册。</string>
 ```
 
 **权限请求流程：**
@@ -137,7 +137,7 @@ open PhotoDel.xcodeproj
 # 清理项目
 cd IOSAPP
 rm -rf DerivedData
-xcodebuild clean -project PhotoDel.xcodeproj -scheme PhotoDel
+xcodebuild clean -project PhotoDelete.xcodeproj -scheme PhotoDelete
 ```
 
 **问题：** 签名错误

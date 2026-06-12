@@ -1,17 +1,17 @@
-# PhotoDel iOS 应用开发指南
+# PhotoDelete iOS 应用开发指南
 
 ## 项目结构
 ```
-PhotoDelAPP/
+PhotoDeleteAPP/
 ├── IOSAPP/                    # iOS应用主目录
-│   ├── PhotoDel/             # 应用源代码
-│   │   ├── PhotoDelApp.swift # 应用入口
+│   ├── PhotoDelete/             # 应用源代码
+│   │   ├── PhotoDeleteApp.swift # 应用入口
 │   │   ├── HomeView.swift    # 主页视图
 │   │   ├── SwipePhotoView.swift # 照片整理视图
 │   │   ├── AlbumsView.swift  # 相册管理视图
 │   │   ├── DataManager.swift # 数据管理器
 │   │   └── ...
-│   └── PhotoDel.xcodeproj/   # Xcode项目文件
+│   └── PhotoDelete.xcodeproj/   # Xcode项目文件
 └── Prototype/                # HTML原型
 ```
 
@@ -20,7 +20,7 @@ PhotoDelAPP/
 ### 1. 构建应用
 ```bash
 SIMULATOR_DESTINATION="$(scripts/resolve-ios-simulator-destination.sh)"
-xcodebuild -project IOSAPP/PhotoDel.xcodeproj -scheme PhotoDel \
+xcodebuild -project IOSAPP/PhotoDelete.xcodeproj -scheme PhotoDelete \
   -destination "$SIMULATOR_DESTINATION" \
   -derivedDataPath IOSAPP/DerivedData \
   build
@@ -40,10 +40,10 @@ xcrun simctl boot "$(xcrun simctl list devices available | awk -F '[()]' '/iPhon
 SIMULATOR_NAME="$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ {gsub(/^[[:space:]]+|[[:space:]]+$/, "", $1); print $1; exit}')"
 
 # 安装应用到模拟器
-xcrun simctl install "$SIMULATOR_NAME" IOSAPP/DerivedData/Build/Products/Debug-iphonesimulator/PhotoDel.app
+xcrun simctl install "$SIMULATOR_NAME" IOSAPP/DerivedData/Build/Products/Debug-iphonesimulator/PhotoDelete.app
 
 # 启动应用
-xcrun simctl launch "$SIMULATOR_NAME" com.01MVP.PhotoDel
+xcrun simctl launch "$SIMULATOR_NAME" com.01mvp.photodelete
 
 # 打开模拟器界面
 open -a Simulator
@@ -52,7 +52,7 @@ open -a Simulator
 ### 4. 清理和重置
 ```bash
 # 清理构建缓存
-xcodebuild clean -project IOSAPP/PhotoDel.xcodeproj -scheme PhotoDel
+xcodebuild clean -project IOSAPP/PhotoDelete.xcodeproj -scheme PhotoDelete
 
 # 重置模拟器
 SIMULATOR_NAME="$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ {gsub(/^[[:space:]]+|[[:space:]]+$/, "", $1); print $1; exit}')"
@@ -95,9 +95,9 @@ xcrun simctl erase "$SIMULATOR_NAME"
 ## 关键配置
 
 ### Bundle Identifier
-- 主应用：`com.01MVP.PhotoDel`
-- 测试：`com.01MVP.PhotoDelTests`
-- UI测试：`com.01MVP.PhotoDelUITests`
+- 主应用：`com.01mvp.photodelete`
+- 测试：`com.01mvp.photodelete.tests`
+- UI测试：`com.01mvp.photodelete.uitests`
 
 ### 权限配置
 应用需要以下权限：
@@ -154,7 +154,7 @@ xcrun simctl erase "$SIMULATOR_NAME"
 
 ### 2. 构建发布版本
 ```bash
-xcodebuild -project PhotoDel.xcodeproj -scheme PhotoDel -configuration Release archive
+xcodebuild -project PhotoDelete.xcodeproj -scheme PhotoDelete -configuration Release archive
 ```
 
 ### 3. 提交App Store

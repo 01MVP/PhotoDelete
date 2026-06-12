@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="IOSAPP/PhotoDel/Assets.xcassets/AppIcon.appiconset/Icon-1024.png" width="120" alt="PhotoDel 应用图标" />
+  <img src="IOSAPP/PhotoDelete/Assets.xcassets/AppIcon.appiconset/Icon-1024.png" width="120" alt="PhotoDelete 应用图标" />
 </p>
 
-<h1 align="center">PhotoDel</h1>
+<h1 align="center">PhotoDelete</h1>
 
 <p align="center">
   <strong>免费的 iPhone 相册清理工具 — 左右滑动快速整理照片</strong>
@@ -24,7 +24,7 @@
 ## 产品截图
 
 <p align="center">
-  <img src="site/assets/photodel-home.jpg" width="320" alt="PhotoDel 主页" />
+  <img src="site/assets/photodelete-home.jpg" width="320" alt="PhotoDelete 主页" />
 </p>
 
 <p align="center">
@@ -83,7 +83,7 @@
 
 ```bash
 cd IOSAPP
-open PhotoDel.xcodeproj
+open PhotoDelete.xcodeproj
 ```
 
 选择模拟器或真机目标，然后 Cmd+R 构建运行。
@@ -92,7 +92,7 @@ open PhotoDel.xcodeproj
 
 ```bash
 SIMULATOR_DESTINATION="$(scripts/resolve-ios-simulator-destination.sh)"
-xcodebuild -project IOSAPP/PhotoDel.xcodeproj -scheme PhotoDel \
+xcodebuild -project IOSAPP/PhotoDelete.xcodeproj -scheme PhotoDelete \
   -destination "$SIMULATOR_DESTINATION" clean build
 ```
 
@@ -101,8 +101,8 @@ xcodebuild -project IOSAPP/PhotoDel.xcodeproj -scheme PhotoDel \
 ## 项目架构
 
 ```
-IOSAPP/PhotoDel/
-├── PhotoDelApp.swift           # 应用入口，深色模式配置
+IOSAPP/PhotoDelete/
+├── PhotoDeleteApp.swift           # 应用入口，深色模式配置
 ├── ContentView.swift           # 根视图，含引导流程
 ├── Models.swift                # 核心数据结构
 ├── DataManager.swift           # 数据管理中心与批量操作
@@ -142,9 +142,9 @@ IOSAPP/PhotoDel/
 
 ## 隐私说明
 
-PhotoDel 所有照片处理均在设备本地完成。应用请求照片库访问权限仅用于展示和整理照片，不会上传、传输或与任何服务器共享您的照片。
+PhotoDelete 所有照片处理均在设备本地完成。应用请求照片库访问权限仅用于展示和整理照片，不会上传、传输或与任何服务器共享您的照片。
 
-详情请参阅[隐私政策](https://photodel.01mvp.com)。
+详情请参阅[隐私政策](https://photodelete.01mvp.com)。
 
 ---
 
@@ -152,7 +152,7 @@ PhotoDel 所有照片处理均在设备本地完成。应用请求照片库访�
 
 [01MVP](https://01mvp.com) 项目之一，由 MakerJackie 开发。
 
-官网：[photodel.01mvp.com](https://photodel.01mvp.com)
+官网：[photodelete.01mvp.com](https://photodelete.01mvp.com)
 
 ---
 

@@ -1,0 +1,669 @@
+//
+//  HomeView.swift
+//  PhotoDelete
+//
+//  Created by PhotoDelete Team on 11/7/25.
+//
+
+import SwiftUI
+
+enum SwipeViewDestination: Hashable {
+    case category(PhotoCategory)
+    case timeGroup(String)
+    case album(AlbumInfo)
+
+    static func == (lhs: SwipeViewDestination, rhs: SwipeViewDestination) -> Bool {
+        switch (lhs, rhs) {
+        case (.category(let lhsCategory), .category(let rhsCategory)):
+            return lhsCategory == rhsCategory
+        case (.timeGroup(let lhsTimeGroup), .timeGroup(let rhsTimeGroup)):
+            return lhsTimeGroup == rhsTimeGroup
+        case (.album(let lhsAlbum), .album(let rhsAlbum)):
+            return lhsAlbum.id == rhsAlbum.id
+        default:
+            return false
+        }
+    }
+
+    func hash(into hasher: inout Hasher) {
+        switch self {
+        case .category(let category):
+            hasher.combine("category")
+            hasher.combine(category)
+        case .timeGroup(let timeGroup):
+            hasher.combine("timeGroup")
+            hasher.combine(timeGroup)
+        case .album(let album):
+            hasher.combine("album")
+            hasher.combine(album.id)
+        }
+    }
+}
+
+enum HomeLibraryContentState: Equatable {
+    case needsAuthorization
+    case preparing
+    case available
+    case empty
+
+    static func resolve(
+        hasPhotoLibraryAccess: Bool,
+        isPreparingLibrary: Bool,
+        isLoadingPhotoLibrary: Bool,
+        hasLoadedPhotoLibrary: Bool,
+        totalPhotosCount: Int
+    ) -> HomeLibraryContentState {
+        guard hasPhotoLibraryAccess else { return .needsAuthorization }
+        if isPreparingLibrary { return .preparing }
+        if totalPhotosCount > 0 { return .available }
+        if isLoadingPhotoLibrary || !hasLoadedPhotoLibrary { return .preparing }
+        return .empty
+    }
+}
+
+struct HomeView: View {
+    @EnvironmentObject var dataManager: DataManager
+    @AppStorage(AppConstants.hasSeenIntroKey) private var hasSeenPhotoDeleteIntro = false
+    @State private var navigationPath = NavigationPath()
+
+    var body: some View {
+        NavigationStack(path: $navigationPath) {
+            GeometryReader { geometry in
+                let isLandscape = geometry.size.width > geometry.size.height && geometry.size.width > AppConstants.landscapeBreakpoint
+
+                ZStack {
+                    PhotoDeleteScreenBackground()
+
+                    ScrollView {
+                        homeContent(isLandscape: isLandscape)
+                            .padding(.horizontal, isLandscape ? 32 : PhotoDeleteStyle.screenHorizontalPadding)
+                            .padding(.top, isLandscape ? 18 : 44)
+                            .padding(.bottom, 112)
+                            .frame(maxWidth: isLandscape ? 900 : 520)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+            }
+            .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(for: SwipeViewDestination.self) { destination in
+                switch destination {
+                case .category(let category):
+                    SwipePhotoView(selectedCategory: category, selectedTimeGroup: nil, selectedAlbumInfo: nil)
+                        .environmentObject(dataManager)
+                case .timeGroup(let timeGroup):
+                    SwipePhotoView(selectedCategory: nil, selectedTimeGroup: timeGroup, selectedAlbumInfo: nil)
+                        .environmentObject(dataManager)
+                case .album(let albumInfo):
+                    SwipePhotoView(selectedCategory: nil, selectedTimeGroup: nil, selectedAlbumInfo: albumInfo)
+                        .environmentObject(dataManager)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func homeContent(isLandscape: Bool) -> some View {
+        if libraryContentState != .needsAuthorization {
+            if isLandscape {
+                HStack(alignment: .top, spacing: 22) {
+                    VStack(spacing: 18) {
+                        titleSection
+                        introSection(isCompact: true)
+                        primaryOrganizeSection(isCompact: true)
+                    }
+                    .frame(maxWidth: .infinity)
+
+                    VStack(spacing: 18) {
+                        secondaryEntrySection
+                        timelineSection
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+            } else {
+                VStack(spacing: PhotoDeleteStyle.sectionSpacing) {
+                    titleSection
+                    introSection(isCompact: false)
+                    primaryOrganizeSection(isCompact: false)
+                    secondaryEntrySection
+                    timelineSection
+                }
+            }
+        } else {
+            VStack(spacing: PhotoDeleteStyle.sectionSpacing) {
+                titleSection
+                introSection(isCompact: false)
+                authorizationSection
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func introSection(isCompact: Bool) -> some View {
+        if !hasSeenPhotoDeleteIntro {
+            VStack(alignment: .leading, spacing: isCompact ? 12 : 14) {
+                HStack(alignment: .top, spacing: 12) {
+                    PhotoDeleteIconTile(
+                        icon: "hand.draw",
+                        tint: PhotoDeleteStyle.accent,
+                        size: 28,
+                        cornerRadius: 8
+                    )
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(L10n.string("快速上手"))
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundColor(PhotoDeleteStyle.primaryText)
+
+                        Text(L10n.string("左滑删除，右滑保留，上滑收藏。点完成后再统一确认。"))
+                            .font(.system(size: 14, weight: .regular))
+                            .foregroundColor(PhotoDeleteStyle.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                HStack(alignment: .top, spacing: 12) {
+                    PhotoDeleteIconTile(
+                        icon: "lock.shield",
+                        tint: PhotoDeleteStyle.positive,
+                        size: 28,
+                        cornerRadius: 8
+                    )
+
+                    Text(L10n.string("隐私优先：\(AppConstants.privacyShortText)"))
+                        .font(.system(size: 14, weight: .regular))
+                        .foregroundColor(PhotoDeleteStyle.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        hasSeenPhotoDeleteIntro = true
+                    }
+                } label: {
+                    Text(L10n.string("知道了"))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(PhotoDeleteStyle.accent)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                }
+                .buttonStyle(.plain)
+                .background(
+                    RoundedRectangle(cornerRadius: PhotoDeleteStyle.controlRadius, style: .continuous)
+                        .fill(PhotoDeleteStyle.elevatedSurface)
+                )
+            }
+            .padding(isCompact ? 16 : 18)
+            .photoDeleteCard()
+            .transition(.opacity.combined(with: .move(edge: .top)))
+        }
+    }
+
+    private var isLibraryPreparing: Bool {
+        libraryContentState == .preparing
+    }
+
+    private var libraryContentState: HomeLibraryContentState {
+        HomeLibraryContentState.resolve(
+            hasPhotoLibraryAccess: dataManager.photoLibraryManager.hasPhotoLibraryAccess,
+            isPreparingLibrary: dataManager.isPreparingLibrary,
+            isLoadingPhotoLibrary: dataManager.photoLibraryManager.isLoading,
+            hasLoadedPhotoLibrary: dataManager.photoLibraryManager.hasLoadedPhotoLibrary,
+            totalPhotosCount: dataManager.photoLibraryManager.totalPhotosCount
+        )
+    }
+
+    private var titleSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(AppConstants.appDisplayName)
+                .font(.system(size: 34, weight: .bold))
+                .foregroundColor(PhotoDeleteStyle.primaryText)
+
+            Text(titleSubtitle)
+                .font(.system(size: 15, weight: .regular))
+                .foregroundColor(dataManager.photoLibraryManager.hasPhotoLibraryAccess ? PhotoDeleteStyle.secondaryText : PhotoDeleteStyle.accent)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var titleSubtitle: String {
+        switch libraryContentState {
+        case .needsAuthorization:
+            return L10n.string("需要访问照片库权限")
+        case .preparing:
+            return L10n.string("正在读取照片信息")
+        case .available, .empty:
+            return L10n.string("轻扫判断照片去留")
+        }
+    }
+
+    @ViewBuilder
+    private func primaryOrganizeSection(isCompact: Bool) -> some View {
+        switch libraryContentState {
+        case .preparing:
+            libraryScanningSection
+        case .empty:
+            emptyLibrarySection
+        case .available:
+            startOrganizingSection(isCompact: isCompact)
+        case .needsAuthorization:
+            EmptyView()
+        }
+    }
+
+    // MARK: - 权限授权区域
+    private var authorizationSection: some View {
+        PhotoAuthorizationCard(
+            subtitle: L10n.string("删图需要照片库权限来整理相册。\(AppConstants.privacyShortText)"),
+            onRequestAccess: { dataManager.requestPhotoLibraryAccess() }
+        )
+    }
+
+    // MARK: - 照片库扫描区域
+    private var libraryScanningSection: some View {
+        VStack(spacing: 18) {
+            ScanningSwipeGlyph()
+
+            VStack(spacing: 8) {
+                Text(L10n.string("正在读取照片"))
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.primaryText)
+
+                if dataManager.photoLibraryManager.loadingProgress > 0.01 {
+                    Text(L10n.percent(Int(dataManager.photoLibraryManager.loadingProgress * 100)))
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(PhotoDeleteStyle.secondaryText)
+                }
+
+                Text(L10n.string("准备完成后会自动显示分类和数量。整理过程只在本机完成。"))
+                    .font(.system(size: 15, weight: .regular))
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                    .multilineTextAlignment(.center)
+            }
+
+            if dataManager.photoLibraryManager.loadingProgress > 0.01 {
+                ProgressView(value: dataManager.photoLibraryManager.loadingProgress)
+                    .progressViewStyle(LinearProgressViewStyle(tint: PhotoDeleteStyle.accent))
+                    .frame(maxWidth: .infinity)
+            } else {
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: PhotoDeleteStyle.accent))
+            }
+        }
+        .padding(24)
+        .photoDeleteCard()
+    }
+
+    private var categorySkeletonSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(L10n.string("快速入口"))
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.primaryText)
+                Spacer()
+            }
+            .padding(.horizontal, 2)
+
+            VStack(spacing: 0) {
+                let skeletons: [(String, String)] = [
+                    (PhotoCategory.all.title, "photo.on.rectangle"),
+                    (PhotoCategory.videos.title, "video"),
+                    (PhotoCategory.screenshots.title, "iphone"),
+                    (PhotoCategory.livePhotos.title, "livephoto")
+                ]
+
+                ForEach(Array(skeletons.enumerated()), id: \.offset) { index, item in
+                    CategorySkeletonCard(title: item.0, icon: item.1)
+
+                    if index != skeletons.count - 1 {
+                        Divider()
+                            .background(PhotoDeleteStyle.hairline)
+                            .padding(.leading, 62)
+                    }
+                }
+            }
+            .photoDeleteCard()
+        }
+    }
+
+    // MARK: - 空照片库区域
+    private var emptyLibrarySection: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "photo.on.rectangle.angled")
+                .font(.system(size: 52, weight: .medium))
+                .foregroundColor(PhotoDeleteStyle.secondaryText)
+
+            Text(L10n.string("没有可整理的照片"))
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundColor(PhotoDeleteStyle.primaryText)
+
+            Text(L10n.string("当前授权范围内没有照片。您可以在系统设置里调整删图的照片访问范围。"))
+                .font(.system(size: 15, weight: .regular))
+                .foregroundColor(PhotoDeleteStyle.secondaryText)
+                .multilineTextAlignment(.center)
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity)
+        .photoDeleteCard()
+    }
+
+    // MARK: - 主整理入口
+    private func startOrganizingSection(isCompact: Bool) -> some View {
+        VStack(alignment: .leading, spacing: isCompact ? 16 : 18) {
+            HStack(alignment: .top, spacing: 14) {
+                PhotoDeleteIconTile(
+                    icon: "photo.on.rectangle.angled",
+                    tint: PhotoDeleteStyle.accent,
+                    size: isCompact ? 42 : 48,
+                    cornerRadius: 13,
+                    filled: false
+                )
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(L10n.string("开始整理照片"))
+                        .font(.system(size: isCompact ? 21 : 24, weight: .semibold))
+                        .foregroundColor(PhotoDeleteStyle.primaryText)
+
+                    Text(L10n.string("滑动整理照片，完成前不会真正删除。手势可在设置里调整。"))
+                        .font(.system(size: 15, weight: .regular))
+                        .foregroundColor(PhotoDeleteStyle.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Button {
+                navigationPath.append(SwipeViewDestination.category(.all))
+            } label: {
+                HStack(spacing: 9) {
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 15, weight: .semibold))
+                    Text(L10n.string("整理全部照片"))
+                }
+            }
+            .photoDeletePrimaryButton()
+
+            primarySummaryRow(isCompact: isCompact)
+        }
+        .padding(isCompact ? 18 : 20)
+        .photoDeleteCard()
+    }
+
+    private func primarySummaryRow(isCompact: Bool) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "checklist.checked")
+                .font(.system(size: isCompact ? 13 : 14, weight: .semibold))
+                .foregroundColor(PhotoDeleteStyle.accent)
+                .frame(width: 26, height: 26)
+                .background(Circle().fill(PhotoDeleteStyle.accent.opacity(0.12)))
+
+            Text(primarySummaryText)
+                .font(.system(size: isCompact ? 13 : 14, weight: .medium))
+                .foregroundColor(PhotoDeleteStyle.secondaryText)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, isCompact ? 9 : 11)
+        .background(
+            RoundedRectangle(cornerRadius: PhotoDeleteStyle.controlRadius, style: .continuous)
+                .fill(PhotoDeleteStyle.elevatedSurface)
+        )
+    }
+
+    // MARK: - 快速入口区域
+    @ViewBuilder
+    private var secondaryEntrySection: some View {
+        if isLibraryPreparing {
+            categorySkeletonSection
+        } else {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text(L10n.string("快速入口"))
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundColor(PhotoDeleteStyle.primaryText)
+                    Spacer()
+                }
+                .padding(.horizontal, 2)
+
+                VStack(spacing: 0) {
+                    ForEach(Array(PhotoCategory.allCases.enumerated()), id: \.element.rawValue) { index, category in
+                        HomeEntryRow(
+                            icon: category.icon,
+                            title: category.title,
+                            detail: getPhotoCountDetail(for: category),
+                            tint: iconTint(for: category)
+                        ) {
+                            navigationPath.append(SwipeViewDestination.category(category))
+                        }
+
+                        if index != PhotoCategory.allCases.count - 1 {
+                            Divider()
+                                .background(PhotoDeleteStyle.hairline)
+                                .padding(.leading, 62)
+                        }
+                    }
+                }
+                .photoDeleteCard()
+            }
+        }
+    }
+
+    // MARK: - 时间线浏览区域
+    @ViewBuilder
+    private var timelineSection: some View {
+        if !isLibraryPreparing && !dataManager.timeGroups.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text(L10n.string("按时间整理"))
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundColor(PhotoDeleteStyle.primaryText)
+                    Spacer()
+                }
+                .padding(.horizontal, 2)
+
+                VStack(spacing: 0) {
+                    ForEach(Array(dataManager.timeGroups.enumerated()), id: \.element.id) { index, timeGroupInfo in
+                        HomeEntryRow(
+                            icon: timeGroupInfo.timeGroup.icon,
+                            title: timeGroupInfo.timeGroup.title,
+                            detail: L10n.shortPhotoCount(timeGroupInfo.photosCount),
+                            tint: PhotoDeleteStyle.accent
+                        ) {
+                            navigationPath.append(SwipeViewDestination.timeGroup(timeGroupInfo.timeGroup.rawValue))
+                        }
+
+                        if index != dataManager.timeGroups.count - 1 {
+                            Divider()
+                                .background(PhotoDeleteStyle.hairline)
+                                .padding(.leading, 62)
+                        }
+                    }
+                }
+                .photoDeleteCard()
+            }
+        }
+    }
+
+    // MARK: - 辅助方法
+    private func getPhotoCount(for category: PhotoCategory) -> Int {
+        switch category {
+        case .all:
+            return dataManager.photoLibraryManager.totalPhotosCount
+        case .videos:
+            return dataManager.photoLibraryManager.videosCount
+        case .screenshots:
+            return dataManager.photoLibraryManager.screenshotsCount
+        case .livePhotos:
+            return dataManager.photoLibraryManager.livePhotosCount
+        case .favorites:
+            return dataManager.photoLibraryManager.favoritesCount
+        }
+    }
+
+    private var primarySummaryText: String {
+        if dataManager.photoLibraryManager.totalPhotosCount == 0 && dataManager.photoLibraryManager.isLoading {
+            return L10n.string("正在读取照片信息 \(libraryLoadingProgressText) · 可先进入整理")
+        }
+        return L10n.string("\(dataManager.photoLibraryManager.totalPhotosCount) 张可整理 · 删除前会再次确认")
+    }
+
+    private func getPhotoCountDetail(for category: PhotoCategory) -> String {
+        let count = getPhotoCount(for: category)
+        if count == 0 && dataManager.photoLibraryManager.isLoading {
+            return L10n.string("读取中 \(libraryLoadingProgressText)")
+        }
+        return L10n.shortPhotoCount(count)
+    }
+
+    private func iconTint(for category: PhotoCategory) -> Color {
+        switch category {
+        case .videos:
+            return PhotoDeleteStyle.iconTint(for: "video")
+        case .screenshots:
+            return PhotoDeleteStyle.iconTint(for: "screenshot")
+        case .livePhotos:
+            return PhotoDeleteStyle.iconTint(for: "livephoto")
+        case .favorites:
+            return PhotoDeleteStyle.iconTint(for: "favorite")
+        case .all:
+            return PhotoDeleteStyle.accent
+        }
+    }
+
+    private var libraryLoadingProgressText: String {
+        let progress = min(max(dataManager.photoLibraryManager.loadingProgress, 0), 1)
+        guard progress > 0.01 else { return "..." }
+        return L10n.percent(Int(progress * 100))
+    }
+
+}
+
+// MARK: - 首页组件
+struct HomeEntryRow: View {
+    let icon: String
+    let title: String
+    let detail: String
+    let tint: Color
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 12) {
+                PhotoDeleteIconTile(icon: icon, tint: tint)
+
+                Text(title.appLocalized)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(PhotoDeleteStyle.primaryText)
+                    .lineLimit(1)
+
+                Spacer()
+
+                Text(detail.appLocalized)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                    .lineLimit(1)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.tertiaryText)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .frame(minHeight: PhotoDeleteStyle.rowMinHeight)
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+    }
+}
+
+// MARK: - 扫描态组件
+struct ScanningSwipeGlyph: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var animate = false
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(PhotoDeleteStyle.elevatedSurface)
+                .frame(width: 132, height: 92)
+                .rotationEffect(.degrees(animate ? 5 : 1))
+                .offset(x: animate ? 20 : 14, y: -3)
+
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.white.opacity(0.9))
+                .frame(width: 132, height: 92)
+                .overlay(
+                    VStack(alignment: .leading, spacing: 10) {
+                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                            .fill(Color.black.opacity(0.16))
+                            .frame(width: 58, height: 8)
+
+                        Spacer()
+
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(Color.black.opacity(0.12))
+                            .frame(width: 82, height: 10)
+                    }
+                    .padding(16)
+                )
+                .rotationEffect(.degrees(animate ? -5 : -1))
+                .offset(x: animate ? -18 : -8)
+
+            Image(systemName: "arrow.left")
+                .font(.system(size: 17, weight: .bold))
+                .foregroundColor(PhotoDeleteStyle.accent)
+                .offset(x: -70, y: 4)
+
+            Image(systemName: "trash")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(PhotoDeleteStyle.destructive)
+                .offset(x: 76, y: 28)
+        }
+        .frame(height: 108)
+        .onAppear {
+            guard !reduceMotion else {
+                animate = true
+                return
+            }
+            withAnimation(.easeInOut(duration: 1.35).repeatForever(autoreverses: true)) {
+                animate = true
+            }
+        }
+    }
+}
+
+struct CategorySkeletonCard: View {
+    let title: String
+    let icon: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            PhotoDeleteIconTile(icon: icon, tint: PhotoDeleteStyle.secondaryText, filled: false)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title.appLocalized)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.primaryText)
+
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .fill(PhotoDeleteStyle.elevatedSurface)
+                    .frame(width: 54, height: 6)
+            }
+
+            Spacer()
+
+            Text(L10n.string("准备中"))
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(PhotoDeleteStyle.tertiaryText)
+        }
+        .padding(14)
+        .frame(minHeight: PhotoDeleteStyle.rowMinHeight)
+    }
+}
+
+#Preview {
+    HomeView()
+        .environmentObject(DataManager())
+}

@@ -35,8 +35,8 @@ jobs:
       - name: Build for testing
         run: |
           xcodebuild build-for-testing \
-            -project IOSAPP/PhotoDel.xcodeproj \
-            -scheme PhotoDel \
+            -project IOSAPP/PhotoDelete.xcodeproj \
+            -scheme PhotoDelete \
             -destination "${{ steps.simulator.outputs.destination }}" \
             -derivedDataPath IOSAPP/DerivedData \
             CODE_SIGNING_ALLOWED=NO
@@ -44,9 +44,9 @@ jobs:
       - name: Run unit tests
         run: |
           xcodebuild test-without-building \
-            -project IOSAPP/PhotoDel.xcodeproj \
-            -scheme PhotoDel \
+            -project IOSAPP/PhotoDelete.xcodeproj \
+            -scheme PhotoDelete \
             -destination "${{ steps.simulator.outputs.destination }}" \
             -derivedDataPath IOSAPP/DerivedData \
-            -only-testing:PhotoDelTests \
+            -only-testing:PhotoDeleteTests \
             CODE_SIGNING_ALLOWED=NO

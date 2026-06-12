@@ -1,6 +1,6 @@
 # iOS 开发工作流程指南
 
-本文档为新手开发者提供 PhotoDel 项目的基础开发流程说明。
+本文档为新手开发者提供 PhotoDelete 项目的基础开发流程说明。
 
 ## 开发环境设置
 
@@ -11,12 +11,12 @@
 
 ### 项目结构
 ```
-PhotoDelAPP/
+PhotoDeleteAPP/
 ├── IOSAPP/                 # iOS 应用主目录
-│   ├── PhotoDel/          # 源代码目录
+│   ├── PhotoDelete/          # 源代码目录
 │   │   ├── *.swift        # Swift 源文件
 │   │   └── Assets.xcassets/ # 资源文件
-│   └── PhotoDel.xcodeproj # Xcode 项目文件
+│   └── PhotoDelete.xcodeproj # Xcode 项目文件
 └── Prototype/             # HTML 原型
 ```
 
