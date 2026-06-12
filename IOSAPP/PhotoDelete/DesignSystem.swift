@@ -261,6 +261,13 @@ struct PhotoDeleteSecondaryButtonStyle: ButtonStyle {
     }
 }
 
+extension View {
+    func photoDeleteMinimumTapTarget(_ size: CGFloat = 44) -> some View {
+        frame(minWidth: size, minHeight: size)
+            .contentShape(Rectangle())
+    }
+}
+
 // MARK: - App Constants
 enum AppConstants {
     static var version: String { bundleShortVersion }
@@ -276,7 +283,7 @@ enum AppConstants {
         Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
     }
 
-    static let authorName = "maker jackie"
+    static let authorName = "MakerJackie"
     static let feedbackEmail = "contact@01mvp.com"
     static let wechatID = "mvps01"
     static let websiteURL = "https://01mvp.com"
@@ -292,6 +299,8 @@ enum AppConstants {
     static let hasCompletedOnboardingKey = "hasCompletedPhotoDeleteOnboarding"
     static let reviewedAssetIDsKey = "photoDeleteReviewedAssetIDs"
     static let customAlbumOrderKey = "photoDeleteCustomAlbumOrder"
+    static let hasSeenAlbumSwipeHintKey = "photoDeleteHasSeenAlbumSwipeHint"
+    static let hasDismissedAlbumSwipeHintKey = "photoDeleteHasDismissedAlbumSwipeHintV2"
     static let appLanguageKey = "photoDeleteAppLanguage"
     static let anonymousUserIDKey = "photoDeleteAnonymousUserID"
     static let leftSwipeActionKey = "photoDeleteLeftSwipeAction"
@@ -299,6 +308,7 @@ enum AppConstants {
     static let upSwipeActionKey = "photoDeleteUpSwipeAction"
     static let gestureDefaultMigrationKey = "photoDeleteGestureDefaultMigration"
     static let reviewModeKey = "photoDeleteReviewMode"
+    static let reviewProgressByScopeKey = "photoDeleteReviewProgressByScope"
     static let appAppearanceKey = "photoDeleteAppAppearance"
     static let supporterProductID = "com.01mvp.photodelete.supporter.stats"
     static let supporterEntitlementKey = "photoDeleteSupporterUnlocked"

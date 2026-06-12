@@ -25,6 +25,7 @@ struct SwipePhotoView: View {
     let selectedTimeGroup: String?
     let selectedAlbumInfo: AlbumInfo?
     let selectedDate: Date?
+    let selectedAdvancedTimeScope: AdvancedTimeScope?
     let selectedAdvancedCleanup: AdvancedCleanupKind?
 
     @State private var dragOffset = CGSize.zero
@@ -43,6 +44,8 @@ struct SwipePhotoView: View {
     @State private var pendingFavoriteCount = 0
     @State private var pendingSwipeMutations: [String: PendingSwipeMutation] = [:]
     @State private var browserRows = BrowserPhotoRows.empty
+    @State private var browserPreloadedAssets: [PHAsset] = []
+    @State private var browserPreloadTargetSize: CGSize?
     @State private var previewAsset: CandidatePreviewAsset?
 
     init(
@@ -50,12 +53,14 @@ struct SwipePhotoView: View {
         selectedTimeGroup: String?,
         selectedAlbumInfo: AlbumInfo?,
         selectedDate: Date? = nil,
+        selectedAdvancedTimeScope: AdvancedTimeScope? = nil,
         selectedAdvancedCleanup: AdvancedCleanupKind? = nil
     ) {
         self.selectedCategory = selectedCategory
         self.selectedTimeGroup = selectedTimeGroup
         self.selectedAlbumInfo = selectedAlbumInfo
         self.selectedDate = selectedDate
+        self.selectedAdvancedTimeScope = selectedAdvancedTimeScope
         self.selectedAdvancedCleanup = selectedAdvancedCleanup
     }
 
@@ -106,6 +111,8 @@ struct SwipePhotoView: View {
 
         if let albumInfo = selectedAlbumInfo {
             return dataManager.getPhotosForAlbum(albumInfo)
+        } else if let selectedDate, let selectedAdvancedTimeScope {
+            return dataManager.getPhotosForPeriod(selectedAdvancedTimeScope, containing: selectedDate)
         } else if let selectedDate {
             return dataManager.getPhotosForDay(selectedDate)
         } else if let selectedAdvancedCleanup {
@@ -145,6 +152,11 @@ struct SwipePhotoView: View {
     private var isCurrentPhotoFavorited: Bool {
         guard let asset = currentRealPhoto else { return false }
         return asset.isFavorite || isAssetQueuedForFavorite(asset)
+    }
+
+    private var isCurrentPhotoQueuedForDelete: Bool {
+        guard let asset = currentRealPhoto else { return false }
+        return isAssetQueuedForDelete(asset)
     }
 
     private var canPerformPhotoAction: Bool {
@@ -220,6 +232,7 @@ struct SwipePhotoView: View {
                 size: swipeImageTargetSize
             )
             preloadedAssets.removeAll()
+            stopPreloadingBrowserThumbnails()
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
             // 处理内存警告
@@ -234,6 +247,9 @@ struct SwipePhotoView: View {
         }
         .onChange(of: dataManager.isPreparingLibrary) { _ in
             initializeSessionIfNeeded()
+        }
+        .onChange(of: currentPhotoIndex) { _ in
+            persistSessionProgressIfPossible()
         }
     }
 
@@ -469,36 +485,44 @@ struct SwipePhotoView: View {
 
     private func browserPhotoArea(in containerSize: CGSize) -> some View {
         let tileHeight = browserTileHeight(in: containerSize)
+        let thumbnailTargetSize = browserThumbnailTargetSize(in: containerSize, tileHeight: tileHeight)
         let rowSpacing: CGFloat = 12
 
         return VStack(spacing: 12) {
             browserStatusStrip
 
             ScrollViewReader { proxy in
-                ScrollView(.horizontal, showsIndicators: false) {
+                ScrollView(.horizontal) {
                     VStack(alignment: .leading, spacing: rowSpacing) {
                         browserPhotoRow(
                             items: browserRows.top,
                             tileHeight: tileHeight,
-                            containerWidth: containerSize.width
+                            containerWidth: containerSize.width,
+                            thumbnailTargetSize: thumbnailTargetSize
                         )
 
                         browserPhotoRow(
                             items: browserRows.bottom,
                             tileHeight: tileHeight,
-                            containerWidth: containerSize.width
+                            containerWidth: containerSize.width,
+                            thumbnailTargetSize: thumbnailTargetSize
                         )
                         .padding(.leading, min(tileHeight * 0.34, 64))
                     }
                     .padding(.horizontal, 18)
                     .padding(.vertical, 4)
                 }
+                .scrollIndicators(.hidden)
                 .frame(height: tileHeight * 2 + rowSpacing + 8)
                 .onAppear {
+                    preloadBrowserThumbnails(from: currentPhotoIndex, targetSize: thumbnailTargetSize)
                     scrollBrowserToCurrentPhoto(with: proxy, animated: false)
                 }
                 .onChange(of: currentPhotoIndex) { _ in
-                    scrollBrowserToCurrentPhoto(with: proxy, animated: false)
+                    preloadBrowserThumbnails(from: currentPhotoIndex, targetSize: thumbnailTargetSize)
+                }
+                .onChange(of: thumbnailTargetSize) { targetSize in
+                    preloadBrowserThumbnails(from: currentPhotoIndex, targetSize: targetSize)
                 }
             }
         }
@@ -506,9 +530,15 @@ struct SwipePhotoView: View {
         .padding(.top, 12)
     }
 
-    private func browserPhotoRow(items: [BrowserPhotoItem], tileHeight: CGFloat, containerWidth: CGFloat) -> some View {
+    private func browserPhotoRow(
+        items: [BrowserPhotoItem],
+        tileHeight: CGFloat,
+        containerWidth: CGFloat,
+        thumbnailTargetSize: CGSize
+    ) -> some View {
         LazyHStack(alignment: .center, spacing: 12) {
-            ForEach(items) { item in
+            ForEach(items.indices, id: \.self) { itemPosition in
+                let item = items[itemPosition]
                 let asset = item.asset
                 let tileSize = browserTileSize(for: item, baseHeight: tileHeight, containerWidth: containerWidth)
 
@@ -522,7 +552,9 @@ struct SwipePhotoView: View {
                     isScreenshot: item.isScreenshot,
                     isVideo: item.isVideo,
                     displaySize: tileSize,
-                    targetSize: browserImageTargetSize(for: tileSize),
+                    targetSize: thumbnailTargetSize,
+                    selectedTargetSize: browserSelectedImageTargetSize(for: tileSize),
+                    prefersHighQualityPreview: shouldLoadHighQualityBrowserPreview(for: item.index),
                     onSelect: {
                         if item.index == currentPhotoIndex {
                             openAssetPreview(asset)
@@ -532,6 +564,9 @@ struct SwipePhotoView: View {
                     },
                     onSwipeUpToDelete: {
                         handleBrowserSwipeUpDelete(asset, at: item.index)
+                    },
+                    onCancelDelete: {
+                        cancelDeleteCandidate(asset, at: item.index)
                     }
                 )
                 .id(asset.localIdentifier)
@@ -540,18 +575,36 @@ struct SwipePhotoView: View {
     }
 
     private var browserStatusStrip: some View {
-        HStack(spacing: 10) {
-            Label(L10n.string("左右浏览"), systemImage: "arrow.left.and.right")
-                .foregroundColor(PhotoDeleteStyle.accent)
+        VStack(spacing: 7) {
+            HStack(spacing: 10) {
+                Label(L10n.string("左右浏览"), systemImage: "arrow.left.and.right")
+                    .foregroundColor(PhotoDeleteStyle.accent)
 
-            Label(L10n.string("上滑删除"), systemImage: "arrow.up")
-                .foregroundColor(PhotoDeleteStyle.destructive)
+                Label(L10n.string("上滑删除"), systemImage: "arrow.up")
+                    .foregroundColor(PhotoDeleteStyle.destructive)
 
-            Spacer(minLength: 8)
+                Spacer(minLength: 8)
 
-            Text("\(currentProgress)/\(totalPhotosCount)")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(PhotoDeleteStyle.secondaryText)
+                Text("\(L10n.string("位置")) \(currentProgress)/\(totalPhotosCount)")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+            }
+
+            ProgressView(value: progressFraction)
+                .progressViewStyle(LinearProgressViewStyle(tint: PhotoDeleteStyle.accent))
+                .frame(height: 4)
+                .clipShape(Capsule(style: .continuous))
+
+            HStack(spacing: 10) {
+                Text("\(L10n.string("已整理")) \(organizedProgress)/\(totalPhotosCount)")
+                    .foregroundColor(PhotoDeleteStyle.primaryText)
+
+                Spacer(minLength: 8)
+
+                Text(L10n.string("待删除 \(pendingDeleteCount) 张"))
+                    .foregroundColor(pendingDeleteCount > 0 ? PhotoDeleteStyle.destructive : PhotoDeleteStyle.secondaryText)
+            }
+            .font(.system(size: 12, weight: .semibold))
         }
         .font(.system(size: 12, weight: .semibold))
         .lineLimit(1)
@@ -770,7 +823,7 @@ struct SwipePhotoView: View {
         if !isAlbumMode && canPerformPhotoAction && !dataManager.userAlbums.isEmpty {
             let rows = albumShortcutRows
 
-            ScrollView(.horizontal, showsIndicators: false) {
+            ScrollView(.horizontal) {
                 VStack(alignment: .leading, spacing: 7) {
                     HStack(spacing: 7) {
                         ForEach(rows.top) { albumInfo in
@@ -792,6 +845,7 @@ struct SwipePhotoView: View {
                 .padding(.horizontal, horizontalPadding)
                 .padding(.vertical, 2)
             }
+            .scrollIndicators(.hidden)
             .frame(height: 67)
             .mask(
                 LinearGradient(
@@ -821,7 +875,11 @@ struct SwipePhotoView: View {
                 resetCardPosition()
             }
             Spacer(minLength: 0)
-            ActionButton(icon: "trash", title: "删除", color: PhotoDeleteStyle.destructive) {
+            ActionButton(
+                icon: isCurrentPhotoQueuedForDelete ? "xmark" : "trash",
+                title: isCurrentPhotoQueuedForDelete ? "取消" : "删除",
+                color: isCurrentPhotoQueuedForDelete ? PhotoDeleteStyle.secondaryText : PhotoDeleteStyle.destructive
+            ) {
                 handleDeleteAction()
                 resetCardPosition()
             }
@@ -923,6 +981,8 @@ struct SwipePhotoView: View {
         sessionReviewedCount = dataManager.reviewedCount(in: photos)
         if didInitializeSession {
             currentPhotoIndex = min(currentPhotoIndex, max(photos.count - 1, 0))
+        } else if let restoredIndex = restoredSessionProgressIndex(in: photos) {
+            currentPhotoIndex = firstLocallyUnreviewedPhotoIndex(startingAt: restoredIndex) ?? restoredIndex
         } else if let firstUnreviewedIndex = photos.firstIndex(where: { !dataManager.isReviewed($0) }) {
             currentPhotoIndex = firstUnreviewedIndex
         } else {
@@ -930,6 +990,7 @@ struct SwipePhotoView: View {
             showCompletionMessage = !photos.isEmpty
         }
         preloadUpcomingImages(from: currentPhotoIndex)
+        persistSessionProgressIfPossible()
     }
 
     private func rebuildBrowserRows(for photos: [PHAsset]) {
@@ -1024,11 +1085,64 @@ struct SwipePhotoView: View {
         return CGSize(width: width, height: baseHeight)
     }
 
-    private func browserImageTargetSize(for displaySize: CGSize) -> CGSize {
-        let scale = min(displayScale, 1.45)
-        let width = min(displaySize.width * scale, 380)
-        let height = min(displaySize.height * scale, 380)
-        return CGSize(width: width, height: height)
+    private func browserThumbnailTargetSize(in containerSize: CGSize, tileHeight: CGFloat) -> CGSize {
+        let scale = min(displayScale, 1.55)
+        let maxTileWidth = min(containerSize.width * 0.72, tileHeight * 1.72)
+        return CGSize(
+            width: min(maxTileWidth * scale, 480),
+            height: min(tileHeight * scale, 420)
+        )
+    }
+
+    private func browserSelectedImageTargetSize(for displaySize: CGSize) -> CGSize {
+        let scale = min(displayScale, 2)
+        return CGSize(
+            width: min(displaySize.width * scale, 860),
+            height: min(displaySize.height * scale, 860)
+        )
+    }
+
+    private func shouldLoadHighQualityBrowserPreview(for index: Int) -> Bool {
+        abs(index - currentPhotoIndex) <= 4
+    }
+
+    private func preloadBrowserThumbnails(from index: Int, targetSize: CGSize) {
+        guard reviewMode == .browser, !sessionPhotos.isEmpty else {
+            stopPreloadingBrowserThumbnails()
+            return
+        }
+
+        let lowerBound = max(0, index - 8)
+        let upperBound = min(sessionPhotos.count, index + 22)
+        guard lowerBound < upperBound else {
+            stopPreloadingBrowserThumbnails()
+            return
+        }
+
+        let assets = Array(sessionPhotos[lowerBound..<upperBound])
+        let currentIDs = browserPreloadedAssets.map(\.localIdentifier)
+        let nextIDs = assets.map(\.localIdentifier)
+        guard browserPreloadTargetSize != targetSize || currentIDs != nextIDs else { return }
+
+        stopPreloadingBrowserThumbnails()
+        dataManager.photoLibraryManager.preloadGridThumbnailsForAssets(
+            assets,
+            size: targetSize,
+            maxCount: assets.count
+        )
+        browserPreloadedAssets = assets
+        browserPreloadTargetSize = targetSize
+    }
+
+    private func stopPreloadingBrowserThumbnails() {
+        if let targetSize = browserPreloadTargetSize, !browserPreloadedAssets.isEmpty {
+            dataManager.photoLibraryManager.stopCachingGridThumbnails(
+                browserPreloadedAssets,
+                size: targetSize
+            )
+        }
+        browserPreloadedAssets.removeAll()
+        browserPreloadTargetSize = nil
     }
 
     private func selectBrowserPhoto(at index: Int) {
@@ -1054,9 +1168,8 @@ struct SwipePhotoView: View {
         guard !showCompletionMessage else { return }
         selectBrowserPhoto(at: index)
 
-        guard !isAssetQueuedForDelete(asset) else {
-            HapticManager.impact(.light)
-            showFeedback(L10n.string("已在待删除"), icon: "trash", style: .destructive, showsUndo: true)
+        if isAssetQueuedForDelete(asset) {
+            cancelDeleteCandidate(asset, at: index)
             return
         }
 
@@ -1068,6 +1181,9 @@ struct SwipePhotoView: View {
         let nextMode = reviewMode.toggled
         reviewModeValue = nextMode.rawValue
         resetCardPosition()
+        if nextMode == .card {
+            stopPreloadingBrowserThumbnails()
+        }
         preloadUpcomingImages(from: currentPhotoIndex)
         HapticManager.impact(.light)
         showFeedback(nextMode.switchAnnouncement, icon: nextMode.icon, style: .neutral, duration: 1.6)
@@ -1174,8 +1290,7 @@ struct SwipePhotoView: View {
         guard !sessionPhotos.isEmpty else { return }
 
         let nextSearchStart = currentPhotoIndex + 1
-        let newIndex = sessionPhotos[nextSearchStart...]
-            .firstIndex(where: { !dataManager.isReviewed($0) }) ?? nextSearchStart
+        let newIndex = firstLocallyUnreviewedPhotoIndex(startingAt: nextSearchStart) ?? nextSearchStart
         if newIndex < sessionPhotos.count {
             if reviewMode == .browser {
                 currentPhotoIndex = newIndex
@@ -1210,11 +1325,64 @@ struct SwipePhotoView: View {
 
     private func continueToNextUnreviewedPhoto() {
         flushPendingSwipeMutations()
-        guard let nextIndex = sessionPhotos.firstIndex(where: { !dataManager.isReviewed($0) }) else {
+        guard let nextIndex = firstLocallyUnreviewedPhotoIndex(startingAt: 0) else {
             return
         }
         currentPhotoIndex = nextIndex
         preloadUpcomingImages(from: nextIndex)
+    }
+
+    private func firstLocallyUnreviewedPhotoIndex(startingAt startIndex: Int) -> Int? {
+        guard startIndex < sessionPhotos.count else { return nil }
+        return sessionPhotos[startIndex...].firstIndex { !isAssetLocallyReviewed($0) }
+    }
+
+    private func restoredSessionProgressIndex(in photos: [PHAsset]) -> Int? {
+        guard let savedAssetID = persistedProgressMap()[sessionProgressScopeID] else {
+            return nil
+        }
+        return photos.firstIndex { $0.localIdentifier == savedAssetID }
+    }
+
+    private func persistSessionProgressIfPossible() {
+        guard didInitializeSession, let asset = currentRealPhoto else { return }
+        var progressMap = persistedProgressMap()
+        progressMap[sessionProgressScopeID] = asset.localIdentifier
+        UserDefaults.standard.set(progressMap, forKey: AppConstants.reviewProgressByScopeKey)
+    }
+
+    private func persistedProgressMap() -> [String: String] {
+        UserDefaults.standard.dictionary(forKey: AppConstants.reviewProgressByScopeKey) as? [String: String] ?? [:]
+    }
+
+    private var sessionProgressScopeID: String {
+        if let albumInfo = selectedAlbumInfo {
+            return "album:\(albumInfo.id)"
+        }
+
+        if let selectedDate, let selectedAdvancedTimeScope {
+            let intervalStart = Calendar.current.dateInterval(for: selectedAdvancedTimeScope, containing: selectedDate).start
+            return "period:\(selectedAdvancedTimeScope.rawValue):\(Int(intervalStart.timeIntervalSince1970))"
+        }
+
+        if let selectedDate {
+            let dayStart = Calendar.current.startOfDay(for: selectedDate)
+            return "day:\(Int(dayStart.timeIntervalSince1970))"
+        }
+
+        if let selectedAdvancedCleanup {
+            return "advanced:\(selectedAdvancedCleanup.rawValue)"
+        }
+
+        if let selectedCategory {
+            return "category:\(selectedCategory.rawValue)"
+        }
+
+        if let selectedTimeGroup {
+            return "timeGroup:\(selectedTimeGroup)"
+        }
+
+        return "category:\(PhotoCategory.all.rawValue)"
     }
 
     private func isValidPhotoIndex(_ index: Int) -> Bool {
@@ -1246,6 +1414,11 @@ struct SwipePhotoView: View {
 
     private func handleDeleteAction() {
         guard !showCompletionMessage, let asset = currentRealPhoto else { return }
+        if isAssetQueuedForDelete(asset) {
+            cancelDeleteCandidate(asset, at: currentPhotoIndex)
+            return
+        }
+
         markDeleteCandidate(asset)
         moveToNextPhoto()
     }
@@ -1295,6 +1468,38 @@ struct SwipePhotoView: View {
         }
         HapticManager.notify(.success)
         showFeedback(L10n.string("已撤销上一步"), icon: "arrow.uturn.backward", style: .positive)
+    }
+
+    private func cancelDeleteCandidate(_ asset: PHAsset, at index: Int) {
+        guard isAssetQueuedForDelete(asset) else { return }
+
+        cancelPendingSwipeMutation(for: asset)
+        dataManager.removeFromDeleteCandidates(asset)
+        pendingDeleteCount = max(pendingDeleteCount - 1, 0)
+
+        if let originalAction = removeLatestDeleteAction(for: asset) {
+            dataManager.restoreReviewedState(asset, wasReviewed: originalAction.wasReviewed)
+            restoreSessionReviewedCount(wasReviewed: originalAction.wasReviewed)
+        }
+
+        if isValidPhotoIndex(index) {
+            currentPhotoIndex = index
+        }
+        persistSessionProgressIfPossible()
+        HapticManager.impact(.light)
+        showFeedback(L10n.string("已取消删除"), icon: "xmark.circle.fill", style: .neutral)
+    }
+
+    private func removeLatestDeleteAction(for asset: PHAsset) -> (originalIndex: Int, wasReviewed: Bool)? {
+        let assetID = asset.localIdentifier
+        for index in actionHistory.indices.reversed() {
+            if case .delete(let actionAsset, let originalIndex, let wasReviewed) = actionHistory[index],
+               actionAsset.localIdentifier == assetID {
+                actionHistory.remove(at: index)
+                return (originalIndex, wasReviewed)
+            }
+        }
+        return nil
     }
 
     private func markDeleteCandidate(_ asset: PHAsset) {
@@ -1496,7 +1701,7 @@ struct SwipePhotoView: View {
         if selectedAlbumInfo != nil {
             return L10n.string("相册整理")
         }
-        if selectedDate != nil {
+        if selectedDate != nil || selectedAdvancedTimeScope != nil {
             return L10n.string("日期整理")
         }
         if selectedAdvancedCleanup != nil {
@@ -1508,6 +1713,8 @@ struct SwipePhotoView: View {
     private func getDisplayTitle() -> String {
         if let albumInfo = selectedAlbumInfo {
             return albumInfo.title
+        } else if let selectedDate, let selectedAdvancedTimeScope {
+            return AdvancedSwipeDateFormatter.title(for: selectedAdvancedTimeScope, containing: selectedDate)
         } else if let selectedDate {
             return AdvancedSwipeDateFormatter.dayTitle.string(from: selectedDate)
         } else if let selectedAdvancedCleanup {
@@ -1554,12 +1761,16 @@ private struct BrowserPhotoTile: View {
     let isVideo: Bool
     let displaySize: CGSize
     let targetSize: CGSize
+    let selectedTargetSize: CGSize
+    let prefersHighQualityPreview: Bool
     let onSelect: () -> Void
     let onSwipeUpToDelete: () -> Void
+    let onCancelDelete: () -> Void
 
     @State private var image: UIImage?
     @State private var isLoading = true
-    @State private var requestID: PHImageRequestID?
+    @State private var thumbnailRequestID: PHImageRequestID?
+    @State private var previewRequestID: PHImageRequestID?
     @State private var loadingAssetIdentifier: String?
     @State private var verticalOffset: CGFloat = 0
     @State private var showsDeleteCue = false
@@ -1594,6 +1805,7 @@ private struct BrowserPhotoTile: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(L10n.string("浏览照片"))
         .accessibilityValue(accessibilityValue)
+        .accessibilityAddTraits(.isButton)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityAction(named: Text(L10n.string("选择"))) {
             onSelect()
@@ -1601,9 +1813,25 @@ private struct BrowserPhotoTile: View {
         .accessibilityAction(named: Text(L10n.string("加入待删除"))) {
             onSwipeUpToDelete()
         }
+        .accessibilityAction(named: Text(L10n.string("取消删除这张照片"))) {
+            if isInDeleteCandidates {
+                onCancelDelete()
+            }
+        }
         .onAppear(perform: loadImage)
+        .onChange(of: prefersHighQualityPreview) { shouldLoadPreview in
+            if shouldLoadPreview {
+                loadHighQualityPreview()
+            } else {
+                cancelHighQualityPreview()
+            }
+        }
+        .onChange(of: targetSize) { _ in
+            loadImage()
+        }
         .onDisappear {
-            photoLibraryManager.cancelImageRequest(requestID)
+            photoLibraryManager.cancelImageRequest(thumbnailRequestID)
+            photoLibraryManager.cancelImageRequest(previewRequestID)
             loadingAssetIdentifier = nil
         }
     }
@@ -1639,10 +1867,6 @@ private struct BrowserPhotoTile: View {
     @ViewBuilder
     private var topBadges: some View {
         VStack(spacing: 7) {
-            if isReviewed && !isInDeleteCandidates && !isInFavoriteCandidates {
-                BrowserPhotoBadge(icon: "checkmark", color: PhotoDeleteStyle.positive)
-            }
-
             if isVideo {
                 BrowserPhotoBadge(icon: "play.fill", color: .black.opacity(0.56))
             }
@@ -1667,6 +1891,27 @@ private struct BrowserPhotoTile: View {
                     Text(isInDeleteCandidates ? L10n.string("待删除") : L10n.string("待收藏"))
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(PhotoDeleteStyle.primaryText)
+
+                    if isInDeleteCandidates {
+                        Button(action: onCancelDelete) {
+                            Label(L10n.string("取消"), systemImage: "xmark.circle.fill")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(PhotoDeleteStyle.primaryText)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.82)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(PhotoDeleteStyle.surface.opacity(0.82))
+                                .overlay(
+                                    Capsule(style: .continuous)
+                                        .stroke(PhotoDeleteStyle.hairline, lineWidth: 1)
+                                )
+                        )
+                    }
                 }
             }
         }
@@ -1739,20 +1984,48 @@ private struct BrowserPhotoTile: View {
     }
 
     private func loadImage() {
-        photoLibraryManager.cancelImageRequest(requestID)
+        photoLibraryManager.cancelImageRequest(thumbnailRequestID)
+        photoLibraryManager.cancelImageRequest(previewRequestID)
         let requestedAssetID = asset.localIdentifier
         loadingAssetIdentifier = requestedAssetID
         image = nil
         isLoading = true
 
-        requestID = photoLibraryManager.loadGridThumbnail(for: asset, size: targetSize) { loadedImage in
+        thumbnailRequestID = photoLibraryManager.loadGridThumbnail(for: asset, size: targetSize) { loadedImage in
             guard loadingAssetIdentifier == requestedAssetID else { return }
             if let loadedImage {
                 image = loadedImage
             }
             isLoading = false
-            requestID = nil
+            thumbnailRequestID = nil
+
+            if prefersHighQualityPreview {
+                loadHighQualityPreview()
+            }
         }
+
+        if prefersHighQualityPreview {
+            loadHighQualityPreview()
+        }
+    }
+
+    private func loadHighQualityPreview() {
+        guard loadingAssetIdentifier == asset.localIdentifier else { return }
+        guard previewRequestID == nil else { return }
+
+        let requestedAssetID = asset.localIdentifier
+        previewRequestID = photoLibraryManager.loadBrowserPreview(for: asset, size: selectedTargetSize) { loadedImage in
+            guard loadingAssetIdentifier == requestedAssetID else { return }
+            if let loadedImage {
+                image = loadedImage
+            }
+            previewRequestID = nil
+        }
+    }
+
+    private func cancelHighQualityPreview() {
+        photoLibraryManager.cancelImageRequest(previewRequestID)
+        previewRequestID = nil
     }
 }
 
@@ -2002,9 +2275,35 @@ private struct SwipeEdgeHint: View {
 }
 
 private enum AdvancedSwipeDateFormatter {
+    static func title(for scope: AdvancedTimeScope, containing date: Date) -> String {
+        switch scope {
+        case .day:
+            return dayTitle.string(from: date)
+        case .week:
+            let components = Calendar.current.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date)
+            return L10n.string("\(components.yearForWeekOfYear ?? 0) 年第 \(components.weekOfYear ?? 0) 周")
+        case .month:
+            return monthTitle.string(from: date)
+        case .year:
+            return yearTitle.string(from: date)
+        }
+    }
+
     static let dayTitle: DateFormatter = {
         let formatter = DateFormatter()
         formatter.setLocalizedDateFormatFromTemplate("MMMEd")
+        return formatter
+    }()
+
+    private static let monthTitle: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("y年M月")
+        return formatter
+    }()
+
+    private static let yearTitle: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("y年")
         return formatter
     }()
 }
@@ -2455,7 +2754,8 @@ private struct ReviewModeToggleButton: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: mode.toolbarIcon)
+            Label(L10n.string("整理模式"), systemImage: mode.toolbarIcon)
+                .labelStyle(.iconOnly)
                 .symbolRenderingMode(.monochrome)
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(PhotoDeleteStyle.accent)
@@ -2468,9 +2768,9 @@ private struct ReviewModeToggleButton: View {
                                 .stroke(PhotoDeleteStyle.accent.opacity(0.28), lineWidth: 1)
                         )
                 )
+                .photoDeleteMinimumTapTarget()
         }
         .buttonStyle(PhotoDeletePressScaleButtonStyle())
-        .accessibilityLabel(L10n.string("整理模式"))
         .accessibilityValue(mode.accessibilityTitle)
         .accessibilityHint(mode.toggleAccessibilityHint)
     }
@@ -2598,10 +2898,6 @@ struct BatchConfirmView: View {
     }
 
     var body: some View {
-        let deleteAssets = sortedAssets(Array(dataManager.deleteCandidates))
-        let favoriteAssets = sortedAssets(Array(dataManager.favoriteCandidates))
-        let estimatedSpaceSaved = deleteAssets.reduce(0) { $0 + dataManager.estimatedSizeMB(for: $1) }
-
         ZStack {
             PhotoDeleteScreenBackground()
 
@@ -2613,6 +2909,10 @@ struct BatchConfirmView: View {
                 )
                 .transition(.opacity)
             } else {
+                let deleteAssets = sortedAssets(Array(dataManager.deleteCandidates))
+                let favoriteAssets = sortedAssets(Array(dataManager.favoriteCandidates))
+                let estimatedSpaceSaved = deleteAssets.reduce(0) { $0 + dataManager.estimatedSizeMB(for: $1) }
+
                 confirmationContent(
                     deleteAssets: deleteAssets,
                     favoriteAssets: favoriteAssets,
@@ -2629,7 +2929,12 @@ struct BatchConfirmView: View {
             )
         }
         .fullScreenCover(isPresented: $showAchievements) {
-            CleanupAchievementsView(statsStore: dataManager.cleanupStatsStore)
+            NavigationStack {
+                CleanupAchievementsView(
+                    statsStore: dataManager.cleanupStatsStore,
+                    showsDoneButton: true
+                )
+            }
         }
     }
 
@@ -2682,7 +2987,7 @@ struct BatchConfirmView: View {
             }
 
             if hasPendingOperations {
-                ScrollView(showsIndicators: false) {
+                ScrollView {
                     VStack(spacing: 18) {
                         if !deleteAssets.isEmpty {
                             CandidatePreviewSection(
@@ -2712,6 +3017,7 @@ struct BatchConfirmView: View {
                     }
                     .padding(.vertical, 2)
                 }
+                .scrollIndicators(.hidden)
                 .frame(maxHeight: 330)
             }
 
@@ -2801,6 +3107,7 @@ private struct BatchCleanupCompletionView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var animate = false
+    @State private var progressFill = 0.0
 
     private let particleColors: [Color] = [
         PhotoDeleteStyle.accent,
@@ -2808,88 +3115,59 @@ private struct BatchCleanupCompletionView: View {
         PhotoDeleteStyle.warning,
         PhotoDeleteStyle.destructive
     ]
+    private let particleCount = 12
 
     var body: some View {
         GeometryReader { geometry in
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 18) {
+            ScrollView {
+                VStack(spacing: 14) {
                     celebrationVisual
+                        .opacity(animate ? 1 : 0)
+                        .offset(y: animate ? 0 : 10)
+                        .animation(entranceAnimation(delay: 0), value: animate)
 
-                    VStack(spacing: 8) {
-                        Text(L10n.string("清理完成"))
-                            .font(.system(size: 31, weight: .bold))
-                            .foregroundColor(PhotoDeleteStyle.primaryText)
+                    completionHeader
+                        .opacity(animate ? 1 : 0)
+                        .offset(y: animate ? 0 : 10)
+                        .animation(entranceAnimation(delay: 0.06), value: animate)
 
-                        Text(completionSentence)
-                            .font(.system(size: 16, weight: .regular))
-                            .foregroundColor(PhotoDeleteStyle.secondaryText)
-                            .multilineTextAlignment(.center)
-                            .lineSpacing(3)
-                    }
+                    cleanupSummarySection
+                        .opacity(animate ? 1 : 0)
+                        .offset(y: animate ? 0 : 14)
+                        .animation(entranceAnimation(delay: 0.12), value: animate)
 
-                    VStack(spacing: 10) {
-                        HStack(spacing: 10) {
-                            completionMetric(
-                                value: "\(celebration.deletedPhotos)",
-                                label: L10n.string("本次删除"),
-                                tint: PhotoDeleteStyle.destructive
-                            )
+                    progressSnapshotSection
+                        .opacity(animate ? 1 : 0)
+                        .offset(y: animate ? 0 : 14)
+                        .animation(entranceAnimation(delay: 0.18), value: animate)
 
-                            completionMetric(
-                                value: celebration.formattedSpaceSaved,
-                                label: L10n.string("本次节省"),
-                                tint: PhotoDeleteStyle.positive
-                            )
-                        }
-
-                        HStack(spacing: 10) {
-                            completionMetric(
-                                value: "\(celebration.totalDeletedPhotos)",
-                                label: L10n.string("累计删除"),
-                                tint: PhotoDeleteStyle.accent
-                            )
-
-                            completionMetric(
-                                value: celebration.formattedTotalSpaceSaved,
-                                label: L10n.string("累计节省"),
-                                tint: PhotoDeleteStyle.positive
-                            )
-                        }
-                    }
-
-                    newAchievementSection
-                    streakSection
-
-                    if let nextAchievementProgress = celebration.nextAchievementProgress {
-                        nextGoalSection(nextAchievementProgress)
-                    } else {
-                        allGoalsCompletedSection
-                    }
-
-                    VStack(spacing: 10) {
-                        Button(action: onViewAchievements) {
-                            Label(L10n.string("查看成就"), systemImage: "seal.fill")
-                        }
-                        .photoDeleteSecondaryButton()
-
-                        Button(action: onContinue) {
-                            Text(L10n.string("继续整理"))
-                        }
-                        .photoDeletePrimaryButton()
-                    }
-                    .padding(.top, 2)
+                    completionActions
+                        .opacity(animate ? 1 : 0)
+                        .offset(y: animate ? 0 : 14)
+                        .animation(entranceAnimation(delay: 0.24), value: animate)
                 }
                 .frame(maxWidth: 540)
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
-                .padding(.top, max(24, geometry.safeAreaInsets.top + 12))
-                .padding(.bottom, max(30, geometry.safeAreaInsets.bottom + 24))
-                .frame(minHeight: geometry.size.height)
+                .padding(.top, max(28, geometry.safeAreaInsets.top + 18))
+                .padding(.bottom, max(34, geometry.safeAreaInsets.bottom + 28))
             }
+            .scrollIndicators(.hidden)
         }
         .onAppear {
-            guard !reduceMotion else { return }
-            animate = true
+            let targetProgress = celebration.nextAchievementProgress?.progress ?? 1
+            if reduceMotion {
+                animate = true
+                progressFill = targetProgress
+            } else {
+                progressFill = 0
+                withAnimation(.spring(response: 0.54, dampingFraction: 0.86)) {
+                    animate = true
+                }
+                withAnimation(.easeOut(duration: 0.72).delay(0.34)) {
+                    progressFill = targetProgress
+                }
+            }
         }
     }
 
@@ -2900,146 +3178,210 @@ private struct BatchCleanupCompletionView: View {
                     .font(.system(size: 52, weight: .semibold))
                     .foregroundColor(PhotoDeleteStyle.warning)
             } else {
-                ForEach(0..<34, id: \.self) { index in
+                ForEach(0..<particleCount, id: \.self) { index in
                     particle(index)
                 }
 
                 Circle()
-                    .fill(PhotoDeleteStyle.accent.opacity(0.16))
-                    .frame(width: animate ? 118 : 70, height: animate ? 118 : 70)
-                    .opacity(animate ? 0 : 1)
-                    .animation(.easeOut(duration: 0.72), value: animate)
+                    .fill(PhotoDeleteStyle.accent.opacity(0.1))
+                    .frame(width: 112, height: 112)
+                    .scaleEffect(animate ? 1 : 0.74)
+                    .opacity(animate ? 1 : 0)
+
+                Circle()
+                    .stroke(PhotoDeleteStyle.warning.opacity(0.22), lineWidth: 1)
+                    .frame(width: 92, height: 92)
+                    .scaleEffect(animate ? 1.08 : 0.78)
+                    .opacity(animate ? 1 : 0)
 
                 Image(systemName: "sparkles")
                     .font(.system(size: 46, weight: .semibold))
                     .foregroundColor(PhotoDeleteStyle.warning)
-                    .scaleEffect(animate ? 1.08 : 0.82)
-                    .animation(.spring(response: 0.36, dampingFraction: 0.58), value: animate)
+                    .scaleEffect(animate ? 1 : 0.76)
+                    .rotationEffect(.degrees(animate ? 0 : -8))
             }
         }
-        .frame(height: 132)
+        .frame(height: 124)
+        .animation(.spring(response: 0.58, dampingFraction: 0.78), value: animate)
     }
 
-    private var completionSentence: String {
-        if celebration.deletedPhotos > 0 {
-            return L10n.string("这次删除 \(celebration.deletedPhotos) 张照片，节省 \(celebration.formattedSpaceSaved)。")
-        }
-        return L10n.string("这次整理 \(celebration.organizedPhotos) 项内容。")
+    private var completionHeader: some View {
+        Text(L10n.string("清理完成"))
+            .font(.system(size: 30, weight: .bold))
+            .foregroundColor(PhotoDeleteStyle.primaryText)
     }
 
-    private func completionMetric(value: String, label: String, tint: Color) -> some View {
-        VStack(spacing: 4) {
-            Text(value)
-                .font(.system(size: 20, weight: .bold))
-                .foregroundColor(tint)
-                .lineLimit(1)
-                .minimumScaleFactor(0.62)
+    private var cleanupSummarySection: some View {
+        HStack(spacing: 12) {
+            summaryItem(
+                icon: "trash.fill",
+                title: L10n.string("本次删除"),
+                value: L10n.shortPhotoCount(celebration.deletedPhotos),
+                detail: "\(L10n.string("节省")) \(celebration.formattedSpaceSaved)",
+                tint: PhotoDeleteStyle.destructive
+            )
 
-            Text(label)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(PhotoDeleteStyle.secondaryText)
+            Divider()
+                .frame(height: 34)
+                .background(PhotoDeleteStyle.hairline)
+
+            summaryItem(
+                icon: "chart.bar.fill",
+                title: L10n.string("累计删除"),
+                value: L10n.shortPhotoCount(celebration.totalDeletedPhotos),
+                detail: "\(L10n.string("节省")) \(celebration.formattedTotalSpaceSaved)",
+                tint: PhotoDeleteStyle.accent
+            )
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 13)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(PhotoDeleteStyle.surface)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(tint.opacity(0.18), lineWidth: 1)
+                        .stroke(PhotoDeleteStyle.cardStroke, lineWidth: 1)
                 )
         )
     }
 
-    private var newAchievementSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 7) {
-                Image(systemName: "seal.fill")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.warning)
+    private func summaryItem(icon: String, title: String, value: String, detail: String, tint: Color) -> some View {
+        HStack(spacing: 9) {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(tint)
+                .frame(width: 30, height: 30)
+                .background(tint.opacity(0.12), in: Circle())
 
-                Text(L10n.string("新徽章"))
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.primaryText)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
 
-                Spacer()
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text(value)
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(PhotoDeleteStyle.primaryText)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+
+                    Text(detail)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(tint)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                }
             }
 
-            if celebration.newAchievements.isEmpty {
-                HStack(spacing: 10) {
-                    PhotoDeleteIconTile(
-                        icon: "seal",
-                        tint: PhotoDeleteStyle.secondaryText,
-                        size: 34,
-                        cornerRadius: 10
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var completionActions: some View {
+        VStack(spacing: 10) {
+            Button(action: onViewAchievements) {
+                Label(L10n.string("查看成就"), systemImage: "seal.fill")
+                    .font(.system(size: 15, weight: .semibold))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(PhotoDeleteStyle.primaryText)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(PhotoDeleteStyle.surface)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(PhotoDeleteStyle.cardStroke, lineWidth: 1)
                     )
+            )
 
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(L10n.string("本次暂无新徽章"))
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(PhotoDeleteStyle.primaryText)
+            Button(action: onContinue) {
+                Text(L10n.string("继续整理"))
+            }
+            .photoDeletePrimaryButton()
+        }
+    }
 
-                        Text(L10n.string("继续整理会更接近下一个目标。"))
-                            .font(.system(size: 12, weight: .regular))
-                            .foregroundColor(PhotoDeleteStyle.secondaryText)
-                    }
+    private var progressSnapshotSection: some View {
+        VStack(spacing: 0) {
+            if let newestAchievement = celebration.newAchievements.first {
+                compactStatusRow(
+                    icon: newestAchievement.systemImage,
+                    tint: newestAchievement.tint.color,
+                    title: L10n.string("新徽章：\(newestAchievement.title)"),
+                    subtitle: newestAchievement.subtitle
+                )
 
-                    Spacer()
-                }
+                Divider()
+                    .padding(.leading, 48)
+            }
+
+            compactStatusRow(
+                icon: "flame.fill",
+                tint: PhotoDeleteStyle.warning,
+                title: L10n.string("连续整理 \(streakDaysForDisplay) 天"),
+                subtitle: L10n.string("保持节奏，相册会越来越轻。")
+            )
+
+            Divider()
+                .padding(.leading, 48)
+
+            if let nextAchievementProgress = celebration.nextAchievementProgress {
+                compactNextGoalRow(nextAchievementProgress)
             } else {
-                ForEach(celebration.newAchievements) { achievement in
-                    achievementRow(achievement)
-                }
+                compactStatusRow(
+                    icon: "checkmark.seal.fill",
+                    tint: PhotoDeleteStyle.positive,
+                    title: L10n.string("全部徽章已完成"),
+                    subtitle: L10n.string("可以在成就页回看完整记录。")
+                )
             }
         }
-        .padding(14)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(PhotoDeleteStyle.elevatedSurface)
                 .overlay(
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(PhotoDeleteStyle.warning.opacity(0.24), lineWidth: 1)
+                        .stroke(PhotoDeleteStyle.cardStroke, lineWidth: 1)
                 )
         )
     }
 
-    private var streakSection: some View {
+    private func compactStatusRow(icon: String, tint: Color, title: String, subtitle: String) -> some View {
         HStack(spacing: 12) {
             PhotoDeleteIconTile(
-                icon: "flame",
-                tint: PhotoDeleteStyle.warning,
+                icon: icon,
+                tint: tint,
                 size: 34,
                 cornerRadius: 10
             )
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(L10n.string("连续整理 \(streakDaysForDisplay) 天"))
+                Text(title)
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(PhotoDeleteStyle.primaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
 
-                Text(L10n.string("保持节奏，相册会越来越轻。"))
+                Text(subtitle)
                     .font(.system(size: 13, weight: .regular))
                     .foregroundColor(PhotoDeleteStyle.secondaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
             }
 
             Spacer()
         }
         .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(PhotoDeleteStyle.surface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(PhotoDeleteStyle.warning.opacity(0.18), lineWidth: 1)
-                )
-        )
     }
 
     private var streakDaysForDisplay: Int {
         max(celebration.currentStreakDays, celebration.organizedPhotos > 0 ? 1 : 0)
     }
 
-    private func nextGoalSection(_ progress: CleanupAchievementProgress) -> some View {
+    private func compactNextGoalRow(_ progress: CleanupAchievementProgress) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
                 PhotoDeleteIconTile(
@@ -3053,103 +3395,59 @@ private struct BatchCleanupCompletionView: View {
                     Text(L10n.string("下一个目标：\(progress.achievement.title)"))
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(PhotoDeleteStyle.primaryText)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.82)
 
                     Text(progress.remainingDescription)
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(PhotoDeleteStyle.secondaryText)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.82)
                 }
 
                 Spacer()
             }
 
-            ProgressView(value: progress.progress)
-                .progressViewStyle(LinearProgressViewStyle(tint: progress.achievement.tint.color))
-                .clipShape(Capsule(style: .continuous))
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule(style: .continuous)
+                        .fill(PhotoDeleteStyle.hairline)
+
+                    Capsule(style: .continuous)
+                        .fill(progress.achievement.tint.color)
+                        .frame(width: max(0, proxy.size.width * progressFill))
+                }
+            }
+            .frame(height: 7)
         }
         .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(PhotoDeleteStyle.surface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(progress.achievement.tint.color.opacity(0.18), lineWidth: 1)
-                )
-        )
-    }
-
-    private var allGoalsCompletedSection: some View {
-        HStack(spacing: 12) {
-            PhotoDeleteIconTile(
-                icon: "checkmark.seal.fill",
-                tint: PhotoDeleteStyle.positive,
-                size: 34,
-                cornerRadius: 10
-            )
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(L10n.string("全部徽章已完成"))
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.primaryText)
-
-                Text(L10n.string("可以在成就页回看完整记录。"))
-                    .font(.system(size: 13, weight: .regular))
-                    .foregroundColor(PhotoDeleteStyle.secondaryText)
-            }
-
-            Spacer()
-        }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(PhotoDeleteStyle.surface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(PhotoDeleteStyle.positive.opacity(0.2), lineWidth: 1)
-                )
-        )
-    }
-
-    private func achievementRow(_ achievement: CleanupAchievement) -> some View {
-        HStack(spacing: 10) {
-            PhotoDeleteIconTile(
-                icon: achievement.systemImage,
-                tint: achievement.tint.color,
-                size: 34,
-                cornerRadius: 10
-            )
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(achievement.title)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.primaryText)
-
-                Text(achievement.subtitle)
-                    .font(.system(size: 12, weight: .regular))
-                    .foregroundColor(PhotoDeleteStyle.secondaryText)
-            }
-
-            Spacer()
-        }
     }
 
     private func particle(_ index: Int) -> some View {
-        let angle = Double(index) / 34.0 * Double.pi * 2
-        let distance = CGFloat(42 + (index % 6) * 13)
+        let angle = Double(index) / Double(particleCount) * Double.pi * 2
+        let distance = CGFloat(34 + (index % 4) * 13)
         let x = CGFloat(cos(angle)) * distance
         let y = CGFloat(sin(angle)) * distance
-        let size = CGFloat(4 + (index % 4) * 2)
+        let size = CGFloat(4 + (index % 3) * 2)
 
         return Circle()
             .fill(particleColors[index % particleColors.count])
             .frame(width: size, height: size)
-            .offset(x: animate ? x : 0, y: animate ? y : 0)
-            .opacity(animate ? 0 : 1)
-            .scaleEffect(animate ? 0.2 : 1)
+            .offset(x: animate ? x : x * 0.22, y: animate ? y : y * 0.22)
+            .opacity(animate ? 0.74 : 0)
+            .scaleEffect(animate ? 1 : 0.45)
             .animation(
-                .easeOut(duration: 0.86)
-                    .delay(Double(index % 8) * 0.025),
+                .spring(response: 0.58, dampingFraction: 0.82)
+                    .delay(Double(index) * 0.018),
                 value: animate
             )
+    }
+
+    private func entranceAnimation(delay: Double) -> Animation {
+        if reduceMotion {
+            return .easeOut(duration: 0.12).delay(delay)
+        }
+        return .spring(response: 0.5, dampingFraction: 0.86).delay(delay)
     }
 }
 
@@ -3240,15 +3538,16 @@ private struct CandidateThumbnailView: View {
                 .offset(x: -53, y: -53)
 
             Button(action: onRemove) {
-                Image(systemName: "xmark")
+                Label(removeAccessibilityLabel, systemImage: "xmark")
+                    .labelStyle(.iconOnly)
                     .font(.system(size: 10, weight: .bold))
                     .foregroundColor(.white)
                     .frame(width: 24, height: 24)
                     .background(Circle().fill(PhotoDeleteStyle.background.opacity(0.9)))
                     .overlay(Circle().stroke(PhotoDeleteStyle.primaryText.opacity(0.18), lineWidth: 1))
+                    .photoDeleteMinimumTapTarget()
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(removeAccessibilityLabel)
             .accessibilityHint(L10n.string("从本次批量操作中移除"))
             .offset(x: 3, y: 3)
         }

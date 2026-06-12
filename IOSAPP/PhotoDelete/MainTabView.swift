@@ -73,6 +73,10 @@ struct MainTabView: View {
     }
 
     private func configureTabBarAppearance() {
+        guard ProcessInfo.processInfo.operatingSystemVersion.majorVersion < 26 else {
+            return
+        }
+
         let appearance = UITabBarAppearance()
         appearance.configureWithTransparentBackground()
         appearance.backgroundColor = PhotoDeleteStyle.uiBackground.withAlphaComponent(0.92)

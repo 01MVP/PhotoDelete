@@ -20,6 +20,7 @@ private let albumsLogger = Logger(
 struct AlbumsView: View {
     @EnvironmentObject var dataManager: DataManager
     @AppStorage(AppConstants.customAlbumOrderKey) private var customAlbumOrderData = "[]"
+    @AppStorage(AppConstants.hasDismissedAlbumSwipeHintKey) private var hasDismissedAlbumSwipeHint = false
     @State private var navigationPath = NavigationPath()
     @State private var searchText = ""
     @State private var activeSheet: AlbumSheet?
@@ -29,6 +30,8 @@ struct AlbumsView: View {
     @State private var pendingAlbumToDelete: PHAssetCollection?
     @State private var showingDeleteAlbumConfirmation = false
     @State private var albumToast: PhotoDeleteToast?
+    @State private var albumProgressByID: [String: AlbumProgressSnapshot] = [:]
+    @State private var albumProgressGeneration = 0
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
@@ -90,6 +93,13 @@ struct AlbumsView: View {
         }
         .onAppear {
             dataManager.loadAlbumsIfNeeded()
+            refreshAlbumProgress()
+        }
+        .onChange(of: dataManager.userAlbums.count) { _ in
+            refreshAlbumProgress()
+        }
+        .onChange(of: dataManager.reviewedAssetIDs) { _ in
+            refreshAlbumProgress()
         }
     }
 
@@ -126,7 +136,8 @@ struct AlbumsView: View {
                         }
                     }
                 } label: {
-                    Image(systemName: "arrow.up.arrow.down")
+                    Label(L10n.string("排序"), systemImage: "arrow.up.arrow.down")
+                        .labelStyle(.iconOnly)
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(PhotoDeleteStyle.primaryText)
                         .frame(width: 42, height: 42)
@@ -135,11 +146,12 @@ struct AlbumsView: View {
                 .menuStyle(.button)
                 .accessibilityLabel(L10n.string("排序"))
 
-                Button(action: {
+                Button {
                     HapticManager.impact(.light)
                     activeSheet = .create
-                }) {
-                    Image(systemName: "plus")
+                } label: {
+                    Label(L10n.string("创建相册"), systemImage: "plus")
+                        .labelStyle(.iconOnly)
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(PhotoDeleteStyle.primaryButtonText)
                         .frame(width: 42, height: 42)
@@ -173,8 +185,6 @@ struct AlbumsView: View {
     private var albumsList: some View {
         let userAlbums = filteredUserAlbums
         List {
-            listTopSpacer
-
             if showSearchBar {
                 searchRow
                     .transition(.move(edge: .top).combined(with: .opacity))
@@ -184,12 +194,18 @@ struct AlbumsView: View {
                 loadingRow
             } else {
                 if !userAlbums.isEmpty {
-                    sectionHeaderRow(L10n.string("我的相册"), count: userAlbums.count)
-
-                    ForEach(userAlbums) { albumInfo in
-                        albumRow(albumInfo, allowsActions: true)
+                    if shouldShowAlbumSwipeHint {
+                        AlbumSwipeHintRow {
+                            hasDismissedAlbumSwipeHint = true
+                        }
                     }
-                    .onMove(perform: moveUserAlbums)
+
+                    Section {
+                        ForEach(userAlbums) { albumInfo in
+                            albumRow(albumInfo, allowsActions: true)
+                        }
+                        .onMove(perform: moveUserAlbums)
+                    }
                 }
 
                 if userAlbums.isEmpty {
@@ -202,6 +218,7 @@ struct AlbumsView: View {
         .background(Color.clear)
         .environment(\.defaultMinListRowHeight, 0)
         .environment(\.editMode, $editMode)
+        .photoDeleteAlbumListTopMargin()
         .refreshable {
             if showSearchBar {
                 dataManager.loadAlbums(showLoading: false)
@@ -212,14 +229,6 @@ struct AlbumsView: View {
         .safeAreaInset(edge: .bottom) {
             Color.clear.frame(height: 88)
         }
-    }
-
-    private var listTopSpacer: some View {
-        Color.clear
-            .frame(height: 6)
-            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
     }
 
     private var searchRow: some View {
@@ -312,26 +321,16 @@ struct AlbumsView: View {
         .listRowSeparator(.hidden)
     }
 
-    private func sectionHeaderRow(_ title: String, count: Int) -> some View {
-        Text(L10n.string("\(title) (\(count))"))
-            .font(.system(size: 13, weight: .semibold))
-            .foregroundColor(PhotoDeleteStyle.tertiaryText)
-            .textCase(nil)
-            .padding(.top, 8)
-            .padding(.bottom, 2)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .listRowInsets(EdgeInsets(top: 0, leading: PhotoDeleteStyle.screenHorizontalPadding, bottom: 0, trailing: PhotoDeleteStyle.screenHorizontalPadding))
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
-    }
-
     private func albumRow(_ albumInfo: AlbumInfo, allowsActions: Bool) -> some View {
-        Button(action: {
+        let editableAlbum = editableAssetCollection(for: albumInfo, allowsActions: allowsActions)
+
+        return Button(action: {
             openAlbum(albumInfo)
         }) {
             AlbumInfoRow(
                 albumInfo: albumInfo,
                 photoLibraryManager: dataManager.photoLibraryManager,
+                progress: albumProgressByID[albumInfo.id],
                 showsChevron: editMode != .active
             )
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -339,23 +338,22 @@ struct AlbumsView: View {
         }
         .buttonStyle(.plain)
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            if allowsActions, let collection = albumInfo.assetCollection {
+            if let editableAlbum {
                 Button(role: .destructive) {
-                    confirmDeleteAlbum(collection)
+                    confirmDeleteAlbum(editableAlbum)
                 } label: {
                     Label(L10n.string("删除"), systemImage: "trash")
                 }
+                .tint(PhotoDeleteStyle.destructive)
 
                 Button {
-                    activeSheet = .edit(collection)
+                    activeSheet = .edit(editableAlbum)
                 } label: {
                     Label(L10n.string("编辑"), systemImage: "pencil")
                 }
-                .tint(.gray)
+                .tint(PhotoDeleteStyle.accent)
             }
         }
-        .listRowInsets(EdgeInsets(top: 0, leading: PhotoDeleteStyle.screenHorizontalPadding, bottom: 0, trailing: PhotoDeleteStyle.screenHorizontalPadding))
-        .listRowBackground(PhotoDeleteStyle.surface)
         .listRowSeparatorTint(PhotoDeleteStyle.hairline)
     }
 
@@ -371,7 +369,7 @@ struct AlbumsView: View {
         if dataManager.isLoadingAlbums && albumCount == 0 {
             return L10n.string("正在更新相册列表")
         }
-        return L10n.string("\(albumCount) 个我的相册")
+        return L10n.string("\(albumCount) 个相册")
     }
 
     // MARK: - 计算属性
@@ -410,6 +408,12 @@ struct AlbumsView: View {
 
     private var filteredUserAlbums: [AlbumInfo] {
         filteredAlbums(dataManager.getUserAlbums())
+    }
+
+    private var shouldShowAlbumSwipeHint: Bool {
+        !hasDismissedAlbumSwipeHint &&
+            searchText.isEmpty &&
+            editMode != .active
     }
 
     // MARK: - 方法
@@ -485,6 +489,55 @@ struct AlbumsView: View {
         HapticManager.impact(.light)
     }
 
+    private func refreshAlbumProgress() {
+        let albums = dataManager.getUserAlbums()
+        let reviewedAssetIDs = dataManager.reviewedAssetIDs
+        albumProgressGeneration += 1
+        let generation = albumProgressGeneration
+
+        DispatchQueue.global(qos: .utility).async {
+            var progressByID: [String: AlbumProgressSnapshot] = [:]
+            for album in albums {
+                progressByID[album.id] = Self.albumProgressSnapshot(
+                    for: album,
+                    reviewedAssetIDs: reviewedAssetIDs
+                )
+            }
+
+            DispatchQueue.main.async {
+                guard albumProgressGeneration == generation else { return }
+                albumProgressByID = progressByID
+            }
+        }
+    }
+
+    private static func albumProgressSnapshot(
+        for albumInfo: AlbumInfo,
+        reviewedAssetIDs: Set<String>
+    ) -> AlbumProgressSnapshot {
+        guard albumInfo.photosCount > 0 else {
+            return AlbumProgressSnapshot(totalCount: 0, reviewedCount: 0)
+        }
+
+        guard let assetCollection = albumInfo.assetCollection else {
+            return AlbumProgressSnapshot(totalCount: albumInfo.photosCount, reviewedCount: 0)
+        }
+
+        let fetchOptions = PHFetchOptions()
+        let assets = PHAsset.fetchAssets(in: assetCollection, options: fetchOptions)
+        var reviewedCount = 0
+        assets.enumerateObjects { asset, _, _ in
+            if reviewedAssetIDs.contains(asset.localIdentifier) {
+                reviewedCount += 1
+            }
+        }
+
+        return AlbumProgressSnapshot(
+            totalCount: assets.count,
+            reviewedCount: reviewedCount
+        )
+    }
+
     private func openAlbum(_ albumInfo: AlbumInfo) {
         guard albumInfo.photosCount > 0 else {
             HapticManager.impact(.light)
@@ -494,6 +547,18 @@ struct AlbumsView: View {
 
         HapticManager.impact(.light)
         navigationPath.append(AlbumNavigationDestination.swipeAlbum(albumInfo))
+    }
+
+    private func editableAssetCollection(
+        for albumInfo: AlbumInfo,
+        allowsActions: Bool
+    ) -> PHAssetCollection? {
+        guard allowsActions,
+              let collection = albumInfo.assetCollection,
+              collection.assetCollectionType == .album else {
+            return nil
+        }
+        return collection
     }
 
     private func confirmDeleteAlbum(_ album: PHAssetCollection) {
@@ -546,6 +611,48 @@ struct AlbumsView: View {
         }
     }
 
+}
+
+private extension View {
+    @ViewBuilder
+    func photoDeleteAlbumListTopMargin() -> some View {
+        if #available(iOS 17.0, *) {
+            contentMargins(.top, 8, for: .scrollContent)
+        } else {
+            self
+        }
+    }
+}
+
+private struct AlbumSwipeHintRow: View {
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "hand.draw")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(PhotoDeleteStyle.accent)
+                .frame(width: 24, height: 24)
+
+            Text(L10n.string("左滑相册可编辑或删除"))
+                .font(.system(size: 13, weight: .regular))
+                .foregroundColor(PhotoDeleteStyle.secondaryText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+
+            Spacer(minLength: 8)
+
+            Button(action: onDismiss) {
+                Text(L10n.string("知道了"))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.accent)
+            }
+            .buttonStyle(.borderless)
+        }
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+        .listRowSeparator(.hidden)
+    }
 }
 
 enum AlbumNavigationDestination: Hashable {
@@ -612,9 +719,35 @@ private enum AlbumSortMode: String, CaseIterable, Identifiable {
 }
 
 // MARK: - 相册信息行
+struct AlbumProgressSnapshot: Equatable {
+    let totalCount: Int
+    let reviewedCount: Int
+
+    var progress: Double {
+        guard totalCount > 0 else { return 0 }
+        return min(Double(reviewedCount) / Double(totalCount), 1)
+    }
+
+    var displayText: String? {
+        guard totalCount > 0 else { return nil }
+        return L10n.percent(Int((progress * 100).rounded()))
+    }
+
+    var tint: Color {
+        if progress >= 1 {
+            return PhotoDeleteStyle.positive
+        }
+        if progress > 0 {
+            return PhotoDeleteStyle.accent
+        }
+        return PhotoDeleteStyle.tertiaryText
+    }
+}
+
 struct AlbumInfoRow: View {
     let albumInfo: AlbumInfo
     let photoLibraryManager: PhotoLibraryManager
+    let progress: AlbumProgressSnapshot?
     var showsChevron = true
 
     @State private var thumbnailImage: UIImage?
@@ -634,40 +767,49 @@ struct AlbumInfoRow: View {
     }
 
     private var rowContent: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 9) {
             Group {
                 if let image = thumbnailImage {
                     Image(uiImage: image)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
-                        .frame(width: 48, height: 48)
+                        .frame(width: 36, height: 36)
                         .clipped()
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
                 } else {
                     ZStack {
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
                             .fill(PhotoDeleteStyle.elevatedSurface)
-                            .frame(width: 48, height: 48)
+                            .frame(width: 36, height: 36)
 
                         Image(systemName: albumInfo.type.icon)
-                            .font(.system(size: 18, weight: .medium))
+                            .font(.system(size: 15, weight: .medium))
                             .foregroundColor(albumIconTint)
                     }
                 }
             }
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(albumInfo.title)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(PhotoDeleteStyle.primaryText)
                     .lineLimit(1)
 
                 Text(L10n.photoCount(albumInfo.photosCount))
-                    .font(.system(size: 13, weight: .regular))
+                    .font(.system(size: 12, weight: .regular))
                     .foregroundColor(PhotoDeleteStyle.secondaryText)
             }
 
             Spacer()
+
+            if let progressText {
+                Text(progressText)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(progress?.tint ?? PhotoDeleteStyle.tertiaryText)
+                    .monospacedDigit()
+                    .accessibilityLabel(L10n.string("照片数据整理进度"))
+                    .accessibilityValue(progressText)
+            }
 
             if showsChevron {
                 Image(systemName: "chevron.right")
@@ -675,13 +817,13 @@ struct AlbumInfoRow: View {
                     .foregroundColor(PhotoDeleteStyle.tertiaryText)
             }
         }
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
+        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
     }
 
     private func loadAlbumThumbnail() {
         if let thumbnailAsset = albumInfo.thumbnailAsset {
-            requestID = photoLibraryManager.loadImage(for: thumbnailAsset, size: CGSize(width: 150, height: 150)) { image in
+            requestID = photoLibraryManager.loadImage(for: thumbnailAsset, size: CGSize(width: 120, height: 120)) { image in
                 self.thumbnailImage = image
             }
         }
@@ -698,6 +840,10 @@ struct AlbumInfoRow: View {
         default:
             return PhotoDeleteStyle.accent
         }
+    }
+
+    private var progressText: String? {
+        progress?.displayText
     }
 }
 

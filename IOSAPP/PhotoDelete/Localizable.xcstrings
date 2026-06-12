@@ -894,11 +894,6 @@
         }
       }
     },
-            "value": "會員可以拿代碼模板和這個 App 的源碼，少從空白項目開始。"
-          }
-        }
-      }
-    },
     "适合想把一个小想法真正做出来的人。": {
       "extractionState": "manual",
       "localizations": {
@@ -2983,6 +2978,22 @@
         }
       }
     },
+    "位置": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Position"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "位置"
+          }
+        }
+      }
+    },
     "取消操作": {
       "localizations": {
         "en": {
@@ -3033,28 +3044,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "取消選擇"
-          }
-        }
-      }
-    },
-    "只会删除相册，不会删除相册里的照片。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Only the album is deleted. Photos inside it are kept."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "只会删除相册，不会删除相册里的照片。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "只會刪除相冊，不會刪除相冊里的照片。"
           }
         }
       }
@@ -3241,6 +3230,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "右滑"
+          }
+        }
+      }
+    },
+    "只会删除相册，不会删除相册里的照片。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only the album is deleted. Photos inside it are kept."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "只会删除相册，不会删除相册里的照片。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只會刪除相冊，不會刪除相冊里的照片。"
           }
         }
       }
@@ -4302,6 +4313,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "已整理"
+          }
+        }
+      }
+    },
+    "已取消删除": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Removed from deletion"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已取消刪除"
           }
         }
       }

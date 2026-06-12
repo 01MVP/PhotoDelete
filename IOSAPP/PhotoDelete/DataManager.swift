@@ -47,6 +47,7 @@ class DataManager: ObservableObject {
     private var progressRefreshWorkItem: DispatchWorkItem?
     private var progressRefreshGeneration = 0
     private var libraryDataRefreshWorkItem: DispatchWorkItem?
+    private var nextLibraryDataRefreshDelay: TimeInterval?
     private var reviewedAssetIDsSaveWorkItem: DispatchWorkItem?
     private var cancellables: Set<AnyCancellable> = []
 
@@ -293,11 +294,13 @@ class DataManager: ObservableObject {
             partial + estimatedAssetSizeMB(asset)
         }
 
+        nextLibraryDataRefreshDelay = 0.65
         photoLibraryManager.commitBatchChanges(
             deleteAssets: Array(originalDeleteCandidates),
             favoriteAssets: Array(originalFavoriteCandidates)
         ) { success, error in
             guard success else {
+                self.nextLibraryDataRefreshDelay = nil
                 self.deleteCandidates = originalDeleteCandidates
                 self.favoriteCandidates = originalFavoriteCandidates
                 self.updateStats()
@@ -334,13 +337,16 @@ class DataManager: ObservableObject {
                 totalSpaceSavedMB: summary.estimatedSpaceSavedMB,
                 currentStreakDays: currentStreakDays,
                 newAchievements: newAchievements,
-                nextAchievementProgress: self.cleanupStatsStore.nextAchievementProgress,
+                nextAchievementProgress: CleanupAchievementEvaluator.nextProgress(
+                    summary: summary,
+                    streakDays: currentStreakDays
+                ),
                 date: completedAt
             )
             self.deleteCandidates.removeAll()
             self.favoriteCandidates.removeAll()
+            self.updateStats()
             self.cleanupStatsRevision = UUID()
-            self.refreshDerivedLibraryData()
             completion(true, nil, celebration)
         }
     }
@@ -474,10 +480,6 @@ class DataManager: ObservableObject {
         }
     }
 
-    func getVideosCount() -> Int {
-        return photoLibraryManager.videosCount
-    }
-
     func makeSettingsStatsSummary() -> AdvancedLibraryStats {
         let cleanupSummary = cleanupStatsStore.summary
         let reviewedCount = min(reviewedAssetIDs.count, photoLibraryManager.allPhotos.count)
@@ -493,21 +495,6 @@ class DataManager: ObservableObject {
         )
     }
 
-    // MARK: - 进阶功能数据
-    func makeAdvancedLibrarySnapshot(
-        referenceDate: Date = Date(),
-        calendar: Calendar = .current
-    ) -> AdvancedLibrarySnapshot {
-        let stats = makeSettingsStatsSummary()
-
-        return AdvancedLibrarySnapshot(
-            stats: stats,
-            daySummaries: makePhotoDaySummaries(referenceDate: referenceDate, calendar: calendar),
-            monthSummaries: makePhotoMonthSummaries(calendar: calendar),
-            cleanupQueues: makeAdvancedCleanupQueues()
-        )
-    }
-
     func getPhotosForDay(_ date: Date, calendar: Calendar = .current) -> [PHAsset] {
         let start = calendar.startOfDay(for: date)
         guard let end = calendar.date(byAdding: .day, value: 1, to: start) else { return [] }
@@ -516,10 +503,6 @@ class DataManager: ObservableObject {
             guard let creationDate = asset.creationDate else { return false }
             return creationDate >= start && creationDate < end
         }
-    }
-
-    func getPhotosForMonth(_ monthStart: Date, calendar: Calendar = .current) -> [PHAsset] {
-        getPhotosForPeriod(.month, containing: monthStart, calendar: calendar)
     }
 
     func getPhotosForPeriod(
@@ -556,104 +539,6 @@ class DataManager: ObservableObject {
                 estimatedAssetSizeMB($0) > estimatedAssetSizeMB($1)
             }
         }
-    }
-
-    private func makePhotoDaySummaries(
-        referenceDate: Date,
-        calendar: Calendar
-    ) -> [PhotoDaySummary] {
-        guard let monthInterval = calendar.dateInterval(of: .month, for: referenceDate) else { return [] }
-
-        let screenshotIDs = Set(photoLibraryManager.screenshots.map(\.localIdentifier))
-        let reviewedIDs = reviewedAssetIDs
-        var buckets: [Date: DaySummaryAccumulator] = [:]
-
-        for asset in photoLibraryManager.allPhotos {
-            guard let creationDate = asset.creationDate,
-                  monthInterval.contains(creationDate) else { continue }
-
-            let day = calendar.startOfDay(for: creationDate)
-            var accumulator = buckets[day] ?? DaySummaryAccumulator()
-            accumulator.add(
-                asset: asset,
-                isScreenshot: screenshotIDs.contains(asset.localIdentifier),
-                isReviewed: reviewedIDs.contains(asset.localIdentifier),
-                estimatedSizeMB: estimatedAssetSizeMB(asset)
-            )
-            buckets[day] = accumulator
-        }
-
-        return buckets.map { day, accumulator in
-            PhotoDaySummary(
-                date: day,
-                photoCount: accumulator.photoCount,
-                screenshotCount: accumulator.screenshotCount,
-                videoCount: accumulator.videoCount,
-                reviewedCount: accumulator.reviewedCount,
-                estimatedSizeMB: accumulator.estimatedSizeMB
-            )
-        }
-        .sorted { $0.date < $1.date }
-    }
-
-    func makePhotoMonthSummaries(
-        calendar: Calendar = .current
-    ) -> [PhotoMonthSummary] {
-        makePhotoPeriodSummaries(for: .month, calendar: calendar).map { summary in
-            PhotoMonthSummary(
-                monthStart: summary.intervalStart,
-                assetCount: summary.assetCount,
-                screenshotCount: summary.screenshotCount,
-                videoCount: summary.videoCount,
-                reviewedCount: summary.reviewedCount,
-                estimatedSizeMB: summary.estimatedSizeMB
-            )
-        }
-    }
-
-    func makePhotoPeriodSummaries(
-        for scope: AdvancedTimeScope,
-        calendar: Calendar = .current
-    ) -> [PhotoPeriodSummary] {
-        let screenshotIDs = Set(photoLibraryManager.screenshots.map(\.localIdentifier))
-        let reviewedIDs = reviewedAssetIDs
-        let deleteCandidateIDs = Set(deleteCandidates.map(\.localIdentifier))
-        let favoriteCandidateIDs = Set(favoriteCandidates.map(\.localIdentifier))
-        var buckets: [Date: DaySummaryAccumulator] = [:]
-
-        for asset in photoLibraryManager.allPhotos {
-            guard let creationDate = asset.creationDate else { continue }
-            let interval = calendar.dateInterval(for: scope, containing: creationDate)
-
-            let identifier = asset.localIdentifier
-            let isReviewed = reviewedIDs.contains(identifier) ||
-                deleteCandidateIDs.contains(identifier) ||
-                favoriteCandidateIDs.contains(identifier) ||
-                asset.isFavorite
-            var accumulator = buckets[interval.start] ?? DaySummaryAccumulator()
-            accumulator.add(
-                asset: asset,
-                isScreenshot: screenshotIDs.contains(identifier),
-                isReviewed: isReviewed,
-                estimatedSizeMB: estimatedAssetSizeMB(asset)
-            )
-            buckets[interval.start] = accumulator
-        }
-
-        return buckets.map { periodStart, accumulator in
-            let interval = calendar.dateInterval(for: scope, containing: periodStart)
-            return PhotoPeriodSummary(
-                scope: scope,
-                intervalStart: interval.start,
-                intervalEnd: interval.end,
-                assetCount: accumulator.photoCount,
-                screenshotCount: accumulator.screenshotCount,
-                videoCount: accumulator.videoCount,
-                reviewedCount: accumulator.reviewedCount,
-                estimatedSizeMB: accumulator.estimatedSizeMB
-            )
-        }
-        .sorted { $0.intervalStart > $1.intervalStart }
     }
 
     func makePhotoPeriodSummariesByScope(
@@ -998,13 +883,15 @@ class DataManager: ObservableObject {
 
     private func scheduleLibraryDataRefresh() {
         libraryDataRefreshWorkItem?.cancel()
+        let delay = nextLibraryDataRefreshDelay ?? 0.15
+        nextLibraryDataRefreshDelay = nil
         let workItem = DispatchWorkItem { [weak self] in
             guard let self, self.photoLibraryManager.hasPhotoLibraryAccess else { return }
             self.refreshDerivedLibraryData()
             self.loadAlbums(showLoading: false)
         }
         libraryDataRefreshWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: workItem)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
     }
 
     // MARK: - 相册数据加载
@@ -1259,14 +1146,6 @@ class DataManager: ObservableObject {
     }
 
     // MARK: - 相册操作
-    func getAllAlbums() -> [AlbumInfo] {
-        return systemAlbums + userAlbums
-    }
-
-    func getSystemAlbums() -> [AlbumInfo] {
-        return systemAlbums
-    }
-
     func getUserAlbums() -> [AlbumInfo] {
         return userAlbums
     }

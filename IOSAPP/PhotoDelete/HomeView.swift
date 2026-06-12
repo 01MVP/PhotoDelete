@@ -363,7 +363,7 @@ struct HomeView: View {
                         .font(.system(size: isCompact ? 21 : 24, weight: .semibold))
                         .foregroundColor(PhotoDeleteStyle.primaryText)
 
-                    Text(L10n.string("滑动整理照片，完成前不会真正删除。手势可在设置里调整。"))
+                    Text(L10n.string("滑动时可以执行删除、保留或收藏。点完成后再统一确认。"))
                         .font(.system(size: 15, weight: .regular))
                         .foregroundColor(PhotoDeleteStyle.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -380,35 +380,9 @@ struct HomeView: View {
                 }
             }
             .photoDeletePrimaryButton()
-
-            primarySummaryRow(isCompact: isCompact)
         }
         .padding(isCompact ? 18 : 20)
         .photoDeleteCard()
-    }
-
-    private func primarySummaryRow(isCompact: Bool) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: "checklist.checked")
-                .font(.system(size: isCompact ? 13 : 14, weight: .semibold))
-                .foregroundColor(PhotoDeleteStyle.accent)
-                .frame(width: 26, height: 26)
-                .background(Circle().fill(PhotoDeleteStyle.accent.opacity(0.12)))
-
-            Text(primarySummaryText)
-                .font(.system(size: isCompact ? 13 : 14, weight: .medium))
-                .foregroundColor(PhotoDeleteStyle.secondaryText)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, isCompact ? 9 : 11)
-        .background(
-            RoundedRectangle(cornerRadius: PhotoDeleteStyle.controlRadius, style: .continuous)
-                .fill(PhotoDeleteStyle.elevatedSurface)
-        )
     }
 
     // MARK: - 快速入口区域
@@ -499,13 +473,6 @@ struct HomeView: View {
         case .favorites:
             return dataManager.photoLibraryManager.favoritesCount
         }
-    }
-
-    private var primarySummaryText: String {
-        if dataManager.photoLibraryManager.totalPhotosCount == 0 && dataManager.photoLibraryManager.isLoading {
-            return L10n.string("正在读取照片信息 \(libraryLoadingProgressText) · 可先进入整理")
-        }
-        return L10n.string("\(dataManager.photoLibraryManager.totalPhotosCount) 张可整理 · 删除前会再次确认")
     }
 
     private func getPhotoCountDetail(for category: PhotoCategory) -> String {

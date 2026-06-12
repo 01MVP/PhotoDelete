@@ -78,7 +78,7 @@ struct CleanupAchievementsEntryCard: View {
 
 struct CleanupAchievementsView: View {
     @ObservedObject var statsStore: CleanupStatsStore
-    var showsBackButton = true
+    var showsDoneButton = false
 
     @Environment(\.dismiss) private var dismiss
 
@@ -98,9 +98,9 @@ struct CleanupAchievementsView: View {
         ZStack {
             PhotoDeleteScreenBackground()
 
-            ScrollView(showsIndicators: false) {
+            ScrollView {
                 VStack(spacing: 18) {
-                    header
+                    introHeader
                     overviewCard
 
                     achievementSection(
@@ -131,37 +131,29 @@ struct CleanupAchievementsView: View {
                 .padding(.top, 18)
                 .padding(.bottom, 36)
             }
+            .scrollIndicators(.hidden)
         }
-        .toolbar(.hidden, for: .navigationBar)
+        .navigationTitle(L10n.string("清理成就"))
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.visible, for: .navigationBar)
+        .toolbar {
+            if showsDoneButton {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(L10n.string("完成")) {
+                        dismiss()
+                    }
+                    .foregroundColor(PhotoDeleteStyle.accent)
+                }
+            }
+        }
     }
 
-    private var header: some View {
-        HStack(spacing: 12) {
-            if showsBackButton {
-                Button(action: { dismiss() }) {
-                    Image(systemName: "arrow.left")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(PhotoDeleteStyle.primaryText)
-                        .frame(width: 40, height: 40)
-                        .background(Circle().fill(PhotoDeleteStyle.elevatedSurface))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(L10n.string("返回"))
-            }
-
-            VStack(alignment: .leading, spacing: 5) {
-                Text(L10n.string("清理成就"))
-                    .font(.system(size: 30, weight: .bold))
-                    .foregroundColor(PhotoDeleteStyle.primaryText)
-
-                Text(L10n.string("记录删除、节省空间和连续整理进度"))
-                    .font(.system(size: 14, weight: .regular))
-                    .foregroundColor(PhotoDeleteStyle.secondaryText)
-                    .lineLimit(2)
-            }
-
-            Spacer()
-        }
+    private var introHeader: some View {
+        Text(L10n.string("记录删除、节省空间和连续整理进度"))
+            .font(.system(size: 14, weight: .regular))
+            .foregroundColor(PhotoDeleteStyle.secondaryText)
+            .lineLimit(2)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var overviewCard: some View {

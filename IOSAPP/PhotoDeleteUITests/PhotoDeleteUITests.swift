@@ -62,11 +62,15 @@ final class PhotoDeleteUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["照片访问权限"].exists)
         XCTAssertTrue(app.staticTexts["触感反馈"].exists)
         XCTAssertTrue(app.staticTexts["给删图评分"].exists)
-        XCTAssertTrue(app.staticTexts["微信反馈"].exists)
+        XCTAssertTrue(app.staticTexts["邮件反馈"].exists)
+        XCTAssertTrue(app.staticTexts["关于创作者"].exists)
+        XCTAssertFalse(app.staticTexts["微信反馈"].exists)
+        XCTAssertFalse(app.staticTexts["MVP 教程"].exists)
+        XCTAssertFalse(app.staticTexts["创作理念"].exists)
     }
 
     @MainActor
-    func testSettingsHidesWeChatFeedbackOutsideSimplifiedChinese() throws {
+    func testSettingsKeepsWeChatOutOfFeedbackSectionOutsideSimplifiedChinese() throws {
         let app = makeApp(completedOnboarding: true, appLanguage: "en")
         app.launch()
 
@@ -75,6 +79,8 @@ final class PhotoDeleteUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["Preferences"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Rate Photo Delete"].exists)
+        XCTAssertTrue(app.staticTexts["Email Feedback"].exists)
+        XCTAssertTrue(app.staticTexts["About the Creator"].exists)
         XCTAssertFalse(app.staticTexts["微信反馈"].exists)
     }
 

@@ -25,81 +25,17 @@ struct AdvancedView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack(alignment: .bottom) {
-                PhotoDeleteScreenBackground()
-
-                ScrollView(showsIndicators: false) {
-                    let snapshot = dashboardSnapshot
-                    let periodSummaries = visiblePeriodSummaries
-                    let selectedPeriod = selectedPeriodSummary(in: periodSummaries)
-
-                    VStack(spacing: 18) {
-                        header
-                        achievementEntry
-
-                        VStack(spacing: 18) {
-                            if !isLocked && !dataManager.photoLibraryManager.hasPhotoLibraryAccess {
-                                PhotoAuthorizationCard(
-                                    subtitle: L10n.string("进阶功能需要读取本机照片库，才能生成真实月份进度和清理队列。"),
-                                    onRequestAccess: { dataManager.requestPhotoLibraryAccess() }
-                                )
-                            }
-
-                            if isPreparingRealAdvancedData {
-                                AdvancedLibraryPreparingCard(progress: advancedLoadingProgress)
-                            } else {
-                                AdvancedTimeScopePicker(selectedScope: $selectedScope)
-
-                                AdvancedPeriodNavigator(
-                                    summary: selectedPeriod,
-                                    canGoForward: canAdvance(from: selectedPeriod),
-                                    onPrevious: { moveSelectedPeriod(by: -1) },
-                                    onNext: { moveSelectedPeriod(by: 1) }
-                                )
-
-                                AdvancedPeriodProgressCard(summary: selectedPeriod, isDemo: isLocked)
-
-                                periodProgressSection(
-                                    summaries: periodSummaries,
-                                    selectedPeriod: selectedPeriod,
-                                    isLocked: isLocked
-                                )
-
-                                periodActionCard(summary: selectedPeriod, isLocked: isLocked)
-
-                                cleanupEntrySection(
-                                    queues: snapshot.cleanupQueues,
-                                    isLocked: isLocked
-                                )
-                            }
-                        }
-                        .opacity(isLocked ? 0.42 : 1)
-                        .allowsHitTesting(!isLocked)
-
-                        Spacer()
-                            .frame(height: isLocked ? 220 : 96)
+            advancedRootContent
+                .toolbar(.hidden, for: .navigationBar)
+                .navigationDestination(isPresented: isShowingActivePeriodRoute) {
+                    if let activePeriodRoute {
+                        AdvancedPeriodSwipeDestination(
+                            scope: activePeriodRoute.scope,
+                            intervalStart: activePeriodRoute.intervalStart
+                        )
+                            .environmentObject(dataManager)
                     }
-                    .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
-                    .padding(.top, 44)
                 }
-
-                if isLocked {
-                    AdvancedBottomPaywall(
-                        priceText: purchaseManager.supporterPriceText,
-                        isLoading: purchaseManager.isLoading,
-                        errorMessage: purchaseManager.errorMessage,
-                        onPurchase: purchaseSupporter,
-                        onRestore: restorePurchases
-                    )
-                }
-            }
-        }
-        .toolbar(.hidden, for: .navigationBar)
-        .navigationDestination(isPresented: isShowingActivePeriodRoute) {
-            if let activePeriodRoute {
-                AdvancedAssetListView(mode: .period(activePeriodRoute.scope, activePeriodRoute.intervalStart))
-                    .environmentObject(dataManager)
-            }
         }
         .onChange(of: selectedScope) { _ in
             selectedPeriodDate = Date()
@@ -124,6 +60,78 @@ struct AdvancedView: View {
             await purchaseManager.refreshEntitlements()
             dataManager.syncPhotoLibraryAuthorization()
             refreshAdvancedDashboard(resetSelectedPeriod: true)
+        }
+    }
+
+    private var advancedRootContent: some View {
+        ZStack(alignment: .bottom) {
+            PhotoDeleteScreenBackground()
+
+            ScrollView {
+                let snapshot = dashboardSnapshot
+                let periodSummaries = visiblePeriodSummaries
+                let selectedPeriod = selectedPeriodSummary(in: periodSummaries)
+
+                VStack(spacing: 18) {
+                    header
+                    achievementEntry
+
+                    VStack(spacing: 18) {
+                        if !isLocked && !dataManager.photoLibraryManager.hasPhotoLibraryAccess {
+                            PhotoAuthorizationCard(
+                                subtitle: L10n.string("进阶功能需要读取本机照片库，才能生成真实月份进度和清理队列。"),
+                                onRequestAccess: { dataManager.requestPhotoLibraryAccess() }
+                            )
+                        }
+
+                        if isPreparingRealAdvancedData {
+                            AdvancedLibraryPreparingCard(progress: advancedLoadingProgress)
+                        } else {
+                            AdvancedTimeScopePicker(selectedScope: $selectedScope)
+
+                            AdvancedPeriodNavigator(
+                                summary: selectedPeriod,
+                                canGoForward: canAdvance(from: selectedPeriod),
+                                onPrevious: { moveSelectedPeriod(by: -1) },
+                                onNext: { moveSelectedPeriod(by: 1) }
+                            )
+
+                            AdvancedPeriodProgressCard(summary: selectedPeriod, isDemo: isLocked)
+
+                            periodProgressSection(
+                                summaries: periodSummaries,
+                                selectedPeriod: selectedPeriod,
+                                isLocked: isLocked
+                            )
+
+                            periodActionCard(summary: selectedPeriod, isLocked: isLocked)
+
+                            cleanupEntrySection(
+                                queues: snapshot.cleanupQueues,
+                                isLocked: isLocked
+                            )
+                        }
+                    }
+                    .opacity(isLocked ? 0.42 : 1)
+                    .allowsHitTesting(!isLocked)
+
+                    Spacer()
+                        .frame(height: isLocked ? 220 : 96)
+                }
+                .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
+                .padding(.top, 44)
+            }
+            .scrollIndicators(.hidden)
+
+            if isLocked {
+                AdvancedBottomPaywall(
+                    priceText: purchaseManager.supporterPriceText,
+                    isLoading: purchaseManager.isLoading,
+                    errorMessage: purchaseManager.errorMessage,
+                    onPurchase: purchaseSupporter,
+                    onRestore: restorePurchases
+                )
+            }
         }
     }
 
@@ -185,15 +193,16 @@ struct AdvancedView: View {
 
             if !isLocked && dataManager.photoLibraryManager.hasPhotoLibraryAccess {
                 Button(action: refreshAdvancedDataFromHeader) {
-                    Image(systemName: "arrow.clockwise")
+                    Label(L10n.string("刷新进阶数据"), systemImage: "arrow.clockwise")
+                        .labelStyle(.iconOnly)
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(isPreparingRealAdvancedData ? PhotoDeleteStyle.tertiaryText : PhotoDeleteStyle.primaryText)
                         .frame(width: 38, height: 38)
                         .background(Circle().fill(PhotoDeleteStyle.elevatedSurface))
+                        .photoDeleteMinimumTapTarget()
                 }
                 .buttonStyle(.plain)
                 .disabled(isPreparingRealAdvancedData)
-                .accessibilityLabel(L10n.string("刷新进阶数据"))
             }
         }
     }
@@ -222,7 +231,7 @@ struct AdvancedView: View {
 
                 if !isLocked, !summaries.isEmpty {
                     NavigationLink {
-                        AdvancedPeriodListView(scope: selectedScope, summaries: summaries)
+                        AdvancedPeriodListView(summaries: summaries)
                             .environmentObject(dataManager)
                     } label: {
                         Text(L10n.string("全部"))
@@ -237,7 +246,7 @@ struct AdvancedView: View {
                 }
             }
 
-            ScrollView(.horizontal, showsIndicators: false) {
+            ScrollView(.horizontal) {
                 HStack(spacing: 10) {
                     ForEach(summaries.prefix(18)) { summary in
                         Button {
@@ -257,6 +266,7 @@ struct AdvancedView: View {
                 }
                 .padding(.horizontal, 1)
             }
+            .scrollIndicators(.hidden)
         }
     }
 
@@ -272,7 +282,10 @@ struct AdvancedView: View {
                 .buttonStyle(.plain)
             } else {
                 NavigationLink {
-                    AdvancedAssetListView(mode: .period(summary.scope, summary.intervalStart))
+                    AdvancedPeriodSwipeDestination(
+                        scope: summary.scope,
+                        intervalStart: summary.intervalStart
+                    )
                         .environmentObject(dataManager)
                 } label: {
                     AdvancedPeriodActionContent(summary: summary)
@@ -470,6 +483,21 @@ private struct AdvancedPeriodRoute: Identifiable, Hashable {
     }
 }
 
+private struct AdvancedPeriodSwipeDestination: View {
+    let scope: AdvancedTimeScope
+    let intervalStart: Date
+
+    var body: some View {
+        SwipePhotoView(
+            selectedCategory: nil,
+            selectedTimeGroup: nil,
+            selectedAlbumInfo: nil,
+            selectedDate: intervalStart,
+            selectedAdvancedTimeScope: scope
+        )
+    }
+}
+
 private struct AdvancedTimeScopePicker: View {
     @Binding var selectedScope: AdvancedTimeScope
 
@@ -493,14 +521,15 @@ private struct AdvancedPeriodNavigator: View {
     var body: some View {
         HStack(spacing: 12) {
             Button(action: onPrevious) {
-                Image(systemName: "chevron.left")
+                Label(L10n.string("上一段时间"), systemImage: "chevron.left")
+                    .labelStyle(.iconOnly)
                     .font(.system(size: 15, weight: .bold))
                     .frame(width: 38, height: 38)
                     .background(Circle().fill(PhotoDeleteStyle.surface))
+                    .photoDeleteMinimumTapTarget()
             }
             .buttonStyle(.plain)
             .foregroundColor(PhotoDeleteStyle.primaryText)
-            .accessibilityLabel(L10n.string("上一段时间"))
 
             VStack(spacing: 3) {
                 Text(AdvancedPeriodFormatter.title(for: summary))
@@ -518,15 +547,16 @@ private struct AdvancedPeriodNavigator: View {
             .frame(maxWidth: .infinity)
 
             Button(action: onNext) {
-                Image(systemName: "chevron.right")
+                Label(L10n.string("下一段时间"), systemImage: "chevron.right")
+                    .labelStyle(.iconOnly)
                     .font(.system(size: 15, weight: .bold))
                     .frame(width: 38, height: 38)
                     .background(Circle().fill(PhotoDeleteStyle.surface))
+                    .photoDeleteMinimumTapTarget()
             }
             .buttonStyle(.plain)
             .foregroundColor(canGoForward ? PhotoDeleteStyle.primaryText : PhotoDeleteStyle.tertiaryText)
             .disabled(!canGoForward)
-            .accessibilityLabel(L10n.string("下一段时间"))
         }
         .padding(12)
         .photoDeleteCard()
@@ -837,27 +867,21 @@ private struct AdvancedLibraryPreparingCard: View {
 
 private struct AdvancedPeriodListView: View {
     @EnvironmentObject var dataManager: DataManager
-    @Environment(\.dismiss) private var dismiss
-    let scope: AdvancedTimeScope
     let summaries: [PhotoPeriodSummary]
 
     var body: some View {
         ZStack {
             PhotoDeleteScreenBackground()
 
-            ScrollView(showsIndicators: false) {
+            ScrollView {
                 VStack(spacing: 16) {
-                    AdvancedFeatureHeader(
-                        title: L10n.string("时间进度"),
-                        subtitle: L10n.string("按\(scope.title)查看照片清理比例"),
-                        showsBackButton: true,
-                        onBack: { dismiss() }
-                    )
-
                     VStack(spacing: 0) {
                         ForEach(Array(summaries.enumerated()), id: \.element.id) { index, summary in
                             NavigationLink {
-                                AdvancedAssetListView(mode: .period(summary.scope, summary.intervalStart))
+                                AdvancedPeriodSwipeDestination(
+                                    scope: summary.scope,
+                                    intervalStart: summary.intervalStart
+                                )
                                     .environmentObject(dataManager)
                             } label: {
                                 AdvancedPeriodListRow(summary: summary)
@@ -878,8 +902,9 @@ private struct AdvancedPeriodListView: View {
                 }
                 .padding(PhotoDeleteStyle.screenHorizontalPadding)
             }
+            .scrollIndicators(.hidden)
         }
-        .toolbar(.hidden, for: .navigationBar)
+        .advancedDetailNavigation(title: L10n.string("时间进度"))
     }
 }
 
@@ -917,7 +942,6 @@ private struct AdvancedPeriodListRow: View {
 
 private struct AdvancedAssetListView: View {
     @EnvironmentObject var dataManager: DataManager
-    @Environment(\.dismiss) private var dismiss
     let mode: AdvancedAssetListMode
 
     @State private var assets: [PHAsset] = []
@@ -934,15 +958,8 @@ private struct AdvancedAssetListView: View {
         ZStack(alignment: .bottom) {
             PhotoDeleteScreenBackground()
 
-            ScrollView(showsIndicators: false) {
+            ScrollView {
                 VStack(spacing: 14) {
-                    AdvancedFeatureHeader(
-                        title: mode.title,
-                        subtitle: mode.subtitle,
-                        showsBackButton: true,
-                        onBack: { dismiss() }
-                    )
-
                     if case .cleanup(let kind) = mode {
                         AdvancedFilterPills(kind: kind)
                     }
@@ -980,6 +997,7 @@ private struct AdvancedAssetListView: View {
                 }
                 .padding(PhotoDeleteStyle.screenHorizontalPadding)
             }
+            .scrollIndicators(.hidden)
 
             if !selectedAssetIDs.isEmpty {
                 AdvancedSelectionActionBar(
@@ -989,7 +1007,7 @@ private struct AdvancedAssetListView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .toolbar(.hidden, for: .navigationBar)
+        .advancedDetailNavigation(title: mode.title)
         .fullScreenCover(isPresented: $showBatchConfirm, onDismiss: {
             selectedAssetIDs.removeAll()
             reloadAssets()
@@ -1018,8 +1036,6 @@ private struct AdvancedAssetListView: View {
             return L10n.string("共 \(assets.count) 个视频")
         case .cleanup(.similarPhotos):
             return L10n.string("共 \(assets.count) 张相似照片")
-        case .period:
-            return L10n.string("共 \(assets.count) 项")
         }
     }
 
@@ -1033,8 +1049,6 @@ private struct AdvancedAssetListView: View {
             return L10n.string("按视频占用优先处理，合计约 \(CleanupStatsFormatter.space(totalSizeMB))。")
         case .cleanup(.similarPhotos):
             return L10n.string("建议优先处理相似组，合计约 \(CleanupStatsFormatter.space(totalSizeMB))。")
-        case .period(let scope, _):
-            return L10n.string("按时间浏览这个\(scope.title)，合计约 \(CleanupStatsFormatter.space(totalSizeMB))。")
         }
     }
 
@@ -1043,8 +1057,6 @@ private struct AdvancedAssetListView: View {
         switch mode {
         case .cleanup(let kind):
             loadedAssets = dataManager.getPhotosForAdvancedCleanup(kind)
-        case .period(let scope, let date):
-            loadedAssets = dataManager.getPhotosForPeriod(scope, containing: date)
         }
 
         assets = loadedAssets
@@ -1087,7 +1099,6 @@ private struct AdvancedAssetListView: View {
 
 private struct AdvancedSimilarPhotoGroupsView: View {
     @EnvironmentObject var dataManager: DataManager
-    @Environment(\.dismiss) private var dismiss
     @State private var groups: [AdvancedSimilarPhotoGroup] = []
     @State private var selectedAssetIDs: Set<String> = []
     @State private var showBatchConfirm = false
@@ -1101,15 +1112,8 @@ private struct AdvancedSimilarPhotoGroupsView: View {
         ZStack(alignment: .bottom) {
             PhotoDeleteScreenBackground()
 
-            ScrollView(showsIndicators: false) {
+            ScrollView {
                 VStack(spacing: 14) {
-                    AdvancedFeatureHeader(
-                        title: L10n.string("相似照片"),
-                        subtitle: L10n.string("按相似组整理，保留最好的一张"),
-                        showsBackButton: true,
-                        onBack: { dismiss() }
-                    )
-
                     AdvancedFilterPills(kind: .similarPhotos)
 
                     AdvancedAssetListSummaryCard(
@@ -1145,6 +1149,7 @@ private struct AdvancedSimilarPhotoGroupsView: View {
                 }
                 .padding(24)
             }
+            .scrollIndicators(.hidden)
 
             if !selectedAssetIDs.isEmpty {
                 AdvancedSelectionActionBar(
@@ -1154,7 +1159,7 @@ private struct AdvancedSimilarPhotoGroupsView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .toolbar(.hidden, for: .navigationBar)
+        .advancedDetailNavigation(title: L10n.string("相似照片"))
         .fullScreenCover(isPresented: $showBatchConfirm, onDismiss: {
             selectedAssetIDs.removeAll()
             reloadGroups()
@@ -1257,7 +1262,7 @@ private struct AdvancedSimilarPhotoGroupCard: View {
                 .buttonStyle(.plain)
             }
 
-            ScrollView(.horizontal, showsIndicators: false) {
+            ScrollView(.horizontal) {
                 HStack(spacing: 8) {
                     ForEach(group.assets, id: \.localIdentifier) { asset in
                         AdvancedSelectableThumbnail(
@@ -1271,6 +1276,7 @@ private struct AdvancedSimilarPhotoGroupCard: View {
                     }
                 }
             }
+            .scrollIndicators(.hidden)
         }
         .padding(14)
         .photoDeleteCard()
@@ -1306,7 +1312,7 @@ private struct AdvancedAssetListSummaryCard: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(PhotoDeleteStyle.primaryButtonText)
                     .padding(.horizontal, 15)
-                    .frame(height: 36)
+                    .frame(minHeight: 44)
                     .background(
                         RoundedRectangle(cornerRadius: 11, style: .continuous)
                             .fill(PhotoDeleteStyle.accent)
@@ -1327,6 +1333,14 @@ private struct AdvancedAssetRow: View {
     let onToggleSelection: () -> Void
     let onPreview: () -> Void
 
+    private var title: String {
+        AdvancedAssetFormatter.title(for: asset, photoLibraryManager: photoLibraryManager)
+    }
+
+    private var metadata: String {
+        AdvancedAssetFormatter.metadata(for: asset, photoLibraryManager: photoLibraryManager)
+    }
+
     var body: some View {
         HStack(spacing: 12) {
             Button(action: onPreview) {
@@ -1337,41 +1351,44 @@ private struct AdvancedAssetRow: View {
                 )
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(asset.mediaType == .video ? L10n.string("视频预览") : L10n.string("照片预览"))
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(AdvancedAssetFormatter.title(for: asset, photoLibraryManager: photoLibraryManager))
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.primaryText)
-                    .lineLimit(1)
+            Button(action: onToggleSelection) {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(title)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(PhotoDeleteStyle.primaryText)
+                            .lineLimit(1)
 
-                Text(AdvancedAssetFormatter.metadata(for: asset, photoLibraryManager: photoLibraryManager))
-                    .font(.system(size: 12, weight: .regular))
-                    .foregroundColor(PhotoDeleteStyle.secondaryText)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.78)
-            }
+                        Text(metadata)
+                            .font(.system(size: 12, weight: .regular))
+                            .foregroundColor(PhotoDeleteStyle.secondaryText)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.78)
+                    }
 
-            Spacer(minLength: 8)
+                    Spacer(minLength: 8)
 
-            VStack(alignment: .trailing, spacing: 8) {
-                Text(CleanupStatsFormatter.space(estimatedSizeMB))
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.positive)
-                    .lineLimit(1)
+                    VStack(alignment: .trailing, spacing: 8) {
+                        Text(CleanupStatsFormatter.space(estimatedSizeMB))
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(PhotoDeleteStyle.positive)
+                            .lineLimit(1)
 
-                Button(action: onToggleSelection) {
-                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 22, weight: .semibold))
-                        .foregroundColor(isSelected ? PhotoDeleteStyle.accent : PhotoDeleteStyle.tertiaryText)
+                        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: 22, weight: .semibold))
+                            .foregroundColor(isSelected ? PhotoDeleteStyle.accent : PhotoDeleteStyle.tertiaryText)
+                            .photoDeleteMinimumTapTarget()
+                    }
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(isSelected ? L10n.string("取消选择") : L10n.string("选择"))
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isSelected ? L10n.string("取消选择") : L10n.string("选择"))
+            .accessibilityValue("\(title), \(metadata)")
         }
         .padding(10)
         .photoDeleteCard()
-        .contentShape(Rectangle())
-        .onTapGesture(perform: onToggleSelection)
     }
 }
 
@@ -1393,13 +1410,16 @@ private struct AdvancedSelectableThumbnail: View {
                 )
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(asset.mediaType == .video ? L10n.string("视频预览") : L10n.string("照片预览"))
 
             Button(action: onToggleSelection) {
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                Label(isSelected ? L10n.string("取消选择") : L10n.string("选择"), systemImage: isSelected ? "checkmark.circle.fill" : "circle")
+                    .labelStyle(.iconOnly)
                     .font(.system(size: 20, weight: .semibold))
                     .foregroundColor(isSelected ? PhotoDeleteStyle.accent : Color.white.opacity(0.84))
                     .shadow(color: .black.opacity(0.35), radius: 5, x: 0, y: 2)
-                    .padding(4)
+                    .frame(width: 32, height: 32)
+                    .photoDeleteMinimumTapTarget()
             }
             .buttonStyle(.plain)
 
@@ -1593,7 +1613,7 @@ private struct AdvancedFilterPills: View {
     let kind: AdvancedCleanupKind
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
+        ScrollView(.horizontal) {
             HStack(spacing: 8) {
                 ForEach(filters, id: \.self) { filter in
                     Text(filter)
@@ -1612,6 +1632,7 @@ private struct AdvancedFilterPills: View {
                 }
             }
         }
+        .scrollIndicators(.hidden)
     }
 
     private var filters: [String] {
@@ -1628,41 +1649,11 @@ private struct AdvancedFilterPills: View {
     }
 }
 
-private struct AdvancedFeatureHeader: View {
-    let title: String
-    let subtitle: String
-    var showsBackButton = false
-    var onBack: (() -> Void)?
-
-    var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            if showsBackButton {
-                Button(action: { onBack?() }) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(PhotoDeleteStyle.primaryText)
-                        .frame(width: 38, height: 38)
-                        .background(Circle().fill(PhotoDeleteStyle.elevatedSurface))
-                }
-                .buttonStyle(.plain)
-            }
-
-            VStack(alignment: .leading, spacing: 5) {
-                Text(title)
-                    .font(.system(size: 30, weight: .bold))
-                    .foregroundColor(PhotoDeleteStyle.primaryText)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-
-                Text(subtitle)
-                    .font(.system(size: 14, weight: .regular))
-                    .foregroundColor(PhotoDeleteStyle.secondaryText)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.8)
-            }
-
-            Spacer()
-        }
+private extension View {
+    func advancedDetailNavigation(title: String) -> some View {
+        navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.visible, for: .navigationBar)
     }
 }
 
@@ -1735,15 +1726,11 @@ private struct AdvancedEmptyState: View {
 
 private enum AdvancedAssetListMode {
     case cleanup(AdvancedCleanupKind)
-    case period(AdvancedTimeScope, Date)
 
     var id: String {
         switch self {
         case .cleanup(let kind):
             return "cleanup-\(kind.rawValue)"
-        case .period(let scope, let date):
-            let interval = Calendar.current.dateInterval(for: scope, containing: date)
-            return "period-\(scope.rawValue)-\(Int(interval.start.timeIntervalSince1970))"
         }
     }
 
@@ -1751,23 +1738,6 @@ private enum AdvancedAssetListMode {
         switch self {
         case .cleanup(let kind):
             return kind.title
-        case .period(let scope, let date):
-            return AdvancedPeriodFormatter.title(for: PhotoPeriodSummary.empty(scope: scope, containing: date))
-        }
-    }
-
-    var subtitle: String {
-        switch self {
-        case .cleanup(.largeFiles):
-            return L10n.string("按占用空间从大到小排序")
-        case .cleanup(.screenshots):
-            return L10n.string("像相册一样浏览并批量选择")
-        case .cleanup(.videos):
-            return L10n.string("按视频占用和时间整理")
-        case .cleanup(.similarPhotos):
-            return L10n.string("按相似组整理，保留最好的一张")
-        case .period(let scope, _):
-            return L10n.string("按时间浏览这个\(scope.title)的照片")
         }
     }
 
@@ -1775,8 +1745,6 @@ private enum AdvancedAssetListMode {
         switch self {
         case .cleanup(let kind):
             return kind.icon
-        case .period:
-            return "calendar"
         }
     }
 }

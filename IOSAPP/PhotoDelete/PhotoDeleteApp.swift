@@ -72,6 +72,7 @@ private enum PhotoDeleteUITestDefaults {
             AppConstants.upSwipeActionKey,
             AppConstants.gestureDefaultMigrationKey,
             AppConstants.reviewModeKey,
+            AppConstants.reviewProgressByScopeKey,
             AppConstants.customAlbumOrderKey,
             AppConstants.appAppearanceKey
         ].forEach(defaults.removeObject)

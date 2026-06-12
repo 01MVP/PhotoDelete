@@ -523,6 +523,47 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         }
     }
 
+    @discardableResult
+    func loadBrowserPreview(for asset: PHAsset, size: CGSize, completion: @escaping (UIImage?) -> Void) -> PHImageRequestID? {
+        let cacheKey = imageCacheKey(for: asset, purpose: "browser", size: size)
+
+        if let cachedImage = imageCache.object(forKey: cacheKey) {
+            completion(cachedImage)
+            return nil
+        }
+
+        let options = PHImageRequestOptions()
+        options.deliveryMode = .highQualityFormat
+        options.resizeMode = .exact
+        options.version = .current
+        options.isNetworkAccessAllowed = true
+        options.isSynchronous = false
+
+        return imageManager.requestImage(
+            for: asset,
+            targetSize: size,
+            contentMode: .aspectFill,
+            options: options
+        ) { [weak self] image, info in
+            DispatchQueue.main.async {
+                let isCancelled = (info?[PHImageCancelledKey] as? Bool) == true
+                let isInCloud = (info?[PHImageResultIsInCloudKey] as? Bool) == true
+                let isDegraded = (info?[PHImageResultIsDegradedKey] as? Bool) == true
+                let error = info?[PHImageErrorKey] as? Error
+                guard !isCancelled else { return }
+
+                if let image, !isDegraded {
+                    self?.cacheImage(image, forKey: cacheKey, isDegraded: false)
+                    completion(image)
+                } else if isInCloud && error == nil {
+                    return
+                } else if image == nil {
+                    completion(nil)
+                }
+            }
+        }
+    }
+
     func cancelImageRequest(_ requestID: PHImageRequestID?) {
         guard let requestID else { return }
         imageManager.cancelImageRequest(requestID)
@@ -588,6 +629,18 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         )
     }
 
+    func preloadGridThumbnailsForAssets(_ assets: [PHAsset], size: CGSize, maxCount: Int = 30) {
+        let assetsToPreload = Array(assets.prefix(maxCount))
+        guard !assetsToPreload.isEmpty else { return }
+
+        imageManager.startCachingImages(
+            for: assetsToPreload,
+            targetSize: size,
+            contentMode: .aspectFill,
+            options: makeGridThumbnailOptions()
+        )
+    }
+
     func handleMemoryWarning() {
         imageCache.removeAllObjects()
         imageManager.stopCachingImagesForAllAssets()
@@ -602,8 +655,14 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         imageManager.stopCachingImages(for: assets, targetSize: size, contentMode: .aspectFit, options: options)
     }
 
-    func loadThumbnail(for asset: PHAsset, completion: @escaping (UIImage?) -> Void) {
-        loadImage(for: asset, size: CGSize(width: 150, height: 150), completion: completion)
+    func stopCachingGridThumbnails(_ assets: [PHAsset], size: CGSize) {
+        guard !assets.isEmpty else { return }
+        imageManager.stopCachingImages(
+            for: assets,
+            targetSize: size,
+            contentMode: .aspectFill,
+            options: makeGridThumbnailOptions()
+        )
     }
 
     @discardableResult
@@ -651,11 +710,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             return nil
         }
 
-        let options = PHImageRequestOptions()
-        options.deliveryMode = .fastFormat
-        options.resizeMode = .fast
-        options.isNetworkAccessAllowed = false
-        options.isSynchronous = false
+        let options = makeGridThumbnailOptions()
 
         return imageManager.requestImage(
             for: asset,
@@ -674,6 +729,15 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                 completion(image)
             }
         }
+    }
+
+    private func makeGridThumbnailOptions() -> PHImageRequestOptions {
+        let options = PHImageRequestOptions()
+        options.deliveryMode = .fastFormat
+        options.resizeMode = .fast
+        options.isNetworkAccessAllowed = false
+        options.isSynchronous = false
+        return options
     }
 
     private func expectLocalLibraryChange() {
@@ -892,16 +956,17 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     }
 
     private func saveSnapshot(allPhotos: [PHAsset], videos: [PHAsset], screenshots: [PHAsset], livePhotos: [PHAsset], favorites: [PHAsset]) {
-        let snapshot = PhotoLibrarySnapshot(
-            createdAt: Date(),
-            allPhotoIDs: allPhotos.map(\.localIdentifier),
-            videoIDs: videos.map(\.localIdentifier),
-            screenshotIDs: screenshots.map(\.localIdentifier),
-            livePhotoIDs: livePhotos.map(\.localIdentifier),
-            favoriteIDs: favorites.map(\.localIdentifier)
-        )
         let store = snapshotStore
+        let createdAt = Date()
         DispatchQueue.global(qos: .utility).async {
+            let snapshot = PhotoLibrarySnapshot(
+                createdAt: createdAt,
+                allPhotoIDs: allPhotos.map(\.localIdentifier),
+                videoIDs: videos.map(\.localIdentifier),
+                screenshotIDs: screenshots.map(\.localIdentifier),
+                livePhotoIDs: livePhotos.map(\.localIdentifier),
+                favoriteIDs: favorites.map(\.localIdentifier)
+            )
             store.save(snapshot)
         }
     }
