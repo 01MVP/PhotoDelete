@@ -118,7 +118,7 @@ struct SettingsView: View {
             }
 
             VStack(spacing: 0) {
-                HStack(spacing: 0) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 82), spacing: 12)], spacing: 14) {
                     StatCard(
                         value: "\(stats.totalAssets)",
                         label: L10n.string("照片"),
@@ -1060,6 +1060,8 @@ private struct GestureActionPickerRow: View {
                     )
                 .photoDeleteMinimumTapTarget()
             }
+            .accessibilityLabel(Text("\(direction.title.appLocalized) \(L10n.string("手势"))"))
+            .accessibilityValue(Text(selectedAction.title.appLocalized))
             .accessibilityHint(Text(selectedAction.detailTitle.appLocalized))
         }
         .padding(16)

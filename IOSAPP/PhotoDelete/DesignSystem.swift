@@ -440,16 +440,17 @@ struct PhotoAuthorizationCard: View {
     var body: some View {
         VStack(spacing: 20) {
             Image(systemName: "photo.on.rectangle.angled")
-                .font(.system(size: 60, weight: .medium))
-                .foregroundColor(PhotoDeleteStyle.accent)
+                .font(.largeTitle.weight(.medium))
+                .foregroundStyle(PhotoDeleteStyle.accent)
+                .accessibilityHidden(true)
 
             Text(L10n.string("需要访问照片库"))
-                .font(.system(size: 24, weight: .semibold))
-                .foregroundColor(PhotoDeleteStyle.primaryText)
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(PhotoDeleteStyle.primaryText)
 
             Text(subtitle.appLocalized)
-                .font(.system(size: 16, weight: .regular))
-                .foregroundColor(PhotoDeleteStyle.secondaryText)
+                .font(.body)
+                .foregroundStyle(PhotoDeleteStyle.secondaryText)
                 .multilineTextAlignment(.center)
 
             Button(action: onRequestAccess) {

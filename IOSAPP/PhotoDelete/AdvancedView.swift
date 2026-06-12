@@ -64,7 +64,7 @@ struct AdvancedView: View {
     }
 
     private var advancedRootContent: some View {
-        ZStack(alignment: .bottom) {
+        ZStack {
             PhotoDeleteScreenBackground()
 
             ScrollView {
@@ -117,12 +117,13 @@ struct AdvancedView: View {
                     .accessibilityHidden(isLocked)
 
                     Spacer()
-                        .frame(height: isLocked ? 220 : 96)
+                        .frame(height: isLocked ? 24 : 96)
                 }
                 .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
                 .padding(.top, 44)
             }
-
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
             if isLocked {
                 AdvancedBottomPaywall(
                     priceText: purchaseManager.supporterPriceText,
@@ -967,7 +968,7 @@ private struct AdvancedAssetListView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
+        ZStack {
             PhotoDeleteScreenBackground()
 
             ScrollView {
@@ -1005,11 +1006,12 @@ private struct AdvancedAssetListView: View {
                     }
 
                     Spacer()
-                        .frame(height: selectedAssetIDs.isEmpty ? 86 : 146)
+                        .frame(height: 24)
                 }
                 .padding(PhotoDeleteStyle.screenHorizontalPadding)
             }
-
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
             if !selectedAssetIDs.isEmpty {
                 AdvancedSelectionActionBar(
                     count: selectedAssetIDs.count,
@@ -1120,7 +1122,7 @@ private struct AdvancedSimilarPhotoGroupsView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
+        ZStack {
             PhotoDeleteScreenBackground()
 
             ScrollView {
@@ -1156,11 +1158,12 @@ private struct AdvancedSimilarPhotoGroupsView: View {
                     }
 
                     Spacer()
-                        .frame(height: selectedAssetIDs.isEmpty ? 86 : 146)
+                        .frame(height: 24)
                 }
                 .padding(24)
             }
-
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
             if !selectedAssetIDs.isEmpty {
                 AdvancedSelectionActionBar(
                     count: selectedAssetIDs.count,
@@ -1634,22 +1637,23 @@ private struct AdvancedFilterPills: View {
             HStack(spacing: 8) {
                 ForEach(filters, id: \.self) { filter in
                     Text(filter)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(filter == filters.first ? PhotoDeleteStyle.accent : PhotoDeleteStyle.secondaryText)
-                        .padding(.horizontal, 11)
-                        .padding(.vertical, 8)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(PhotoDeleteStyle.secondaryText)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
                         .background(
                             Capsule(style: .continuous)
-                                .fill(filter == filters.first ? PhotoDeleteStyle.accent.opacity(0.15) : PhotoDeleteStyle.surface)
+                                .fill(PhotoDeleteStyle.surface)
                                 .overlay(
                                     Capsule(style: .continuous)
-                                        .stroke(filter == filters.first ? PhotoDeleteStyle.accent.opacity(0.38) : PhotoDeleteStyle.hairline, lineWidth: 1)
+                                        .stroke(PhotoDeleteStyle.hairline, lineWidth: 1)
                                 )
                         )
                 }
             }
         }
         .scrollIndicators(.hidden)
+        .accessibilityElement(children: .combine)
     }
 
     private var filters: [String] {
@@ -1719,20 +1723,31 @@ private struct AdvancedEmptyState: View {
     let subtitle: String
 
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 38, weight: .medium))
-                .foregroundColor(PhotoDeleteStyle.secondaryText)
+        Group {
+            if #available(iOS 17.0, *) {
+                ContentUnavailableView(
+                    title,
+                    systemImage: icon,
+                    description: Text(subtitle)
+                )
+                .foregroundStyle(PhotoDeleteStyle.secondaryText)
+            } else {
+                VStack(spacing: 12) {
+                    Image(systemName: icon)
+                        .font(.system(size: 38, weight: .medium))
+                        .foregroundColor(PhotoDeleteStyle.secondaryText)
 
-            VStack(spacing: 5) {
-                Text(title)
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.primaryText)
+                    VStack(spacing: 5) {
+                        Text(title)
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundColor(PhotoDeleteStyle.primaryText)
 
-                Text(subtitle)
-                    .font(.system(size: 13, weight: .regular))
-                    .foregroundColor(PhotoDeleteStyle.secondaryText)
-                    .multilineTextAlignment(.center)
+                        Text(subtitle)
+                            .font(.system(size: 13, weight: .regular))
+                            .foregroundColor(PhotoDeleteStyle.secondaryText)
+                            .multilineTextAlignment(.center)
+                    }
+                }
             }
         }
         .frame(maxWidth: .infinity)

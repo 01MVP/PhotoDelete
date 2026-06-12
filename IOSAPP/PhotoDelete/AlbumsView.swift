@@ -24,7 +24,6 @@ struct AlbumsView: View {
     @State private var navigationPath = NavigationPath()
     @State private var searchText = ""
     @State private var activeSheet: AlbumSheet?
-    @State private var showSearchBar = false
     @State private var sortMode: AlbumSortMode = .custom
     @State private var editMode: EditMode = .inactive
     @State private var pendingAlbumToDelete: PHAssetCollection?
@@ -51,7 +50,8 @@ struct AlbumsView: View {
                     albumToastView(albumToast)
                 }
             }
-            .toolbar(.hidden, for: .navigationBar)
+            .navigationTitle(L10n.string("相册"))
+            .navigationBarTitleDisplayMode(.large)
             .navigationDestination(for: AlbumNavigationDestination.self) { destination in
                 switch destination {
                 case .swipeAlbum(let selectedSwipeAlbum):
@@ -69,29 +69,6 @@ struct AlbumsView: View {
                 EditAlbumView(album: album)
                     .environmentObject(dataManager)
             }
-        }
-        .confirmationDialog(
-            L10n.string("删除这个相册？"),
-            isPresented: Binding(
-                get: { pendingAlbumToDelete != nil },
-                set: { isPresented in
-                    if !isPresented {
-                        pendingAlbumToDelete = nil
-                    }
-                }
-            ),
-            titleVisibility: .visible
-        ) {
-            Button(L10n.string("删除相册"), role: .destructive) {
-                guard let pendingAlbumToDelete else { return }
-                deleteAlbum(pendingAlbumToDelete)
-                self.pendingAlbumToDelete = nil
-            }
-            Button(L10n.string("取消"), role: .cancel) {
-                pendingAlbumToDelete = nil
-            }
-        } message: {
-            Text(L10n.string("只会删除相册，不会删除相册里的照片。"))
         }
         .onChange(of: sortMode) { mode in
             guard mode != .custom else { return }
@@ -113,13 +90,9 @@ struct AlbumsView: View {
     private var headerSection: some View {
         HStack(alignment: .center, spacing: 14) {
             VStack(alignment: .leading, spacing: 5) {
-                Text(L10n.string("相册"))
-                    .font(.system(size: 34, weight: .bold))
-                    .foregroundColor(PhotoDeleteStyle.primaryText)
-
                 Text(albumHeaderSubtitle)
-                    .font(.system(size: 15, weight: .regular))
-                    .foregroundColor(dataManager.photoLibraryManager.hasPhotoLibraryAccess ? PhotoDeleteStyle.secondaryText : PhotoDeleteStyle.accent)
+                    .font(.subheadline)
+                    .foregroundStyle(dataManager.photoLibraryManager.hasPhotoLibraryAccess ? PhotoDeleteStyle.secondaryText : PhotoDeleteStyle.accent)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -127,20 +100,6 @@ struct AlbumsView: View {
             Spacer()
 
             if dataManager.photoLibraryManager.hasPhotoLibraryAccess {
-                Button {
-                    showSearch()
-                } label: {
-                    Label(L10n.string("搜索相册"), systemImage: "magnifyingglass")
-                        .labelStyle(.iconOnly)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(PhotoDeleteStyle.primaryText)
-                        .frame(width: 42, height: 42)
-                        .background(Circle().fill(PhotoDeleteStyle.elevatedSurface))
-                        .photoDeleteMinimumTapTarget()
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(L10n.string("搜索相册"))
-
                 Menu {
                     Picker(L10n.string("排序"), selection: $sortMode) {
                         ForEach(AlbumSortMode.allCases) { mode in
@@ -184,7 +143,7 @@ struct AlbumsView: View {
             }
         }
         .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
-        .padding(.top, 28)
+        .padding(.top, 8)
         .padding(.bottom, 16)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -207,11 +166,6 @@ struct AlbumsView: View {
     private var albumsList: some View {
         let userAlbums = filteredUserAlbums
         List {
-            if showSearchBar {
-                searchRow
-                    .transition(.move(edge: .top).combined(with: .opacity))
-            }
-
             if isLoadingAlbums {
                 loadingRow
             } else {
@@ -241,51 +195,17 @@ struct AlbumsView: View {
         .environment(\.defaultMinListRowHeight, 0)
         .environment(\.editMode, $editMode)
         .photoDeleteAlbumListTopMargin()
+        .searchable(
+            text: $searchText,
+            placement: .navigationBarDrawer(displayMode: .always),
+            prompt: L10n.string("搜索相册")
+        )
         .refreshable {
-            if showSearchBar {
-                dataManager.loadAlbums(showLoading: false)
-            } else {
-                showSearch()
-            }
+            dataManager.loadAlbums(showLoading: false)
         }
         .safeAreaInset(edge: .bottom) {
             Color.clear.frame(height: 88)
         }
-    }
-
-    private var searchRow: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 15, weight: .medium))
-                .foregroundColor(PhotoDeleteStyle.secondaryText)
-
-            TextField(L10n.string("搜索相册"), text: $searchText)
-                .font(.system(size: 15, weight: .regular))
-                .foregroundColor(PhotoDeleteStyle.primaryText)
-                .submitLabel(.search)
-
-            Button(action: hideSearch) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.tertiaryText)
-                    .photoDeleteMinimumTapTarget()
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(L10n.string("关闭搜索"))
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 11)
-        .background(
-            RoundedRectangle(cornerRadius: PhotoDeleteStyle.controlRadius, style: .continuous)
-                .fill(PhotoDeleteStyle.surface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: PhotoDeleteStyle.controlRadius, style: .continuous)
-                        .stroke(PhotoDeleteStyle.hairline, lineWidth: 1)
-                )
-        )
-        .listRowInsets(EdgeInsets(top: 4, leading: PhotoDeleteStyle.screenHorizontalPadding, bottom: 10, trailing: PhotoDeleteStyle.screenHorizontalPadding))
-        .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden)
     }
 
     private var loadingRow: some View {
@@ -396,6 +316,32 @@ struct AlbumsView: View {
                 .tint(PhotoDeleteStyle.accent)
             }
         }
+        .confirmationDialog(
+            L10n.string("删除这个相册？"),
+            isPresented: Binding(
+                get: {
+                    guard let editableAlbum else { return false }
+                    return pendingAlbumToDelete?.localIdentifier == editableAlbum.localIdentifier
+                },
+                set: { isPresented in
+                    if !isPresented {
+                        pendingAlbumToDelete = nil
+                    }
+                }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button(L10n.string("删除相册"), role: .destructive) {
+                guard let editableAlbum else { return }
+                deleteAlbum(editableAlbum)
+                pendingAlbumToDelete = nil
+            }
+            Button(L10n.string("取消"), role: .cancel) {
+                pendingAlbumToDelete = nil
+            }
+        } message: {
+            Text(L10n.string("只会删除相册，不会删除相册里的照片。"))
+        }
         .listRowSeparatorTint(PhotoDeleteStyle.hairline)
     }
 
@@ -459,19 +405,6 @@ struct AlbumsView: View {
     }
 
     // MARK: - 方法
-    private func showSearch() {
-        withAnimation(.easeInOut(duration: 0.2)) {
-            showSearchBar = true
-        }
-    }
-
-    private func hideSearch() {
-        withAnimation(.easeInOut(duration: 0.2)) {
-            showSearchBar = false
-        }
-        searchText = ""
-    }
-
     private func sortedAlbums(_ albums: [AlbumInfo]) -> [AlbumInfo] {
         switch sortMode {
         case .custom:
