@@ -11303,6 +11303,446 @@
           }
         }
       }
+    },
+    "基础清理始终免费。支持者版解锁大文件、相似照片和长期统计等进阶工具。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Core cleanup is always free. Supporter unlocks advanced tools for large files, similar photos, and long-term stats."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "基础清理始终免费。支持者版解锁大文件、相似照片和长期统计等进阶工具。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "基礎清理始終免費。支持者版解鎖大檔案、相似照片和長期統計等進階工具。"
+          }
+        }
+      }
+    },
+    "基础整理继续免费。一次性解锁大文件清理、相似照片清理、长期统计和完整清理队列。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Core cleanup stays free. One purchase unlocks large-file cleanup, similar-photo cleanup, long-term stats, and full cleanup queues."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "基础整理继续免费。一次性解锁大文件清理、相似照片清理、长期统计和完整清理队列。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "基礎整理繼續免費。一次性解鎖大檔案清理、相似照片清理、長期統計和完整清理佇列。"
+          }
+        }
+      }
+    },
+    "一次性解锁按日期清理、大文件清理和相似照片清理。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One-time unlock for date-based cleanup, large-file cleanup, and similar-photo cleanup."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "一次性解锁按日期清理、大文件清理和相似照片清理。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一次性解鎖按日期清理、大檔案清理和相似照片清理。"
+          }
+        }
+      }
+    },
+    "版本对比": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plan Comparison"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "版本对比"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "版本對比"
+          }
+        }
+      }
+    },
+    "功能": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Feature"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "功能"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "功能"
+          }
+        }
+      }
+    },
+    "免费版": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Free"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "免费版"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "免費版"
+          }
+        }
+      }
+    },
+    "基础滑动整理": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Basic Swipe Cleanup"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "基础滑动整理"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "基礎滑動整理"
+          }
+        }
+      }
+    },
+    "确认后删除和收藏": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete and Favorite After Confirmation"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "确认后删除和收藏"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "確認後刪除和收藏"
+          }
+        }
+      }
+    },
+    "按日期清理": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Date-Based Cleanup"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "按日期清理"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按日期清理"
+          }
+        }
+      }
+    },
+    "包含": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Included"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "包含"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "包含"
+          }
+        }
+      }
+    },
+    "不包含": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not Included"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "不包含"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不包含"
+          }
+        }
+      }
+    },
+    "大文件清理": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Large File Cleanup"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "大文件清理"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "大檔案清理"
+          }
+        }
+      }
+    },
+    "找出占空间的照片和视频": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Find photos and videos taking up space"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "找出占空间的照片和视频"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找出佔空間的照片和影片"
+          }
+        }
+      }
+    },
+    "相似照片清理": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Similar Photo Cleanup"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "相似照片清理"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "相似照片清理"
+          }
+        }
+      }
+    },
+    "长期统计与历史": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Long-Term Stats and History"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "长期统计与历史"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "長期統計與歷史"
+          }
+        }
+      }
+    },
+    "按月份查看整理成果和本机记录": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View monthly progress and local history"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "按月份查看整理成果和本机记录"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按月份查看整理成果和本機記錄"
+          }
+        }
+      }
+    },
+    "一次性解锁 %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One-time unlock %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "一次性解锁 %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一次性解鎖 %@"
+          }
+        }
+      }
+    },
+    "%lld 张相近候选 · 可节省 %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld near-match candidates · Save %2$@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%lld 张相近候选 · 可节省 %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 張相近候選 · 可節省 %@"
+          }
+        }
+      }
+    },
+    "管理照片访问范围": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Manage Photo Access"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "管理照片访问范围"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "管理照片訪問範圍"
+          }
+        }
+      }
+    },
+    "按拍摄时间和画面比例估算的相近照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Near-match photos estimated by capture time and image ratio"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "按拍摄时间和画面比例估算的相近照片"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按拍攝時間和畫面比例估算的相近照片"
+          }
+        }
+      }
     }
   },
   "version": "1.2"

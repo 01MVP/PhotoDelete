@@ -109,7 +109,7 @@ private struct SupporterPaywallContent: View {
                         .font(.system(size: 28, weight: .semibold))
                         .foregroundColor(PhotoDeleteStyle.primaryText)
 
-                    Text(L10n.string("基础清理功能始终免费。支持者版解锁长期统计，并支持删图继续维护。"))
+                    Text(L10n.string("一次性解锁按日期清理、大文件清理和相似照片清理。"))
                         .font(.system(size: 16, weight: .regular))
                         .foregroundColor(PhotoDeleteStyle.secondaryText)
                         .multilineTextAlignment(.center)
@@ -119,16 +119,7 @@ private struct SupporterPaywallContent: View {
             .padding(24)
             .photoDeleteCard()
 
-            VStack(spacing: 0) {
-                SupporterBenefitRow(icon: "chart.bar.xaxis", title: L10n.string("长期清理统计"), detail: L10n.string("累计整理、删除和节省空间"))
-                SupporterDivider()
-                SupporterBenefitRow(icon: "calendar", title: L10n.string("月度统计"), detail: L10n.string("按月份查看清理成果"))
-                SupporterDivider()
-                SupporterBenefitRow(icon: "clock.arrow.circlepath", title: L10n.string("清理历史"), detail: L10n.string("每次确认后的本机记录"))
-                SupporterDivider()
-                SupporterBenefitRow(icon: "seal.fill", title: L10n.string("支持者徽章与主题色"), detail: L10n.string("给自己的整理报告一点个人标记"))
-            }
-            .photoDeleteCard()
+            SupporterPlanComparisonCard()
 
             VStack(spacing: 12) {
                 Button(action: onPurchase) {
@@ -138,7 +129,7 @@ private struct SupporterPaywallContent: View {
                                 .progressViewStyle(CircularProgressViewStyle(tint: PhotoDeleteStyle.primaryButtonText))
                                 .scaleEffect(0.82)
                         }
-                        Text(isLoading ? L10n.string("处理中...") : L10n.string("永久解锁 \(priceText)"))
+                        Text(isLoading ? L10n.string("处理中...") : String(format: L10n.string("一次性解锁 %@"), priceText))
                     }
                 }
                 .photoDeletePrimaryButton()
@@ -429,39 +420,117 @@ private struct SupporterHistorySection: View {
     }
 }
 
-private struct SupporterBenefitRow: View {
-    let icon: String
-    let title: String
-    let detail: String
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundColor(PhotoDeleteStyle.accent)
-                .frame(width: 24)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.primaryText)
-
-                Text(detail)
-                    .font(.system(size: 13, weight: .regular))
-                    .foregroundColor(PhotoDeleteStyle.secondaryText)
-            }
-
-            Spacer()
-        }
-        .padding(16)
-    }
-}
-
 private struct SupporterDivider: View {
     var body: some View {
         Divider()
             .background(PhotoDeleteStyle.hairline)
             .padding(.leading, 16)
+    }
+}
+
+private struct SupporterPlanComparisonCard: View {
+    private let rows: [SupporterPlanComparisonRow.Model] = [
+        .init(title: L10n.string("基础滑动整理"), free: .included, supporter: .included),
+        .init(title: L10n.string("确认后删除和收藏"), free: .included, supporter: .included),
+        .init(title: L10n.string("按日期清理"), free: .notIncluded, supporter: .included),
+        .init(title: L10n.string("大文件清理"), free: .notIncluded, supporter: .included),
+        .init(title: L10n.string("相似照片清理"), free: .notIncluded, supporter: .included),
+        .init(title: L10n.string("长期统计与历史"), free: .notIncluded, supporter: .included)
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(L10n.string("版本对比"))
+                .font(.headline)
+                .foregroundColor(PhotoDeleteStyle.primaryText)
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+                .padding(.bottom, 10)
+
+            HStack(spacing: 10) {
+                Text(L10n.string("功能"))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text(L10n.string("免费版"))
+                    .frame(width: 64)
+                Text(L10n.string("支持者版"))
+                    .frame(width: 64)
+            }
+            .font(.caption.bold())
+            .foregroundColor(PhotoDeleteStyle.secondaryText)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 8)
+
+            ForEach(rows) { row in
+                SupporterPlanComparisonRow(model: row)
+                if row.id != rows.last?.id {
+                    SupporterDivider()
+                }
+            }
+        }
+        .photoDeleteCard()
+    }
+}
+
+private struct SupporterPlanComparisonRow: View {
+    struct Model: Identifiable {
+        let title: String
+        let free: SupporterPlanAvailability
+        let supporter: SupporterPlanAvailability
+
+        var id: String { title }
+    }
+
+    let model: Model
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(model.title)
+                .font(.subheadline)
+                .foregroundColor(PhotoDeleteStyle.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            availabilityCell(model.free)
+            availabilityCell(model.supporter)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .accessibilityElement(children: .combine)
+    }
+
+    private func availabilityCell(_ availability: SupporterPlanAvailability) -> some View {
+        Image(systemName: availability.systemImage)
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundColor(availability.tint)
+            .frame(width: 64)
+            .frame(minHeight: 24)
+            .accessibilityLabel(availability.accessibilityLabel)
+    }
+}
+
+private enum SupporterPlanAvailability {
+    case included
+    case notIncluded
+
+    var systemImage: String {
+        switch self {
+        case .included: return "checkmark.circle.fill"
+        case .notIncluded: return "minus"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .included: return PhotoDeleteStyle.accent
+        case .notIncluded: return PhotoDeleteStyle.tertiaryText
+        }
+    }
+
+    var accessibilityLabel: String {
+        switch self {
+        case .included: return L10n.string("包含")
+        case .notIncluded: return L10n.string("不包含")
+        }
     }
 }
 

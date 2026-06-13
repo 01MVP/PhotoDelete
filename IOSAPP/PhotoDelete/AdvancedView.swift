@@ -793,7 +793,7 @@ private struct AdvancedBottomPaywall: View {
                 }
                 .foregroundColor(PhotoDeleteStyle.primaryText)
 
-                Text(L10n.string("查看完整清理队列，按日周月年、大小和相似组释放更多空间。"))
+                Text(L10n.string("一次性解锁按日期清理、大文件清理和相似照片清理。"))
                     .font(.system(size: 13, weight: .regular))
                     .foregroundColor(PhotoDeleteStyle.secondaryText)
                     .multilineTextAlignment(.center)
@@ -807,7 +807,7 @@ private struct AdvancedBottomPaywall: View {
                             .progressViewStyle(CircularProgressViewStyle(tint: PhotoDeleteStyle.primaryButtonText))
                             .scaleEffect(0.78)
                     }
-                    Text(isLoading ? L10n.string("处理中...") : L10n.string("解锁进阶 \(priceText)"))
+                    Text(isLoading ? L10n.string("处理中...") : String(format: L10n.string("一次性解锁 %@"), priceText))
                 }
             }
             .photoDeletePrimaryButton()
@@ -1265,7 +1265,7 @@ private struct AdvancedSimilarPhotoGroupCard: View {
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundColor(PhotoDeleteStyle.primaryText)
 
-                    Text(L10n.string("\(group.assets.count) 张相似 · 可节省 \(group.formattedEstimatedSpace)"))
+                    Text(String(format: L10n.string("%lld 张相近候选 · 可节省 %@"), Int64(group.assets.count), group.formattedEstimatedSpace))
                         .font(.system(size: 12, weight: .regular))
                         .foregroundColor(PhotoDeleteStyle.secondaryText)
                 }
