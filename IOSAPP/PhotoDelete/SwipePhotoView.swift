@@ -45,10 +45,6 @@ struct SwipePhotoView: View {
     @State private var pendingDeleteCount = 0
     @State private var pendingFavoriteCount = 0
     @State private var pendingSwipeMutations: [String: PendingSwipeMutation] = [:]
-    @State private var browserRows = BrowserPhotoRows.empty
-    @State private var browserPreloadedAssets: [PHAsset] = []
-    @State private var browserPreloadTargetSize: CGSize?
-    @State private var browserPreloadTask: Task<Void, Never>?
     @State private var sessionProgressSaveWorkItem: DispatchWorkItem?
     @State private var previewAsset: CandidatePreviewAsset?
     @State private var inlinePlayingVideoAssetID: String?
@@ -92,28 +88,6 @@ struct SwipePhotoView: View {
         let asset: PHAsset
         let action: SwipeGestureAction
         let token: UUID
-    }
-
-    private struct BrowserPhotoRows {
-        var top: [BrowserPhotoItem]
-        var bottom: [BrowserPhotoItem]
-        var totalCount: Int
-
-        var isEmpty: Bool {
-            top.isEmpty && bottom.isEmpty
-        }
-
-        static let empty = BrowserPhotoRows(top: [], bottom: [], totalCount: 0)
-    }
-
-    private struct BrowserPhotoItem: Identifiable {
-        let index: Int
-        let asset: PHAsset
-        let aspectRatio: CGFloat
-        let isScreenshot: Bool
-        let isVideo: Bool
-
-        var id: String { asset.localIdentifier }
     }
 
     private var currentRealPhoto: PHAsset? {
@@ -257,8 +231,6 @@ struct SwipePhotoView: View {
                 size: swipeImageTargetSize
             )
             preloadedAssets.removeAll()
-            cancelScheduledBrowserPreload()
-            stopPreloadingBrowserThumbnails()
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
             // 处理内存警告
@@ -530,161 +502,33 @@ struct SwipePhotoView: View {
     private func browserPhotoArea(in containerSize: CGSize) -> some View {
         let tileHeight = browserTileHeight(in: containerSize)
         let thumbnailTargetSize = browserThumbnailTargetSize(in: containerSize, tileHeight: tileHeight)
-        let rowSpacing: CGFloat = 12
-        let columnSpacing: CGFloat = 12
-        let bottomRowInset = min(tileHeight * 0.34, 64)
+        let selectedTargetSize = browserSelectedImageTargetSize(in: containerSize, tileHeight: tileHeight)
 
         return VStack(spacing: 12) {
             browserStatusStrip
 
-            ScrollViewReader { proxy in
-                ScrollView(.horizontal) {
-                    VStack(alignment: .leading, spacing: rowSpacing) {
-                        browserPhotoRow(
-                            items: browserRows.top,
-                            tileHeight: tileHeight,
-                            containerWidth: containerSize.width,
-                            thumbnailTargetSize: thumbnailTargetSize,
-                            columnSpacing: columnSpacing
-                        )
-
-                        browserPhotoRow(
-                            items: browserRows.bottom,
-                            tileHeight: tileHeight,
-                            containerWidth: containerSize.width,
-                            thumbnailTargetSize: thumbnailTargetSize,
-                            columnSpacing: columnSpacing
-                        )
-                        .padding(.leading, browserRows.bottom.isEmpty ? 0 : bottomRowInset)
-                    }
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 4)
-                }
-                .scrollIndicators(.hidden)
-                .frame(height: tileHeight * 2 + rowSpacing + 8)
-                .onAppear {
-                    prepareBrowserRowsIfNeeded()
-                    scheduleBrowserThumbnailPreload(from: currentPhotoIndex, targetSize: thumbnailTargetSize)
-                    scrollBrowserToCurrentPhoto(with: proxy, animated: false)
-                }
-                .onChange(of: currentPhotoIndex) { _ in
-                    scheduleBrowserThumbnailPreload(from: currentPhotoIndex, targetSize: thumbnailTargetSize)
-                    DispatchQueue.main.async {
-                        scrollBrowserToCurrentPhoto(with: proxy, animated: true)
-                    }
-                }
-                .onChange(of: thumbnailTargetSize) { targetSize in
-                    scheduleBrowserThumbnailPreload(from: currentPhotoIndex, targetSize: targetSize)
-                }
-                .onDisappear {
-                    cancelScheduledBrowserPreload()
-                    stopPreloadingBrowserThumbnails()
-                }
-            }
+            TwoRowPhotoBrowserView(
+                assets: sessionPhotos,
+                photoLibraryManager: dataManager.photoLibraryManager,
+                currentIndex: currentPhotoIndex,
+                reviewedAssetIDs: dataManager.reviewedAssetIDs,
+                pendingReviewedAssetIDs: browserPendingReviewedAssetIDs,
+                deleteCandidateIDs: browserDeleteCandidateIDs,
+                favoriteCandidateIDs: browserFavoriteCandidateIDs,
+                playingVideoAssetID: inlinePlayingVideoAssetID,
+                rowHeight: tileHeight,
+                thumbnailTargetSize: thumbnailTargetSize,
+                selectedTargetSize: selectedTargetSize,
+                onSelectIndex: selectBrowserPhoto(at:),
+                onOpenAsset: openAssetPreview(_:),
+                onSwipeUpToDelete: handleBrowserSwipeUpDelete(_:at:),
+                onCancelDelete: cancelDeleteCandidate(_:at:),
+                onStopVideoPlayback: stopInlineVideoPlayback
+            )
+            .frame(height: tileHeight * 2 + 20)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.top, 12)
-    }
-
-    private func browserPhotoRow(
-        items: [BrowserPhotoItem],
-        tileHeight: CGFloat,
-        containerWidth: CGFloat,
-        thumbnailTargetSize: CGSize,
-        columnSpacing: CGFloat
-    ) -> some View {
-        LazyHStack(alignment: .center, spacing: columnSpacing) {
-            ForEach(items) { item in
-                browserPhotoTile(
-                    item: item,
-                    tileHeight: tileHeight,
-                    containerWidth: containerWidth,
-                    thumbnailTargetSize: thumbnailTargetSize
-                )
-                .id(item.index)
-            }
-        }
-        .frame(height: tileHeight)
-    }
-
-    private func browserPhotoTile(
-        item: BrowserPhotoItem,
-        tileHeight: CGFloat,
-        containerWidth: CGFloat,
-        thumbnailTargetSize: CGSize
-    ) -> some View {
-        let asset = item.asset
-        let tileSize = browserTileSize(for: item, baseHeight: tileHeight, containerWidth: containerWidth)
-
-        return BrowserPhotoTile(
-            asset: asset,
-            photoLibraryManager: dataManager.photoLibraryManager,
-            isSelected: item.index == currentPhotoIndex,
-            isReviewed: isAssetLocallyReviewed(asset),
-            isInDeleteCandidates: isAssetQueuedForDelete(asset),
-            isInFavoriteCandidates: isAssetQueuedForFavorite(asset),
-            isScreenshot: item.isScreenshot,
-            isVideo: item.isVideo,
-            isVideoPlaying: inlinePlayingVideoAssetID == asset.localIdentifier,
-            displaySize: tileSize,
-            targetSize: thumbnailTargetSize,
-            selectedTargetSize: browserSelectedImageTargetSize(for: tileSize),
-            prefersHighQualityPreview: shouldLoadHighQualityBrowserPreview(for: item.index),
-            onSelect: {
-                if item.index == currentPhotoIndex {
-                    openAssetPreview(asset)
-                } else {
-                    selectBrowserPhoto(at: item.index)
-                }
-            },
-            onSwipeUpToDelete: {
-                handleBrowserSwipeUpDelete(asset, at: item.index)
-            },
-            onCancelDelete: {
-                cancelDeleteCandidate(asset, at: item.index)
-            },
-            onStopVideoPlayback: stopInlineVideoPlayback
-        )
-    }
-
-    private func makeBrowserRows(from photos: [PHAsset]) -> BrowserPhotoRows {
-        guard !photos.isEmpty else { return .empty }
-
-        let screenshotIDs = Set(dataManager.photoLibraryManager.screenshots.map(\.localIdentifier))
-        var top: [BrowserPhotoItem] = []
-        var bottom: [BrowserPhotoItem] = []
-        top.reserveCapacity((photos.count + 1) / 2)
-        bottom.reserveCapacity(photos.count / 2)
-
-        for (index, asset) in photos.enumerated() {
-            let item = BrowserPhotoItem(
-                index: index,
-                asset: asset,
-                aspectRatio: asset.pixelHeight > 0 ? CGFloat(asset.pixelWidth) / CGFloat(asset.pixelHeight) : 0.78,
-                isScreenshot: screenshotIDs.contains(asset.localIdentifier) || asset.mediaSubtypes.contains(.photoScreenshot),
-                isVideo: asset.mediaType == .video
-            )
-
-            if index.isMultiple(of: 2) {
-                top.append(item)
-            } else {
-                bottom.append(item)
-            }
-        }
-
-        return BrowserPhotoRows(top: top, bottom: bottom, totalCount: photos.count)
-    }
-
-    private func prepareBrowserRowsIfNeeded() {
-        guard reviewMode == .browser, !sessionPhotos.isEmpty else {
-            if !browserRows.isEmpty {
-                browserRows = .empty
-            }
-            return
-        }
-
-        guard browserRows.totalCount != sessionPhotos.count else { return }
-        browserRows = makeBrowserRows(from: sessionPhotos)
     }
 
     private func openAssetPreview(_ asset: PHAsset) {
@@ -1146,11 +990,6 @@ struct SwipePhotoView: View {
             currentPhotoIndex = 0
             showCompletionMessage = !photos.isEmpty
         }
-        if reviewMode == .browser {
-            browserRows = makeBrowserRows(from: photos)
-        } else {
-            browserRows = .empty
-        }
         preloadUpcomingImages(from: currentPhotoIndex)
         persistSessionProgressIfPossible()
     }
@@ -1213,12 +1052,6 @@ struct SwipePhotoView: View {
         return min(232, max(126, (availableHeight - rowSpacing) / 2))
     }
 
-    private func browserTileSize(for item: BrowserPhotoItem, baseHeight: CGFloat, containerWidth: CGFloat) -> CGSize {
-        let normalizedAspect = min(max(item.aspectRatio, 0.56), 1.72)
-        let width = min(max(baseHeight * normalizedAspect, baseHeight * 0.58), min(containerWidth * 0.72, baseHeight * 1.72))
-        return CGSize(width: width, height: baseHeight)
-    }
-
     private func browserThumbnailTargetSize(in containerSize: CGSize, tileHeight: CGFloat) -> CGSize {
         let scale = min(displayScale, 1.3)
         let maxTileWidth = min(containerSize.width * 0.72, tileHeight * 1.72)
@@ -1228,80 +1061,13 @@ struct SwipePhotoView: View {
         )
     }
 
-    private func browserSelectedImageTargetSize(for displaySize: CGSize) -> CGSize {
+    private func browserSelectedImageTargetSize(in containerSize: CGSize, tileHeight: CGFloat) -> CGSize {
         let scale = min(displayScale, 1.85)
+        let maxTileWidth = min(containerSize.width * 0.72, tileHeight * 1.72)
         return CGSize(
-            width: min(displaySize.width * scale, 820),
-            height: min(displaySize.height * scale, 820)
+            width: min(maxTileWidth * scale, 820),
+            height: min(tileHeight * scale, 820)
         )
-    }
-
-    private func shouldLoadHighQualityBrowserPreview(for index: Int) -> Bool {
-        abs(index - currentPhotoIndex) <= 1
-    }
-
-    private func scheduleBrowserThumbnailPreload(from index: Int, targetSize: CGSize) {
-        guard reviewMode == .browser, !sessionPhotos.isEmpty else {
-            cancelScheduledBrowserPreload()
-            stopPreloadingBrowserThumbnails()
-            return
-        }
-
-        browserPreloadTask?.cancel()
-        browserPreloadTask = Task {
-            try? await Task.sleep(nanoseconds: 180_000_000)
-            guard !Task.isCancelled else { return }
-
-            await MainActor.run {
-                guard reviewMode == .browser else { return }
-                preloadBrowserThumbnails(from: index, targetSize: targetSize)
-                browserPreloadTask = nil
-            }
-        }
-    }
-
-    private func cancelScheduledBrowserPreload() {
-        browserPreloadTask?.cancel()
-        browserPreloadTask = nil
-    }
-
-    private func preloadBrowserThumbnails(from index: Int, targetSize: CGSize) {
-        guard reviewMode == .browser, !sessionPhotos.isEmpty else {
-            stopPreloadingBrowserThumbnails()
-            return
-        }
-
-        let lowerBound = max(0, index - 2)
-        let upperBound = min(sessionPhotos.count, index + 8)
-        guard lowerBound < upperBound else {
-            stopPreloadingBrowserThumbnails()
-            return
-        }
-
-        let assets = Array(sessionPhotos[lowerBound..<upperBound])
-        let currentIDs = browserPreloadedAssets.map(\.localIdentifier)
-        let nextIDs = assets.map(\.localIdentifier)
-        guard browserPreloadTargetSize != targetSize || currentIDs != nextIDs else { return }
-
-        stopPreloadingBrowserThumbnails()
-        dataManager.photoLibraryManager.preloadGridThumbnailsForAssets(
-            assets,
-            size: targetSize,
-            maxCount: assets.count
-        )
-        browserPreloadedAssets = assets
-        browserPreloadTargetSize = targetSize
-    }
-
-    private func stopPreloadingBrowserThumbnails() {
-        if let targetSize = browserPreloadTargetSize, !browserPreloadedAssets.isEmpty {
-            dataManager.photoLibraryManager.stopCachingGridThumbnails(
-                browserPreloadedAssets,
-                size: targetSize
-            )
-        }
-        browserPreloadedAssets.removeAll()
-        browserPreloadTargetSize = nil
     }
 
     private func selectBrowserPhoto(at index: Int) {
@@ -1309,19 +1075,6 @@ struct SwipePhotoView: View {
         stopInlineVideoPlaybackIfNeeded(forNextIndex: index)
         currentPhotoIndex = index
         preloadUpcomingImages(from: index)
-    }
-
-    private func scrollBrowserToCurrentPhoto(with proxy: ScrollViewProxy, animated: Bool) {
-        guard isValidPhotoIndex(currentPhotoIndex) else { return }
-        let scrollAction = {
-            proxy.scrollTo(currentPhotoIndex, anchor: .center)
-        }
-
-        if animated {
-            withAnimation(.easeOut(duration: 0.22), scrollAction)
-        } else {
-            scrollAction()
-        }
     }
 
     private func handleBrowserSwipeUpDelete(_ asset: PHAsset, at index: Int) {
@@ -1342,13 +1095,6 @@ struct SwipePhotoView: View {
         dismissReviewModeHint(markSeen: true)
         reviewModeValue = nextMode.rawValue
         resetCardPosition()
-        if nextMode == .browser {
-            browserRows = makeBrowserRows(from: sessionPhotos)
-        } else {
-            cancelScheduledBrowserPreload()
-            stopPreloadingBrowserThumbnails()
-            browserRows = .empty
-        }
         preloadUpcomingImages(from: currentPhotoIndex)
         HapticManager.impact(.light)
         showFeedback(nextMode.switchAnnouncement, icon: nextMode.icon, style: .neutral, duration: 1.6)
@@ -1597,6 +1343,38 @@ struct SwipePhotoView: View {
 
     private func isValidPhotoIndex(_ index: Int) -> Bool {
         return index >= 0 && index < sessionPhotos.count
+    }
+
+    private var browserPendingReviewedAssetIDs: Set<String> {
+        Set(pendingSwipeMutations.values.map { $0.asset.localIdentifier })
+    }
+
+    private var browserDeleteCandidateIDs: Set<String> {
+        var ids = Set(dataManager.deleteCandidates.map(\.localIdentifier))
+        for mutation in pendingSwipeMutations.values {
+            let id = mutation.asset.localIdentifier
+            switch mutation.action {
+            case .delete:
+                ids.insert(id)
+            case .favorite, .keep:
+                ids.remove(id)
+            }
+        }
+        return ids
+    }
+
+    private var browserFavoriteCandidateIDs: Set<String> {
+        var ids = Set(dataManager.favoriteCandidates.map(\.localIdentifier))
+        for mutation in pendingSwipeMutations.values {
+            let id = mutation.asset.localIdentifier
+            switch mutation.action {
+            case .favorite:
+                ids.insert(id)
+            case .delete, .keep:
+                ids.remove(id)
+            }
+        }
+        return ids
     }
 
     private func isAssetQueuedForDelete(_ asset: PHAsset) -> Bool {
@@ -1960,353 +1738,6 @@ struct SwipePhotoView: View {
                 feedbackToast = nil
             }
         }
-    }
-}
-
-private struct BrowserPhotoTile: View {
-    let asset: PHAsset
-    let photoLibraryManager: PhotoLibraryManager
-    let isSelected: Bool
-    let isReviewed: Bool
-    let isInDeleteCandidates: Bool
-    let isInFavoriteCandidates: Bool
-    let isScreenshot: Bool
-    let isVideo: Bool
-    let isVideoPlaying: Bool
-    let displaySize: CGSize
-    let targetSize: CGSize
-    let selectedTargetSize: CGSize
-    let prefersHighQualityPreview: Bool
-    let onSelect: () -> Void
-    let onSwipeUpToDelete: () -> Void
-    let onCancelDelete: () -> Void
-    let onStopVideoPlayback: () -> Void
-
-    @State private var image: UIImage?
-    @State private var isLoading = true
-    @State private var thumbnailRequestID: PHImageRequestID?
-    @State private var previewRequestID: PHImageRequestID?
-    @State private var highQualityPreviewTask: Task<Void, Never>?
-    @State private var loadingAssetIdentifier: String?
-    @State private var verticalOffset: CGFloat = 0
-    @State private var showsDeleteCue = false
-
-    private let cornerRadius: CGFloat = 18
-
-    var body: some View {
-        ZStack {
-            tileImage
-
-            topBadges
-                .padding(9)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-
-            if isVideoPlaying {
-                InlineVideoCloseButton(action: onStopVideoPlayback)
-                    .padding(8)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            }
-
-            stateOverlay
-
-            if showsDeleteCue {
-                deleteCueOverlay
-            }
-        }
-        .frame(width: displaySize.width, height: displaySize.height)
-        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .stroke(isSelected ? PhotoDeleteStyle.accent : PhotoDeleteStyle.hairline, lineWidth: isSelected ? 2 : 1)
-        )
-        .shadow(color: isSelected ? .black.opacity(0.18) : .clear, radius: isSelected ? 6 : 0, x: 0, y: isSelected ? 3 : 0)
-        .offset(y: verticalOffset)
-        .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        .photoDeleteTapGesture(enabled: !isVideoPlaying, action: onSelect)
-        .simultaneousGesture(deleteGesture)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(L10n.string("浏览照片"))
-        .accessibilityValue(accessibilityValue)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-        .accessibilityAction(named: Text(L10n.string("选择"))) {
-            onSelect()
-        }
-        .accessibilityAction(named: Text(L10n.string("加入待删除"))) {
-            onSwipeUpToDelete()
-        }
-        .accessibilityAction(named: Text(L10n.string("取消删除这张照片"))) {
-            if isInDeleteCandidates {
-                onCancelDelete()
-            }
-        }
-        .inlineVideoCloseAccessibility(isActive: isVideoPlaying, action: onStopVideoPlayback)
-        .onAppear(perform: loadImage)
-        .onChange(of: prefersHighQualityPreview) { shouldLoadPreview in
-            if shouldLoadPreview {
-                scheduleHighQualityPreview()
-            } else {
-                cancelHighQualityPreview()
-            }
-        }
-        .onChange(of: targetSize) { _ in
-            loadImage()
-        }
-        .onChange(of: asset.localIdentifier) { _ in
-            loadImage()
-        }
-        .onDisappear {
-            photoLibraryManager.cancelImageRequest(thumbnailRequestID)
-            cancelHighQualityPreview()
-            loadingAssetIdentifier = nil
-        }
-    }
-
-    @ViewBuilder
-    private var tileImage: some View {
-        if isVideoPlaying {
-            PhotoAssetVideoPlayerView(
-                asset: asset,
-                photoLibraryManager: photoLibraryManager
-            )
-            .frame(width: displaySize.width, height: displaySize.height)
-        } else if let image {
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFill()
-                .frame(width: displaySize.width, height: displaySize.height)
-                .clipped()
-        } else {
-            Rectangle()
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            PhotoDeleteStyle.surface,
-                            PhotoDeleteStyle.elevatedSurface
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .overlay {
-                    Image(systemName: "photo")
-                        .font(.system(size: 24, weight: .medium))
-                        .foregroundColor(PhotoDeleteStyle.secondaryText.opacity(isLoading ? 0.34 : 0.7))
-                }
-        }
-    }
-
-    @ViewBuilder
-    private var topBadges: some View {
-        VStack(spacing: 7) {
-            if isVideo {
-                BrowserPhotoBadge(icon: "play.fill", color: .black.opacity(0.56))
-            }
-
-            if isScreenshot {
-                BrowserPhotoBadge(icon: "camera.viewfinder", color: .black.opacity(0.56))
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var stateOverlay: some View {
-        if isInDeleteCandidates || isInFavoriteCandidates {
-            ZStack {
-                PhotoDeleteStyle.background.opacity(0.74)
-
-                VStack(spacing: 9) {
-                    Image(systemName: isInDeleteCandidates ? "trash.fill" : "heart.fill")
-                        .font(.system(size: 28, weight: .semibold))
-                        .foregroundColor(isInDeleteCandidates ? PhotoDeleteStyle.destructive : PhotoDeleteStyle.iconTint(for: "favorite"))
-
-                    Text(isInDeleteCandidates ? L10n.string("待删除") : L10n.string("待收藏"))
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(PhotoDeleteStyle.primaryText)
-
-                    if isInDeleteCandidates {
-                        Button(action: onCancelDelete) {
-                            Label(L10n.string("取消"), systemImage: "xmark.circle.fill")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(PhotoDeleteStyle.primaryText)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.82)
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(
-                            Capsule(style: .continuous)
-                                .fill(PhotoDeleteStyle.surface.opacity(0.82))
-                                .overlay(
-                                    Capsule(style: .continuous)
-                                        .stroke(PhotoDeleteStyle.hairline, lineWidth: 1)
-                                )
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    private var deleteCueOverlay: some View {
-        ZStack {
-            PhotoDeleteStyle.destructive.opacity(0.74)
-
-            VStack(spacing: 8) {
-                Image(systemName: "trash.fill")
-                    .font(.system(size: 28, weight: .semibold))
-                    .foregroundColor(.white)
-
-                Text(L10n.string("上滑删除"))
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.white)
-            }
-        }
-    }
-
-    private var deleteGesture: some Gesture {
-        DragGesture(minimumDistance: 18, coordinateSpace: .local)
-            .onChanged { value in
-                let horizontalDistance = abs(value.translation.width)
-                let verticalDistance = abs(value.translation.height)
-                let isUpwardDelete = value.translation.height < 0 && verticalDistance > horizontalDistance
-
-                guard isUpwardDelete else { return }
-                verticalOffset = max(value.translation.height * 0.35, -46)
-                showsDeleteCue = verticalDistance > 26
-            }
-            .onEnded { value in
-                let horizontalDistance = abs(value.translation.width)
-                let verticalDistance = abs(value.translation.height)
-                let shouldDelete = value.translation.height < -58 && verticalDistance > horizontalDistance * 1.15
-
-                withAnimation(.interactiveSpring(response: 0.24, dampingFraction: 0.86)) {
-                    verticalOffset = 0
-                    showsDeleteCue = false
-                }
-
-                if shouldDelete {
-                    onSwipeUpToDelete()
-                }
-            }
-    }
-
-    private var accessibilityValue: String {
-        var values: [String] = []
-        values.append(isVideo ? L10n.string("视频") : L10n.string("照片"))
-
-        if isVideoPlaying {
-            values.append(L10n.string("视频预览"))
-        }
-
-        if isSelected {
-            values.append(L10n.string("当前照片"))
-        }
-
-        if isScreenshot {
-            values.append(L10n.string("截图"))
-        }
-
-        if isInDeleteCandidates {
-            values.append(L10n.string("待删除"))
-        } else if isInFavoriteCandidates {
-            values.append(L10n.string("待收藏"))
-        } else if isReviewed {
-            values.append(L10n.string("已整理"))
-        }
-
-        return values.joined(separator: "，")
-    }
-
-    private func loadImage() {
-        photoLibraryManager.cancelImageRequest(thumbnailRequestID)
-        cancelHighQualityPreview()
-        let requestedAssetID = asset.localIdentifier
-        loadingAssetIdentifier = requestedAssetID
-        image = nil
-        isLoading = true
-
-        thumbnailRequestID = photoLibraryManager.loadGridThumbnail(for: asset, size: targetSize) { loadedImage in
-            guard loadingAssetIdentifier == requestedAssetID else { return }
-            if let loadedImage {
-                image = loadedImage
-                finishThumbnailLoad()
-            } else {
-                thumbnailRequestID = photoLibraryManager.loadFastThumbnail(for: asset, size: targetSize) { fallbackImage in
-                    guard loadingAssetIdentifier == requestedAssetID else { return }
-                    if let fallbackImage {
-                        image = fallbackImage
-                    }
-                    finishThumbnailLoad()
-                }
-            }
-        }
-    }
-
-    private func finishThumbnailLoad() {
-        isLoading = false
-        thumbnailRequestID = nil
-
-        if prefersHighQualityPreview {
-            scheduleHighQualityPreview()
-        }
-    }
-
-    private func scheduleHighQualityPreview() {
-        guard loadingAssetIdentifier == asset.localIdentifier else { return }
-        guard previewRequestID == nil else { return }
-
-        highQualityPreviewTask?.cancel()
-        let requestedAssetID = asset.localIdentifier
-        highQualityPreviewTask = Task {
-            try? await Task.sleep(nanoseconds: 260_000_000)
-            guard !Task.isCancelled else { return }
-
-            await MainActor.run {
-                guard loadingAssetIdentifier == requestedAssetID, prefersHighQualityPreview else { return }
-                highQualityPreviewTask = nil
-                loadHighQualityPreview()
-            }
-        }
-    }
-
-    private func loadHighQualityPreview() {
-        guard loadingAssetIdentifier == asset.localIdentifier else { return }
-        guard previewRequestID == nil else { return }
-
-        let requestedAssetID = asset.localIdentifier
-        previewRequestID = photoLibraryManager.loadBrowserPreviewResult(for: asset, size: selectedTargetSize) { result in
-            guard loadingAssetIdentifier == requestedAssetID else { return }
-            if let loadedImage = result.image {
-                image = loadedImage
-                isLoading = false
-            }
-            if result.isFinal {
-                previewRequestID = nil
-            }
-        }
-    }
-
-    private func cancelHighQualityPreview() {
-        highQualityPreviewTask?.cancel()
-        highQualityPreviewTask = nil
-        photoLibraryManager.cancelImageRequest(previewRequestID)
-        previewRequestID = nil
-    }
-}
-
-private struct BrowserPhotoBadge: View {
-    let icon: String
-    let color: Color
-
-    var body: some View {
-        Image(systemName: icon)
-            .font(.system(size: 11, weight: .bold))
-            .foregroundColor(.white)
-            .frame(width: 24, height: 24)
-            .background(Circle().fill(color))
-            .overlay(Circle().stroke(PhotoDeleteStyle.background.opacity(0.72), lineWidth: 1))
     }
 }
 
