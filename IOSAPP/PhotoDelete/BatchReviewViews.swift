@@ -202,6 +202,7 @@ struct BatchConfirmView: View {
         .padding(.horizontal, 24)
         .padding(.vertical, 30)
         .photoDeleteCard()
+        .frame(maxWidth: 620)
         .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
     }
 
@@ -236,7 +237,7 @@ struct BatchConfirmView: View {
                         currentStreakDays: dataManager.cleanupStatsStore.currentStreakDays,
                         nextAchievementProgress: dataManager.cleanupStatsStore.nextAchievementProgress
                     )
-                    HapticManager.notify(.success)
+                    playCompletionHaptics()
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
                         dataManager.recordDeletedPhotosFromAlbum(
                             albumID: albumInfo?.id,
@@ -275,6 +276,16 @@ struct BatchConfirmView: View {
         }
     }
 
+    private func playCompletionHaptics() {
+        HapticManager.notify(.success)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+            HapticManager.impact(.light)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.24) {
+            HapticManager.impact(.medium)
+        }
+    }
+
     private func finishCompletedFlow() {
         dismiss()
         onComplete?()
@@ -305,6 +316,14 @@ private struct BatchCleanupCompletionView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var animate = false
     @State private var progressFill = 0.0
+    @State private var fireworkProgress = 0.0
+
+    private let fireworkColors: [Color] = [
+        PhotoDeleteStyle.warning,
+        PhotoDeleteStyle.accent,
+        PhotoDeleteStyle.positive,
+        PhotoDeleteStyle.iconTint(for: "favorite")
+    ]
 
     var body: some View {
         ZStack {
@@ -326,6 +345,9 @@ private struct BatchCleanupCompletionView: View {
                 .frame(maxWidth: 540)
                 .photoDeleteCard()
                 .scaleEffect(animate ? 1 : 0.985)
+                .opacity(animate ? 1 : 0)
+                .offset(y: animate ? 0 : 14)
+                .animation(.spring(response: 0.56, dampingFraction: 0.86), value: animate)
 
                 Spacer(minLength: 24)
             }
@@ -336,10 +358,18 @@ private struct BatchCleanupCompletionView: View {
             if reduceMotion {
                 animate = true
                 progressFill = targetProgress
+                fireworkProgress = 1
             } else {
-                progressFill = targetProgress
-                withAnimation(.easeOut(duration: 0.16)) {
+                progressFill = 0
+                fireworkProgress = 0
+                withAnimation(.spring(response: 0.56, dampingFraction: 0.86)) {
                     animate = true
+                }
+                withAnimation(.easeOut(duration: 0.92).delay(0.04)) {
+                    fireworkProgress = 1
+                }
+                withAnimation(.easeOut(duration: 0.72).delay(0.34)) {
+                    progressFill = targetProgress
                 }
             }
         }
@@ -347,29 +377,42 @@ private struct BatchCleanupCompletionView: View {
 
     private var celebrationVisual: some View {
         ZStack {
-            Circle()
-                .fill(PhotoDeleteStyle.positive.opacity(0.12))
-                .frame(width: 76, height: 76)
+            if !reduceMotion {
+                CompletionFireworkBurstView(
+                    progress: fireworkProgress,
+                    colors: fireworkColors
+                )
+                .frame(width: 190, height: 138)
+            }
 
             Circle()
-                .stroke(PhotoDeleteStyle.positive.opacity(0.24), lineWidth: 1)
-                .frame(width: 64, height: 64)
+                .fill(PhotoDeleteStyle.warning.opacity(0.14))
+                .frame(width: 82, height: 82)
+                .scaleEffect(animate ? 1 : 0.72)
 
-            Image(systemName: "checkmark")
-                .font(.system(size: 30, weight: .bold))
-                .foregroundColor(PhotoDeleteStyle.positive)
+            Circle()
+                .stroke(PhotoDeleteStyle.warning.opacity(0.26), lineWidth: 1)
+                .frame(width: 68, height: 68)
+                .scaleEffect(animate ? 1.04 : 0.7)
+
+            Image(systemName: "sparkles")
+                .font(.system(size: 34, weight: .semibold))
+                .foregroundColor(PhotoDeleteStyle.warning)
+                .scaleEffect(animate ? 1 : 0.72)
+                .rotationEffect(.degrees(animate ? 0 : -8))
         }
-        .frame(height: 86)
+        .frame(height: 122)
+        .animation(.spring(response: 0.5, dampingFraction: 0.78), value: animate)
     }
 
     private var completionHeader: some View {
         Text(L10n.string("清理完成"))
-            .font(.system(size: 30, weight: .bold))
+            .font(.system(size: 31, weight: .semibold))
             .foregroundColor(PhotoDeleteStyle.primaryText)
     }
 
     private var cleanupSummarySection: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 0) {
             summaryItem(
                 icon: "trash.fill",
                 title: L10n.string("本次删除"),
@@ -381,6 +424,7 @@ private struct BatchCleanupCompletionView: View {
             Divider()
                 .frame(height: 34)
                 .background(PhotoDeleteStyle.hairline)
+                .padding(.horizontal, 10)
 
             summaryItem(
                 icon: "chart.bar.fill",
@@ -403,34 +447,32 @@ private struct BatchCleanupCompletionView: View {
     }
 
     private func summaryItem(icon: String, title: String, value: String, detail: String, tint: Color) -> some View {
-        HStack(spacing: 9) {
+        HStack(alignment: .top, spacing: 10) {
             Image(systemName: icon)
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(tint)
                 .frame(width: 30, height: 30)
                 .background(tint.opacity(0.12), in: Circle())
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(PhotoDeleteStyle.secondaryText)
 
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text(value)
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(PhotoDeleteStyle.primaryText)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.75)
+                Text(value)
+                    .font(.system(size: 19, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.primaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.74)
 
-                    Text(detail)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(tint)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.75)
-                }
+                Text(detail)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(tint)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.66)
             }
 
-            Spacer(minLength: 0)
+            Spacer(minLength: 2)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -580,6 +622,64 @@ private struct BatchCleanupCompletionView: View {
         .padding(14)
     }
 
+}
+
+private struct CompletionFireworkBurstView: View {
+    let progress: Double
+    let colors: [Color]
+
+    var body: some View {
+        Canvas { context, size in
+            let clampedProgress = min(max(progress, 0), 1)
+            let easedProgress = clampedProgress * (2 - clampedProgress)
+            let center = CGPoint(x: size.width / 2, y: size.height / 2)
+            let maxRadius = min(size.width, size.height) * 0.48
+            let particleOpacity = max(0, 1 - clampedProgress * 0.82)
+            let rayOpacity = max(0, 1 - clampedProgress * 1.05)
+            let particleCount = 28
+
+            for index in 0..<particleCount {
+                let angle = Double(index) / Double(particleCount) * Double.pi * 2
+                let unitX = CGFloat(cos(angle))
+                let unitY = CGFloat(sin(angle))
+                let distanceRatio = 0.58 + Double(index % 5) * 0.075
+                let distance = maxRadius * CGFloat(distanceRatio) * CGFloat(easedProgress)
+                let point = CGPoint(
+                    x: center.x + unitX * distance,
+                    y: center.y + unitY * distance
+                )
+                let particleSize = max(2.6, CGFloat(5 + index % 4) * (1 - CGFloat(clampedProgress) * 0.2))
+                let color = colors[index % colors.count]
+
+                if index.isMultiple(of: 2) {
+                    var ray = Path()
+                    let rayStart = max(0, distance - 16)
+                    ray.move(to: CGPoint(
+                        x: center.x + unitX * rayStart,
+                        y: center.y + unitY * rayStart
+                    ))
+                    ray.addLine(to: point)
+                    context.stroke(
+                        ray,
+                        with: .color(color.opacity(rayOpacity * 0.62)),
+                        lineWidth: 1.4
+                    )
+                }
+
+                let particleRect = CGRect(
+                    x: point.x - particleSize / 2,
+                    y: point.y - particleSize / 2,
+                    width: particleSize,
+                    height: particleSize
+                )
+                context.fill(
+                    Path(ellipseIn: particleRect),
+                    with: .color(color.opacity(particleOpacity))
+                )
+            }
+        }
+        .allowsHitTesting(false)
+    }
 }
 
 private struct CandidatePreviewSection: View {
