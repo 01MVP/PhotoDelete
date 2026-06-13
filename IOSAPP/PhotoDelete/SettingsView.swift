@@ -121,7 +121,7 @@ struct SettingsView: View {
             }
 
             VStack(spacing: 0) {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 82), spacing: 12)], spacing: 14) {
+                HStack(spacing: 8) {
                     StatCard(
                         value: "\(stats.totalAssets)",
                         label: L10n.string("照片"),
@@ -146,7 +146,8 @@ struct SettingsView: View {
                         color: PhotoDeleteStyle.warning
                     )
                 }
-                .padding(20)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 18)
 
                 Divider()
                     .background(PhotoDeleteStyle.hairline)
@@ -655,16 +656,22 @@ struct StatCard: View {
     var body: some View {
         VStack(spacing: 8) {
             Text(value)
-                .font(.headline)
+                .font(.subheadline.weight(.semibold))
+                .monospacedDigit()
                 .bold()
                 .foregroundStyle(color)
                 .lineLimit(1)
-                .minimumScaleFactor(0.8)
+                .minimumScaleFactor(0.68)
+                .allowsTightening(true)
 
             Text(label)
                 .photoDeleteSecondaryLabel(.caption)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+                .allowsTightening(true)
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, minHeight: 44)
+        .accessibilityElement(children: .combine)
     }
 }
 
