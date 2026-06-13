@@ -48,6 +48,29 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         snapshotStore.hasSnapshot
     }
 
+    func clearLoadedLibraryData(clearSnapshot: Bool = true, finishPendingLoads: Bool = false) {
+        let pendingCompletions = finishPendingLoads ? pendingLoadCompletions : []
+        allPhotosResult = nil
+        allPhotos = []
+        videos = []
+        screenshots = []
+        livePhotos = []
+        favorites = []
+        isLoading = false
+        loadingProgress = 0
+        hasLoadedPhotoLibrary = false
+        isRestoringSnapshot = false
+        pendingLoadCompletions.removeAll()
+        imageCache.removeAllObjects()
+        imageManager.stopCachingImagesForAllAssets()
+
+        if clearSnapshot {
+            snapshotStore.clear()
+        }
+
+        pendingCompletions.forEach { $0() }
+    }
+
     override init() {
         super.init()
         // 配置图片缓存
@@ -220,6 +243,11 @@ class PhotoLibraryManager: NSObject, ObservableObject {
 
             if totalCount == 0 {
                 DispatchQueue.main.async {
+                    guard self.hasPhotoLibraryAccess else {
+                        self.clearLoadedLibraryData(clearSnapshot: true, finishPendingLoads: true)
+                        self.onLibraryDataChanged?()
+                        return
+                    }
                     self.allPhotos = []
                     self.videos = []
                     self.screenshots = []
@@ -262,6 +290,11 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             // 异步分类照片，避免阻塞
             self.categorizePhotos(allPhotosArray, screenPixelSize: screenPixelSize) { videos, screenshots, livePhotos, favorites in
                 DispatchQueue.main.async {
+                    guard self.hasPhotoLibraryAccess else {
+                        self.clearLoadedLibraryData(clearSnapshot: true, finishPendingLoads: true)
+                        self.onLibraryDataChanged?()
+                        return
+                    }
                     self.allPhotos = allPhotosArray
                     self.videos = videos
                     self.screenshots = screenshots
@@ -570,7 +603,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         options.deliveryMode = .highQualityFormat
         options.resizeMode = .exact
         options.version = .current
-        options.isNetworkAccessAllowed = true
+        options.isNetworkAccessAllowed = false
         options.isSynchronous = false
 
         return imageManager.requestImage(
@@ -599,19 +632,29 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     }
 
     @discardableResult
-    func loadBrowserPreview(for asset: PHAsset, size: CGSize, completion: @escaping (UIImage?) -> Void) -> PHImageRequestID? {
+    func loadBrowserPreviewResult(
+        for asset: PHAsset,
+        size: CGSize,
+        completion: @escaping (PhotoLibraryImageResult) -> Void
+    ) -> PHImageRequestID? {
         let cacheKey = imageCacheKey(for: asset, purpose: "browser", size: size)
 
         if let cachedImage = imageCache.object(forKey: cacheKey) {
-            completion(cachedImage)
+            completion(PhotoLibraryImageResult(
+                image: cachedImage,
+                isDegraded: false,
+                isInCloud: false,
+                progress: nil,
+                isFinal: true
+            ))
             return nil
         }
 
         let options = PHImageRequestOptions()
-        options.deliveryMode = .highQualityFormat
+        options.deliveryMode = .opportunistic
         options.resizeMode = .exact
         options.version = .current
-        options.isNetworkAccessAllowed = true
+        options.isNetworkAccessAllowed = false
         options.isSynchronous = false
 
         return imageManager.requestImage(
@@ -624,17 +667,30 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                 let isCancelled = (info?[PHImageCancelledKey] as? Bool) == true
                 let isInCloud = (info?[PHImageResultIsInCloudKey] as? Bool) == true
                 let isDegraded = (info?[PHImageResultIsDegradedKey] as? Bool) == true
-                let error = info?[PHImageErrorKey] as? Error
                 guard !isCancelled else { return }
 
-                if let image, !isDegraded {
-                    self?.cacheImage(image, forKey: cacheKey, isDegraded: false)
-                    completion(image)
-                } else if isInCloud && error == nil {
-                    return
-                } else if image == nil {
-                    completion(nil)
+                if let image {
+                    self?.cacheImage(image, forKey: cacheKey, isDegraded: isDegraded)
                 }
+
+                completion(PhotoLibraryImageResult(
+                    image: image,
+                    isDegraded: isDegraded,
+                    isInCloud: isInCloud,
+                    progress: nil,
+                    isFinal: !isDegraded
+                ))
+            }
+        }
+    }
+
+    @discardableResult
+    func loadBrowserPreview(for asset: PHAsset, size: CGSize, completion: @escaping (UIImage?) -> Void) -> PHImageRequestID? {
+        loadBrowserPreviewResult(for: asset, size: size) { result in
+            if let image = result.image {
+                completion(image)
+            } else if result.isFinal {
+                completion(nil)
             }
         }
     }

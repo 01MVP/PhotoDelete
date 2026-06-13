@@ -45,14 +45,21 @@ struct SwipePhotoView: View {
     @State private var pendingFavoriteCount = 0
     @State private var pendingSwipeMutations: [String: PendingSwipeMutation] = [:]
     @State private var browserRows = BrowserPhotoRows.empty
+    @State private var browserWindowRange: Range<Int> = 0..<0
     @State private var browserPreloadedAssets: [PHAsset] = []
     @State private var browserPreloadTargetSize: CGSize?
+    @State private var browserPreloadTask: Task<Void, Never>?
+    @State private var sessionProgressSaveWorkItem: DispatchWorkItem?
     @State private var previewAsset: CandidatePreviewAsset?
     @State private var inlinePlayingVideoAssetID: String?
     @State private var cardModeReviewActionCount = 0
     @State private var showReviewModeHint = false
 
     private let reviewModeHintThreshold = 5
+    private let browserWindowItemCount = 22
+    private let browserWindowLeadingCount = 6
+    private let browserWindowLeadingRefreshThreshold = 4
+    private let browserWindowTrailingRefreshThreshold = 7
 
     init(
         selectedCategory: PhotoCategory?,
@@ -234,16 +241,21 @@ struct SwipePhotoView: View {
         .onDisappear {
             stopInlineVideoPlayback()
             flushPendingSwipeMutations()
+            flushSessionProgressSave()
             dataManager.photoLibraryManager.stopCachingImages(
                 preloadedAssets,
                 size: swipeImageTargetSize
             )
             preloadedAssets.removeAll()
+            cancelScheduledBrowserPreload()
             stopPreloadingBrowserThumbnails()
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
             // 处理内存警告
             dataManager.photoLibraryManager.handleMemoryWarning()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
+            flushSessionProgressSave()
         }
         .onAppear {
             syncPendingOperationCounts()
@@ -257,7 +269,8 @@ struct SwipePhotoView: View {
         }
         .onChange(of: currentPhotoIndex) { _ in
             stopInlineVideoPlaybackIfNeeded(forNextIndex: currentPhotoIndex)
-            persistSessionProgressIfPossible()
+            refreshBrowserRowsIfNeeded()
+            scheduleSessionProgressSave()
         }
     }
 
@@ -534,14 +547,23 @@ struct SwipePhotoView: View {
                 .scrollIndicators(.hidden)
                 .frame(height: tileHeight * 2 + rowSpacing + 8)
                 .onAppear {
-                    preloadBrowserThumbnails(from: currentPhotoIndex, targetSize: thumbnailTargetSize)
+                    refreshBrowserRowsIfNeeded(force: browserRows.top.isEmpty && browserRows.bottom.isEmpty)
+                    scheduleBrowserThumbnailPreload(from: currentPhotoIndex, targetSize: thumbnailTargetSize)
                     scrollBrowserToCurrentPhoto(with: proxy, animated: false)
                 }
                 .onChange(of: currentPhotoIndex) { _ in
-                    preloadBrowserThumbnails(from: currentPhotoIndex, targetSize: thumbnailTargetSize)
+                    refreshBrowserRowsIfNeeded()
+                    scheduleBrowserThumbnailPreload(from: currentPhotoIndex, targetSize: thumbnailTargetSize)
+                    DispatchQueue.main.async {
+                        scrollBrowserToCurrentPhoto(with: proxy, animated: true)
+                    }
                 }
                 .onChange(of: thumbnailTargetSize) { targetSize in
-                    preloadBrowserThumbnails(from: currentPhotoIndex, targetSize: targetSize)
+                    scheduleBrowserThumbnailPreload(from: currentPhotoIndex, targetSize: targetSize)
+                }
+                .onDisappear {
+                    cancelScheduledBrowserPreload()
+                    stopPreloadingBrowserThumbnails()
                 }
             }
         }
@@ -1026,7 +1048,6 @@ struct SwipePhotoView: View {
     private func refreshSessionPhotos(_ photos: [PHAsset]? = nil) {
         let photos = photos ?? filteredRealPhotos
         sessionPhotos = photos
-        rebuildBrowserRows(for: photos)
         if let inlinePlayingVideoAssetID,
            !photos.contains(where: { $0.localIdentifier == inlinePlayingVideoAssetID }) {
             self.inlinePlayingVideoAssetID = nil
@@ -1042,23 +1063,63 @@ struct SwipePhotoView: View {
             currentPhotoIndex = 0
             showCompletionMessage = !photos.isEmpty
         }
+        refreshBrowserRowsIfNeeded(force: true)
         preloadUpcomingImages(from: currentPhotoIndex)
         persistSessionProgressIfPossible()
     }
 
-    private func rebuildBrowserRows(for photos: [PHAsset]) {
-        guard !photos.isEmpty else {
+    private func refreshBrowserRowsIfNeeded(force: Bool = false) {
+        guard reviewMode == .browser, !sessionPhotos.isEmpty else {
+            if !browserRows.top.isEmpty || !browserRows.bottom.isEmpty {
+                browserRows = .empty
+            }
+            browserWindowRange = 0..<0
+            return
+        }
+
+        if !force,
+           browserWindowRange.contains(currentPhotoIndex),
+           currentPhotoIndex - browserWindowRange.lowerBound >= browserWindowLeadingRefreshThreshold,
+           browserWindowRange.upperBound - currentPhotoIndex > browserWindowTrailingRefreshThreshold {
+            return
+        }
+
+        let range = browserWindowRange(centeredAt: currentPhotoIndex)
+        guard force ||
+              range.lowerBound != browserWindowRange.lowerBound ||
+              range.upperBound != browserWindowRange.upperBound else {
+            return
+        }
+
+        rebuildBrowserRows(in: range)
+    }
+
+    private func browserWindowRange(centeredAt index: Int) -> Range<Int> {
+        let totalCount = sessionPhotos.count
+        guard totalCount > 0 else { return 0..<0 }
+
+        let windowCount = min(totalCount, browserWindowItemCount)
+        let maxLowerBound = max(totalCount - windowCount, 0)
+        let lowerBound = min(max(index - browserWindowLeadingCount, 0), maxLowerBound)
+        let upperBound = min(lowerBound + windowCount, totalCount)
+        return lowerBound..<upperBound
+    }
+
+    private func rebuildBrowserRows(in range: Range<Int>) {
+        guard !range.isEmpty else {
             browserRows = .empty
+            browserWindowRange = 0..<0
             return
         }
 
         let screenshotIDs = Set(dataManager.photoLibraryManager.screenshots.map(\.localIdentifier))
         var top: [BrowserPhotoItem] = []
         var bottom: [BrowserPhotoItem] = []
-        top.reserveCapacity((photos.count + 1) / 2)
-        bottom.reserveCapacity(photos.count / 2)
+        top.reserveCapacity((range.count + 1) / 2)
+        bottom.reserveCapacity(range.count / 2)
 
-        for (index, asset) in photos.enumerated() {
+        for index in range {
+            let asset = sessionPhotos[index]
             let aspectRatio = asset.pixelHeight > 0 ? CGFloat(asset.pixelWidth) / CGFloat(asset.pixelHeight) : 0.78
             let item = BrowserPhotoItem(
                 index: index,
@@ -1076,6 +1137,7 @@ struct SwipePhotoView: View {
         }
 
         browserRows = BrowserPhotoRows(top: top, bottom: bottom)
+        browserWindowRange = range
     }
 
     private func preloadUpcomingImages(from index: Int) {
@@ -1139,24 +1201,49 @@ struct SwipePhotoView: View {
     }
 
     private func browserThumbnailTargetSize(in containerSize: CGSize, tileHeight: CGFloat) -> CGSize {
-        let scale = min(displayScale, 1.55)
+        let scale = min(displayScale, 1.3)
         let maxTileWidth = min(containerSize.width * 0.72, tileHeight * 1.72)
         return CGSize(
-            width: min(maxTileWidth * scale, 480),
-            height: min(tileHeight * scale, 420)
+            width: min(maxTileWidth * scale, 420),
+            height: min(tileHeight * scale, 360)
         )
     }
 
     private func browserSelectedImageTargetSize(for displaySize: CGSize) -> CGSize {
-        let scale = min(displayScale, 2)
+        let scale = min(displayScale, 1.85)
         return CGSize(
-            width: min(displaySize.width * scale, 860),
-            height: min(displaySize.height * scale, 860)
+            width: min(displaySize.width * scale, 820),
+            height: min(displaySize.height * scale, 820)
         )
     }
 
     private func shouldLoadHighQualityBrowserPreview(for index: Int) -> Bool {
-        abs(index - currentPhotoIndex) <= 4
+        abs(index - currentPhotoIndex) <= 1
+    }
+
+    private func scheduleBrowserThumbnailPreload(from index: Int, targetSize: CGSize) {
+        guard reviewMode == .browser, !sessionPhotos.isEmpty else {
+            cancelScheduledBrowserPreload()
+            stopPreloadingBrowserThumbnails()
+            return
+        }
+
+        browserPreloadTask?.cancel()
+        browserPreloadTask = Task {
+            try? await Task.sleep(nanoseconds: 180_000_000)
+            guard !Task.isCancelled else { return }
+
+            await MainActor.run {
+                guard reviewMode == .browser else { return }
+                preloadBrowserThumbnails(from: index, targetSize: targetSize)
+                browserPreloadTask = nil
+            }
+        }
+    }
+
+    private func cancelScheduledBrowserPreload() {
+        browserPreloadTask?.cancel()
+        browserPreloadTask = nil
     }
 
     private func preloadBrowserThumbnails(from index: Int, targetSize: CGSize) {
@@ -1165,8 +1252,8 @@ struct SwipePhotoView: View {
             return
         }
 
-        let lowerBound = max(0, index - 8)
-        let upperBound = min(sessionPhotos.count, index + 22)
+        let lowerBound = max(0, index - 2)
+        let upperBound = min(sessionPhotos.count, index + 8)
         guard lowerBound < upperBound else {
             stopPreloadingBrowserThumbnails()
             return
@@ -1236,8 +1323,13 @@ struct SwipePhotoView: View {
         dismissReviewModeHint(markSeen: true)
         reviewModeValue = nextMode.rawValue
         resetCardPosition()
-        if nextMode == .card {
+        if nextMode == .browser {
+            refreshBrowserRowsIfNeeded(force: true)
+        } else {
+            cancelScheduledBrowserPreload()
             stopPreloadingBrowserThumbnails()
+            browserRows = .empty
+            browserWindowRange = 0..<0
         }
         preloadUpcomingImages(from: currentPhotoIndex)
         HapticManager.impact(.light)
@@ -1426,6 +1518,22 @@ struct SwipePhotoView: View {
             return nil
         }
         return photos.firstIndex { $0.localIdentifier == savedAssetID }
+    }
+
+    private func scheduleSessionProgressSave() {
+        sessionProgressSaveWorkItem?.cancel()
+        let workItem = DispatchWorkItem {
+            persistSessionProgressIfPossible()
+            sessionProgressSaveWorkItem = nil
+        }
+        sessionProgressSaveWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.65, execute: workItem)
+    }
+
+    private func flushSessionProgressSave() {
+        sessionProgressSaveWorkItem?.cancel()
+        sessionProgressSaveWorkItem = nil
+        persistSessionProgressIfPossible()
     }
 
     private func persistSessionProgressIfPossible() {
@@ -1860,6 +1968,7 @@ private struct BrowserPhotoTile: View {
     @State private var isLoading = true
     @State private var thumbnailRequestID: PHImageRequestID?
     @State private var previewRequestID: PHImageRequestID?
+    @State private var highQualityPreviewTask: Task<Void, Never>?
     @State private var loadingAssetIdentifier: String?
     @State private var verticalOffset: CGFloat = 0
     @State private var showsDeleteCue = false
@@ -1917,7 +2026,7 @@ private struct BrowserPhotoTile: View {
         .onAppear(perform: loadImage)
         .onChange(of: prefersHighQualityPreview) { shouldLoadPreview in
             if shouldLoadPreview {
-                loadHighQualityPreview()
+                scheduleHighQualityPreview()
             } else {
                 cancelHighQualityPreview()
             }
@@ -1930,7 +2039,7 @@ private struct BrowserPhotoTile: View {
         }
         .onDisappear {
             photoLibraryManager.cancelImageRequest(thumbnailRequestID)
-            photoLibraryManager.cancelImageRequest(previewRequestID)
+            cancelHighQualityPreview()
             loadingAssetIdentifier = nil
         }
     }
@@ -2094,7 +2203,7 @@ private struct BrowserPhotoTile: View {
 
     private func loadImage() {
         photoLibraryManager.cancelImageRequest(thumbnailRequestID)
-        photoLibraryManager.cancelImageRequest(previewRequestID)
+        cancelHighQualityPreview()
         let requestedAssetID = asset.localIdentifier
         loadingAssetIdentifier = requestedAssetID
         image = nil
@@ -2109,12 +2218,26 @@ private struct BrowserPhotoTile: View {
             thumbnailRequestID = nil
 
             if prefersHighQualityPreview {
-                loadHighQualityPreview()
+                scheduleHighQualityPreview()
             }
         }
+    }
 
-        if prefersHighQualityPreview {
-            loadHighQualityPreview()
+    private func scheduleHighQualityPreview() {
+        guard loadingAssetIdentifier == asset.localIdentifier else { return }
+        guard previewRequestID == nil else { return }
+
+        highQualityPreviewTask?.cancel()
+        let requestedAssetID = asset.localIdentifier
+        highQualityPreviewTask = Task {
+            try? await Task.sleep(nanoseconds: 260_000_000)
+            guard !Task.isCancelled else { return }
+
+            await MainActor.run {
+                guard loadingAssetIdentifier == requestedAssetID, prefersHighQualityPreview else { return }
+                highQualityPreviewTask = nil
+                loadHighQualityPreview()
+            }
         }
     }
 
@@ -2123,16 +2246,21 @@ private struct BrowserPhotoTile: View {
         guard previewRequestID == nil else { return }
 
         let requestedAssetID = asset.localIdentifier
-        previewRequestID = photoLibraryManager.loadBrowserPreview(for: asset, size: selectedTargetSize) { loadedImage in
+        previewRequestID = photoLibraryManager.loadBrowserPreviewResult(for: asset, size: selectedTargetSize) { result in
             guard loadingAssetIdentifier == requestedAssetID else { return }
-            if let loadedImage {
+            if let loadedImage = result.image {
                 image = loadedImage
+                isLoading = false
             }
-            previewRequestID = nil
+            if result.isFinal {
+                previewRequestID = nil
+            }
         }
     }
 
     private func cancelHighQualityPreview() {
+        highQualityPreviewTask?.cancel()
+        highQualityPreviewTask = nil
         photoLibraryManager.cancelImageRequest(previewRequestID)
         previewRequestID = nil
     }
@@ -2865,6 +2993,7 @@ private struct AlbumMicroButton: View {
                 )
         }
         .buttonStyle(PhotoDeletePressScaleButtonStyle())
+        .photoDeleteMinimumTapTarget()
         .accessibilityLabel(Text(L10n.string("归类到 \(title)")))
     }
 }

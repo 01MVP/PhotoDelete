@@ -47,7 +47,6 @@ struct BatchConfirmView: View {
                     onViewAchievements: { showAchievements = true },
                     onContinue: finishCompletedFlow
                 )
-                .transition(.opacity)
             } else {
                 let deleteAssets = sortedAssets(Array(dataManager.deleteCandidates))
                 let favoriteAssets = sortedAssets(Array(dataManager.favoriteCandidates))
@@ -62,10 +61,8 @@ struct BatchConfirmView: View {
                     selectedFavoriteAssets: selectedFavoriteAssets,
                     estimatedSpaceSaved: estimatedSpaceSaved
                 )
-                .transition(.opacity)
             }
         }
-        .animation(.spring(response: 0.32, dampingFraction: 0.82), value: completedCelebration?.id)
         .onAppear(perform: selectAllPendingCandidates)
         .sheet(item: $previewAsset) { previewAsset in
             CandidatePhotoPreviewView(
@@ -229,10 +226,6 @@ struct BatchConfirmView: View {
             DispatchQueue.main.async {
                 isProcessing = false
                 if success {
-                    dataManager.recordDeletedPhotosFromAlbum(
-                        albumID: albumInfo?.id,
-                        deletedAssets: deletedAssets
-                    )
                     completedCelebration = celebration ?? CleanupCelebration(
                         deletedPhotos: deletedAssets.count,
                         favoritedPhotos: favoriteAssets.count,
@@ -244,6 +237,12 @@ struct BatchConfirmView: View {
                         nextAchievementProgress: dataManager.cleanupStatsStore.nextAchievementProgress
                     )
                     HapticManager.notify(.success)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                        dataManager.recordDeletedPhotosFromAlbum(
+                            albumID: albumInfo?.id,
+                            deletedAssets: deletedAssets
+                        )
+                    }
                 } else {
                     errorMessage = error?.localizedDescription ?? L10n.string("操作失败，请稍后重试。")
                 }
@@ -307,50 +306,30 @@ private struct BatchCleanupCompletionView: View {
     @State private var animate = false
     @State private var progressFill = 0.0
 
-    private let particleColors: [Color] = [
-        PhotoDeleteStyle.accent,
-        PhotoDeleteStyle.positive,
-        PhotoDeleteStyle.warning,
-        PhotoDeleteStyle.destructive
-    ]
-    private let particleCount = 12
-
     var body: some View {
-        GeometryReader { geometry in
-            ScrollView {
-                VStack(spacing: 14) {
+        ZStack {
+            PhotoDeleteStyle.background.opacity(0.72)
+                .ignoresSafeArea()
+
+            VStack {
+                Spacer(minLength: 24)
+
+                VStack(spacing: 16) {
                     celebrationVisual
-                        .opacity(animate ? 1 : 0)
-                        .offset(y: animate ? 0 : 10)
-                        .animation(entranceAnimation(delay: 0), value: animate)
-
                     completionHeader
-                        .opacity(animate ? 1 : 0)
-                        .offset(y: animate ? 0 : 10)
-                        .animation(entranceAnimation(delay: 0.06), value: animate)
-
                     cleanupSummarySection
-                        .opacity(animate ? 1 : 0)
-                        .offset(y: animate ? 0 : 14)
-                        .animation(entranceAnimation(delay: 0.12), value: animate)
-
                     progressSnapshotSection
-                        .opacity(animate ? 1 : 0)
-                        .offset(y: animate ? 0 : 14)
-                        .animation(entranceAnimation(delay: 0.18), value: animate)
-
                     completionActions
-                        .opacity(animate ? 1 : 0)
-                        .offset(y: animate ? 0 : 14)
-                        .animation(entranceAnimation(delay: 0.24), value: animate)
                 }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 22)
                 .frame(maxWidth: 540)
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
-                .padding(.top, max(28, geometry.safeAreaInsets.top + 18))
-                .padding(.bottom, max(34, geometry.safeAreaInsets.bottom + 28))
+                .photoDeleteCard()
+                .scaleEffect(animate ? 1 : 0.985)
+
+                Spacer(minLength: 24)
             }
-            .scrollIndicators(.hidden)
+            .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
         }
         .onAppear {
             let targetProgress = celebration.nextAchievementProgress?.progress ?? 1
@@ -358,12 +337,9 @@ private struct BatchCleanupCompletionView: View {
                 animate = true
                 progressFill = targetProgress
             } else {
-                progressFill = 0
-                withAnimation(.spring(response: 0.54, dampingFraction: 0.86)) {
+                progressFill = targetProgress
+                withAnimation(.easeOut(duration: 0.16)) {
                     animate = true
-                }
-                withAnimation(.easeOut(duration: 0.72).delay(0.34)) {
-                    progressFill = targetProgress
                 }
             }
         }
@@ -371,36 +347,19 @@ private struct BatchCleanupCompletionView: View {
 
     private var celebrationVisual: some View {
         ZStack {
-            if reduceMotion {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 52, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.warning)
-            } else {
-                ForEach(0..<particleCount, id: \.self) { index in
-                    particle(index)
-                }
+            Circle()
+                .fill(PhotoDeleteStyle.positive.opacity(0.12))
+                .frame(width: 76, height: 76)
 
-                Circle()
-                    .fill(PhotoDeleteStyle.accent.opacity(0.1))
-                    .frame(width: 112, height: 112)
-                    .scaleEffect(animate ? 1 : 0.74)
-                    .opacity(animate ? 1 : 0)
+            Circle()
+                .stroke(PhotoDeleteStyle.positive.opacity(0.24), lineWidth: 1)
+                .frame(width: 64, height: 64)
 
-                Circle()
-                    .stroke(PhotoDeleteStyle.warning.opacity(0.22), lineWidth: 1)
-                    .frame(width: 92, height: 92)
-                    .scaleEffect(animate ? 1.08 : 0.78)
-                    .opacity(animate ? 1 : 0)
-
-                Image(systemName: "sparkles")
-                    .font(.system(size: 46, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.warning)
-                    .scaleEffect(animate ? 1 : 0.76)
-                    .rotationEffect(.degrees(animate ? 0 : -8))
-            }
+            Image(systemName: "checkmark")
+                .font(.system(size: 30, weight: .bold))
+                .foregroundColor(PhotoDeleteStyle.positive)
         }
-        .frame(height: 124)
-        .animation(.spring(response: 0.58, dampingFraction: 0.78), value: animate)
+        .frame(height: 86)
     }
 
     private var completionHeader: some View {
@@ -621,32 +580,6 @@ private struct BatchCleanupCompletionView: View {
         .padding(14)
     }
 
-    private func particle(_ index: Int) -> some View {
-        let angle = Double(index) / Double(particleCount) * Double.pi * 2
-        let distance = CGFloat(34 + (index % 4) * 13)
-        let x = CGFloat(cos(angle)) * distance
-        let y = CGFloat(sin(angle)) * distance
-        let size = CGFloat(4 + (index % 3) * 2)
-
-        return Circle()
-            .fill(particleColors[index % particleColors.count])
-            .frame(width: size, height: size)
-            .offset(x: animate ? x : x * 0.22, y: animate ? y : y * 0.22)
-            .opacity(animate ? 0.74 : 0)
-            .scaleEffect(animate ? 1 : 0.45)
-            .animation(
-                .spring(response: 0.58, dampingFraction: 0.82)
-                    .delay(Double(index) * 0.018),
-                value: animate
-            )
-    }
-
-    private func entranceAnimation(delay: Double) -> Animation {
-        if reduceMotion {
-            return .easeOut(duration: 0.12).delay(delay)
-        }
-        return .spring(response: 0.5, dampingFraction: 0.86).delay(delay)
-    }
 }
 
 private struct CandidatePreviewSection: View {

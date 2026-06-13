@@ -191,7 +191,7 @@ struct AlbumsView: View {
         .photoDeleteAlbumListTopMargin()
         .searchable(
             text: $searchText,
-            placement: .navigationBarDrawer(displayMode: .always),
+            placement: .navigationBarDrawer(displayMode: .automatic),
             prompt: L10n.string("搜索相册")
         )
         .refreshable {

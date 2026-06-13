@@ -213,20 +213,6 @@ struct AdvancedView: View {
             }
 
             Spacer()
-
-            if !isLocked && dataManager.photoLibraryManager.hasPhotoLibraryAccess {
-                Button(action: refreshAdvancedDataFromHeader) {
-                    Label(L10n.string("刷新进阶数据"), systemImage: "arrow.clockwise")
-                        .labelStyle(.iconOnly)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(isPreparingRealAdvancedData ? PhotoDeleteStyle.tertiaryText : PhotoDeleteStyle.primaryText)
-                        .frame(width: 38, height: 38)
-                        .background(Circle().fill(PhotoDeleteStyle.elevatedSurface))
-                        .photoDeleteMinimumTapTarget()
-                }
-                .buttonStyle(.plain)
-                .disabled(isPreparingRealAdvancedData)
-            }
         }
     }
 
@@ -453,12 +439,6 @@ struct AdvancedView: View {
 
     private func restorePurchases() {
         Task { await purchaseManager.restorePurchases() }
-    }
-
-    private func refreshAdvancedDataFromHeader() {
-        HapticManager.impact(.light)
-        dataManager.reloadLibraryData(showPreparing: true)
-        scheduleAdvancedDashboardRefresh()
     }
 
     private func scheduleAdvancedDashboardRefresh() {

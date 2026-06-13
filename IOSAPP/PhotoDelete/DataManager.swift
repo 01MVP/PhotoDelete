@@ -86,6 +86,7 @@ class DataManager: ObservableObject {
     private func setupPhotoLibraryManager() {
         photoLibraryManager.objectWillChange
             .receive(on: DispatchQueue.main)
+            .throttle(for: .milliseconds(120), scheduler: DispatchQueue.main, latest: true)
             .sink { [weak self] _ in
                 self?.objectWillChange.send()
             }
@@ -137,18 +138,7 @@ class DataManager: ObservableObject {
         photoLibraryManager.checkAuthorizationStatus()
 
         guard photoLibraryManager.hasPhotoLibraryAccess else {
-            isPreparingLibrary = false
-            isReloadingLibrary = false
-            isRestoringLibrarySnapshot = false
-            timeGroups = []
-            systemAlbums = []
-            userAlbums = []
-            deleteCandidates.removeAll()
-            favoriteCandidates.removeAll()
-            hasLoadedAlbums = false
-            isLoadingAlbums = false
-            isFetchingAlbums = false
-            albumLoadingProgress = 0
+            clearLibraryStateAfterAccessLoss()
             updateStats()
             return
         }
@@ -419,6 +409,26 @@ class DataManager: ObservableObject {
         updateStats()
     }
 
+    private func clearLibraryStateAfterAccessLoss() {
+        isPreparingLibrary = false
+        isReloadingLibrary = false
+        isRestoringLibrarySnapshot = false
+        photoLibraryManager.clearLoadedLibraryData(clearSnapshot: true)
+        timeGroupCache = [:]
+        timeGroups = []
+        systemAlbums = []
+        userAlbums = []
+        albumSnapshotStore.clear()
+        deleteCandidates.removeAll()
+        favoriteCandidates.removeAll()
+        reviewedAssetIDs.removeAll()
+        saveReviewedAssetIDsNow()
+        hasLoadedAlbums = false
+        isLoadingAlbums = false
+        isFetchingAlbums = false
+        albumLoadingProgress = 0
+    }
+
     func cancelAllOperations() {
         deleteCandidates.removeAll()
         favoriteCandidates.removeAll()
@@ -463,7 +473,7 @@ class DataManager: ObservableObject {
         updateStats()
     }
 
-    private func scheduleProgressRefresh() {
+    private func scheduleProgressRefresh(delay: TimeInterval = 1.2) {
         progressRefreshWorkItem?.cancel()
         progressRefreshGeneration += 1
         let generation = progressRefreshGeneration
@@ -492,7 +502,7 @@ class DataManager: ObservableObject {
             }
         }
         progressRefreshWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2, execute: workItem)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
     }
 
     // MARK: - 统计更新
@@ -690,8 +700,8 @@ class DataManager: ObservableObject {
     }
 
     func makeAdvancedCleanupQueues() -> [AdvancedCleanupQueue] {
-        let similarGroups = makeSimilarPhotoGroups(maxGroups: Int.max)
-        let largeFiles = largeFileCandidates(maxCount: Int.max)
+        let similarGroups = makeSimilarPhotoGroups(maxGroups: 120)
+        let largeFiles = largeFileCandidates(maxCount: 240)
         let screenshots = photoLibraryManager.screenshots
         let videos = photoLibraryManager.videos
 
@@ -770,7 +780,7 @@ class DataManager: ObservableObject {
     }
 
     private func similarPhotoCandidates(maxCount: Int) -> [PHAsset] {
-        Array(makeSimilarPhotoGroups(maxGroups: Int.max)
+        Array(makeSimilarPhotoGroups(maxGroups: max(80, maxCount / 2))
             .flatMap(\.assets)
             .prefix(maxCount))
     }
@@ -834,16 +844,7 @@ class DataManager: ObservableObject {
     // MARK: - 时间组数据加载
     func loadTimeGroups() {
         guard photoLibraryManager.hasPhotoLibraryAccess else { return }
-        progressRefreshGeneration += 1
-
-        let result = Self.buildTimeGroupData(
-            photos: photoLibraryManager.allPhotos,
-            reviewedAssetIDs: reviewedAssetIDs,
-            deleteCandidateIDs: Set(deleteCandidates.map(\.localIdentifier)),
-            favoriteCandidateIDs: Set(favoriteCandidates.map(\.localIdentifier))
-        )
-        timeGroupCache = result.cache
-        timeGroups = result.timeGroups
+        scheduleProgressRefresh(delay: 0)
     }
 
     private static func buildTimeGroupData(
@@ -913,7 +914,7 @@ class DataManager: ObservableObject {
 
     private func pruneReviewedAssetIDs() {
         let validAssetIDs = Set(photoLibraryManager.allPhotos.map(\.localIdentifier))
-        guard !validAssetIDs.isEmpty else { return }
+        guard !validAssetIDs.isEmpty || photoLibraryManager.hasLoadedPhotoLibrary else { return }
 
         let prunedAssetIDs = reviewedAssetIDs.intersection(validAssetIDs)
         guard prunedAssetIDs.count != reviewedAssetIDs.count else { return }
@@ -923,7 +924,7 @@ class DataManager: ObservableObject {
 
     private func prunePendingCandidates() {
         let validAssetIDs = Set(photoLibraryManager.allPhotos.map(\.localIdentifier))
-        guard !validAssetIDs.isEmpty else { return }
+        guard !validAssetIDs.isEmpty || photoLibraryManager.hasLoadedPhotoLibrary else { return }
 
         let prunedIDs = Self.candidateIdentifiers(
             deleteIDs: Set(deleteCandidates.map(\.localIdentifier)),
