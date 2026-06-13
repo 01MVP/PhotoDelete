@@ -6,6 +6,10 @@ temp.*
 # Generated marketing/ASO workspace artifacts
 Marketing/PhotoDeleteCampaign/aso-skill/
 
+# Uncompressed social cover intermediates
+Marketing/PhotoDeleteCampaign/social-covers-20260612/exports/*.png
+Marketing/PhotoDeleteCampaign/social-covers-20260612/sources/travel-seeds/*.png
+
 # Xcode
 #
 # gitignore contributors: remember to update Global/Xcode.gitignore, Objective-C.gitignore & Swift.gitignore
