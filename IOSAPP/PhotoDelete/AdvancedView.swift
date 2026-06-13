@@ -12,6 +12,7 @@ import Combine
 struct AdvancedView: View {
     @EnvironmentObject var dataManager: DataManager
     @EnvironmentObject var purchaseManager: PurchaseManager
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var selectedScope: AdvancedTimeScope = .month
     @State private var selectedPeriodDate = Date()
     @State private var dashboardSnapshot = AdvancedLibrarySnapshot.demo(referenceDate: Date())
@@ -142,6 +143,8 @@ struct AdvancedView: View {
                 }
                 .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
                 .padding(.top, 44)
+                .frame(maxWidth: PhotoDeleteAdaptiveLayout.readableContentMaxWidth(horizontalSizeClass: horizontalSizeClass))
+                .frame(maxWidth: .infinity)
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {

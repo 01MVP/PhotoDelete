@@ -15,48 +15,10 @@ struct MainTabView: View {
     @EnvironmentObject var purchaseManager: PurchaseManager
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage(AppConstants.appAppearanceKey) private var appAppearanceValue = AppAppearance.system.rawValue
-    @State private var selectedTab = 0
+    @State private var selectedTab: PhotoDeleteMainTab = .organize
     
     var body: some View {
-        TabView(selection: $selectedTab) {
-            // 整理页面
-            HomeView()
-                .environmentObject(dataManager)
-                .tabItem {
-                    Image(systemName: "sparkles")
-                    Text(L10n.string("整理"))
-                }
-                .tag(0)
-            
-            // 相册页面
-            AlbumsView()
-                .environmentObject(dataManager)
-                .tabItem {
-                    Image(systemName: "photo.on.rectangle")
-                    Text(L10n.string("相册"))
-                }
-                .tag(1)
-
-            // 进阶页面
-            AdvancedView()
-                .environmentObject(dataManager)
-                .environmentObject(purchaseManager)
-                .tabItem {
-                    Image(systemName: "chart.bar.xaxis")
-                    Text(L10n.string("进阶"))
-                }
-                .tag(2)
-            
-            // 设置页面
-            SettingsView()
-                .environmentObject(dataManager)
-                .environmentObject(purchaseManager)
-                .tabItem {
-                    Image(systemName: "gearshape")
-                    Text(L10n.string("设置"))
-                }
-                .tag(3)
-        }
+        tabRoot
         .tint(PhotoDeleteStyle.accent)
         .onAppear {
             configureTabBarAppearance()
@@ -69,6 +31,58 @@ struct MainTabView: View {
             guard phase == .active else { return }
             configureTabBarAppearance()
             dataManager.syncPhotoLibraryAuthorization()
+        }
+    }
+
+    private var tabRoot: some View {
+        TabView(selection: $selectedTab) {
+            tabContent(for: .organize)
+                .tabItem {
+                    Image(systemName: PhotoDeleteMainTab.organize.systemImage)
+                    Text(PhotoDeleteMainTab.organize.title)
+                }
+                .tag(PhotoDeleteMainTab.organize)
+            
+            tabContent(for: .albums)
+                .tabItem {
+                    Image(systemName: PhotoDeleteMainTab.albums.systemImage)
+                    Text(PhotoDeleteMainTab.albums.title)
+                }
+                .tag(PhotoDeleteMainTab.albums)
+
+            tabContent(for: .advanced)
+                .tabItem {
+                    Image(systemName: PhotoDeleteMainTab.advanced.systemImage)
+                    Text(PhotoDeleteMainTab.advanced.title)
+                }
+                .tag(PhotoDeleteMainTab.advanced)
+            
+            tabContent(for: .settings)
+                .tabItem {
+                    Image(systemName: PhotoDeleteMainTab.settings.systemImage)
+                    Text(PhotoDeleteMainTab.settings.title)
+                }
+                .tag(PhotoDeleteMainTab.settings)
+        }
+    }
+
+    @ViewBuilder
+    private func tabContent(for tab: PhotoDeleteMainTab) -> some View {
+        switch tab {
+        case .organize:
+            HomeView()
+                .environmentObject(dataManager)
+        case .albums:
+            AlbumsView()
+                .environmentObject(dataManager)
+        case .advanced:
+            AdvancedView()
+                .environmentObject(dataManager)
+                .environmentObject(purchaseManager)
+        case .settings:
+            SettingsView()
+                .environmentObject(dataManager)
+                .environmentObject(purchaseManager)
         }
     }
 
@@ -95,6 +109,41 @@ struct MainTabView: View {
 
         UITabBar.appearance().standardAppearance = appearance
         UITabBar.appearance().scrollEdgeAppearance = appearance
+    }
+}
+
+private enum PhotoDeleteMainTab: CaseIterable, Identifiable, Hashable {
+    case organize
+    case albums
+    case advanced
+    case settings
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .organize:
+            return L10n.string("整理")
+        case .albums:
+            return L10n.string("相册")
+        case .advanced:
+            return L10n.string("进阶")
+        case .settings:
+            return L10n.string("设置")
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .organize:
+            return "sparkles"
+        case .albums:
+            return "photo.on.rectangle"
+        case .advanced:
+            return "chart.bar.xaxis"
+        case .settings:
+            return "gearshape"
+        }
     }
 }
 

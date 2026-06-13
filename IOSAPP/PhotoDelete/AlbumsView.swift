@@ -13,6 +13,7 @@ import UIKit
 
 struct AlbumsView: View {
     @EnvironmentObject var dataManager: DataManager
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @AppStorage(AppConstants.customAlbumOrderKey) private var customAlbumOrderData = "[]"
     @AppStorage(AppConstants.hasDismissedAlbumSwipeHintKey) private var hasDismissedAlbumSwipeHint = false
     @State private var navigationPath = NavigationPath()
@@ -39,6 +40,8 @@ struct AlbumsView: View {
                         albumsList
                     }
                 }
+                .frame(maxWidth: PhotoDeleteAdaptiveLayout.listContentMaxWidth(horizontalSizeClass: horizontalSizeClass))
+                .frame(maxWidth: .infinity)
 
                 if let albumToast {
                     albumToastView(albumToast)
@@ -805,6 +808,7 @@ struct AlbumInfoRow: View {
 struct CreateAlbumView: View {
     @EnvironmentObject var dataManager: DataManager
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var albumName = ""
     @State private var isCreating = false
     @State private var errorMessage: String?
@@ -886,6 +890,8 @@ struct CreateAlbumView: View {
                 }
                 .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
                 .padding(.top, 40)
+                .frame(maxWidth: PhotoDeleteAdaptiveLayout.readableContentMaxWidth(horizontalSizeClass: horizontalSizeClass))
+                .frame(maxWidth: .infinity)
             }
             .navigationTitle(L10n.string("创建相册"))
             .navigationBarTitleDisplayMode(.inline)
@@ -921,6 +927,7 @@ struct EditAlbumView: View {
     let album: PHAssetCollection
     @EnvironmentObject var dataManager: DataManager
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var newName: String
     @State private var isUpdating = false
     @State private var errorMessage: String?
@@ -1002,6 +1009,8 @@ struct EditAlbumView: View {
                 }
                 .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
                 .padding(.top, 40)
+                .frame(maxWidth: PhotoDeleteAdaptiveLayout.readableContentMaxWidth(horizontalSizeClass: horizontalSizeClass))
+                .frame(maxWidth: .infinity)
             }
             .navigationTitle(L10n.string("编辑相册"))
             .navigationBarTitleDisplayMode(.inline)

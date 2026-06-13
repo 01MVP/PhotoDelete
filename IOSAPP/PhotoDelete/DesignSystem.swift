@@ -136,6 +136,62 @@ enum PhotoDeleteStyle {
     #endif
 }
 
+enum PhotoDeleteAdaptiveLayout {
+    static func isRegularPad(horizontalSizeClass: UserInterfaceSizeClass?) -> Bool {
+        isPad && horizontalSizeClass == .regular
+    }
+
+    static func prefersExpandedContent(in size: CGSize, horizontalSizeClass: UserInterfaceSizeClass?) -> Bool {
+        isPad && horizontalSizeClass == .regular && size.width >= 760 && size.height >= 560
+    }
+
+    static func homeContentMaxWidth(in size: CGSize, horizontalSizeClass: UserInterfaceSizeClass?) -> CGFloat {
+        prefersExpandedContent(in: size, horizontalSizeClass: horizontalSizeClass) ? min(size.width - 48, 1040) : 520
+    }
+
+    static func homeHorizontalPadding(in size: CGSize, horizontalSizeClass: UserInterfaceSizeClass?) -> CGFloat {
+        prefersExpandedContent(in: size, horizontalSizeClass: horizontalSizeClass) ? 32 : PhotoDeleteStyle.screenHorizontalPadding
+    }
+
+    static func homeTopPadding(in size: CGSize, horizontalSizeClass: UserInterfaceSizeClass?) -> CGFloat {
+        prefersExpandedContent(in: size, horizontalSizeClass: horizontalSizeClass) ? 24 : 44
+    }
+
+    static func readableContentMaxWidth(horizontalSizeClass: UserInterfaceSizeClass?) -> CGFloat? {
+        isRegularPad(horizontalSizeClass: horizontalSizeClass) ? 760 : nil
+    }
+
+    static func listContentMaxWidth(horizontalSizeClass: UserInterfaceSizeClass?) -> CGFloat? {
+        isRegularPad(horizontalSizeClass: horizontalSizeClass) ? 860 : nil
+    }
+
+    static func prefersReviewSidebar(in size: CGSize, horizontalSizeClass: UserInterfaceSizeClass?) -> Bool {
+        isPad && horizontalSizeClass == .regular && size.width >= 820 && size.height >= 600
+    }
+
+    static func reviewSidebarWidth(totalWidth: CGFloat) -> CGFloat {
+        min(max(totalWidth * 0.31, 300), 420)
+    }
+
+    static func reviewPhotoCardMaxSize(in containerSize: CGSize, horizontalSizeClass: UserInterfaceSizeClass?) -> CGSize {
+        guard isPad && horizontalSizeClass == .regular && containerSize.width >= 520 && containerSize.height >= 620 else {
+            return CGSize(width: 390, height: 590)
+        }
+
+        return CGSize(width: 470, height: 700)
+    }
+
+    #if canImport(UIKit)
+    private static var isPad: Bool {
+        UIDevice.current.userInterfaceIdiom == .pad
+    }
+    #else
+    private static var isPad: Bool {
+        false
+    }
+    #endif
+}
+
 struct PhotoDeleteScreenBackground: View {
     var body: some View {
         LinearGradient(

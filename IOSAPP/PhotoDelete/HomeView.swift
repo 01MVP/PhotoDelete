@@ -63,23 +63,44 @@ enum HomeLibraryContentState: Equatable {
 
 struct HomeView: View {
     @EnvironmentObject var dataManager: DataManager
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @AppStorage(AppConstants.hasSeenIntroKey) private var hasSeenPhotoDeleteIntro = false
     @State private var navigationPath = NavigationPath()
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
             GeometryReader { geometry in
-                let isLandscape = geometry.size.width > geometry.size.height && geometry.size.width > AppConstants.landscapeBreakpoint
+                let usesExpandedLayout = PhotoDeleteAdaptiveLayout.prefersExpandedContent(
+                    in: geometry.size,
+                    horizontalSizeClass: horizontalSizeClass
+                )
 
                 ZStack {
                     PhotoDeleteScreenBackground()
 
                     ScrollView {
-                        homeContent(isLandscape: isLandscape)
-                            .padding(.horizontal, isLandscape ? 32 : PhotoDeleteStyle.screenHorizontalPadding)
-                            .padding(.top, isLandscape ? 18 : 44)
+                        homeContent(isLandscape: usesExpandedLayout)
+                            .padding(
+                                .horizontal,
+                                PhotoDeleteAdaptiveLayout.homeHorizontalPadding(
+                                    in: geometry.size,
+                                    horizontalSizeClass: horizontalSizeClass
+                                )
+                            )
+                            .padding(
+                                .top,
+                                PhotoDeleteAdaptiveLayout.homeTopPadding(
+                                    in: geometry.size,
+                                    horizontalSizeClass: horizontalSizeClass
+                                )
+                            )
                             .padding(.bottom, 112)
-                            .frame(maxWidth: isLandscape ? 900 : 520)
+                            .frame(
+                                maxWidth: PhotoDeleteAdaptiveLayout.homeContentMaxWidth(
+                                    in: geometry.size,
+                                    horizontalSizeClass: horizontalSizeClass
+                                )
+                            )
                             .frame(maxWidth: .infinity)
                     }
                 }

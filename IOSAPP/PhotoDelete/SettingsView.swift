@@ -19,6 +19,7 @@ import MessageUI
 struct SettingsView: View {
     @EnvironmentObject var dataManager: DataManager
     @EnvironmentObject var purchaseManager: PurchaseManager
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @AppStorage(AppConstants.hasSeenIntroKey) private var hasSeenPhotoDeleteIntro = false
     @AppStorage(AppConstants.hasCompletedOnboardingKey) private var hasCompletedOnboarding = false
     @AppStorage(AppConstants.hapticsEnabledKey) private var hapticsEnabled = true
@@ -67,6 +68,8 @@ struct SettingsView: View {
                             .frame(height: 100)
                     }
                     .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
+                    .frame(maxWidth: PhotoDeleteAdaptiveLayout.readableContentMaxWidth(horizontalSizeClass: horizontalSizeClass))
+                    .frame(maxWidth: .infinity)
                 }
 
                 if let settingsToast {
@@ -799,6 +802,7 @@ struct SettingToggleRow: View {
 // MARK: - 手势设置
 struct GestureSettingsView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @AppStorage(AppConstants.leftSwipeActionKey) private var leftSwipeActionValue = SwipeGesturePreset.standard.leftAction.rawValue
     @AppStorage(AppConstants.rightSwipeActionKey) private var rightSwipeActionValue = SwipeGesturePreset.standard.rightAction.rawValue
     @AppStorage(AppConstants.upSwipeActionKey) private var upSwipeActionValue = SwipeGesturePreset.standard.upAction.rawValue
@@ -818,6 +822,8 @@ struct GestureSettingsView: View {
                     .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
                     .padding(.top, 20)
                     .padding(.bottom, 24)
+                    .frame(maxWidth: PhotoDeleteAdaptiveLayout.readableContentMaxWidth(horizontalSizeClass: horizontalSizeClass))
+                    .frame(maxWidth: .infinity)
                 }
             }
             .navigationTitle(L10n.string("手势控制"))
@@ -1071,6 +1077,7 @@ private struct GestureActionPickerRow: View {
 // MARK: - 语言设置
 private struct LanguageSettingsView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @AppStorage(AppConstants.appLanguageKey) private var selectedLanguageID = AppLanguage.system.rawValue
 
     var body: some View {
@@ -1128,6 +1135,8 @@ private struct LanguageSettingsView: View {
                     .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
                     .padding(.top, 20)
                     .padding(.bottom, 24)
+                    .frame(maxWidth: PhotoDeleteAdaptiveLayout.readableContentMaxWidth(horizontalSizeClass: horizontalSizeClass))
+                    .frame(maxWidth: .infinity)
                 }
             }
             .navigationTitle(L10n.string("语言"))
@@ -1151,6 +1160,7 @@ private struct LanguageSettingsView: View {
 // MARK: - 外观设置
 private struct AppearanceSettingsView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @AppStorage(AppConstants.appAppearanceKey) private var selectedAppearanceID = AppAppearance.system.rawValue
 
     var body: some View {
@@ -1213,6 +1223,8 @@ private struct AppearanceSettingsView: View {
                     .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
                     .padding(.top, 20)
                     .padding(.bottom, 24)
+                    .frame(maxWidth: PhotoDeleteAdaptiveLayout.readableContentMaxWidth(horizontalSizeClass: horizontalSizeClass))
+                    .frame(maxWidth: .infinity)
                 }
             }
             .navigationTitle(L10n.string("外观"))

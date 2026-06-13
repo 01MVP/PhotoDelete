@@ -16,6 +16,7 @@ struct SwipePhotoView: View {
     @EnvironmentObject var dataManager: DataManager
     @Environment(\.dismiss) private var dismiss
     @Environment(\.displayScale) private var displayScale
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @AppStorage(AppConstants.leftSwipeActionKey) private var leftSwipeActionValue = SwipeGesturePreset.standard.leftAction.rawValue
     @AppStorage(AppConstants.rightSwipeActionKey) private var rightSwipeActionValue = SwipeGesturePreset.standard.rightAction.rawValue
     @AppStorage(AppConstants.upSwipeActionKey) private var upSwipeActionValue = SwipeGesturePreset.standard.upAction.rawValue
@@ -185,19 +186,23 @@ struct SwipePhotoView: View {
             PhotoDeleteScreenBackground()
 
             GeometryReader { geometry in
-                let isLandscape = geometry.size.width > geometry.size.height && geometry.size.width > AppConstants.landscapeBreakpoint
+                let usesSidebar = PhotoDeleteAdaptiveLayout.prefersReviewSidebar(
+                    in: geometry.size,
+                    horizontalSizeClass: horizontalSizeClass
+                )
+                let sidebarWidth = PhotoDeleteAdaptiveLayout.reviewSidebarWidth(totalWidth: geometry.size.width)
 
                 ZStack(alignment: .bottom) {
-                    if isLandscape {
+                    if usesSidebar {
                         HStack(spacing: 0) {
                             VStack(spacing: 0) {
                                 navigationHeader
                                 photoArea
                             }
-                            .frame(width: geometry.size.width * 0.64)
+                            .frame(width: geometry.size.width - sidebarWidth)
 
                             landscapeSidebar
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .frame(width: sidebarWidth, height: geometry.size.height)
                         }
                     } else {
                         VStack(spacing: 0) {
@@ -213,7 +218,7 @@ struct SwipePhotoView: View {
                             resetCardPosition()
                         }
                         .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
-                        .padding(.bottom, isLandscape ? 24 : portraitToastBottomPadding)
+                        .padding(.bottom, usesSidebar ? 24 : portraitToastBottomPadding)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
@@ -804,7 +809,7 @@ struct SwipePhotoView: View {
 
                     SidebarActionButton(
                         icon: "checkmark",
-                        title: "完成",
+                        title: L10n.string("完成"),
                         color: PhotoDeleteStyle.positive,
                         isCompact: true
                     ) {
@@ -1177,8 +1182,12 @@ struct SwipePhotoView: View {
     private func photoCardSize(in containerSize: CGSize) -> CGSize {
         let availableWidth = max(containerSize.width - 40, 180)
         let availableHeight = max(containerSize.height - 72, 220)
-        let width = min(availableWidth, 390)
-        let height = min(availableHeight, 590)
+        let maxSize = PhotoDeleteAdaptiveLayout.reviewPhotoCardMaxSize(
+            in: containerSize,
+            horizontalSizeClass: horizontalSizeClass
+        )
+        let width = min(availableWidth, maxSize.width)
+        let height = min(availableHeight, maxSize.height)
         return CGSize(width: width, height: height)
     }
 

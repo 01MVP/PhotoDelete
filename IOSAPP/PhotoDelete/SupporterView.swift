@@ -11,6 +11,7 @@ struct SupporterView: View {
     @EnvironmentObject var dataManager: DataManager
     @EnvironmentObject var purchaseManager: PurchaseManager
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @AppStorage(AppConstants.supporterThemeKey) private var selectedThemeID = SupporterTheme.sky.rawValue
 
     private var selectedTheme: SupporterTheme {
@@ -60,6 +61,8 @@ struct SupporterView: View {
                     .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
                     .padding(.top, 20)
                     .padding(.bottom, 40)
+                    .frame(maxWidth: PhotoDeleteAdaptiveLayout.readableContentMaxWidth(horizontalSizeClass: horizontalSizeClass))
+                    .frame(maxWidth: .infinity)
                 }
             }
             .navigationTitle(L10n.string("支持者版"))
