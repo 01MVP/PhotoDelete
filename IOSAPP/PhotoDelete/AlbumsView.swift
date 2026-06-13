@@ -208,7 +208,11 @@ struct AlbumsView: View {
         .frame(maxWidth: .infinity, minHeight: 44)
         .background(
             RoundedRectangle(cornerRadius: PhotoDeleteStyle.controlRadius, style: .continuous)
-                .fill(PhotoDeleteStyle.elevatedSurface)
+                .fill(PhotoDeleteStyle.surface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: PhotoDeleteStyle.controlRadius, style: .continuous)
+                .stroke(PhotoDeleteStyle.cardStroke, lineWidth: 1)
         )
         .transition(.move(edge: .top).combined(with: .opacity))
     }

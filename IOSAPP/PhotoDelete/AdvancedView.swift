@@ -80,7 +80,6 @@ struct AdvancedView: View {
         }
         .task {
             await purchaseManager.loadProducts()
-            await purchaseManager.refreshEntitlements()
             dataManager.syncPhotoLibraryAuthorization()
             refreshAdvancedDashboard(resetSelectedPeriod: true)
         }
