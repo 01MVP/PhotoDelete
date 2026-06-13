@@ -346,7 +346,7 @@ struct HomeView: View {
 
     // MARK: - 空照片库区域
     private var emptyLibrarySection: some View {
-        Group {
+        VStack(spacing: 16) {
             if #available(iOS 17.0, *) {
                 ContentUnavailableView(
                     L10n.string("没有可整理的照片"),
@@ -370,6 +370,13 @@ struct HomeView: View {
                         .multilineTextAlignment(.center)
                 }
             }
+
+            Button {
+                dataManager.managePhotoLibraryAccessSettings()
+            } label: {
+                Label(L10n.string("管理照片访问范围"), systemImage: dataManager.photoLibraryManager.hasLimitedPhotoLibraryAccess ? "photo.badge.plus" : "gearshape")
+            }
+            .photoDeleteSecondaryButton()
         }
         .padding(24)
         .frame(maxWidth: .infinity)

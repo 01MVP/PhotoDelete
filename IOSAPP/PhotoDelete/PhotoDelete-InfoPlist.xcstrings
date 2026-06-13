@@ -56,19 +56,19 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Photo Delete needs permission to add photos to albums you choose."
+            "value": "Photo Delete needs permission to favorite photos, add them to albums, and apply changes after you confirm."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "删图需要权限来把照片加入您选择的相册。"
+            "value": "删图需要权限来收藏照片、加入相册，并在您确认后执行选择的更改。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "刪圖需要權限來把照片加入您選擇的相冊。"
+            "value": "刪圖需要權限來收藏照片、加入相簿，並在你確認後執行選擇的更改。"
           }
         }
       }
@@ -80,19 +80,19 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Photo Delete needs access to your photo library to help you organize and manage photos. We never upload or share your photos."
+            "value": "Photo Delete needs access to read, organize, favorite, and delete selected photos after you confirm. We never upload or share your photos."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "删图需要访问您的照片库来帮助您整理和管理照片。我们不会上传或分享您的照片。"
+            "value": "删图需要访问照片库来读取、整理、收藏，并在您确认后删除选择的照片。我们不会上传或分享您的照片。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "刪圖需要訪問您的照片庫來幫助您整理和管理照片。我們不會上傳或分享您的照片。"
+            "value": "刪圖需要訪問照片庫來讀取、整理、收藏，並在你確認後刪除選擇的照片。我們不會上傳或分享你的照片。"
           }
         }
       }

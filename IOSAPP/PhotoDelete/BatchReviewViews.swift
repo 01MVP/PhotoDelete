@@ -318,7 +318,7 @@ private struct BatchCleanupCompletionView: View {
     @State private var progressFill = 0.0
     @State private var fireworkProgress = 0.0
 
-    private let fireworkColors: [Color] = [
+    private let confettiColors: [Color] = [
         PhotoDeleteStyle.warning,
         PhotoDeleteStyle.accent,
         PhotoDeleteStyle.positive,
@@ -378,28 +378,28 @@ private struct BatchCleanupCompletionView: View {
     private var celebrationVisual: some View {
         ZStack {
             if !reduceMotion {
-                CompletionFireworkBurstView(
+                CompletionConfettiBurstView(
                     progress: fireworkProgress,
-                    colors: fireworkColors
+                    colors: confettiColors
                 )
-                .frame(width: 190, height: 138)
+                .frame(width: 210, height: 144)
             }
 
             Circle()
                 .fill(PhotoDeleteStyle.warning.opacity(0.14))
-                .frame(width: 82, height: 82)
+                .frame(width: 84, height: 84)
                 .scaleEffect(animate ? 1 : 0.72)
 
             Circle()
                 .stroke(PhotoDeleteStyle.warning.opacity(0.26), lineWidth: 1)
-                .frame(width: 68, height: 68)
+                .frame(width: 70, height: 70)
                 .scaleEffect(animate ? 1.04 : 0.7)
 
-            Image(systemName: "sparkles")
-                .font(.system(size: 34, weight: .semibold))
-                .foregroundColor(PhotoDeleteStyle.warning)
+            Text("🎉")
+                .font(.system(size: 52))
                 .scaleEffect(animate ? 1 : 0.72)
                 .rotationEffect(.degrees(animate ? 0 : -8))
+                .accessibilityHidden(true)
         }
         .frame(height: 122)
         .animation(.spring(response: 0.5, dampingFraction: 0.78), value: animate)
@@ -528,7 +528,8 @@ private struct BatchCleanupCompletionView: View {
                 .padding(.leading, 48)
 
             if let nextAchievementProgress = celebration.nextAchievementProgress {
-                compactNextGoalRow(nextAchievementProgress)
+                nextGoalCard(nextAchievementProgress)
+                    .padding(10)
             } else {
                 compactStatusRow(
                     icon: "checkmark.seal.fill",
@@ -580,9 +581,9 @@ private struct BatchCleanupCompletionView: View {
         max(celebration.currentStreakDays, celebration.organizedPhotos > 0 ? 1 : 0)
     }
 
-    private func compactNextGoalRow(_ progress: CleanupAchievementProgress) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
+    private func nextGoalCard(_ progress: CleanupAchievementProgress) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
                 PhotoDeleteIconTile(
                     icon: progress.achievement.systemImage,
                     tint: progress.achievement.tint.color,
@@ -590,21 +591,35 @@ private struct BatchCleanupCompletionView: View {
                     cornerRadius: 10
                 )
 
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(L10n.string("下一个目标：\(progress.achievement.title)"))
-                        .font(.system(size: 14, weight: .semibold))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(L10n.string("下一个目标"))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(PhotoDeleteStyle.secondaryText)
+
+                    Text(progress.achievement.title)
+                        .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(PhotoDeleteStyle.primaryText)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.82)
+                        .minimumScaleFactor(0.78)
 
                     Text(progress.remainingDescription)
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.system(size: 13, weight: .regular))
                         .foregroundColor(PhotoDeleteStyle.secondaryText)
                         .lineLimit(1)
                         .minimumScaleFactor(0.82)
                 }
 
                 Spacer()
+
+                Text("\(Int((progress.progress * 100).rounded()))%")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(progress.achievement.tint.color)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(progress.achievement.tint.color.opacity(0.12))
+                    )
             }
 
             GeometryReader { proxy in
@@ -619,12 +634,20 @@ private struct BatchCleanupCompletionView: View {
             }
             .frame(height: 7)
         }
-        .padding(14)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(progress.achievement.tint.color.opacity(0.08))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(progress.achievement.tint.color.opacity(0.14), lineWidth: 1)
+                )
+        )
     }
 
 }
 
-private struct CompletionFireworkBurstView: View {
+private struct CompletionConfettiBurstView: View {
     let progress: Double
     let colors: [Color]
 
@@ -632,48 +655,36 @@ private struct CompletionFireworkBurstView: View {
         Canvas { context, size in
             let clampedProgress = min(max(progress, 0), 1)
             let easedProgress = clampedProgress * (2 - clampedProgress)
-            let center = CGPoint(x: size.width / 2, y: size.height / 2)
-            let maxRadius = min(size.width, size.height) * 0.48
-            let particleOpacity = max(0, 1 - clampedProgress * 0.82)
-            let rayOpacity = max(0, 1 - clampedProgress * 1.05)
-            let particleCount = 28
+            let center = CGPoint(x: size.width / 2, y: size.height * 0.54)
+            let maxRadius = min(size.width, size.height) * 0.58
+            let particleOpacity = max(0, 1 - clampedProgress * 0.68)
+            let particleCount = 34
 
             for index in 0..<particleCount {
-                let angle = Double(index) / Double(particleCount) * Double.pi * 2
+                let spread = Double.pi * 1.62
+                let angle = -Double.pi * 0.5 - spread / 2 + (Double(index) / Double(particleCount - 1)) * spread
                 let unitX = CGFloat(cos(angle))
                 let unitY = CGFloat(sin(angle))
-                let distanceRatio = 0.58 + Double(index % 5) * 0.075
+                let distanceRatio = 0.52 + Double(index % 6) * 0.075
                 let distance = maxRadius * CGFloat(distanceRatio) * CGFloat(easedProgress)
                 let point = CGPoint(
                     x: center.x + unitX * distance,
                     y: center.y + unitY * distance
                 )
-                let particleSize = max(2.6, CGFloat(5 + index % 4) * (1 - CGFloat(clampedProgress) * 0.2))
                 let color = colors[index % colors.count]
-
-                if index.isMultiple(of: 2) {
-                    var ray = Path()
-                    let rayStart = max(0, distance - 16)
-                    ray.move(to: CGPoint(
-                        x: center.x + unitX * rayStart,
-                        y: center.y + unitY * rayStart
-                    ))
-                    ray.addLine(to: point)
-                    context.stroke(
-                        ray,
-                        with: .color(color.opacity(rayOpacity * 0.62)),
-                        lineWidth: 1.4
-                    )
-                }
-
+                let isRibbon = index % 3 != 0
+                let particleSize = isRibbon ? CGSize(width: 10 + CGFloat(index % 4) * 2, height: 3.6) : CGSize(width: 5.5, height: 5.5)
                 let particleRect = CGRect(
-                    x: point.x - particleSize / 2,
-                    y: point.y - particleSize / 2,
-                    width: particleSize,
-                    height: particleSize
+                    x: point.x - particleSize.width / 2,
+                    y: point.y - particleSize.height / 2,
+                    width: particleSize.width,
+                    height: particleSize.height
                 )
+                let shape = isRibbon
+                    ? Path(roundedRect: particleRect, cornerRadius: 1.4)
+                    : Path(ellipseIn: particleRect)
                 context.fill(
-                    Path(ellipseIn: particleRect),
+                    shape,
                     with: .color(color.opacity(particleOpacity))
                 )
             }

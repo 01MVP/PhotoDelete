@@ -67,6 +67,7 @@ struct AlbumListSnapshot: Codable {
 final class PhotoLibrarySnapshotStore {
     private static let writeQueue = DispatchQueue(label: "com.01mvp.photodelete.photo-library-snapshot")
     private let fileURL: URL
+    private var minimumSaveDate = Date.distantPast
 
     init(filename: String = "photo-library-snapshot.json") {
         self.fileURL = Self.applicationSupportDirectory().appendingPathComponent(filename)
@@ -83,6 +84,8 @@ final class PhotoLibrarySnapshotStore {
 
     func save(_ snapshot: PhotoLibrarySnapshot) {
         Self.writeQueue.sync {
+            guard snapshot.createdAt >= minimumSaveDate else { return }
+
             if let currentSnapshot = load(), currentSnapshot.createdAt > snapshot.createdAt {
                 return
             }
@@ -98,7 +101,10 @@ final class PhotoLibrarySnapshotStore {
     }
 
     func clear() {
-        try? FileManager.default.removeItem(at: fileURL)
+        Self.writeQueue.sync {
+            minimumSaveDate = Date()
+            try? FileManager.default.removeItem(at: fileURL)
+        }
     }
 
     private static func applicationSupportDirectory() -> URL {
@@ -118,6 +124,7 @@ final class PhotoLibrarySnapshotStore {
 final class AlbumListSnapshotStore {
     private static let writeQueue = DispatchQueue(label: "com.01mvp.photodelete.album-list-snapshot")
     private let fileURL: URL
+    private var minimumSaveDate = Date.distantPast
 
     init(filename: String = "album-list-snapshot.json") {
         self.fileURL = Self.applicationSupportDirectory().appendingPathComponent(filename)
@@ -130,6 +137,8 @@ final class AlbumListSnapshotStore {
 
     func save(_ snapshot: AlbumListSnapshot) {
         Self.writeQueue.sync {
+            guard snapshot.createdAt >= minimumSaveDate else { return }
+
             if let currentSnapshot = load(), currentSnapshot.createdAt > snapshot.createdAt {
                 return
             }
@@ -145,7 +154,10 @@ final class AlbumListSnapshotStore {
     }
 
     func clear() {
-        try? FileManager.default.removeItem(at: fileURL)
+        Self.writeQueue.sync {
+            minimumSaveDate = Date()
+            try? FileManager.default.removeItem(at: fileURL)
+        }
     }
 
     private static func applicationSupportDirectory() -> URL {

@@ -237,6 +237,13 @@ struct PhotoDeleteTests {
         #expect(initialState.allowsSupporterAccess)
     }
 
+    @Test func supporterEntitlementStartsLockedWithoutCache() async throws {
+        let initialState = SupporterEntitlementState.initial(hasCachedEntitlement: false)
+
+        #expect(initialState == .locked)
+        #expect(!initialState.allowsSupporterAccess)
+    }
+
     @Test func supporterEntitlementVerificationStateKeepsCacheExplicit() async throws {
         #expect(SupporterEntitlementState.verificationStarted(hasCachedEntitlement: true) == .cachedOffline)
         #expect(SupporterEntitlementState.verificationStarted(hasCachedEntitlement: false) == .verifying)

@@ -29,7 +29,7 @@ enum SupporterEntitlementState: Equatable {
     }
 
     static func initial(hasCachedEntitlement: Bool) -> SupporterEntitlementState {
-        hasCachedEntitlement ? .cachedOffline : .unknown
+        hasCachedEntitlement ? .cachedOffline : .locked
     }
 
     static func verificationStarted(hasCachedEntitlement: Bool) -> SupporterEntitlementState {
@@ -47,6 +47,7 @@ final class PurchaseManager: ObservableObject {
     private let productIDs = [AppConstants.supporterProductID]
     private let userDefaults: UserDefaults
     private var updatesTask: Task<Void, Never>?
+    private var productLoadRequest: (id: UUID, task: Task<[Product], Error>)?
 
     var supporterProduct: Product? {
         products.first { $0.id == AppConstants.supporterProductID }
@@ -73,7 +74,7 @@ final class PurchaseManager: ObservableObject {
         }
 
         Task {
-            await refreshEntitlements()
+            await refreshEntitlementsSilently()
             await loadProducts()
         }
     }
@@ -88,11 +89,22 @@ final class PurchaseManager: ObservableObject {
             return
         }
 
-        isLoading = true
-        defer { isLoading = false }
+        let loadRequestID: UUID
+        let loadTask: Task<[Product], Error>
+        if let productLoadRequest {
+            loadRequestID = productLoadRequest.id
+            loadTask = productLoadRequest.task
+        } else {
+            let productIDs = productIDs
+            loadRequestID = UUID()
+            loadTask = Task {
+                try await Product.products(for: productIDs)
+            }
+            productLoadRequest = (id: loadRequestID, task: loadTask)
+        }
 
         do {
-            products = try await Product.products(for: productIDs)
+            products = try await loadTask.value
             if products.isEmpty {
                 errorMessage = L10n.string("暂时无法读取支持者版商品。")
             } else {
@@ -101,9 +113,16 @@ final class PurchaseManager: ObservableObject {
         } catch {
             errorMessage = L10n.string("暂时无法读取支持者版商品。")
         }
+
+        if productLoadRequest?.id == loadRequestID {
+            productLoadRequest = nil
+        }
     }
 
     func purchaseSupporter() async {
+        isLoading = true
+        defer { isLoading = false }
+
         if supporterProduct == nil {
             await loadProducts()
         }
@@ -112,9 +131,6 @@ final class PurchaseManager: ObservableObject {
             errorMessage = L10n.string("暂时无法读取支持者版商品。")
             return
         }
-
-        isLoading = true
-        defer { isLoading = false }
 
         do {
             let result = try await product.purchase()
@@ -155,7 +171,20 @@ final class PurchaseManager: ObservableObject {
     }
 
     func refreshEntitlements() async {
-        entitlementState = .verificationStarted(hasCachedEntitlement: hasCachedSupporterEntitlement)
+        await refreshEntitlements(showVerificationState: true, shouldLockWhenMissing: true)
+    }
+
+    func refreshEntitlementsSilently() async {
+        await refreshEntitlements(showVerificationState: false, shouldLockWhenMissing: true)
+    }
+
+    private func refreshEntitlements(
+        showVerificationState: Bool,
+        shouldLockWhenMissing: Bool
+    ) async {
+        if showVerificationState {
+            entitlementState = .verificationStarted(hasCachedEntitlement: hasCachedSupporterEntitlement)
+        }
         var hasCurrentSupporterEntitlement = false
 
         for await result in Transaction.currentEntitlements {
@@ -167,9 +196,11 @@ final class PurchaseManager: ObservableObject {
             }
         }
 
-        setVerifiedSupporterAccess(hasCurrentSupporterEntitlement)
         if hasCurrentSupporterEntitlement {
+            setVerifiedSupporterAccess(true)
             errorMessage = nil
+        } else if shouldLockWhenMissing {
+            setVerifiedSupporterAccess(false)
         }
     }
 

@@ -19,10 +19,16 @@ struct ContentView: View {
                 .environmentObject(dataManager)
                 .environmentObject(purchaseManager)
         } else {
-            OnboardingFlowView {
-                hasSeenHomeIntro = true
-                hasCompletedOnboarding = true
-            }
+            OnboardingFlowView(
+                onSkip: {
+                    hasSeenHomeIntro = false
+                    hasCompletedOnboarding = true
+                },
+                onComplete: {
+                    hasSeenHomeIntro = true
+                    hasCompletedOnboarding = true
+                }
+            )
         }
     }
 }
@@ -32,6 +38,7 @@ private struct OnboardingFlowView: View {
     @State private var selectedPage = 0
     @State private var animateVisual = false
 
+    let onSkip: () -> Void
     let onComplete: () -> Void
 
     private let pages: [OnboardingPage] = [
@@ -64,7 +71,7 @@ private struct OnboardingFlowView: View {
                     Spacer()
 
                     Button(L10n.string("跳过")) {
-                        onComplete()
+                        onSkip()
                     }
                     .font(.system(size: 15, weight: .medium))
                     .foregroundColor(PhotoDeleteStyle.secondaryText)
@@ -309,16 +316,16 @@ private struct SwipeIntroVisual: View {
             swipeDestination(
                 symbol: "arrow.left",
                 direction: L10n.string("左滑"),
-                action: L10n.string("保留"),
-                color: PhotoDeleteStyle.positive,
+                action: L10n.string("删除"),
+                color: PhotoDeleteStyle.destructive,
                 x: -118,
                 y: 12
             )
             swipeDestination(
                 symbol: "arrow.right",
                 direction: L10n.string("右滑"),
-                action: L10n.string("删除"),
-                color: PhotoDeleteStyle.destructive,
+                action: L10n.string("保留"),
+                color: PhotoDeleteStyle.positive,
                 x: 118,
                 y: 12
             )

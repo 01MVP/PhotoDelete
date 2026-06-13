@@ -19,27 +19,28 @@ struct AdvancedView: View {
     @State private var periodSummariesByScope: [AdvancedTimeScope: [PhotoPeriodSummary]] = [:]
     @State private var activePeriodRoute: AdvancedPeriodRoute?
     @State private var advancedRefreshWorkItem: DispatchWorkItem?
+    @State private var lastDashboardRefreshKey: AdvancedDashboardRefreshKey?
 
     private var isLocked: Bool {
         !purchaseManager.isSupporter
     }
 
+    private var isAwaitingPhotoLibraryAccess: Bool {
+        !isLocked && !dataManager.photoLibraryManager.hasPhotoLibraryAccess
+    }
+
     private var entitlementStatusMessage: String? {
         switch purchaseManager.entitlementState {
-        case .unknown, .verifying:
-            L10n.string("正在确认购买状态。")
-        case .cachedOffline:
-            L10n.string("正在确认购买状态，暂时使用本机记录解锁。")
-        case .verified, .locked:
+        case .unknown, .verifying, .verified, .cachedOffline, .locked:
             nil
         }
     }
 
     private var headerSubtitle: String {
-        if purchaseManager.isUsingCachedSupporterAccess {
-            L10n.string("正在确认购买状态，暂时使用本机记录解锁。")
-        } else if isLocked {
+        if isLocked {
             L10n.string("示例展示，解锁后查看真实清理队列")
+        } else if isAwaitingPhotoLibraryAccess {
+            L10n.string("进阶功能需要读取本机照片库，才能生成真实月份进度和清理队列。")
         } else {
             L10n.string("按日周月年和清理队列整理照片")
         }
@@ -64,7 +65,7 @@ struct AdvancedView: View {
             selectedPeriodDate = Date()
         }
         .onChange(of: purchaseManager.entitlementState) { _ in
-            refreshAdvancedDashboard(resetSelectedPeriod: true)
+            refreshAdvancedDashboard(resetSelectedPeriod: true, force: true)
         }
         .onChange(of: dataManager.cleanupStatsRevision) { _ in
             scheduleAdvancedDashboardRefresh()
@@ -79,7 +80,6 @@ struct AdvancedView: View {
             scheduleAdvancedDashboardRefresh()
         }
         .task {
-            await purchaseManager.loadProducts()
             dataManager.syncPhotoLibraryAuthorization()
             refreshAdvancedDashboard(resetSelectedPeriod: true)
         }
@@ -99,14 +99,12 @@ struct AdvancedView: View {
                     achievementEntry
 
                     VStack(spacing: 18) {
-                        if !isLocked && !dataManager.photoLibraryManager.hasPhotoLibraryAccess {
+                        if isAwaitingPhotoLibraryAccess {
                             PhotoAuthorizationCard(
                                 subtitle: L10n.string("进阶功能需要读取本机照片库，才能生成真实月份进度和清理队列。"),
                                 onRequestAccess: { dataManager.requestPhotoLibraryAccess() }
                             )
-                        }
-
-                        if isPreparingRealAdvancedData {
+                        } else if shouldShowAdvancedPreparingCard {
                             AdvancedLibraryPreparingCard(progress: advancedLoadingProgress)
                         } else {
                             AdvancedTimeScopePicker(selectedScope: $selectedScope)
@@ -135,8 +133,9 @@ struct AdvancedView: View {
                         }
                     }
                     .opacity(isLocked ? 0.42 : 1)
-                    .allowsHitTesting(!isLocked)
-                    .accessibilityHidden(isLocked)
+                    .redacted(reason: shouldRedactAdvancedContent ? .placeholder : [])
+                    .allowsHitTesting(!isLocked && !shouldRedactAdvancedContent)
+                    .accessibilityHidden(isLocked || shouldRedactAdvancedContent)
 
                     Spacer()
                         .frame(height: isLocked ? 24 : 96)
@@ -178,10 +177,43 @@ struct AdvancedView: View {
             )
     }
 
+    private var shouldShowAdvancedPreparingCard: Bool {
+        isPreparingRealAdvancedData &&
+            !dataManager.photoLibraryManager.hasCachedPhotoLibrarySnapshot
+    }
+
+    private var shouldRedactAdvancedContent: Bool {
+        !isLocked &&
+            dataManager.photoLibraryManager.hasPhotoLibraryAccess &&
+            !dataManager.photoLibraryManager.hasLoadedPhotoLibrary &&
+            dataManager.photoLibraryManager.hasCachedPhotoLibrarySnapshot
+    }
+
+    private var shouldDeferAdvancedDashboardRefresh: Bool {
+        !isLocked &&
+            dataManager.photoLibraryManager.hasPhotoLibraryAccess &&
+            !dataManager.photoLibraryManager.hasLoadedPhotoLibrary
+    }
+
     private var advancedLoadingProgress: Double {
         let progress = dataManager.photoLibraryManager.loadingProgress
         guard progress > 0 else { return 0.04 }
         return min(max(progress, 0.04), 1)
+    }
+
+    private var dashboardRefreshKey: AdvancedDashboardRefreshKey {
+        AdvancedDashboardRefreshKey(
+            isLocked: isLocked,
+            hasPhotoLibraryAccess: dataManager.photoLibraryManager.hasPhotoLibraryAccess,
+            isPreparingRealAdvancedData: isPreparingRealAdvancedData,
+            allPhotoCount: dataManager.photoLibraryManager.allPhotos.count,
+            screenshotCount: dataManager.photoLibraryManager.screenshots.count,
+            videoCount: dataManager.photoLibraryManager.videos.count,
+            reviewedCount: dataManager.reviewedAssetIDs.count,
+            deleteCandidateCount: dataManager.deleteCandidates.count,
+            favoriteCandidateCount: dataManager.favoriteCandidates.count,
+            cleanupStatsRevision: dataManager.cleanupStatsRevision
+        )
     }
 
     private var isShowingActivePeriodRoute: Binding<Bool> {
@@ -449,12 +481,15 @@ struct AdvancedView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: workItem)
     }
 
-    private func refreshAdvancedDashboard(resetSelectedPeriod: Bool) {
+    private func refreshAdvancedDashboard(resetSelectedPeriod: Bool, force: Bool = false) {
         if resetSelectedPeriod {
             selectedPeriodDate = Date()
         }
 
-        guard !isPreparingRealAdvancedData else { return }
+        guard !shouldDeferAdvancedDashboardRefresh else { return }
+        let refreshKey = dashboardRefreshKey
+        guard force || refreshKey != lastDashboardRefreshKey else { return }
+        lastDashboardRefreshKey = refreshKey
 
         if isLocked || !dataManager.photoLibraryManager.hasPhotoLibraryAccess {
             dashboardSnapshot = AdvancedLibrarySnapshot.demo(referenceDate: Date())
@@ -474,6 +509,19 @@ struct AdvancedView: View {
         )
         periodSummariesByScope = dataManager.makePhotoPeriodSummariesByScope()
     }
+}
+
+private struct AdvancedDashboardRefreshKey: Equatable {
+    let isLocked: Bool
+    let hasPhotoLibraryAccess: Bool
+    let isPreparingRealAdvancedData: Bool
+    let allPhotoCount: Int
+    let screenshotCount: Int
+    let videoCount: Int
+    let reviewedCount: Int
+    let deleteCandidateCount: Int
+    let favoriteCandidateCount: Int
+    let cleanupStatsRevision: UUID
 }
 
 private struct AdvancedPeriodRoute: Identifiable, Hashable {

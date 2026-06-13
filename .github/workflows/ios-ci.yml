@@ -85,5 +85,4 @@ jobs:
             -destination "${{ steps.simulator.outputs.destination }}" \
             -derivedDataPath IOSAPP/DerivedData \
             -only-testing:PhotoDeleteUITests \
-            -only-testing:PhotoDeleteUITestsLaunchTests \
             CODE_SIGNING_ALLOWED=NO

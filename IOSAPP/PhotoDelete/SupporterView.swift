@@ -20,11 +20,7 @@ struct SupporterView: View {
 
     private var entitlementStatusMessage: String? {
         switch purchaseManager.entitlementState {
-        case .unknown, .verifying:
-            L10n.string("正在确认购买状态。")
-        case .cachedOffline:
-            L10n.string("正在确认购买状态，暂时使用本机记录解锁。")
-        case .verified, .locked:
+        case .unknown, .verifying, .verified, .cachedOffline, .locked:
             nil
         }
     }
@@ -78,7 +74,6 @@ struct SupporterView: View {
         }
         .task {
             await purchaseManager.loadProducts()
-            await purchaseManager.refreshEntitlements()
         }
     }
 }

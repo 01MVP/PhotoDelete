@@ -546,7 +546,7 @@ enum AdvancedCleanupKind: String, CaseIterable, Identifiable {
 
     var subtitle: String {
         switch self {
-        case .similarPhotos: return L10n.string("连续拍摄、内容接近的照片")
+        case .similarPhotos: return L10n.string("按拍摄时间和画面比例估算的相近照片")
         case .largeFiles: return L10n.string("按估算占用空间优先处理")
         case .screenshots: return L10n.string("集中处理不再需要的截图")
         case .videos: return L10n.string("优先检查占用较高的视频")
