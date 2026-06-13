@@ -43,7 +43,7 @@ struct SettingsView: View {
                             .font(.subheadline)
                             .foregroundStyle(PhotoDeleteStyle.secondaryText)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.top, 12)
+                            .padding(.top, PhotoDeleteStyle.rootContentTopSpacing)
 
                         // 使用统计
                         statsSection

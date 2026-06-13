@@ -8800,6 +8800,28 @@
         }
       }
     },
+    "管理相册与整理进度": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Manage albums and review progress"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "管理相册与整理进度"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "管理相冊與整理進度"
+          }
+        }
+      }
+    },
     "真实照片库未完成这次批量操作，请稍后重试": {
       "localizations": {
         "en": {

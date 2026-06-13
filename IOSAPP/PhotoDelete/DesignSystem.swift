@@ -101,6 +101,7 @@ enum PhotoDeleteStyle {
     static let cardRadius: CGFloat = 22
     static let controlRadius: CGFloat = 14
     static let sectionSpacing: CGFloat = 24
+    static let rootContentTopSpacing: CGFloat = 8
     static let rowIconSize: CGFloat = 32
     static let rowMinHeight: CGFloat = 58
 
@@ -154,7 +155,7 @@ enum PhotoDeleteAdaptiveLayout {
     }
 
     static func homeTopPadding(in size: CGSize, horizontalSizeClass: UserInterfaceSizeClass?) -> CGFloat {
-        prefersExpandedContent(in: size, horizontalSizeClass: horizontalSizeClass) ? 24 : 44
+        PhotoDeleteStyle.rootContentTopSpacing
     }
 
     static func readableContentMaxWidth(horizontalSizeClass: UserInterfaceSizeClass?) -> CGFloat? {

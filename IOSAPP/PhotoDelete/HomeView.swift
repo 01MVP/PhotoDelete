@@ -105,7 +105,8 @@ struct HomeView: View {
                     }
                 }
             }
-            .toolbar(.hidden, for: .navigationBar)
+            .navigationTitle(AppConstants.appDisplayName)
+            .navigationBarTitleDisplayMode(.large)
             .navigationDestination(for: SwipeViewDestination.self) { destination in
                 switch destination {
                 case .category(let category):
@@ -128,7 +129,7 @@ struct HomeView: View {
             if isLandscape {
                 HStack(alignment: .top, spacing: 22) {
                     VStack(spacing: 18) {
-                        titleSection
+                        rootStatusText
                         introSection(isCompact: true)
                         primaryOrganizeSection(isCompact: true)
                     }
@@ -142,7 +143,7 @@ struct HomeView: View {
                 }
             } else {
                 VStack(spacing: PhotoDeleteStyle.sectionSpacing) {
-                    titleSection
+                    rootStatusText
                     introSection(isCompact: false)
                     primaryOrganizeSection(isCompact: false)
                     secondaryEntrySection
@@ -151,7 +152,7 @@ struct HomeView: View {
             }
         } else {
             VStack(spacing: PhotoDeleteStyle.sectionSpacing) {
-                titleSection
+                rootStatusText
                 introSection(isCompact: false)
                 authorizationSection
             }
@@ -234,17 +235,13 @@ struct HomeView: View {
         )
     }
 
-    private var titleSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(AppConstants.appDisplayName)
-                .font(.system(size: 34, weight: .bold))
-                .foregroundColor(PhotoDeleteStyle.primaryText)
-
-            Text(titleSubtitle)
-                .font(.system(size: 15, weight: .regular))
-                .foregroundColor(dataManager.photoLibraryManager.hasPhotoLibraryAccess ? PhotoDeleteStyle.secondaryText : PhotoDeleteStyle.accent)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
+    private var rootStatusText: some View {
+        Text(titleSubtitle)
+            .font(.subheadline)
+            .foregroundStyle(dataManager.photoLibraryManager.hasPhotoLibraryAccess ? PhotoDeleteStyle.secondaryText : PhotoDeleteStyle.accent)
+            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var titleSubtitle: String {

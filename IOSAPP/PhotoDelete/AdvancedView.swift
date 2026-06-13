@@ -48,7 +48,8 @@ struct AdvancedView: View {
     var body: some View {
         NavigationStack {
             advancedRootContent
-                .toolbar(.hidden, for: .navigationBar)
+                .navigationTitle(L10n.string("进阶"))
+                .navigationBarTitleDisplayMode(.large)
                 .navigationDestination(isPresented: isShowingActivePeriodRoute) {
                     if let activePeriodRoute {
                         AdvancedPeriodSwipeDestination(
@@ -95,7 +96,7 @@ struct AdvancedView: View {
                 let selectedPeriod = selectedPeriodSummary(in: periodSummaries)
 
                 VStack(spacing: 18) {
-                    header
+                    rootStatusText
                     achievementEntry
 
                     VStack(spacing: 18) {
@@ -142,7 +143,7 @@ struct AdvancedView: View {
                         .frame(height: isLocked ? 24 : 96)
                 }
                 .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
-                .padding(.top, 44)
+                .padding(.top, PhotoDeleteStyle.rootContentTopSpacing)
                 .frame(maxWidth: PhotoDeleteAdaptiveLayout.readableContentMaxWidth(horizontalSizeClass: horizontalSizeClass))
                 .frame(maxWidth: .infinity)
             }
@@ -195,28 +196,24 @@ struct AdvancedView: View {
         )
     }
 
-    private var header: some View {
-        HStack(alignment: .center, spacing: 14) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 8) {
-                    Text(L10n.string("进阶"))
-                        .font(.system(size: 34, weight: .bold))
-                        .foregroundColor(PhotoDeleteStyle.primaryText)
-
-                    if isLocked {
-                        Image(systemName: "lock.fill")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(PhotoDeleteStyle.secondaryText)
-                    }
-                }
-
-                Text(headerSubtitle)
-                    .font(.system(size: 15, weight: .regular))
-                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+    private var rootStatusText: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            if isLocked {
+                Image(systemName: "lock.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(PhotoDeleteStyle.secondaryText)
+                    .accessibilityHidden(true)
             }
 
-            Spacer()
+            Text(headerSubtitle)
+                .font(.subheadline)
+                .foregroundStyle(PhotoDeleteStyle.secondaryText)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 0)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var achievementEntry: some View {
