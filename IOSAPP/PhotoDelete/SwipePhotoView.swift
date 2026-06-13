@@ -46,7 +46,6 @@ struct SwipePhotoView: View {
     @State private var pendingFavoriteCount = 0
     @State private var pendingSwipeMutations: [String: PendingSwipeMutation] = [:]
     @State private var browserRows = BrowserPhotoRows.empty
-    @State private var browserWindowRange: Range<Int> = 0..<0
     @State private var browserPreloadedAssets: [PHAsset] = []
     @State private var browserPreloadTargetSize: CGSize?
     @State private var browserPreloadTask: Task<Void, Never>?
@@ -57,10 +56,11 @@ struct SwipePhotoView: View {
     @State private var showReviewModeHint = false
 
     private let reviewModeHintThreshold = 5
-    private let browserWindowItemCount = 22
-    private let browserWindowLeadingCount = 6
-    private let browserWindowLeadingRefreshThreshold = 4
-    private let browserWindowTrailingRefreshThreshold = 7
+    private static let countFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        return formatter
+    }()
 
     init(
         selectedCategory: PhotoCategory?,
@@ -97,8 +97,13 @@ struct SwipePhotoView: View {
     private struct BrowserPhotoRows {
         var top: [BrowserPhotoItem]
         var bottom: [BrowserPhotoItem]
+        var totalCount: Int
 
-        static let empty = BrowserPhotoRows(top: [], bottom: [])
+        var isEmpty: Bool {
+            top.isEmpty && bottom.isEmpty
+        }
+
+        static let empty = BrowserPhotoRows(top: [], bottom: [], totalCount: 0)
     }
 
     private struct BrowserPhotoItem: Identifiable {
@@ -274,7 +279,6 @@ struct SwipePhotoView: View {
         }
         .onChange(of: currentPhotoIndex) { _ in
             stopInlineVideoPlaybackIfNeeded(forNextIndex: currentPhotoIndex)
-            refreshBrowserRowsIfNeeded()
             scheduleSessionProgressSave()
         }
     }
@@ -304,12 +308,15 @@ struct SwipePhotoView: View {
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(PhotoDeleteStyle.primaryText)
 
-                    Text(progressSubtitle)
+                    Text(headerProgressSubtitle)
                         .font(.system(size: 14, weight: .regular))
                         .foregroundColor(PhotoDeleteStyle.secondaryText)
                         .lineLimit(1)
                         .minimumScaleFactor(0.78)
+                        .monospacedDigit()
                 }
+                .frame(maxWidth: .infinity)
+                .layoutPriority(1)
 
                 Spacer()
 
@@ -524,6 +531,8 @@ struct SwipePhotoView: View {
         let tileHeight = browserTileHeight(in: containerSize)
         let thumbnailTargetSize = browserThumbnailTargetSize(in: containerSize, tileHeight: tileHeight)
         let rowSpacing: CGFloat = 12
+        let columnSpacing: CGFloat = 12
+        let bottomRowInset = min(tileHeight * 0.34, 64)
 
         return VStack(spacing: 12) {
             browserStatusStrip
@@ -535,16 +544,18 @@ struct SwipePhotoView: View {
                             items: browserRows.top,
                             tileHeight: tileHeight,
                             containerWidth: containerSize.width,
-                            thumbnailTargetSize: thumbnailTargetSize
+                            thumbnailTargetSize: thumbnailTargetSize,
+                            columnSpacing: columnSpacing
                         )
 
                         browserPhotoRow(
                             items: browserRows.bottom,
                             tileHeight: tileHeight,
                             containerWidth: containerSize.width,
-                            thumbnailTargetSize: thumbnailTargetSize
+                            thumbnailTargetSize: thumbnailTargetSize,
+                            columnSpacing: columnSpacing
                         )
-                        .padding(.leading, min(tileHeight * 0.34, 64))
+                        .padding(.leading, browserRows.bottom.isEmpty ? 0 : bottomRowInset)
                     }
                     .padding(.horizontal, 18)
                     .padding(.vertical, 4)
@@ -552,12 +563,11 @@ struct SwipePhotoView: View {
                 .scrollIndicators(.hidden)
                 .frame(height: tileHeight * 2 + rowSpacing + 8)
                 .onAppear {
-                    refreshBrowserRowsIfNeeded(force: browserRows.top.isEmpty && browserRows.bottom.isEmpty)
+                    prepareBrowserRowsIfNeeded()
                     scheduleBrowserThumbnailPreload(from: currentPhotoIndex, targetSize: thumbnailTargetSize)
                     scrollBrowserToCurrentPhoto(with: proxy, animated: false)
                 }
                 .onChange(of: currentPhotoIndex) { _ in
-                    refreshBrowserRowsIfNeeded()
                     scheduleBrowserThumbnailPreload(from: currentPhotoIndex, targetSize: thumbnailTargetSize)
                     DispatchQueue.main.async {
                         scrollBrowserToCurrentPhoto(with: proxy, animated: true)
@@ -580,45 +590,101 @@ struct SwipePhotoView: View {
         items: [BrowserPhotoItem],
         tileHeight: CGFloat,
         containerWidth: CGFloat,
-        thumbnailTargetSize: CGSize
+        thumbnailTargetSize: CGSize,
+        columnSpacing: CGFloat
     ) -> some View {
-        LazyHStack(alignment: .center, spacing: 12) {
+        LazyHStack(alignment: .center, spacing: columnSpacing) {
             ForEach(items) { item in
-                let asset = item.asset
-                let tileSize = browserTileSize(for: item, baseHeight: tileHeight, containerWidth: containerWidth)
-
-                BrowserPhotoTile(
-                    asset: asset,
-                    photoLibraryManager: dataManager.photoLibraryManager,
-                    isSelected: item.index == currentPhotoIndex,
-                    isReviewed: isAssetLocallyReviewed(asset),
-                    isInDeleteCandidates: isAssetQueuedForDelete(asset),
-                    isInFavoriteCandidates: isAssetQueuedForFavorite(asset),
-                    isScreenshot: item.isScreenshot,
-                    isVideo: item.isVideo,
-                    isVideoPlaying: inlinePlayingVideoAssetID == asset.localIdentifier,
-                    displaySize: tileSize,
-                    targetSize: thumbnailTargetSize,
-                    selectedTargetSize: browserSelectedImageTargetSize(for: tileSize),
-                    prefersHighQualityPreview: shouldLoadHighQualityBrowserPreview(for: item.index),
-                    onSelect: {
-                        if item.index == currentPhotoIndex {
-                            openAssetPreview(asset)
-                        } else {
-                            selectBrowserPhoto(at: item.index)
-                        }
-                    },
-                    onSwipeUpToDelete: {
-                        handleBrowserSwipeUpDelete(asset, at: item.index)
-                    },
-                    onCancelDelete: {
-                        cancelDeleteCandidate(asset, at: item.index)
-                    },
-                    onStopVideoPlayback: stopInlineVideoPlayback
+                browserPhotoTile(
+                    item: item,
+                    tileHeight: tileHeight,
+                    containerWidth: containerWidth,
+                    thumbnailTargetSize: thumbnailTargetSize
                 )
-                .id(asset.localIdentifier)
+                .id(item.index)
             }
         }
+        .frame(height: tileHeight)
+    }
+
+    private func browserPhotoTile(
+        item: BrowserPhotoItem,
+        tileHeight: CGFloat,
+        containerWidth: CGFloat,
+        thumbnailTargetSize: CGSize
+    ) -> some View {
+        let asset = item.asset
+        let tileSize = browserTileSize(for: item, baseHeight: tileHeight, containerWidth: containerWidth)
+
+        return BrowserPhotoTile(
+            asset: asset,
+            photoLibraryManager: dataManager.photoLibraryManager,
+            isSelected: item.index == currentPhotoIndex,
+            isReviewed: isAssetLocallyReviewed(asset),
+            isInDeleteCandidates: isAssetQueuedForDelete(asset),
+            isInFavoriteCandidates: isAssetQueuedForFavorite(asset),
+            isScreenshot: item.isScreenshot,
+            isVideo: item.isVideo,
+            isVideoPlaying: inlinePlayingVideoAssetID == asset.localIdentifier,
+            displaySize: tileSize,
+            targetSize: thumbnailTargetSize,
+            selectedTargetSize: browserSelectedImageTargetSize(for: tileSize),
+            prefersHighQualityPreview: shouldLoadHighQualityBrowserPreview(for: item.index),
+            onSelect: {
+                if item.index == currentPhotoIndex {
+                    openAssetPreview(asset)
+                } else {
+                    selectBrowserPhoto(at: item.index)
+                }
+            },
+            onSwipeUpToDelete: {
+                handleBrowserSwipeUpDelete(asset, at: item.index)
+            },
+            onCancelDelete: {
+                cancelDeleteCandidate(asset, at: item.index)
+            },
+            onStopVideoPlayback: stopInlineVideoPlayback
+        )
+    }
+
+    private func makeBrowserRows(from photos: [PHAsset]) -> BrowserPhotoRows {
+        guard !photos.isEmpty else { return .empty }
+
+        let screenshotIDs = Set(dataManager.photoLibraryManager.screenshots.map(\.localIdentifier))
+        var top: [BrowserPhotoItem] = []
+        var bottom: [BrowserPhotoItem] = []
+        top.reserveCapacity((photos.count + 1) / 2)
+        bottom.reserveCapacity(photos.count / 2)
+
+        for (index, asset) in photos.enumerated() {
+            let item = BrowserPhotoItem(
+                index: index,
+                asset: asset,
+                aspectRatio: asset.pixelHeight > 0 ? CGFloat(asset.pixelWidth) / CGFloat(asset.pixelHeight) : 0.78,
+                isScreenshot: screenshotIDs.contains(asset.localIdentifier) || asset.mediaSubtypes.contains(.photoScreenshot),
+                isVideo: asset.mediaType == .video
+            )
+
+            if index.isMultiple(of: 2) {
+                top.append(item)
+            } else {
+                bottom.append(item)
+            }
+        }
+
+        return BrowserPhotoRows(top: top, bottom: bottom, totalCount: photos.count)
+    }
+
+    private func prepareBrowserRowsIfNeeded() {
+        guard reviewMode == .browser, !sessionPhotos.isEmpty else {
+            if !browserRows.isEmpty {
+                browserRows = .empty
+            }
+            return
+        }
+
+        guard browserRows.totalCount != sessionPhotos.count else { return }
+        browserRows = makeBrowserRows(from: sessionPhotos)
     }
 
     private func openAssetPreview(_ asset: PHAsset) {
@@ -661,7 +727,7 @@ struct SwipePhotoView: View {
 
                 Spacer(minLength: 8)
 
-                Text("\(L10n.string("位置")) \(currentProgress)/\(totalPhotosCount)")
+                Text("\(L10n.string("位置")) \(formattedCount(currentProgress))/\(formattedCount(totalPhotosCount))")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(PhotoDeleteStyle.secondaryText)
             }
@@ -672,7 +738,7 @@ struct SwipePhotoView: View {
                 .clipShape(Capsule(style: .continuous))
 
             HStack(spacing: 10) {
-                Text("\(L10n.string("已整理")) \(organizedProgress)/\(totalPhotosCount)")
+                Text("\(L10n.string("已整理")) \(formattedCount(organizedProgress))/\(formattedCount(totalPhotosCount))")
                     .foregroundColor(PhotoDeleteStyle.primaryText)
 
                 Spacer(minLength: 8)
@@ -1011,7 +1077,19 @@ struct SwipePhotoView: View {
             return L10n.string("\(getDisplayTitle()) · 0 张照片")
         }
 
-        return L10n.string("\(getDisplayTitle()) · 已整理 \(organizedProgress)/\(totalPhotosCount)")
+        return L10n.string("\(getDisplayTitle()) · 已整理 \(formattedCount(organizedProgress))/\(formattedCount(totalPhotosCount))")
+    }
+
+    private var headerProgressSubtitle: String {
+        guard totalPhotosCount > 0 else {
+            return L10n.shortPhotoCount(0)
+        }
+
+        return "\(L10n.string("已整理")) \(formattedCount(organizedProgress))/\(formattedCount(totalPhotosCount))"
+    }
+
+    private func formattedCount(_ count: Int) -> String {
+        Self.countFormatter.string(from: NSNumber(value: count)) ?? "\(count)"
     }
 
     private var portraitToastBottomPadding: CGFloat {
@@ -1068,81 +1146,13 @@ struct SwipePhotoView: View {
             currentPhotoIndex = 0
             showCompletionMessage = !photos.isEmpty
         }
-        refreshBrowserRowsIfNeeded(force: true)
+        if reviewMode == .browser {
+            browserRows = makeBrowserRows(from: photos)
+        } else {
+            browserRows = .empty
+        }
         preloadUpcomingImages(from: currentPhotoIndex)
         persistSessionProgressIfPossible()
-    }
-
-    private func refreshBrowserRowsIfNeeded(force: Bool = false) {
-        guard reviewMode == .browser, !sessionPhotos.isEmpty else {
-            if !browserRows.top.isEmpty || !browserRows.bottom.isEmpty {
-                browserRows = .empty
-            }
-            browserWindowRange = 0..<0
-            return
-        }
-
-        if !force,
-           browserWindowRange.contains(currentPhotoIndex),
-           currentPhotoIndex - browserWindowRange.lowerBound >= browserWindowLeadingRefreshThreshold,
-           browserWindowRange.upperBound - currentPhotoIndex > browserWindowTrailingRefreshThreshold {
-            return
-        }
-
-        let range = browserWindowRange(centeredAt: currentPhotoIndex)
-        guard force ||
-              range.lowerBound != browserWindowRange.lowerBound ||
-              range.upperBound != browserWindowRange.upperBound else {
-            return
-        }
-
-        rebuildBrowserRows(in: range)
-    }
-
-    private func browserWindowRange(centeredAt index: Int) -> Range<Int> {
-        let totalCount = sessionPhotos.count
-        guard totalCount > 0 else { return 0..<0 }
-
-        let windowCount = min(totalCount, browserWindowItemCount)
-        let maxLowerBound = max(totalCount - windowCount, 0)
-        let lowerBound = min(max(index - browserWindowLeadingCount, 0), maxLowerBound)
-        let upperBound = min(lowerBound + windowCount, totalCount)
-        return lowerBound..<upperBound
-    }
-
-    private func rebuildBrowserRows(in range: Range<Int>) {
-        guard !range.isEmpty else {
-            browserRows = .empty
-            browserWindowRange = 0..<0
-            return
-        }
-
-        let screenshotIDs = Set(dataManager.photoLibraryManager.screenshots.map(\.localIdentifier))
-        var top: [BrowserPhotoItem] = []
-        var bottom: [BrowserPhotoItem] = []
-        top.reserveCapacity((range.count + 1) / 2)
-        bottom.reserveCapacity(range.count / 2)
-
-        for index in range {
-            let asset = sessionPhotos[index]
-            let aspectRatio = asset.pixelHeight > 0 ? CGFloat(asset.pixelWidth) / CGFloat(asset.pixelHeight) : 0.78
-            let item = BrowserPhotoItem(
-                index: index,
-                asset: asset,
-                aspectRatio: aspectRatio,
-                isScreenshot: screenshotIDs.contains(asset.localIdentifier) || asset.mediaSubtypes.contains(.photoScreenshot),
-                isVideo: asset.mediaType == .video
-            )
-
-            if index.isMultiple(of: 2) {
-                top.append(item)
-            } else {
-                bottom.append(item)
-            }
-        }
-
-        browserRows = BrowserPhotoRows(top: top, bottom: bottom)
-        browserWindowRange = range
     }
 
     private func preloadUpcomingImages(from index: Int) {
@@ -1302,9 +1312,9 @@ struct SwipePhotoView: View {
     }
 
     private func scrollBrowserToCurrentPhoto(with proxy: ScrollViewProxy, animated: Bool) {
-        guard let asset = currentRealPhoto else { return }
+        guard isValidPhotoIndex(currentPhotoIndex) else { return }
         let scrollAction = {
-            proxy.scrollTo(asset.localIdentifier, anchor: .center)
+            proxy.scrollTo(currentPhotoIndex, anchor: .center)
         }
 
         if animated {
@@ -1333,12 +1343,11 @@ struct SwipePhotoView: View {
         reviewModeValue = nextMode.rawValue
         resetCardPosition()
         if nextMode == .browser {
-            refreshBrowserRowsIfNeeded(force: true)
+            browserRows = makeBrowserRows(from: sessionPhotos)
         } else {
             cancelScheduledBrowserPreload()
             stopPreloadingBrowserThumbnails()
             browserRows = .empty
-            browserWindowRange = 0..<0
         }
         preloadUpcomingImages(from: currentPhotoIndex)
         HapticManager.impact(.light)
@@ -2222,13 +2231,25 @@ private struct BrowserPhotoTile: View {
             guard loadingAssetIdentifier == requestedAssetID else { return }
             if let loadedImage {
                 image = loadedImage
+                finishThumbnailLoad()
+            } else {
+                thumbnailRequestID = photoLibraryManager.loadFastThumbnail(for: asset, size: targetSize) { fallbackImage in
+                    guard loadingAssetIdentifier == requestedAssetID else { return }
+                    if let fallbackImage {
+                        image = fallbackImage
+                    }
+                    finishThumbnailLoad()
+                }
             }
-            isLoading = false
-            thumbnailRequestID = nil
+        }
+    }
 
-            if prefersHighQualityPreview {
-                scheduleHighQualityPreview()
-            }
+    private func finishThumbnailLoad() {
+        isLoading = false
+        thumbnailRequestID = nil
+
+        if prefersHighQualityPreview {
+            scheduleHighQualityPreview()
         }
     }
 
@@ -3002,7 +3023,7 @@ private struct AlbumMicroButton: View {
                 )
         }
         .buttonStyle(PhotoDeletePressScaleButtonStyle())
-        .photoDeleteMinimumTapTarget()
+        .contentShape(Capsule(style: .continuous))
         .accessibilityLabel(Text(L10n.string("归类到 \(title)")))
     }
 }
