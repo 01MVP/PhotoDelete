@@ -4847,6 +4847,28 @@
         }
       }
     },
+    "点相册名归类当前照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap an album to file this photo"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "点相册名归类当前照片"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "點相冊名稱歸類目前照片"
+          }
+        }
+      }
+    },
     "归类到 %@": {
       "localizations": {
         "en": {

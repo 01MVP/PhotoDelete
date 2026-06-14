@@ -22,6 +22,7 @@ struct SwipePhotoView: View {
     @AppStorage(AppConstants.upSwipeActionKey) private var upSwipeActionValue = SwipeGesturePreset.standard.upAction.rawValue
     @AppStorage(AppConstants.reviewModeKey) private var reviewModeValue = PhotoReviewMode.card.rawValue
     @AppStorage(AppConstants.hasSeenReviewModeHintKey) private var hasSeenReviewModeHint = false
+    @AppStorage(AppConstants.hasSeenAlbumShortcutHintKey) private var hasSeenAlbumShortcutHint = false
 
     let selectedCategory: PhotoCategory?
     let selectedTimeGroup: String?
@@ -50,8 +51,11 @@ struct SwipePhotoView: View {
     @State private var inlinePlayingVideoAssetID: String?
     @State private var cardModeReviewActionCount = 0
     @State private var showReviewModeHint = false
+    @State private var showAlbumShortcutHint = false
+    @State private var albumShortcutHintDismissWorkItem: DispatchWorkItem?
 
     private let reviewModeHintThreshold = 5
+    private let albumShortcutTwoRowThreshold = 4
     private static let countFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
@@ -808,31 +812,24 @@ struct SwipePhotoView: View {
     private func albumShortcutStrip(horizontalPadding: CGFloat) -> some View {
         if !isAlbumMode && canPerformPhotoAction && !dataManager.userAlbums.isEmpty {
             let rows = albumShortcutRows
+            let usesTwoRows = albumShortcutUsesTwoRows
 
             ScrollView(.horizontal) {
-                VStack(alignment: .leading, spacing: 7) {
-                    HStack(spacing: 7) {
-                        ForEach(rows.top) { albumInfo in
-                            AlbumMicroButton(title: albumInfo.title) {
-                                handleAddToAlbum(albumInfo)
-                            }
+                Group {
+                    if usesTwoRows {
+                        VStack(alignment: .leading, spacing: 7) {
+                            albumShortcutRow(albums: rows.top)
+                            albumShortcutRow(albums: rows.bottom)
                         }
+                    } else {
+                        albumShortcutRow(albums: rows.top)
                     }
-
-                    HStack(spacing: 7) {
-                        ForEach(rows.bottom) { albumInfo in
-                            AlbumMicroButton(title: albumInfo.title) {
-                                handleAddToAlbum(albumInfo)
-                            }
-                        }
-                    }
-                    .padding(.leading, rows.bottom.isEmpty ? 0 : 24)
                 }
                 .padding(.horizontal, horizontalPadding)
                 .padding(.vertical, 2)
             }
             .scrollIndicators(.hidden)
-            .frame(height: 67)
+            .frame(height: usesTwoRows ? 67 : 34)
             .mask(
                 LinearGradient(
                     stops: [
@@ -845,7 +842,40 @@ struct SwipePhotoView: View {
                     endPoint: .trailing
                 )
             )
+            .overlay(alignment: .topLeading) {
+                if showAlbumShortcutHint {
+                    AlbumShortcutHintBubble()
+                        .padding(.leading, horizontalPadding)
+                        .offset(y: -38)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .onAppear {
+                revealAlbumShortcutHintIfNeeded()
+            }
+            .onDisappear {
+                dismissAlbumShortcutHint()
+            }
         }
+    }
+
+    private func albumShortcutRow(albums: [AlbumInfo]) -> some View {
+        HStack(spacing: 7) {
+            albumShortcutRowContent(albums: albums)
+        }
+    }
+
+    @ViewBuilder
+    private func albumShortcutRowContent(albums: [AlbumInfo]) -> some View {
+        ForEach(albums) { albumInfo in
+            AlbumMicroButton(title: albumInfo.title) {
+                handleAddToAlbum(albumInfo)
+            }
+        }
+    }
+
+    private var albumShortcutUsesTwoRows: Bool {
+        dataManager.userAlbums.count > albumShortcutTwoRowThreshold
     }
 
     private var actionToolbar: some View {
@@ -938,12 +968,16 @@ struct SwipePhotoView: View {
 
     private var portraitToastBottomPadding: CGFloat {
         if !isAlbumMode && canPerformPhotoAction && !dataManager.userAlbums.isEmpty {
-            return 160
+            return albumShortcutUsesTwoRows ? 160 : 128
         }
         return 100
     }
 
     private var albumShortcutRows: (top: [AlbumInfo], bottom: [AlbumInfo]) {
+        guard albumShortcutUsesTwoRows else {
+            return (dataManager.userAlbums, [])
+        }
+
         var top: [AlbumInfo] = []
         var bottom: [AlbumInfo] = []
         for (index, album) in dataManager.userAlbums.enumerated() {
@@ -1129,6 +1163,38 @@ struct SwipePhotoView: View {
         guard showReviewModeHint else { return }
         withAnimation(.easeOut(duration: 0.18)) {
             showReviewModeHint = false
+        }
+    }
+
+    private func revealAlbumShortcutHintIfNeeded() {
+        guard !hasSeenAlbumShortcutHint,
+              !showAlbumShortcutHint,
+              !isAlbumMode,
+              canPerformPhotoAction,
+              !dataManager.userAlbums.isEmpty else {
+            return
+        }
+
+        hasSeenAlbumShortcutHint = true
+        albumShortcutHintDismissWorkItem?.cancel()
+        withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) {
+            showAlbumShortcutHint = true
+        }
+
+        let workItem = DispatchWorkItem {
+            dismissAlbumShortcutHint()
+        }
+        albumShortcutHintDismissWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.2, execute: workItem)
+    }
+
+    private func dismissAlbumShortcutHint() {
+        albumShortcutHintDismissWorkItem?.cancel()
+        albumShortcutHintDismissWorkItem = nil
+
+        guard showAlbumShortcutHint else { return }
+        withAnimation(.easeOut(duration: 0.16)) {
+            showAlbumShortcutHint = false
         }
     }
 
@@ -1531,6 +1597,8 @@ struct SwipePhotoView: View {
     }
 
     private func handleAddToAlbum(_ albumInfo: AlbumInfo) {
+        dismissAlbumShortcutHint()
+
         guard !showCompletionMessage,
               let asset = currentRealPhoto,
               let assetCollection = albumInfo.assetCollection else {
@@ -2426,6 +2494,33 @@ private struct PhotoSelectionLoadingCard: View {
         }
         .padding(24)
         .photoDeleteCard()
+    }
+}
+
+private struct AlbumShortcutHintBubble: View {
+    var body: some View {
+        Label {
+            Text(L10n.string("点相册名归类当前照片"))
+                .font(.system(size: 11, weight: .semibold))
+        } icon: {
+            Image(systemName: "tray.and.arrow.down")
+                .font(.system(size: 11, weight: .semibold))
+        }
+        .foregroundColor(PhotoDeleteStyle.primaryText.opacity(0.82))
+        .lineLimit(1)
+        .fixedSize(horizontal: true, vertical: false)
+        .padding(.horizontal, 11)
+        .frame(height: 30)
+        .background(
+            Capsule(style: .continuous)
+                .fill(PhotoDeleteStyle.surface.opacity(0.94))
+                .overlay(
+                    Capsule(style: .continuous)
+                        .stroke(PhotoDeleteStyle.hairline.opacity(0.64), lineWidth: 1)
+                )
+        )
+        .shadow(color: PhotoDeleteStyle.floatingShadow.opacity(0.72), radius: 7, x: 0, y: 3)
+        .accessibilityLabel(Text(L10n.string("点相册名归类当前照片")))
     }
 }
 
