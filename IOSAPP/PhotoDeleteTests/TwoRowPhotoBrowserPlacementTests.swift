@@ -56,4 +56,27 @@ struct TwoRowPhotoBrowserPlacementTests {
         #expect(farScreenAttributes.count < 20)
         #expect(layout.collectionViewContentSize.width > 120_000)
     }
+
+    @Test func imageRequestTargetSizeFollowsCellAspectRatio() {
+        let targetSize = TwoRowPhotoBrowserImageSizing.requestTargetSize(
+            displaySize: CGSize(width: 104, height: 180),
+            maximumTargetSize: CGSize(width: 620, height: 333),
+            rowHeight: 180
+        )
+
+        #expect(targetSize.width == 193)
+        #expect(targetSize.height == 333)
+        #expect(targetSize.width < 620)
+    }
+
+    @Test func imageRequestTargetSizeCapsWideCellsAtMaximum() {
+        let targetSize = TwoRowPhotoBrowserImageSizing.requestTargetSize(
+            displaySize: CGSize(width: 360, height: 180),
+            maximumTargetSize: CGSize(width: 620, height: 333),
+            rowHeight: 180
+        )
+
+        #expect(targetSize.width == 620)
+        #expect(targetSize.height == 333)
+    }
 }

@@ -224,7 +224,7 @@ struct TwoRowPhotoBrowserView: UIViewRepresentable {
             photoLibraryManager.preloadGridThumbnailsForAssets(
                 prefetchAssets,
                 size: thumbnailTargetSize,
-                maxCount: prefetchAssets.count
+                maxCount: min(prefetchAssets.count, 18)
             )
         }
 
@@ -261,6 +261,14 @@ struct TwoRowPhotoBrowserView: UIViewRepresentable {
             guard assets.indices.contains(index) else { return }
             let asset = assets[index]
             let id = asset.localIdentifier
+            let thumbnailRequestTargetSize = requestTargetSize(
+                forItemAt: index,
+                maximumTargetSize: thumbnailTargetSize
+            )
+            let selectedRequestTargetSize = requestTargetSize(
+                forItemAt: index,
+                maximumTargetSize: selectedTargetSize
+            )
             cell.configure(
                 asset: asset,
                 index: index,
@@ -272,8 +280,8 @@ struct TwoRowPhotoBrowserView: UIViewRepresentable {
                 isScreenshot: photoLibraryManager.isScreenshot(asset),
                 isVideo: asset.mediaType == .video,
                 isVideoPlaying: playingVideoAssetID == id,
-                thumbnailTargetSize: thumbnailTargetSize,
-                selectedTargetSize: selectedTargetSize,
+                thumbnailTargetSize: thumbnailRequestTargetSize,
+                selectedTargetSize: selectedRequestTargetSize,
                 prefersHighQualityPreview: abs(index - currentIndex) <= 1,
                 onSwipeUpToDelete: { [weak self] asset, index in
                     self?.onSwipeUpToDelete(asset, index)
@@ -284,6 +292,22 @@ struct TwoRowPhotoBrowserView: UIViewRepresentable {
                 onStopVideoPlayback: { [weak self] in
                     self?.onStopVideoPlayback()
                 }
+            )
+        }
+
+        private func requestTargetSize(forItemAt index: Int, maximumTargetSize: CGSize) -> CGSize {
+            let displaySize: CGSize
+            if let collectionView,
+               let attributes = collectionView.layoutAttributesForItem(at: IndexPath(item: index, section: 0)) {
+                displaySize = attributes.bounds.size
+            } else {
+                displaySize = CGSize(width: rowHeight, height: rowHeight)
+            }
+
+            return TwoRowPhotoBrowserImageSizing.requestTargetSize(
+                displaySize: displaySize,
+                maximumTargetSize: maximumTargetSize,
+                rowHeight: rowHeight
             )
         }
 
@@ -489,6 +513,28 @@ struct TwoRowPhotoBrowserPlacement {
     }
 }
 
+enum TwoRowPhotoBrowserImageSizing {
+    static func requestTargetSize(
+        displaySize: CGSize,
+        maximumTargetSize: CGSize,
+        rowHeight: CGFloat
+    ) -> CGSize {
+        guard displaySize.width > 0,
+              displaySize.height > 0,
+              maximumTargetSize.width > 0,
+              maximumTargetSize.height > 0,
+              rowHeight > 0 else {
+            return maximumTargetSize
+        }
+
+        let scale = max(maximumTargetSize.height / rowHeight, 1)
+        return CGSize(
+            width: min(ceil(displaySize.width * scale), maximumTargetSize.width),
+            height: min(ceil(displaySize.height * scale), maximumTargetSize.height)
+        )
+    }
+}
+
 private final class TwoRowPhotoBrowserCell: UICollectionViewCell, UIGestureRecognizerDelegate {
     static let reuseIdentifier = "TwoRowPhotoBrowserCell"
 
@@ -514,12 +560,16 @@ private final class TwoRowPhotoBrowserCell: UICollectionViewCell, UIGestureRecog
     private var thumbnailRequestID: PHImageRequestID?
     private var fallbackRequestID: PHImageRequestID?
     private var previewRequestID: PHImageRequestID?
+    private var previewWorkItem: DispatchWorkItem?
     private var videoRequestID: PHImageRequestID?
     private var player: AVPlayer?
     private var playerLayer: AVPlayerLayer?
     private var loadedThumbnailTargetSize: CGSize = .zero
     private var loadedSelectedTargetSize: CGSize = .zero
+    private var loadedHighQualityAssetID: String?
+    private var loadedHighQualityTargetSize: CGSize = .zero
     private var prefersHighQualityPreview = false
+    private var lastBadgeState: (isVideo: Bool, isScreenshot: Bool)?
     private var isLoadingAsset = false
     private var onSwipeUpToDelete: ((PHAsset, Int) -> Void)?
     private var onCancelDelete: ((PHAsset, Int) -> Void)?
@@ -543,6 +593,11 @@ private final class TwoRowPhotoBrowserCell: UICollectionViewCell, UIGestureRecog
         representedAssetID = nil
         representedIndex = nil
         representedAsset = nil
+        loadedHighQualityAssetID = nil
+        loadedHighQualityTargetSize = .zero
+        loadedThumbnailTargetSize = .zero
+        loadedSelectedTargetSize = .zero
+        lastBadgeState = nil
         imageView.image = nil
         placeholderView.isHidden = false
         stateOverlayView.isHidden = true
@@ -583,6 +638,8 @@ private final class TwoRowPhotoBrowserCell: UICollectionViewCell, UIGestureRecog
         let needsImageReload = assetChanged || loadedThumbnailTargetSize != thumbnailTargetSize
         let needsPreviewReload = assetChanged ||
             loadedSelectedTargetSize != selectedTargetSize
+        let hasLoadedHighQualityPreview = loadedHighQualityAssetID == assetID &&
+            loadedHighQualityTargetSize == selectedTargetSize
 
         representedAssetID = assetID
         representedIndex = index
@@ -594,6 +651,11 @@ private final class TwoRowPhotoBrowserCell: UICollectionViewCell, UIGestureRecog
         self.prefersHighQualityPreview = prefersHighQualityPreview
         loadedThumbnailTargetSize = thumbnailTargetSize
         loadedSelectedTargetSize = selectedTargetSize
+        if needsPreviewReload {
+            cancelPreviewRequest()
+            loadedHighQualityAssetID = nil
+            loadedHighQualityTargetSize = .zero
+        }
 
         updateSelection(isSelected)
         updateBadges(isVideo: isVideo, isScreenshot: isScreenshot)
@@ -611,9 +673,12 @@ private final class TwoRowPhotoBrowserCell: UICollectionViewCell, UIGestureRecog
             isVideo: isVideo
         )
 
+        let hasPendingHighQualityPreview = previewRequestID != nil || previewWorkItem != nil
         if needsImageReload {
             loadThumbnail(asset: asset, targetSize: thumbnailTargetSize, keepingExistingImage: !assetChanged)
-        } else if prefersHighQualityPreview, needsPreviewReload || previewRequestID == nil {
+        } else if prefersHighQualityPreview,
+                  !hasLoadedHighQualityPreview,
+                  !hasPendingHighQualityPreview {
             scheduleHighQualityPreview(asset: asset, targetSize: selectedTargetSize)
         } else if !prefersHighQualityPreview {
             cancelPreviewRequest()
@@ -809,6 +874,13 @@ private final class TwoRowPhotoBrowserCell: UICollectionViewCell, UIGestureRecog
     }
 
     private func updateBadges(isVideo: Bool, isScreenshot: Bool) {
+        if let lastBadgeState,
+           lastBadgeState.isVideo == isVideo,
+           lastBadgeState.isScreenshot == isScreenshot {
+            return
+        }
+        lastBadgeState = (isVideo, isScreenshot)
+
         badgeStackView.arrangedSubviews.forEach { view in
             badgeStackView.removeArrangedSubview(view)
             view.removeFromSuperview()
@@ -930,15 +1002,21 @@ private final class TwoRowPhotoBrowserCell: UICollectionViewCell, UIGestureRecog
 
     private func scheduleHighQualityPreview(asset: PHAsset, targetSize: CGSize) {
         guard prefersHighQualityPreview, representedAssetID == asset.localIdentifier else { return }
-        cancelPreviewRequest()
+        guard loadedHighQualityAssetID != asset.localIdentifier ||
+              loadedHighQualityTargetSize != targetSize else {
+            return
+        }
+        guard previewRequestID == nil, previewWorkItem == nil else { return }
+
         let requestedAssetID = asset.localIdentifier
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
+        let workItem = DispatchWorkItem { [weak self] in
             guard let self,
                   self.representedAssetID == requestedAssetID,
                   self.prefersHighQualityPreview,
                   self.previewRequestID == nil else {
                 return
             }
+            self.previewWorkItem = nil
             self.previewRequestID = self.photoLibraryManager?.loadBrowserPreviewResult(for: asset, size: targetSize) { [weak self] result in
                 guard let self, self.representedAssetID == requestedAssetID else { return }
                 if let image = result.image {
@@ -947,10 +1025,14 @@ private final class TwoRowPhotoBrowserCell: UICollectionViewCell, UIGestureRecog
                     self.isLoadingAsset = false
                 }
                 if result.isFinal {
+                    self.loadedHighQualityAssetID = requestedAssetID
+                    self.loadedHighQualityTargetSize = targetSize
                     self.previewRequestID = nil
                 }
             }
         }
+        previewWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18, execute: workItem)
     }
 
     private func updateVideoPlayback(isVideoPlaying: Bool, asset: PHAsset) {
@@ -997,6 +1079,8 @@ private final class TwoRowPhotoBrowserCell: UICollectionViewCell, UIGestureRecog
     }
 
     private func cancelPreviewRequest() {
+        previewWorkItem?.cancel()
+        previewWorkItem = nil
         photoLibraryManager?.cancelImageRequest(previewRequestID)
         previewRequestID = nil
     }
