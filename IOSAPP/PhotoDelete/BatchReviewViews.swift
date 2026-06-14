@@ -316,14 +316,7 @@ private struct BatchCleanupCompletionView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var animate = false
     @State private var progressFill = 0.0
-    @State private var fireworkProgress = 0.0
-
-    private let confettiColors: [Color] = [
-        PhotoDeleteStyle.warning,
-        PhotoDeleteStyle.accent,
-        PhotoDeleteStyle.positive,
-        PhotoDeleteStyle.iconTint(for: "favorite")
-    ]
+    @State private var celebrationTrigger = 0
 
     var body: some View {
         ZStack {
@@ -344,65 +337,80 @@ private struct BatchCleanupCompletionView: View {
                 .padding(.vertical, 22)
                 .frame(maxWidth: 540)
                 .photoDeleteCard()
-                .scaleEffect(animate ? 1 : 0.985)
-                .opacity(animate ? 1 : 0)
-                .offset(y: animate ? 0 : 14)
-                .animation(.spring(response: 0.56, dampingFraction: 0.86), value: animate)
 
                 Spacer(minLength: 24)
             }
             .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
         }
-        .onAppear {
-            let targetProgress = celebration.nextAchievementProgress?.progress ?? 1
-            if reduceMotion {
-                animate = true
-                progressFill = targetProgress
-                fireworkProgress = 1
-            } else {
-                progressFill = 0
-                fireworkProgress = 0
-                withAnimation(.spring(response: 0.56, dampingFraction: 0.86)) {
-                    animate = true
-                }
-                withAnimation(.easeOut(duration: 0.92).delay(0.04)) {
-                    fireworkProgress = 1
-                }
-                withAnimation(.easeOut(duration: 0.72).delay(0.34)) {
-                    progressFill = targetProgress
-                }
-            }
+        .task {
+            await startCompletionAnimation()
+        }
+    }
+
+    @MainActor
+    private func startCompletionAnimation() async {
+        let targetProgress = min(max(celebration.nextAchievementProgress?.progress ?? 1, 0), 1)
+        if reduceMotion {
+            animate = true
+            progressFill = targetProgress
+            return
+        }
+
+        animate = false
+        progressFill = 0
+
+        try? await Task.sleep(nanoseconds: 80_000_000)
+        guard !Task.isCancelled else { return }
+        withAnimation(.spring(response: 0.42, dampingFraction: 0.74)) {
+            animate = true
+        }
+        celebrationTrigger += 1
+
+        try? await Task.sleep(nanoseconds: 220_000_000)
+        guard !Task.isCancelled else { return }
+        withAnimation(.easeOut(duration: 0.58)) {
+            progressFill = targetProgress
         }
     }
 
     private var celebrationVisual: some View {
         ZStack {
-            if !reduceMotion {
-                CompletionConfettiBurstView(
-                    progress: fireworkProgress,
-                    colors: confettiColors
-                )
-                .frame(width: 210, height: 144)
-            }
-
             Circle()
                 .fill(PhotoDeleteStyle.warning.opacity(0.14))
                 .frame(width: 84, height: 84)
-                .scaleEffect(animate ? 1 : 0.72)
+                .scaleEffect(animate ? 1 : 0.86)
 
             Circle()
                 .stroke(PhotoDeleteStyle.warning.opacity(0.26), lineWidth: 1)
                 .frame(width: 70, height: 70)
-                .scaleEffect(animate ? 1.04 : 0.7)
+                .scaleEffect(animate ? 1.04 : 0.9)
 
-            Text("🎉")
-                .font(.system(size: 52))
-                .scaleEffect(animate ? 1 : 0.72)
-                .rotationEffect(.degrees(animate ? 0 : -8))
-                .accessibilityHidden(true)
+            celebrationSymbol
         }
-        .frame(height: 122)
+        .frame(height: 108)
         .animation(.spring(response: 0.5, dampingFraction: 0.78), value: animate)
+        .accessibilityHidden(true)
+    }
+
+    private var partyPopperSymbol: some View {
+        Image(systemName: "party.popper.fill")
+            .symbolRenderingMode(.multicolor)
+            .font(.system(size: 52, weight: .semibold))
+            .scaleEffect(animate ? 1 : 0.86)
+            .rotationEffect(.degrees(animate ? 0 : -8))
+            .opacity(animate ? 1 : 0.86)
+    }
+
+    @ViewBuilder
+    private var celebrationSymbol: some View {
+        if reduceMotion {
+            partyPopperSymbol
+        } else if #available(iOS 17.0, *) {
+            partyPopperSymbol
+                .symbolEffect(.bounce, value: celebrationTrigger)
+        } else {
+            partyPopperSymbol
+        }
     }
 
     private var completionHeader: some View {
@@ -529,7 +537,6 @@ private struct BatchCleanupCompletionView: View {
 
             if let nextAchievementProgress = celebration.nextAchievementProgress {
                 nextGoalCard(nextAchievementProgress)
-                    .padding(10)
             } else {
                 compactStatusRow(
                     icon: "checkmark.seal.fill",
@@ -582,8 +589,8 @@ private struct BatchCleanupCompletionView: View {
     }
 
     private func nextGoalCard(_ progress: CleanupAchievementProgress) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 12) {
                 PhotoDeleteIconTile(
                     icon: progress.achievement.systemImage,
                     tint: progress.achievement.tint.color,
@@ -592,15 +599,11 @@ private struct BatchCleanupCompletionView: View {
                 )
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(L10n.string("下一个目标"))
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(PhotoDeleteStyle.secondaryText)
-
-                    Text(progress.achievement.title)
-                        .font(.system(size: 16, weight: .semibold))
+                    Text(L10n.string("下一个目标：\(progress.achievement.title)"))
+                        .font(.system(size: 15, weight: .semibold))
                         .foregroundColor(PhotoDeleteStyle.primaryText)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.78)
+                        .minimumScaleFactor(0.82)
 
                     Text(progress.remainingDescription)
                         .font(.system(size: 13, weight: .regular))
@@ -634,63 +637,9 @@ private struct BatchCleanupCompletionView: View {
             }
             .frame(height: 7)
         }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(progress.achievement.tint.color.opacity(0.08))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(progress.achievement.tint.color.opacity(0.14), lineWidth: 1)
-                )
-        )
+        .padding(14)
     }
 
-}
-
-private struct CompletionConfettiBurstView: View {
-    let progress: Double
-    let colors: [Color]
-
-    var body: some View {
-        Canvas { context, size in
-            let clampedProgress = min(max(progress, 0), 1)
-            let easedProgress = clampedProgress * (2 - clampedProgress)
-            let center = CGPoint(x: size.width / 2, y: size.height * 0.54)
-            let maxRadius = min(size.width, size.height) * 0.58
-            let particleOpacity = max(0, 1 - clampedProgress * 0.68)
-            let particleCount = 34
-
-            for index in 0..<particleCount {
-                let spread = Double.pi * 1.62
-                let angle = -Double.pi * 0.5 - spread / 2 + (Double(index) / Double(particleCount - 1)) * spread
-                let unitX = CGFloat(cos(angle))
-                let unitY = CGFloat(sin(angle))
-                let distanceRatio = 0.52 + Double(index % 6) * 0.075
-                let distance = maxRadius * CGFloat(distanceRatio) * CGFloat(easedProgress)
-                let point = CGPoint(
-                    x: center.x + unitX * distance,
-                    y: center.y + unitY * distance
-                )
-                let color = colors[index % colors.count]
-                let isRibbon = index % 3 != 0
-                let particleSize = isRibbon ? CGSize(width: 10 + CGFloat(index % 4) * 2, height: 3.6) : CGSize(width: 5.5, height: 5.5)
-                let particleRect = CGRect(
-                    x: point.x - particleSize.width / 2,
-                    y: point.y - particleSize.height / 2,
-                    width: particleSize.width,
-                    height: particleSize.height
-                )
-                let shape = isRibbon
-                    ? Path(roundedRect: particleRect, cornerRadius: 1.4)
-                    : Path(ellipseIn: particleRect)
-                context.fill(
-                    shape,
-                    with: .color(color.opacity(particleOpacity))
-                )
-            }
-        }
-        .allowsHitTesting(false)
-    }
 }
 
 private struct CandidatePreviewSection: View {

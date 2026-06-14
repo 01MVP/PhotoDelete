@@ -49,6 +49,13 @@ struct AlbumsView: View {
             }
             .navigationTitle(L10n.string("相册"))
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                if dataManager.photoLibraryManager.hasPhotoLibraryAccess {
+                    ToolbarItemGroup(placement: .topBarTrailing) {
+                        albumToolbarActions
+                    }
+                }
+            }
             .navigationDestination(for: AlbumNavigationDestination.self) { destination in
                 switch destination {
                 case .swipeAlbum(let selectedSwipeAlbum):
@@ -109,10 +116,7 @@ struct AlbumsView: View {
     }
 
     private var albumContent: some View {
-        VStack(spacing: 0) {
-            albumTopSection
-            albumsList
-        }
+        albumsList
     }
 
     private var albumTopSection: some View {
@@ -123,11 +127,11 @@ struct AlbumsView: View {
             }
 
             albumSubtitleRow
-            albumControlsRow
+            albumCountRow
         }
         .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
         .padding(.top, PhotoDeleteStyle.rootContentTopSpacing)
-        .padding(.bottom, 2)
+        .padding(.bottom, 10)
     }
 
     private var albumSubtitleRow: some View {
@@ -139,36 +143,31 @@ struct AlbumsView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var albumControlsRow: some View {
-        HStack(alignment: .center, spacing: 10) {
-            Text(albumHeaderSubtitle)
-                .font(.subheadline)
-                .foregroundStyle(PhotoDeleteStyle.secondaryText)
-                .lineLimit(1)
+    private var albumCountRow: some View {
+        Text(albumHeaderSubtitle)
+            .font(.subheadline)
+            .foregroundStyle(PhotoDeleteStyle.secondaryText)
+            .lineLimit(1)
+            .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
+    }
 
-            Spacer(minLength: 12)
-
-            if editMode == .active {
-                Button(L10n.string("完成"), action: toggleReordering)
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(PhotoDeleteStyle.accent)
-                    .photoDeleteMinimumTapTarget()
-            } else {
-                sortMenu
-
-                Button(action: createAlbum) {
-                    Label(L10n.string("创建相册"), systemImage: "plus")
-                        .labelStyle(.iconOnly)
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(PhotoDeleteStyle.accent)
-                        .frame(width: 44, height: 44)
-                        .contentShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(L10n.string("创建相册"))
-            }
+    @ViewBuilder
+    private var albumToolbarActions: some View {
+        if editMode == .active {
+            Button(L10n.string("完成"), action: toggleReordering)
+                .font(.body.weight(.semibold))
+        } else {
+            sortMenu
+            createAlbumButton
         }
-        .frame(maxWidth: .infinity, minHeight: 44, alignment: .center)
+    }
+
+    private var createAlbumButton: some View {
+        Button(action: createAlbum) {
+            Label(L10n.string("创建相册"), systemImage: "plus")
+                .labelStyle(.iconOnly)
+        }
+        .accessibilityLabel(L10n.string("创建相册"))
     }
 
     private var albumSearchRow: some View {
@@ -240,6 +239,11 @@ struct AlbumsView: View {
     private var albumsList: some View {
         let userAlbums = filteredUserAlbums
         List {
+            albumTopSection
+                .listRowInsets(EdgeInsets())
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+
             if isLoadingAlbums {
                 loadingRow
             } else {
