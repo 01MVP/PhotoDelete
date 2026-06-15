@@ -486,6 +486,25 @@ struct PhotoDeleteTests {
         #expect(historyStore.summary.savedSizeMB == 18)
     }
 
+    @Test func videoCompressionResolutionDownscalesWithoutUpscaling() async throws {
+        let fourK = CGSize(width: 3_840, height: 2_160)
+        let fullHD = CGSize(width: 1_920, height: 1_080)
+
+        #expect(VideoCompressionResolution.original.targetDisplaySize(for: fourK) == fourK)
+        #expect(VideoCompressionResolution.automatic.targetDisplaySize(for: fourK) == fullHD)
+        #expect(VideoCompressionResolution.p1080.targetDisplaySize(for: fourK) == fullHD)
+        #expect(VideoCompressionResolution.p720.targetDisplaySize(for: fourK) == CGSize(width: 1_280, height: 720))
+        #expect(VideoCompressionResolution.automatic.targetDisplaySize(for: fullHD) == fullHD)
+        #expect(VideoCompressionResolution.p1080.targetDisplaySize(for: CGSize(width: 1_280, height: 720)) == CGSize(width: 1_280, height: 720))
+    }
+
+    @Test func videoCompressionQualityRatiosAreOrdered() async throws {
+        #expect(VideoCompressionQuality.high.targetVideoBitrateMultiplier > VideoCompressionQuality.balanced.targetVideoBitrateMultiplier)
+        #expect(VideoCompressionQuality.balanced.targetVideoBitrateMultiplier > VideoCompressionQuality.spaceSaving.targetVideoBitrateMultiplier)
+        #expect(VideoCompressionQuality.high.estimatedSavingsRatio < VideoCompressionQuality.balanced.estimatedSavingsRatio)
+        #expect(VideoCompressionQuality.balanced.estimatedSavingsRatio < VideoCompressionQuality.spaceSaving.estimatedSavingsRatio)
+    }
+
     // MARK: - Advanced feature models
 
     @Test func deviceStorageSnapshotFormatsAndClampsUsage() async throws {

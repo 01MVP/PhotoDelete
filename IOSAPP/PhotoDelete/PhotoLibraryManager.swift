@@ -14,45 +14,181 @@ struct PhotoLibraryImageResult {
 }
 
 enum VideoCompressionQuality: String, CaseIterable, Identifiable {
+    case high
     case balanced
-    case smallFile
+    case spaceSaving
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
+        case .high:
+            return L10n.string("高清保留")
         case .balanced:
-            return L10n.string("均衡")
-        case .smallFile:
-            return L10n.string("更小")
+            return L10n.string("均衡推荐")
+        case .spaceSaving:
+            return L10n.string("节省空间")
         }
     }
 
     var subtitle: String {
         switch self {
+        case .high:
+            return L10n.string("轻微降低码率，更适合重要视频。")
         case .balanced:
-            return L10n.string("保持原分辨率，轻微降低码率，优先保留清晰度。")
-        case .smallFile:
-            return L10n.string("保持原分辨率，压缩更明显，清晰度可能略有下降。")
+            return L10n.string("画质和体积的默认平衡，适合大多数视频。")
+        case .spaceSaving:
+            return L10n.string("更明显降低码率，适合只想腾出空间的视频。")
         }
     }
 
     var targetVideoBitrateMultiplier: Double {
         switch self {
+        case .high:
+            return 0.82
         case .balanced:
-            return 0.68
-        case .smallFile:
-            return 0.48
+            return 0.62
+        case .spaceSaving:
+            return 0.42
         }
     }
 
     var estimatedSavingsRatio: Double {
         switch self {
+        case .high:
+            return 0.16
         case .balanced:
-            return 0.28
-        case .smallFile:
-            return 0.42
+            return 0.34
+        case .spaceSaving:
+            return 0.50
         }
+    }
+}
+
+enum VideoCompressionResolution: String, CaseIterable, Identifiable {
+    case original
+    case automatic
+    case p1080
+    case p720
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .original:
+            return L10n.string("原分辨率")
+        case .automatic:
+            return L10n.string("自动")
+        case .p1080:
+            return L10n.string("1080p")
+        case .p720:
+            return L10n.string("720p")
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .original:
+            return L10n.string("不改变分辨率，只调整编码和码率。")
+        case .automatic:
+            return L10n.string("4K 视频转为 1080p，1080p 及以下保持不变。")
+        case .p1080:
+            return L10n.string("适合 4K 生活视频，明显减少体积。")
+        case .p720:
+            return L10n.string("适合聊天备份和低重要性视频，空间优先。")
+        }
+    }
+
+    var maxLongEdge: CGFloat? {
+        switch self {
+        case .original:
+            return nil
+        case .automatic, .p1080:
+            return 1_920
+        case .p720:
+            return 1_280
+        }
+    }
+
+    func targetDisplaySize(for originalSize: CGSize) -> CGSize {
+        let width = max(originalSize.width, 1)
+        let height = max(originalSize.height, 1)
+        let longEdge = max(width, height)
+        let shortEdge = min(width, height)
+
+        let targetLongEdge: CGFloat
+        switch self {
+        case .original:
+            return CGSize(width: width.rounded(), height: height.rounded())
+        case .automatic:
+            guard longEdge > 2_200 else {
+                return CGSize(width: width.rounded(), height: height.rounded())
+            }
+            targetLongEdge = 1_920
+        case .p1080, .p720:
+            guard let maxLongEdge, longEdge > maxLongEdge else {
+                return CGSize(width: width.rounded(), height: height.rounded())
+            }
+            targetLongEdge = maxLongEdge
+        }
+
+        let scale = targetLongEdge / longEdge
+        let targetShortEdge = shortEdge * scale
+        if width >= height {
+            return CGSize(width: targetLongEdge.rounded(), height: targetShortEdge.rounded())
+        }
+        return CGSize(width: targetShortEdge.rounded(), height: targetLongEdge.rounded())
+    }
+}
+
+struct VideoCompressionPlan: Equatable {
+    var quality: VideoCompressionQuality
+    var resolution: VideoCompressionResolution
+
+    static let `default` = VideoCompressionPlan(quality: .balanced, resolution: .original)
+
+    var title: String {
+        "\(quality.title) · \(resolution.title)"
+    }
+}
+
+struct VideoCompressionEstimate: Equatable {
+    let originalSizeMB: Double
+    let estimatedCompressedLowMB: Double
+    let estimatedCompressedHighMB: Double
+
+    var estimatedSavedLowMB: Double {
+        max(originalSizeMB - estimatedCompressedHighMB, 0)
+    }
+
+    var estimatedSavedHighMB: Double {
+        max(originalSizeMB - estimatedCompressedLowMB, 0)
+    }
+
+    var estimatedCompressedMidMB: Double {
+        (estimatedCompressedLowMB + estimatedCompressedHighMB) / 2
+    }
+
+    var estimatedSavedMidMB: Double {
+        max(originalSizeMB - estimatedCompressedMidMB, 0)
+    }
+
+    var formattedOriginalSize: String {
+        CleanupStatsFormatter.space(originalSizeMB)
+    }
+
+    var formattedCompressedRange: String {
+        if abs(estimatedCompressedHighMB - estimatedCompressedLowMB) < 1 {
+            return CleanupStatsFormatter.space(estimatedCompressedMidMB)
+        }
+        return "\(CleanupStatsFormatter.space(estimatedCompressedLowMB)) - \(CleanupStatsFormatter.space(estimatedCompressedHighMB))"
+    }
+
+    var formattedSavedRange: String {
+        if abs(estimatedSavedHighMB - estimatedSavedLowMB) < 1 {
+            return CleanupStatsFormatter.space(estimatedSavedMidMB)
+        }
+        return "\(CleanupStatsFormatter.space(estimatedSavedLowMB)) - \(CleanupStatsFormatter.space(estimatedSavedHighMB))"
     }
 }
 
@@ -783,7 +919,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
 
     func compressVideo(
         _ asset: PHAsset,
-        quality: VideoCompressionQuality,
+        plan: VideoCompressionPlan,
         progressHandler: (@MainActor @Sendable (Double, String) -> Void)? = nil
     ) async throws -> VideoCompressionResult {
         guard hasPhotoLibraryAccess else {
@@ -802,7 +938,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         let output = try await exportCompressedVideo(
             from: videoAsset,
             originalSizeMB: originalSizeMB,
-            quality: quality,
+            plan: plan,
             progressHandler: progressHandler
         )
         defer {
@@ -1049,7 +1185,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     private func exportCompressedVideo(
         from asset: AVAsset,
         originalSizeMB: Double,
-        quality: VideoCompressionQuality,
+        plan: VideoCompressionPlan,
         progressHandler: (@MainActor @Sendable (Double, String) -> Void)?
     ) async throws -> VideoCompressionOutput {
         let videoTracks = try await asset.loadTracks(withMediaType: .video)
@@ -1064,7 +1200,12 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         let nominalFrameRate = try await videoTrack.load(.nominalFrameRate)
         let duration = try await asset.load(.duration)
         let displaySize = displayDimensions(naturalSize: naturalSize, transform: preferredTransform)
-        let encodedSize = evenEncodedDimensions(from: naturalSize)
+        let outputDisplaySize = evenDisplayDimensions(from: plan.resolution.targetDisplaySize(for: displaySize))
+        let encodedSize = outputEncodedDimensions(
+            naturalSize: naturalSize,
+            preferredTransform: preferredTransform,
+            outputDisplaySize: outputDisplaySize
+        )
         let sourceBitrate = sourceVideoBitrate(
             estimatedDataRate: Double(estimatedDataRate),
             originalSizeMB: originalSizeMB,
@@ -1072,8 +1213,9 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         )
         let targetBitrate = targetVideoBitrate(
             sourceBitrate: sourceBitrate,
-            displaySize: displaySize,
-            quality: quality
+            sourceDisplaySize: displaySize,
+            outputDisplaySize: outputDisplaySize,
+            quality: plan.quality
         )
         let outputURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("PhotoDelete-Compressed-\(UUID().uuidString)")
@@ -1120,7 +1262,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             progressHandler: progressHandler
         )
 
-        return VideoCompressionOutput(url: outputURL, outputDimensions: displaySize)
+        return VideoCompressionOutput(url: outputURL, outputDimensions: outputDisplaySize)
     }
 
     private func makeVideoWriterInput(
@@ -1145,6 +1287,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                 AVVideoCodecKey: codec,
                 AVVideoWidthKey: Int(encodedSize.width),
                 AVVideoHeightKey: Int(encodedSize.height),
+                AVVideoScalingModeKey: AVVideoScalingModeResizeAspect,
                 AVVideoCompressionPropertiesKey: compressionProperties
             ]
 
@@ -1336,6 +1479,33 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         )
     }
 
+    private func evenDisplayDimensions(from displaySize: CGSize) -> CGSize {
+        evenEncodedDimensions(from: displaySize)
+    }
+
+    private func outputEncodedDimensions(
+        naturalSize: CGSize,
+        preferredTransform: CGAffineTransform,
+        outputDisplaySize: CGSize
+    ) -> CGSize {
+        if transformSwapsAxes(preferredTransform) {
+            return evenEncodedDimensions(from: CGSize(width: outputDisplaySize.height, height: outputDisplaySize.width))
+        }
+
+        let sourceDisplaySize = displayDimensions(naturalSize: naturalSize, transform: preferredTransform)
+        let sourceAspect = sourceDisplaySize.width / max(sourceDisplaySize.height, 1)
+        let naturalAspect = abs(naturalSize.width) / max(abs(naturalSize.height), 1)
+        if abs(sourceAspect - naturalAspect) > 0.05 {
+            return evenEncodedDimensions(from: CGSize(width: outputDisplaySize.height, height: outputDisplaySize.width))
+        }
+
+        return evenEncodedDimensions(from: outputDisplaySize)
+    }
+
+    private func transformSwapsAxes(_ transform: CGAffineTransform) -> Bool {
+        abs(transform.b) > 0.5 || abs(transform.c) > 0.5
+    }
+
     private func sourceVideoBitrate(
         estimatedDataRate: Double,
         originalSizeMB: Double,
@@ -1352,10 +1522,11 @@ class PhotoLibraryManager: NSObject, ObservableObject {
 
     private func targetVideoBitrate(
         sourceBitrate: Double,
-        displaySize: CGSize,
+        sourceDisplaySize: CGSize,
+        outputDisplaySize: CGSize,
         quality: VideoCompressionQuality
     ) -> Int {
-        let pixelCount = max(displaySize.width * displaySize.height, 1)
+        let pixelCount = max(outputDisplaySize.width * outputDisplaySize.height, 1)
         let resolutionFloor: Double
         if pixelCount >= 8_000_000 {
             resolutionFloor = 8_000_000
@@ -1367,7 +1538,9 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             resolutionFloor = 1_000_000
         }
 
-        let bitrateFromQuality = sourceBitrate * quality.targetVideoBitrateMultiplier
+        let sourcePixelCount = max(sourceDisplaySize.width * sourceDisplaySize.height, 1)
+        let pixelRatio = min(max(pixelCount / sourcePixelCount, 0.08), 1)
+        let bitrateFromQuality = sourceBitrate * pixelRatio * quality.targetVideoBitrateMultiplier
         let adaptiveFloor = min(sourceBitrate * 0.9, resolutionFloor)
         return Int(max(bitrateFromQuality, adaptiveFloor))
     }

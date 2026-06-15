@@ -517,7 +517,7 @@ private struct BatchCleanupCompletionView: View {
                 compactStatusRow(
                     icon: newestAchievement.systemImage,
                     tint: newestAchievement.tint.color,
-                    title: L10n.string("新徽章：\(newestAchievement.title)"),
+                    title: String(format: L10n.string("新徽章：%@"), newestAchievement.title),
                     subtitle: newestAchievement.subtitle
                 )
 

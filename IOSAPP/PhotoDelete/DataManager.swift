@@ -746,7 +746,7 @@ class DataManager: ObservableObject {
             AdvancedCleanupQueue(
                 kind: .videoCompression,
                 assetCount: videoCompressionCandidates.count,
-                estimatedSpaceMB: estimatedVideoCompressionSavingsMB(for: videoCompressionCandidates)
+                estimatedSpaceMB: estimatedVideoCompressionEstimate(for: videoCompressionCandidates).estimatedSavedMidMB
             ),
             AdvancedCleanupQueue(
                 kind: .screenshots,
@@ -840,11 +840,26 @@ class DataManager: ObservableObject {
 
     func estimatedVideoCompressionSavingsMB(
         for assets: [PHAsset],
-        quality: VideoCompressionQuality = .balanced
+        plan: VideoCompressionPlan = .default
     ) -> Double {
-        assets.reduce(0) { total, asset in
-            total + estimatedAssetSizeMB(asset) * quality.estimatedSavingsRatio
+        estimatedVideoCompressionEstimate(for: assets, plan: plan).estimatedSavedMidMB
+    }
+
+    func estimatedVideoCompressionEstimate(
+        for assets: [PHAsset],
+        plan: VideoCompressionPlan = .default
+    ) -> VideoCompressionEstimate {
+        let originalSize = assets.reduce(0) { $0 + estimatedAssetSizeMB($1) }
+        let estimatedMidCompressedSize = assets.reduce(0) { total, asset in
+            total + estimatedCompressedSizeMB(for: asset, plan: plan)
         }
+        let lowerBound = max(estimatedMidCompressedSize * 0.88, originalSize * 0.04)
+        let upperBound = min(estimatedMidCompressedSize * 1.18, originalSize * 0.98)
+        return VideoCompressionEstimate(
+            originalSizeMB: originalSize,
+            estimatedCompressedLowMB: min(lowerBound, upperBound),
+            estimatedCompressedHighMB: max(lowerBound, upperBound)
+        )
     }
 
     private func isPotentiallySimilar(_ asset: PHAsset, to previous: PHAsset) -> Bool {
@@ -874,6 +889,23 @@ class DataManager: ObservableObject {
             return max(asset.duration * 8.0, megapixels * 0.75, 2.0)
         }
         return max(megapixels * 0.55, 0.8)
+    }
+
+    private func estimatedCompressedSizeMB(for asset: PHAsset, plan: VideoCompressionPlan) -> Double {
+        let originalSize = estimatedAssetSizeMB(asset)
+        let sourceSize = CGSize(width: max(asset.pixelWidth, 1), height: max(asset.pixelHeight, 1))
+        let outputSize = plan.resolution.targetDisplaySize(for: sourceSize)
+        let sourcePixelCount = max(sourceSize.width * sourceSize.height, 1)
+        let outputPixelCount = max(outputSize.width * outputSize.height, 1)
+        let pixelRatio = min(max(outputPixelCount / sourcePixelCount, 0.08), 1)
+
+        let videoPortion = 0.92
+        let audioAndContainerPortion = 0.08
+        let compressedRatio = min(
+            0.96,
+            max(0.10, plan.quality.targetVideoBitrateMultiplier * pixelRatio * videoPortion + audioAndContainerPortion)
+        )
+        return originalSize * compressedRatio
     }
 
     private static func currentDeviceStorageSnapshot() -> DeviceStorageSnapshot {
