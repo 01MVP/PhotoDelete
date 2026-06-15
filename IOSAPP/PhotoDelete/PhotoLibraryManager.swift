@@ -13,6 +13,55 @@ struct PhotoLibraryImageResult {
     let isFinal: Bool
 }
 
+enum VideoCompressionQuality: String, CaseIterable, Identifiable {
+    case balanced
+    case smallFile
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .balanced:
+            return L10n.string("均衡")
+        case .smallFile:
+            return L10n.string("更小")
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .balanced:
+            return L10n.string("保留清晰度，适合日常分享。")
+        case .smallFile:
+            return L10n.string("尽量减小文件，适合快速释放空间。")
+        }
+    }
+
+    var preferredExportPresetName: String {
+        switch self {
+        case .balanced:
+            return AVAssetExportPreset1280x720
+        case .smallFile:
+            return AVAssetExportPreset960x540
+        }
+    }
+
+    var estimatedSavingsRatio: Double {
+        switch self {
+        case .balanced:
+            return 0.42
+        case .smallFile:
+            return 0.58
+        }
+    }
+}
+
+struct VideoCompressionResult {
+    let originalAssetIdentifier: String
+    let createdAssetIdentifier: String?
+    let compressedSizeMB: Double
+}
+
 class PhotoLibraryManager: NSObject, ObservableObject {
     @Published var authorizationStatus: PHAuthorizationStatus = .notDetermined
     @Published var allPhotos: [PHAsset] = []
@@ -720,6 +769,33 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         }
     }
 
+    func compressVideo(
+        _ asset: PHAsset,
+        quality: VideoCompressionQuality
+    ) async throws -> VideoCompressionResult {
+        guard hasPhotoLibraryAccess else {
+            throw VideoCompressionError.noLibraryAccess
+        }
+
+        guard asset.mediaType == .video else {
+            throw VideoCompressionError.notVideo
+        }
+
+        let videoAsset = try await requestVideoAsset(for: asset)
+        let outputURL = try await exportCompressedVideo(from: videoAsset, quality: quality)
+        defer {
+            try? FileManager.default.removeItem(at: outputURL)
+        }
+
+        let compressedSizeMB = try compressedFileSizeMB(at: outputURL)
+        let createdAssetIdentifier = try await saveCompressedVideo(at: outputURL, originalAsset: asset)
+        return VideoCompressionResult(
+            originalAssetIdentifier: asset.localIdentifier,
+            createdAssetIdentifier: createdAssetIdentifier,
+            compressedSizeMB: compressedSizeMB
+        )
+    }
+
     func applyCommittedBatchChanges(deletedAssets: [PHAsset], favoritedAssets: [PHAsset]) {
         let deletedIDs = Set(deletedAssets.map(\.localIdentifier))
         if !deletedIDs.isEmpty {
@@ -870,6 +946,139 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         options.isNetworkAccessAllowed = false
         options.isSynchronous = false
         return options
+    }
+
+    private func requestVideoAsset(for asset: PHAsset) async throws -> AVAsset {
+        try await withCheckedThrowingContinuation { continuation in
+            let options = PHVideoRequestOptions()
+            options.deliveryMode = .highQualityFormat
+            options.isNetworkAccessAllowed = true
+
+            imageManager.requestAVAsset(forVideo: asset, options: options) { videoAsset, _, info in
+                let isCancelled = (info?[PHImageCancelledKey] as? Bool) == true
+                guard !isCancelled else {
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
+
+                guard let videoAsset else {
+                    continuation.resume(throwing: VideoCompressionError.videoUnavailable)
+                    return
+                }
+
+                continuation.resume(returning: videoAsset)
+            }
+        }
+    }
+
+    private func exportCompressedVideo(
+        from asset: AVAsset,
+        quality: VideoCompressionQuality
+    ) async throws -> URL {
+        let compatiblePresets = AVAssetExportSession.exportPresets(compatibleWith: asset)
+        let presetName = compatibleExportPreset(
+            preferredPreset: quality.preferredExportPresetName,
+            compatiblePresets: compatiblePresets
+        )
+
+        guard let exportSession = AVAssetExportSession(asset: asset, presetName: presetName) else {
+            throw VideoCompressionError.exportFailed
+        }
+
+        let fileType = preferredOutputFileType(for: exportSession)
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("PhotoDelete-Compressed-\(UUID().uuidString)")
+            .appendingPathExtension(outputFileExtension(for: fileType))
+
+        exportSession.outputURL = outputURL
+        exportSession.outputFileType = fileType
+        exportSession.shouldOptimizeForNetworkUse = true
+
+        try await withCheckedThrowingContinuation { continuation in
+            exportSession.exportAsynchronously {
+                switch exportSession.status {
+                case .completed:
+                    continuation.resume(returning: ())
+                case .cancelled:
+                    continuation.resume(throwing: CancellationError())
+                default:
+                    continuation.resume(throwing: VideoCompressionError.exportFailed)
+                }
+            }
+        }
+
+        return outputURL
+    }
+
+    private func compatibleExportPreset(
+        preferredPreset: String,
+        compatiblePresets: [String]
+    ) -> String {
+        if compatiblePresets.contains(preferredPreset) {
+            return preferredPreset
+        }
+
+        let fallbackPresets = [
+            AVAssetExportPreset960x540,
+            AVAssetExportPresetMediumQuality,
+            AVAssetExportPresetLowQuality
+        ]
+
+        return fallbackPresets.first { compatiblePresets.contains($0) } ?? AVAssetExportPresetMediumQuality
+    }
+
+    private func preferredOutputFileType(for exportSession: AVAssetExportSession) -> AVFileType {
+        let supportedFileTypes = exportSession.supportedFileTypes
+        if supportedFileTypes.contains(.mp4) {
+            return .mp4
+        }
+        if supportedFileTypes.contains(.mov) {
+            return .mov
+        }
+        return supportedFileTypes.first ?? .mov
+    }
+
+    private func outputFileExtension(for fileType: AVFileType) -> String {
+        switch fileType {
+        case .mp4:
+            return "mp4"
+        case .mov:
+            return "mov"
+        default:
+            return "mov"
+        }
+    }
+
+    private func compressedFileSizeMB(at url: URL) throws -> Double {
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        guard let bytes = attributes[.size] as? NSNumber else {
+            throw VideoCompressionError.exportFailed
+        }
+        return max(bytes.doubleValue / 1_048_576, 0)
+    }
+
+    private func saveCompressedVideo(at url: URL, originalAsset: PHAsset) async throws -> String? {
+        guard hasPhotoLibraryAccess else {
+            throw VideoCompressionError.noLibraryAccess
+        }
+
+        return try await withCheckedThrowingContinuation { continuation in
+            var createdAssetIdentifier: String?
+            expectLocalLibraryChange()
+            PHPhotoLibrary.shared().performChanges({
+                let request = PHAssetCreationRequest.forAsset()
+                request.creationDate = originalAsset.creationDate
+                request.location = originalAsset.location
+                request.addResource(with: .video, fileURL: url, options: nil)
+                createdAssetIdentifier = request.placeholderForCreatedAsset?.localIdentifier
+            }) { success, _ in
+                if success {
+                    continuation.resume(returning: createdAssetIdentifier)
+                } else {
+                    continuation.resume(throwing: VideoCompressionError.saveFailed)
+                }
+            }
+        }
     }
 
     private func expectLocalLibraryChange() {
@@ -1245,6 +1454,29 @@ private enum PhotoLibraryWriteError: LocalizedError {
             return L10n.string("这个相册不支持删除。")
         case .invalidAlbumTitle:
             return L10n.string("请输入相册名称。")
+        }
+    }
+}
+
+private enum VideoCompressionError: LocalizedError {
+    case noLibraryAccess
+    case notVideo
+    case videoUnavailable
+    case exportFailed
+    case saveFailed
+
+    var errorDescription: String? {
+        switch self {
+        case .noLibraryAccess:
+            return L10n.string("当前照片权限不可用")
+        case .notVideo:
+            return L10n.string("这个项目不是视频")
+        case .videoUnavailable:
+            return L10n.string("无法读取这个视频")
+        case .exportFailed:
+            return L10n.string("视频压缩失败，请稍后再试。")
+        case .saveFailed:
+            return L10n.string("无法保存压缩视频")
         }
     }
 }

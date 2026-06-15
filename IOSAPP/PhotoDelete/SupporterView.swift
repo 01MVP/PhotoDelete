@@ -104,7 +104,7 @@ private struct SupporterPaywallContent: View {
                         .font(.system(size: 28, weight: .semibold))
                         .foregroundColor(PhotoDeleteStyle.primaryText)
 
-                    Text(L10n.string("一次性解锁按日期清理、大文件清理和相似照片清理。"))
+                    Text(L10n.string("一次性解锁按日期清理、大文件清理、视频压缩和相似照片清理。"))
                         .font(.system(size: 16, weight: .regular))
                         .foregroundColor(PhotoDeleteStyle.secondaryText)
                         .multilineTextAlignment(.center)
@@ -429,6 +429,7 @@ private struct SupporterPlanComparisonCard: View {
         .init(title: L10n.string("确认后删除和收藏"), free: .included, supporter: .included),
         .init(title: L10n.string("按日期清理"), free: .notIncluded, supporter: .included),
         .init(title: L10n.string("大文件清理"), free: .notIncluded, supporter: .included),
+        .init(title: L10n.string("视频压缩"), free: .notIncluded, supporter: .included),
         .init(title: L10n.string("相似照片清理"), free: .notIncluded, supporter: .included),
         .init(title: L10n.string("长期统计与历史"), free: .notIncluded, supporter: .included)
     ]

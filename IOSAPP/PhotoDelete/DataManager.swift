@@ -582,6 +582,8 @@ class DataManager: ObservableObject {
             return similarPhotoCandidates(maxCount: 240)
         case .largeFiles:
             return largeFileCandidates(maxCount: 240)
+        case .videoCompression:
+            return videoCompressionCandidates(maxCount: 240)
         case .screenshots:
             return photoLibraryManager.screenshots
         case .videos:
@@ -702,6 +704,7 @@ class DataManager: ObservableObject {
     func makeAdvancedCleanupQueues() -> [AdvancedCleanupQueue] {
         let similarGroups = makeSimilarPhotoGroups(maxGroups: 120)
         let largeFiles = largeFileCandidates(maxCount: 240)
+        let videoCompressionCandidates = videoCompressionCandidates(maxCount: 240)
         let screenshots = photoLibraryManager.screenshots
         let videos = photoLibraryManager.videos
 
@@ -715,6 +718,11 @@ class DataManager: ObservableObject {
                 kind: .largeFiles,
                 assetCount: largeFiles.count,
                 estimatedSpaceMB: largeFiles.reduce(0) { $0 + estimatedAssetSizeMB($1) }
+            ),
+            AdvancedCleanupQueue(
+                kind: .videoCompression,
+                assetCount: videoCompressionCandidates.count,
+                estimatedSpaceMB: estimatedVideoCompressionSavingsMB(for: videoCompressionCandidates)
             ),
             AdvancedCleanupQueue(
                 kind: .screenshots,
@@ -798,6 +806,21 @@ class DataManager: ObservableObject {
         return Array(source.sorted {
             estimatedAssetSizeMB($0) > estimatedAssetSizeMB($1)
         }.prefix(maxCount))
+    }
+
+    private func videoCompressionCandidates(maxCount: Int) -> [PHAsset] {
+        Array(photoLibraryManager.videos.sorted {
+            estimatedAssetSizeMB($0) > estimatedAssetSizeMB($1)
+        }.prefix(maxCount))
+    }
+
+    func estimatedVideoCompressionSavingsMB(
+        for assets: [PHAsset],
+        quality: VideoCompressionQuality = .balanced
+    ) -> Double {
+        assets.reduce(0) { total, asset in
+            total + estimatedAssetSizeMB(asset) * quality.estimatedSavingsRatio
+        }
     }
 
     private func isPotentiallySimilar(_ asset: PHAsset, to previous: PHAsset) -> Bool {
