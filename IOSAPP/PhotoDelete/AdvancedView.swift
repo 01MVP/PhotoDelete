@@ -20,6 +20,7 @@ struct AdvancedView: View {
     @State private var activePeriodRoute: AdvancedPeriodRoute?
     @State private var advancedRefreshWorkItem: DispatchWorkItem?
     @State private var lastDashboardRefreshKey: AdvancedDashboardRefreshKey?
+    @State private var showingSupporterBenefits = false
 
     private var isLocked: Bool {
         !purchaseManager.isSupporter
@@ -154,9 +155,13 @@ struct AdvancedView: View {
                     errorMessage: purchaseManager.errorMessage,
                     statusMessage: entitlementStatusMessage,
                     onPurchase: purchaseSupporter,
-                    onRestore: restorePurchases
+                    onRestore: restorePurchases,
+                    onShowBenefits: { showingSupporterBenefits = true }
                 )
             }
+        }
+        .sheet(isPresented: $showingSupporterBenefits) {
+            SupporterBenefitsSheet()
         }
     }
 
@@ -873,6 +878,7 @@ private struct AdvancedBottomPaywall: View {
     let statusMessage: String?
     let onPurchase: () -> Void
     let onRestore: () -> Void
+    let onShowBenefits: () -> Void
 
     var body: some View {
         VStack(spacing: 12) {
@@ -914,6 +920,15 @@ private struct AdvancedBottomPaywall: View {
                 Text(L10n.string("恢复购买"))
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(PhotoDeleteStyle.accent)
+            }
+            .buttonStyle(.plain)
+            .disabled(isLoading)
+
+            Button(action: onShowBenefits) {
+                Text(L10n.string("查看免费版与支持者版区别"))
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                    .underline()
             }
             .buttonStyle(.plain)
             .disabled(isLoading)
@@ -1230,9 +1245,14 @@ private struct AdvancedVideoCompressionView: View {
     @State private var selectedQuality: VideoCompressionQuality = .balanced
     @State private var isCompressing = false
     @State private var processedVideoCount = 0
+    @State private var compressionTotalCount = 0
+    @State private var currentCompressionProgress: Double = 0
+    @State private var currentCompressionMessage: String?
     @State private var compressionErrorMessage: String?
     @State private var compressionResult: AdvancedVideoCompressionResult?
+    @State private var showingCompressionCompletion = false
     @State private var previewAsset: AdvancedPreviewAsset?
+    @State private var showBatchConfirm = false
     @State private var compressionTask: Task<Void, Never>?
 
     private var selectedAssets: [PHAsset] {
@@ -1266,12 +1286,18 @@ private struct AdvancedVideoCompressionView: View {
                     if isCompressing {
                         AdvancedVideoCompressionProgressCard(
                             processedCount: processedVideoCount,
-                            totalCount: selectedAssets.count
+                            totalCount: compressionTotalCount,
+                            currentProgress: currentCompressionProgress,
+                            message: currentCompressionMessage
                         )
                     }
 
                     if let compressionResult {
-                        AdvancedVideoCompressionResultCard(result: compressionResult)
+                        AdvancedVideoCompressionResultCard(
+                            result: compressionResult,
+                            onPreview: previewCompressedVideo,
+                            onDeleteOriginals: queueOriginalVideosForDeletion
+                        )
                     }
 
                     if let compressionErrorMessage {
@@ -1279,6 +1305,12 @@ private struct AdvancedVideoCompressionView: View {
                             icon: "exclamationmark.triangle.fill",
                             message: compressionErrorMessage,
                             tint: PhotoDeleteStyle.warning
+                        )
+                    }
+
+                    if !dataManager.videoCompressionHistoryStore.sessions.isEmpty {
+                        AdvancedVideoCompressionHistoryCard(
+                            sessions: Array(dataManager.videoCompressionHistoryStore.sessions.prefix(4))
                         )
                     }
 
@@ -1322,6 +1354,29 @@ private struct AdvancedVideoCompressionView: View {
             }
         }
         .advancedDetailNavigation(title: AdvancedCleanupKind.videoCompression.title)
+        .fullScreenCover(isPresented: $showBatchConfirm, onDismiss: {
+            reloadAssets()
+        }) {
+            BatchConfirmView()
+                .environmentObject(dataManager)
+        }
+        .alert(L10n.string("压缩完成"), isPresented: $showingCompressionCompletion) {
+            if compressionResult?.createdAssetIdentifiers.isEmpty == false {
+                Button(L10n.string("预览压缩副本")) {
+                    previewCompressedVideo()
+                }
+            }
+            if compressionResult?.hasMeaningfulSavings == true {
+                Button(L10n.string("删除原视频"), role: .destructive) {
+                    queueOriginalVideosForDeletion()
+                }
+            }
+            Button(L10n.string("稍后"), role: .cancel) {}
+        } message: {
+            if let compressionResult {
+                Text(compressionCompletionMessage(for: compressionResult))
+            }
+        }
         .sheet(item: $previewAsset) { item in
             AdvancedAssetPreviewView(
                 asset: item.asset,
@@ -1374,35 +1429,41 @@ private struct AdvancedVideoCompressionView: View {
         let videos = selectedAssets
         guard !videos.isEmpty, !isCompressing else { return }
 
-        let estimatedSizesByID = Dictionary(
-            uniqueKeysWithValues: videos.map { asset in
-                (asset.localIdentifier, dataManager.estimatedSizeMB(for: asset))
-            }
-        )
         let quality = selectedQuality
 
         isCompressing = true
         processedVideoCount = 0
+        compressionTotalCount = videos.count
+        currentCompressionProgress = 0
+        currentCompressionMessage = L10n.string("正在准备压缩")
         compressionErrorMessage = nil
         compressionResult = nil
         compressionTask?.cancel()
         compressionTask = Task {
-            var successCount = 0
+            var resultItems: [AdvancedVideoCompressionResultItem] = []
             var failedCount = 0
-            var compressedSizeMB: Double = 0
-            var originalEstimatedSizeMB: Double = 0
             var firstErrorMessage: String?
 
-            for asset in videos {
+            for (index, asset) in videos.enumerated() {
                 if Task.isCancelled {
                     break
                 }
 
+                await MainActor.run {
+                    processedVideoCount = index
+                    currentCompressionProgress = 0
+                    currentCompressionMessage = String(format: L10n.string("正在处理第 %lld 个视频"), Int64(index + 1))
+                }
+
                 do {
-                    let result = try await dataManager.photoLibraryManager.compressVideo(asset, quality: quality)
-                    successCount += 1
-                    compressedSizeMB += result.compressedSizeMB
-                    originalEstimatedSizeMB += estimatedSizesByID[result.originalAssetIdentifier] ?? 0
+                    let result = try await dataManager.photoLibraryManager.compressVideo(
+                        asset,
+                        quality: quality
+                    ) { progress, message in
+                        currentCompressionProgress = progress
+                        currentCompressionMessage = message
+                    }
+                    resultItems.append(AdvancedVideoCompressionResultItem(result: result))
                 } catch is CancellationError {
                     break
                 } catch {
@@ -1413,7 +1474,8 @@ private struct AdvancedVideoCompressionView: View {
                 }
 
                 await MainActor.run {
-                    processedVideoCount = successCount + failedCount
+                    processedVideoCount = index + 1
+                    currentCompressionProgress = 0
                 }
             }
 
@@ -1421,42 +1483,173 @@ private struct AdvancedVideoCompressionView: View {
             await MainActor.run {
                 isCompressing = false
                 compressionTask = nil
+                currentCompressionProgress = 0
+                currentCompressionMessage = nil
 
-                if successCount > 0 {
-                    compressionResult = AdvancedVideoCompressionResult(
-                        successCount: successCount,
+                if !resultItems.isEmpty {
+                    let completedResult = AdvancedVideoCompressionResult(
+                        items: resultItems,
                         failedCount: failedCount,
-                        originalEstimatedSizeMB: originalEstimatedSizeMB,
-                        compressedSizeMB: compressedSizeMB
+                        completedAt: Date()
+                    )
+                    compressionResult = completedResult
+                    dataManager.recordVideoCompressionSession(
+                        videoCount: completedResult.successCount,
+                        failedCount: failedCount,
+                        originalSizeMB: completedResult.originalSizeMB,
+                        compressedSizeMB: completedResult.compressedSizeMB,
+                        date: completedResult.completedAt
                     )
                     selectedAssetIDs.removeAll()
                     reloadAssets()
+                    showingCompressionCompletion = true
                     HapticManager.notify(.success)
                 } else if !wasCancelled {
                     compressionErrorMessage = firstErrorMessage ?? L10n.string("视频压缩失败，请稍后再试。")
                     HapticManager.notify(.warning)
                 }
 
-                if failedCount > 0 && successCount > 0 {
+                if failedCount > 0 && !resultItems.isEmpty {
                     compressionErrorMessage = String(format: L10n.string("有 %lld 个视频未完成"), Int64(failedCount))
                 }
             }
         }
     }
+
+    private func previewCompressedVideo() {
+        guard let createdID = compressionResult?.createdAssetIdentifiers.first else {
+            compressionErrorMessage = L10n.string("暂时找不到压缩副本。")
+            return
+        }
+
+        let result = PHAsset.fetchAssets(withLocalIdentifiers: [createdID], options: nil)
+        guard let asset = result.firstObject else {
+            compressionErrorMessage = L10n.string("暂时找不到压缩副本。")
+            return
+        }
+
+        previewAsset = AdvancedPreviewAsset(asset: asset)
+    }
+
+    private func queueOriginalVideosForDeletion() {
+        guard let compressionResult else { return }
+        guard compressionResult.hasMeaningfulSavings else {
+            compressionErrorMessage = L10n.string("这次没有明显减少空间，建议先保留原视频。")
+            return
+        }
+
+        let originalIDs = Set(compressionResult.items.map(\.originalAssetIdentifier))
+        let originalAssets = dataManager.photoLibraryManager.videos.filter { originalIDs.contains($0.localIdentifier) }
+        guard !originalAssets.isEmpty else {
+            compressionErrorMessage = L10n.string("暂时找不到原视频。")
+            return
+        }
+
+        for asset in originalAssets {
+            _ = dataManager.markReviewed(asset)
+            dataManager.addToDeleteCandidates(asset)
+        }
+        HapticManager.notify(.warning)
+        showBatchConfirm = true
+    }
+
+    private func compressionCompletionMessage(for result: AdvancedVideoCompressionResult) -> String {
+        if result.hasMeaningfulSavings {
+            return String(format: L10n.string("原视频 %@，压缩后 %@，约减少 %@。原视频尚未删除。"), result.formattedOriginalSize, result.formattedCompressedSize, result.formattedSavedSize)
+        }
+        return String(format: L10n.string("原视频 %@，压缩后 %@。本次没有明显减少空间，建议保留原视频。"), result.formattedOriginalSize, result.formattedCompressedSize)
+    }
+}
+
+private struct AdvancedVideoCompressionResultItem: Identifiable, Equatable {
+    let originalAssetIdentifier: String
+    let createdAssetIdentifier: String?
+    let originalSizeMB: Double
+    let compressedSizeMB: Double
+    let originalDimensions: CGSize
+    let outputDimensions: CGSize
+
+    var id: String { originalAssetIdentifier }
+
+    init(result: VideoCompressionResult) {
+        self.originalAssetIdentifier = result.originalAssetIdentifier
+        self.createdAssetIdentifier = result.createdAssetIdentifier
+        self.originalSizeMB = result.originalSizeMB
+        self.compressedSizeMB = result.compressedSizeMB
+        self.originalDimensions = result.originalDimensions
+        self.outputDimensions = result.outputDimensions
+    }
+
+    var savedSizeMB: Double {
+        max(originalSizeMB - compressedSizeMB, 0)
+    }
+
+    var hasMeaningfulSavings: Bool {
+        savedSizeMB >= max(1, originalSizeMB * 0.02)
+    }
 }
 
 private struct AdvancedVideoCompressionResult: Equatable {
-    let successCount: Int
+    let items: [AdvancedVideoCompressionResultItem]
     let failedCount: Int
-    let originalEstimatedSizeMB: Double
-    let compressedSizeMB: Double
+    let completedAt: Date
 
-    var estimatedSavedSizeMB: Double {
-        max(originalEstimatedSizeMB - compressedSizeMB, 0)
+    var successCount: Int {
+        items.count
     }
 
-    var formattedEstimatedSavedSize: String {
-        CleanupStatsFormatter.space(estimatedSavedSizeMB)
+    var originalSizeMB: Double {
+        items.reduce(0) { $0 + $1.originalSizeMB }
+    }
+
+    var compressedSizeMB: Double {
+        items.reduce(0) { $0 + $1.compressedSizeMB }
+    }
+
+    var savedSizeMB: Double {
+        max(originalSizeMB - compressedSizeMB, 0)
+    }
+
+    var hasMeaningfulSavings: Bool {
+        savedSizeMB >= max(1, originalSizeMB * 0.02)
+    }
+
+    var formattedOriginalSize: String {
+        CleanupStatsFormatter.space(originalSizeMB)
+    }
+
+    var formattedCompressedSize: String {
+        CleanupStatsFormatter.space(compressedSizeMB)
+    }
+
+    var formattedSavedSize: String {
+        CleanupStatsFormatter.space(savedSizeMB)
+    }
+
+    var savedRatioPercent: Int {
+        guard originalSizeMB > 0 else { return 0 }
+        return max(Int((savedSizeMB / originalSizeMB * 100).rounded()), 0)
+    }
+
+    var createdAssetIdentifiers: [String] {
+        items.compactMap(\.createdAssetIdentifier)
+    }
+
+    var keptResolutionText: String {
+        guard let firstItem = items.first else { return L10n.string("保持原分辨率") }
+        let original = dimensionsText(firstItem.originalDimensions)
+        let output = dimensionsText(firstItem.outputDimensions)
+        if original == output {
+            return String(format: L10n.string("分辨率保持 %@"), original)
+        }
+        return String(format: L10n.string("分辨率 %@ → %@"), original, output)
+    }
+
+    private func dimensionsText(_ size: CGSize) -> String {
+        let width = Int(size.width.rounded())
+        let height = Int(size.height.rounded())
+        guard width > 0, height > 0 else { return L10n.string("未知") }
+        return "\(width)×\(height)"
     }
 }
 
@@ -1505,10 +1698,17 @@ private struct AdvancedVideoCompressionQualityCard: View {
 private struct AdvancedVideoCompressionProgressCard: View {
     let processedCount: Int
     let totalCount: Int
+    let currentProgress: Double
+    let message: String?
+
+    private var combinedProgress: Double {
+        guard totalCount > 0 else { return 0 }
+        return min((Double(processedCount) + min(max(currentProgress, 0), 1)) / Double(totalCount), 1)
+    }
 
     var body: some View {
         HStack(spacing: 12) {
-            ProgressView(value: Double(processedCount), total: Double(max(totalCount, 1)))
+            ProgressView(value: combinedProgress)
                 .progressViewStyle(CircularProgressViewStyle(tint: PhotoDeleteStyle.positive))
                 .frame(width: 34, height: 34)
 
@@ -1517,7 +1717,7 @@ private struct AdvancedVideoCompressionProgressCard: View {
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(PhotoDeleteStyle.primaryText)
 
-                Text(L10n.string("保持屏幕打开，压缩完成后会保存到照片库。"))
+                Text(message ?? L10n.string("保持屏幕打开，压缩完成后会保存到照片库。"))
                     .font(.system(size: 12, weight: .regular))
                     .foregroundColor(PhotoDeleteStyle.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1532,27 +1732,137 @@ private struct AdvancedVideoCompressionProgressCard: View {
 
 private struct AdvancedVideoCompressionResultCard: View {
     let result: AdvancedVideoCompressionResult
+    let onPreview: () -> Void
+    let onDeleteOriginals: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 30, weight: .semibold))
-                .foregroundColor(PhotoDeleteStyle.positive)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 12) {
+                Image(systemName: result.hasMeaningfulSavings ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                    .font(.system(size: 28, weight: .semibold))
+                    .foregroundColor(result.hasMeaningfulSavings ? PhotoDeleteStyle.positive : PhotoDeleteStyle.warning)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(String(format: L10n.string("已生成 %lld 个压缩副本 · 估算节省 %@"), Int64(result.successCount), result.formattedEstimatedSavedSize))
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.primaryText)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.82)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(String(format: L10n.string("已生成 %lld 个压缩副本"), Int64(result.successCount)))
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(PhotoDeleteStyle.primaryText)
 
-                Text(L10n.string("压缩后的副本已经保存到照片库。确认无误后，可回到大文件清理删除原视频。"))
-                    .font(.system(size: 12, weight: .regular))
-                    .foregroundColor(PhotoDeleteStyle.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
+                    Text(result.hasMeaningfulSavings ? String(format: L10n.string("本次约减少 %@（%lld%%）"), result.formattedSavedSize, Int64(result.savedRatioPercent)) : L10n.string("这次没有明显减少空间，建议保留原视频。"))
+                        .font(.system(size: 12, weight: .regular))
+                        .foregroundColor(PhotoDeleteStyle.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer()
             }
 
-            Spacer()
+            HStack(spacing: 10) {
+                AdvancedVideoCompressionMetric(label: L10n.string("原视频"), value: result.formattedOriginalSize)
+                AdvancedVideoCompressionMetric(label: L10n.string("压缩后"), value: result.formattedCompressedSize)
+                AdvancedVideoCompressionMetric(label: L10n.string("分辨率"), value: result.keptResolutionText)
+            }
+
+            Text(L10n.string("压缩副本已保存到照片库。请先预览副本，确认效果后再删除原视频。"))
+                .font(.system(size: 12, weight: .regular))
+                .foregroundColor(PhotoDeleteStyle.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if result.failedCount > 0 {
+                Label(String(format: L10n.string("%lld 个视频未完成"), Int64(result.failedCount)), systemImage: "exclamationmark.triangle")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.warning)
+            }
+
+            HStack(spacing: 10) {
+                Button(action: onPreview) {
+                    Label(L10n.string("预览压缩副本"), systemImage: "play.rectangle")
+                        .frame(maxWidth: .infinity)
+                }
+                .photoDeleteSecondaryButton()
+                .disabled(result.createdAssetIdentifiers.isEmpty)
+
+                Button(role: .destructive, action: onDeleteOriginals) {
+                    Label(L10n.string("删除原视频"), systemImage: "trash")
+                        .frame(maxWidth: .infinity)
+                }
+                .photoDeleteSecondaryButton()
+                .disabled(!result.hasMeaningfulSavings)
+            }
+        }
+        .padding(14)
+        .photoDeleteCard()
+    }
+}
+
+private struct AdvancedVideoCompressionMetric: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(PhotoDeleteStyle.secondaryText)
+
+            Text(value)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(PhotoDeleteStyle.primaryText)
+                .lineLimit(2)
+                .minimumScaleFactor(0.74)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(PhotoDeleteStyle.elevatedSurface)
+        )
+    }
+}
+
+private struct AdvancedVideoCompressionHistoryCard: View {
+    let sessions: [VideoCompressionSession]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(L10n.string("最近压缩记录"))
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(PhotoDeleteStyle.primaryText)
+
+            VStack(spacing: 0) {
+                ForEach(sessions) { session in
+                    HStack(spacing: 12) {
+                        Image(systemName: "video.badge.checkmark")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundColor(PhotoDeleteStyle.positive)
+                            .frame(width: 24)
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(session.formattedDate)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(PhotoDeleteStyle.primaryText)
+
+                            Text(String(format: L10n.string("%lld 个视频 · %@ → %@"), Int64(session.videoCount), session.formattedOriginalSize, session.formattedCompressedSize))
+                                .font(.system(size: 12, weight: .regular))
+                                .foregroundColor(PhotoDeleteStyle.secondaryText)
+                                .lineLimit(2)
+                                .minimumScaleFactor(0.8)
+                        }
+
+                        Spacer()
+
+                        Text(session.formattedSavedSize)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(session.savedSizeMB > 0 ? PhotoDeleteStyle.positive : PhotoDeleteStyle.warning)
+                    }
+                    .padding(.vertical, 10)
+
+                    if session.id != sessions.last?.id {
+                        Divider()
+                            .background(PhotoDeleteStyle.hairline)
+                            .padding(.leading, 36)
+                    }
+                }
+            }
         }
         .padding(14)
         .photoDeleteCard()

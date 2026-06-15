@@ -99,6 +99,8 @@ struct SettingsView: View {
                 SupporterView()
                     .environmentObject(dataManager)
                     .environmentObject(purchaseManager)
+            case .cleanupHistory:
+                CleanupHistoryView(statsStore: dataManager.cleanupStatsStore)
             case .gestureSettings:
                 GestureSettingsView()
             case .languageSettings:
@@ -156,6 +158,20 @@ struct SettingsView: View {
                 SettingsStorageSummaryRow(storage: stats.storageSnapshot)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 14)
+
+                Divider()
+                    .background(PhotoDeleteStyle.hairline)
+                    .padding(.horizontal, 16)
+
+                SettingRow(
+                    icon: "clock.arrow.circlepath",
+                    iconColor: PhotoDeleteStyle.positive,
+                    title: L10n.string("清理历史"),
+                    subtitle: L10n.string("查看本机清理记录和节省空间"),
+                    action: {
+                        activeSheet = .cleanupHistory
+                    }
+                )
             }
             .photoDeleteCard()
         }
@@ -175,7 +191,7 @@ struct SettingsView: View {
                     icon: purchaseManager.isSupporter ? "seal" : "sparkles",
                     iconColor: purchaseManager.isSupporter ? PhotoDeleteStyle.positive : PhotoDeleteStyle.accent,
                     title: purchaseManager.isSupporter ? L10n.string("支持者版已解锁") : L10n.string("解锁进阶功能"),
-                    subtitle: purchaseManager.isSupporter ? L10n.string("已购买") : L10n.string("购买或恢复"),
+                    subtitle: purchaseManager.isSupporter ? L10n.string("查看购买信息和功能区别") : L10n.string("视频压缩、大文件清理等付费功能"),
                     action: {
                         activeSheet = .supporter
                     }
@@ -629,6 +645,7 @@ private enum SettingsSheet: Identifiable {
     case author
     case privacy
     case supporter
+    case cleanupHistory
     case gestureSettings
     case languageSettings
     case appearanceSettings
@@ -640,6 +657,7 @@ private enum SettingsSheet: Identifiable {
         case .author: return "author"
         case .privacy: return "privacy"
         case .supporter: return "supporter"
+        case .cleanupHistory: return "cleanupHistory"
         case .gestureSettings: return "gestureSettings"
         case .languageSettings: return "languageSettings"
         case .appearanceSettings: return "appearanceSettings"

@@ -41,6 +41,7 @@ enum SupporterEntitlementState: Equatable {
 final class PurchaseManager: ObservableObject {
     @Published private(set) var products: [Product] = []
     @Published private(set) var entitlementState: SupporterEntitlementState
+    @Published private(set) var supporterPurchaseDate: Date?
     @Published private(set) var isLoading = false
     @Published var errorMessage: String?
 
@@ -68,6 +69,7 @@ final class PurchaseManager: ObservableObject {
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
         self.entitlementState = .initial(hasCachedEntitlement: userDefaults.bool(forKey: AppConstants.supporterEntitlementKey))
+        self.supporterPurchaseDate = userDefaults.object(forKey: AppConstants.supporterPurchaseDateKey) as? Date
 
         updatesTask = Task { [weak self] in
             await self?.listenForTransactions()
@@ -138,7 +140,7 @@ final class PurchaseManager: ObservableObject {
             case .success(let verification):
                 let transaction = try checkVerified(verification)
                 await transaction.finish()
-                setVerifiedSupporterAccess(true)
+                setVerifiedSupporterAccess(true, purchaseDate: transaction.purchaseDate)
                 errorMessage = nil
             case .pending:
                 errorMessage = L10n.string("购买正在处理中，完成后会自动解锁。")
@@ -186,18 +188,20 @@ final class PurchaseManager: ObservableObject {
             entitlementState = .verificationStarted(hasCachedEntitlement: hasCachedSupporterEntitlement)
         }
         var hasCurrentSupporterEntitlement = false
+        var currentPurchaseDate: Date?
 
         for await result in Transaction.currentEntitlements {
             guard let transaction = try? checkVerified(result) else { continue }
             if transaction.productID == AppConstants.supporterProductID,
                transaction.revocationDate == nil {
                 hasCurrentSupporterEntitlement = true
+                currentPurchaseDate = transaction.purchaseDate
                 break
             }
         }
 
         if hasCurrentSupporterEntitlement {
-            setVerifiedSupporterAccess(true)
+            setVerifiedSupporterAccess(true, purchaseDate: currentPurchaseDate)
             errorMessage = nil
         } else if shouldLockWhenMissing {
             setVerifiedSupporterAccess(false)
@@ -213,7 +217,7 @@ final class PurchaseManager: ObservableObject {
             }
 
             if transaction.revocationDate == nil {
-                setVerifiedSupporterAccess(true)
+                setVerifiedSupporterAccess(true, purchaseDate: transaction.purchaseDate)
             } else {
                 setVerifiedSupporterAccess(false)
             }
@@ -225,9 +229,21 @@ final class PurchaseManager: ObservableObject {
         userDefaults.bool(forKey: AppConstants.supporterEntitlementKey)
     }
 
-    private func setVerifiedSupporterAccess(_ value: Bool) {
+    private func setVerifiedSupporterAccess(_ value: Bool, purchaseDate: Date? = nil) {
         entitlementState = value ? .verified : .locked
         userDefaults.set(value, forKey: AppConstants.supporterEntitlementKey)
+
+        if value {
+            if let purchaseDate {
+                supporterPurchaseDate = purchaseDate
+                userDefaults.set(purchaseDate, forKey: AppConstants.supporterPurchaseDateKey)
+            } else {
+                supporterPurchaseDate = userDefaults.object(forKey: AppConstants.supporterPurchaseDateKey) as? Date
+            }
+        } else {
+            supporterPurchaseDate = nil
+            userDefaults.removeObject(forKey: AppConstants.supporterPurchaseDateKey)
+        }
     }
 
     private func checkVerified<T>(_ result: VerificationResult<T>) throws -> T {

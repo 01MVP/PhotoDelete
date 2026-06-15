@@ -432,6 +432,60 @@ struct PhotoDeleteTests {
         #expect(closeProgress.allSatisfy { !$0.isUnlocked })
     }
 
+    // MARK: - VideoCompressionHistoryStore tests
+
+    @Test func videoCompressionHistoryStoreRecordsAndPersistsSessions() async throws {
+        let fileURL = temporaryStatsURL()
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+
+        let store = VideoCompressionHistoryStore(fileURL: fileURL)
+        let date = makeDate(year: 2026, month: 6, day: 15, calendar: Calendar(identifier: .gregorian))
+        store.recordSession(
+            videoCount: 2,
+            failedCount: 1,
+            originalSizeMB: 100,
+            compressedSizeMB: 62,
+            date: date
+        )
+
+        #expect(store.sessions.count == 1)
+        #expect(store.summary.videoCount == 2)
+        #expect(store.summary.failedCount == 1)
+        #expect(store.summary.savedSizeMB == 38)
+        #expect(store.sessions[0].formattedSavedSize == "38.0 MB")
+
+        let reloadedStore = VideoCompressionHistoryStore(fileURL: fileURL)
+        #expect(reloadedStore.sessions.count == 1)
+        #expect(reloadedStore.summary.compressedSizeMB == 62)
+    }
+
+    @Test func dataManagerRecordsVideoCompressionHistoryAndUpdatesRevision() async throws {
+        let statsURL = temporaryStatsURL()
+        let historyURL = temporaryStatsURL()
+        defer {
+            try? FileManager.default.removeItem(at: statsURL)
+            try? FileManager.default.removeItem(at: historyURL)
+        }
+
+        let historyStore = VideoCompressionHistoryStore(fileURL: historyURL)
+        let dm = DataManager(
+            cleanupStatsStore: CleanupStatsStore(fileURL: statsURL),
+            videoCompressionHistoryStore: historyStore
+        )
+        let initialRevision = dm.videoCompressionHistoryRevision
+
+        dm.recordVideoCompressionSession(
+            videoCount: 1,
+            failedCount: 0,
+            originalSizeMB: 40,
+            compressedSizeMB: 22
+        )
+
+        #expect(dm.videoCompressionHistoryRevision != initialRevision)
+        #expect(historyStore.sessions.count == 1)
+        #expect(historyStore.summary.savedSizeMB == 18)
+    }
+
     // MARK: - Advanced feature models
 
     @Test func deviceStorageSnapshotFormatsAndClampsUsage() async throws {

@@ -31,27 +31,27 @@ enum VideoCompressionQuality: String, CaseIterable, Identifiable {
     var subtitle: String {
         switch self {
         case .balanced:
-            return L10n.string("保留清晰度，适合日常分享。")
+            return L10n.string("保持原分辨率，轻微降低码率，优先保留清晰度。")
         case .smallFile:
-            return L10n.string("尽量减小文件，适合快速释放空间。")
+            return L10n.string("保持原分辨率，压缩更明显，清晰度可能略有下降。")
         }
     }
 
-    var preferredExportPresetName: String {
+    var targetVideoBitrateMultiplier: Double {
         switch self {
         case .balanced:
-            return AVAssetExportPreset1280x720
+            return 0.68
         case .smallFile:
-            return AVAssetExportPreset960x540
+            return 0.48
         }
     }
 
     var estimatedSavingsRatio: Double {
         switch self {
         case .balanced:
-            return 0.42
+            return 0.28
         case .smallFile:
-            return 0.58
+            return 0.42
         }
     }
 }
@@ -59,7 +59,19 @@ enum VideoCompressionQuality: String, CaseIterable, Identifiable {
 struct VideoCompressionResult {
     let originalAssetIdentifier: String
     let createdAssetIdentifier: String?
+    let originalSizeMB: Double
     let compressedSizeMB: Double
+    let originalDimensions: CGSize
+    let outputDimensions: CGSize
+
+    var savedSizeMB: Double {
+        max(originalSizeMB - compressedSizeMB, 0)
+    }
+}
+
+private struct VideoCompressionOutput {
+    let url: URL
+    let outputDimensions: CGSize
 }
 
 class PhotoLibraryManager: NSObject, ObservableObject {
@@ -771,7 +783,8 @@ class PhotoLibraryManager: NSObject, ObservableObject {
 
     func compressVideo(
         _ asset: PHAsset,
-        quality: VideoCompressionQuality
+        quality: VideoCompressionQuality,
+        progressHandler: (@MainActor @Sendable (Double, String) -> Void)? = nil
     ) async throws -> VideoCompressionResult {
         guard hasPhotoLibraryAccess else {
             throw VideoCompressionError.noLibraryAccess
@@ -781,18 +794,32 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             throw VideoCompressionError.notVideo
         }
 
+        await progressHandler?(0.04, L10n.string("正在读取原视频信息"))
+        let originalSizeMB = try await actualVideoFileSizeMB(for: asset)
         let videoAsset = try await requestVideoAsset(for: asset)
-        let outputURL = try await exportCompressedVideo(from: videoAsset, quality: quality)
+        await progressHandler?(0.12, L10n.string("正在准备压缩参数"))
+        let originalDimensions = try await displayDimensions(for: videoAsset)
+        let output = try await exportCompressedVideo(
+            from: videoAsset,
+            originalSizeMB: originalSizeMB,
+            quality: quality,
+            progressHandler: progressHandler
+        )
         defer {
-            try? FileManager.default.removeItem(at: outputURL)
+            try? FileManager.default.removeItem(at: output.url)
         }
 
-        let compressedSizeMB = try compressedFileSizeMB(at: outputURL)
-        let createdAssetIdentifier = try await saveCompressedVideo(at: outputURL, originalAsset: asset)
+        let compressedSizeMB = try compressedFileSizeMB(at: output.url)
+        await progressHandler?(0.9, L10n.string("正在保存压缩副本"))
+        let createdAssetIdentifier = try await saveCompressedVideo(at: output.url, originalAsset: asset)
+        await progressHandler?(1, L10n.string("压缩副本已保存"))
         return VideoCompressionResult(
             originalAssetIdentifier: asset.localIdentifier,
             createdAssetIdentifier: createdAssetIdentifier,
-            compressedSizeMB: compressedSizeMB
+            originalSizeMB: originalSizeMB,
+            compressedSizeMB: compressedSizeMB,
+            originalDimensions: originalDimensions,
+            outputDimensions: output.outputDimensions
         )
     }
 
@@ -971,82 +998,378 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         }
     }
 
+    private func actualVideoFileSizeMB(for asset: PHAsset) async throws -> Double {
+        let resources = PHAssetResource.assetResources(for: asset)
+        guard let resource = resources.first(where: { $0.type == .fullSizeVideo }) ??
+            resources.first(where: { $0.type == .video }) else {
+            throw VideoCompressionError.videoUnavailable
+        }
+
+        let options = PHAssetResourceRequestOptions()
+        options.isNetworkAccessAllowed = true
+
+        let counterLock = NSLock()
+        var byteCount: Int64 = 0
+
+        return try await withCheckedThrowingContinuation { continuation in
+            PHAssetResourceManager.default().requestData(
+                for: resource,
+                options: options,
+                dataReceivedHandler: { data in
+                    counterLock.lock()
+                    byteCount += Int64(data.count)
+                    counterLock.unlock()
+                },
+                completionHandler: { error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                        return
+                    }
+
+                    counterLock.lock()
+                    let totalBytes = byteCount
+                    counterLock.unlock()
+                    continuation.resume(returning: max(Double(totalBytes) / 1_048_576, 0))
+                }
+            )
+        }
+    }
+
+    private func displayDimensions(for asset: AVAsset) async throws -> CGSize {
+        let videoTracks = try await asset.loadTracks(withMediaType: .video)
+        guard let videoTrack = videoTracks.first else {
+            throw VideoCompressionError.videoUnavailable
+        }
+
+        let naturalSize = try await videoTrack.load(.naturalSize)
+        let preferredTransform = try await videoTrack.load(.preferredTransform)
+        return displayDimensions(naturalSize: naturalSize, transform: preferredTransform)
+    }
+
     private func exportCompressedVideo(
         from asset: AVAsset,
-        quality: VideoCompressionQuality
-    ) async throws -> URL {
-        let compatiblePresets = AVAssetExportSession.exportPresets(compatibleWith: asset)
-        let presetName = compatibleExportPreset(
-            preferredPreset: quality.preferredExportPresetName,
-            compatiblePresets: compatiblePresets
-        )
+        originalSizeMB: Double,
+        quality: VideoCompressionQuality,
+        progressHandler: (@MainActor @Sendable (Double, String) -> Void)?
+    ) async throws -> VideoCompressionOutput {
+        let videoTracks = try await asset.loadTracks(withMediaType: .video)
+        guard let videoTrack = videoTracks.first else {
+            throw VideoCompressionError.videoUnavailable
+        }
 
-        guard let exportSession = AVAssetExportSession(asset: asset, presetName: presetName) else {
+        let audioTracks = try await asset.loadTracks(withMediaType: .audio)
+        let naturalSize = try await videoTrack.load(.naturalSize)
+        let preferredTransform = try await videoTrack.load(.preferredTransform)
+        let estimatedDataRate = try await videoTrack.load(.estimatedDataRate)
+        let nominalFrameRate = try await videoTrack.load(.nominalFrameRate)
+        let duration = try await asset.load(.duration)
+        let displaySize = displayDimensions(naturalSize: naturalSize, transform: preferredTransform)
+        let encodedSize = evenEncodedDimensions(from: naturalSize)
+        let sourceBitrate = sourceVideoBitrate(
+            estimatedDataRate: Double(estimatedDataRate),
+            originalSizeMB: originalSizeMB,
+            duration: duration
+        )
+        let targetBitrate = targetVideoBitrate(
+            sourceBitrate: sourceBitrate,
+            displaySize: displaySize,
+            quality: quality
+        )
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("PhotoDelete-Compressed-\(UUID().uuidString)")
+            .appendingPathExtension("mp4")
+
+        try? FileManager.default.removeItem(at: outputURL)
+
+        let reader = try AVAssetReader(asset: asset)
+        let writer = try AVAssetWriter(outputURL: outputURL, fileType: .mp4)
+
+        let videoOutput = AVAssetReaderTrackOutput(
+            track: videoTrack,
+            outputSettings: [
+                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
+            ]
+        )
+        videoOutput.alwaysCopiesSampleData = false
+        guard reader.canAdd(videoOutput) else {
+            throw VideoCompressionError.exportFailed
+        }
+        reader.add(videoOutput)
+
+        guard let videoInput = makeVideoWriterInput(
+            encodedSize: encodedSize,
+            preferredTransform: preferredTransform,
+            targetBitrate: targetBitrate,
+            frameRate: nominalFrameRate,
+            writer: writer
+        ) else {
             throw VideoCompressionError.exportFailed
         }
 
-        let fileType = preferredOutputFileType(for: exportSession)
-        let outputURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("PhotoDelete-Compressed-\(UUID().uuidString)")
-            .appendingPathExtension(outputFileExtension(for: fileType))
+        let audioPair = makeAudioReaderWriterPair(from: audioTracks.first, reader: reader, writer: writer)
 
-        exportSession.outputURL = outputURL
-        exportSession.outputFileType = fileType
-        exportSession.shouldOptimizeForNetworkUse = true
+        await progressHandler?(0.16, L10n.string("正在压缩视频"))
+        try await runReaderWriterExport(
+            reader: reader,
+            writer: writer,
+            videoInput: videoInput,
+            videoOutput: videoOutput,
+            audioInput: audioPair?.input,
+            audioOutput: audioPair?.output,
+            duration: duration,
+            progressHandler: progressHandler
+        )
 
-        try await withCheckedThrowingContinuation { continuation in
-            exportSession.exportAsynchronously {
-                switch exportSession.status {
-                case .completed:
-                    continuation.resume(returning: ())
-                case .cancelled:
-                    continuation.resume(throwing: CancellationError())
-                default:
-                    continuation.resume(throwing: VideoCompressionError.exportFailed)
-                }
+        return VideoCompressionOutput(url: outputURL, outputDimensions: displaySize)
+    }
+
+    private func makeVideoWriterInput(
+        encodedSize: CGSize,
+        preferredTransform: CGAffineTransform,
+        targetBitrate: Int,
+        frameRate: Float,
+        writer: AVAssetWriter
+    ) -> AVAssetWriterInput? {
+        let codecs: [AVVideoCodecType] = [.hevc, .h264]
+
+        for codec in codecs {
+            var compressionProperties: [String: Any] = [
+                AVVideoAverageBitRateKey: targetBitrate,
+                AVVideoExpectedSourceFrameRateKey: max(Int(frameRate.rounded()), 24)
+            ]
+            if codec == .h264 {
+                compressionProperties[AVVideoProfileLevelKey] = AVVideoProfileLevelH264HighAutoLevel
+            }
+
+            let settings: [String: Any] = [
+                AVVideoCodecKey: codec,
+                AVVideoWidthKey: Int(encodedSize.width),
+                AVVideoHeightKey: Int(encodedSize.height),
+                AVVideoCompressionPropertiesKey: compressionProperties
+            ]
+
+            let input = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
+            input.expectsMediaDataInRealTime = false
+            input.transform = preferredTransform
+
+            if writer.canAdd(input) {
+                writer.add(input)
+                return input
             }
         }
 
-        return outputURL
+        return nil
     }
 
-    private func compatibleExportPreset(
-        preferredPreset: String,
-        compatiblePresets: [String]
-    ) -> String {
-        if compatiblePresets.contains(preferredPreset) {
-            return preferredPreset
+    private func makeAudioReaderWriterPair(
+        from audioTrack: AVAssetTrack?,
+        reader: AVAssetReader,
+        writer: AVAssetWriter
+    ) -> (input: AVAssetWriterInput, output: AVAssetReaderTrackOutput)? {
+        guard let audioTrack else { return nil }
+
+        let output = AVAssetReaderTrackOutput(
+            track: audioTrack,
+            outputSettings: [
+                AVFormatIDKey: kAudioFormatLinearPCM
+            ]
+        )
+        output.alwaysCopiesSampleData = false
+
+        let input = AVAssetWriterInput(
+            mediaType: .audio,
+            outputSettings: [
+                AVFormatIDKey: kAudioFormatMPEG4AAC,
+                AVNumberOfChannelsKey: 2,
+                AVSampleRateKey: 44_100,
+                AVEncoderBitRateKey: 128_000
+            ]
+        )
+        input.expectsMediaDataInRealTime = false
+
+        guard reader.canAdd(output), writer.canAdd(input) else {
+            return nil
         }
-
-        let fallbackPresets = [
-            AVAssetExportPreset960x540,
-            AVAssetExportPresetMediumQuality,
-            AVAssetExportPresetLowQuality
-        ]
-
-        return fallbackPresets.first { compatiblePresets.contains($0) } ?? AVAssetExportPresetMediumQuality
+        reader.add(output)
+        writer.add(input)
+        return (input, output)
     }
 
-    private func preferredOutputFileType(for exportSession: AVAssetExportSession) -> AVFileType {
-        let supportedFileTypes = exportSession.supportedFileTypes
-        if supportedFileTypes.contains(.mp4) {
-            return .mp4
+    private func runReaderWriterExport(
+        reader: AVAssetReader,
+        writer: AVAssetWriter,
+        videoInput: AVAssetWriterInput,
+        videoOutput: AVAssetReaderTrackOutput,
+        audioInput: AVAssetWriterInput?,
+        audioOutput: AVAssetReaderTrackOutput?,
+        duration: CMTime,
+        progressHandler: (@MainActor @Sendable (Double, String) -> Void)?
+    ) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            let stateLock = NSLock()
+            var didComplete = false
+            var videoFinished = false
+            var audioFinished = audioInput == nil || audioOutput == nil
+
+            func complete(_ result: Result<Void, Error>) {
+                stateLock.lock()
+                guard !didComplete else {
+                    stateLock.unlock()
+                    return
+                }
+                didComplete = true
+                stateLock.unlock()
+
+                switch result {
+                case .success:
+                    continuation.resume(returning: ())
+                case .failure(let error):
+                    continuation.resume(throwing: error)
+                }
+            }
+
+            func fail(_ error: Error) {
+                reader.cancelReading()
+                writer.cancelWriting()
+                complete(.failure(error))
+            }
+
+            func finishIfReady() {
+                stateLock.lock()
+                let shouldFinish = videoFinished && audioFinished && !didComplete
+                stateLock.unlock()
+
+                guard shouldFinish else { return }
+                writer.finishWriting {
+                    if writer.status == .completed {
+                        complete(.success(()))
+                    } else if writer.status == .cancelled {
+                        complete(.failure(CancellationError()))
+                    } else {
+                        complete(.failure(writer.error ?? VideoCompressionError.exportFailed))
+                    }
+                }
+            }
+
+            guard writer.startWriting() else {
+                complete(.failure(writer.error ?? VideoCompressionError.exportFailed))
+                return
+            }
+            guard reader.startReading() else {
+                writer.cancelWriting()
+                complete(.failure(reader.error ?? VideoCompressionError.exportFailed))
+                return
+            }
+            writer.startSession(atSourceTime: .zero)
+
+            let durationSeconds = max(CMTimeGetSeconds(duration), 1)
+            let videoQueue = DispatchQueue(label: "PhotoDelete.VideoCompression.video")
+            let audioQueue = DispatchQueue(label: "PhotoDelete.VideoCompression.audio")
+            var lastProgressUpdate = Date.distantPast
+
+            videoInput.requestMediaDataWhenReady(on: videoQueue) {
+                while videoInput.isReadyForMoreMediaData {
+                    if let sampleBuffer = videoOutput.copyNextSampleBuffer() {
+                        guard videoInput.append(sampleBuffer) else {
+                            fail(writer.error ?? VideoCompressionError.exportFailed)
+                            return
+                        }
+
+                        let now = Date()
+                        if now.timeIntervalSince(lastProgressUpdate) >= 0.2 {
+                            lastProgressUpdate = now
+                            let seconds = CMTimeGetSeconds(CMSampleBufferGetPresentationTimeStamp(sampleBuffer))
+                            let exportProgress = min(max(seconds / durationSeconds, 0), 1)
+                            Task { @MainActor in
+                                progressHandler?(0.16 + exportProgress * 0.7, L10n.string("正在压缩视频"))
+                            }
+                        }
+                    } else {
+                        videoInput.markAsFinished()
+                        stateLock.lock()
+                        videoFinished = true
+                        stateLock.unlock()
+                        finishIfReady()
+                        break
+                    }
+                }
+            }
+
+            if let audioInput, let audioOutput {
+                audioInput.requestMediaDataWhenReady(on: audioQueue) {
+                    while audioInput.isReadyForMoreMediaData {
+                        if let sampleBuffer = audioOutput.copyNextSampleBuffer() {
+                            guard audioInput.append(sampleBuffer) else {
+                                fail(writer.error ?? VideoCompressionError.exportFailed)
+                                return
+                            }
+                        } else {
+                            audioInput.markAsFinished()
+                            stateLock.lock()
+                            audioFinished = true
+                            stateLock.unlock()
+                            finishIfReady()
+                            break
+                        }
+                    }
+                }
+            }
         }
-        if supportedFileTypes.contains(.mov) {
-            return .mov
-        }
-        return supportedFileTypes.first ?? .mov
     }
 
-    private func outputFileExtension(for fileType: AVFileType) -> String {
-        switch fileType {
-        case .mp4:
-            return "mp4"
-        case .mov:
-            return "mov"
-        default:
-            return "mov"
+    private func displayDimensions(naturalSize: CGSize, transform: CGAffineTransform) -> CGSize {
+        let transformed = CGRect(origin: .zero, size: naturalSize).applying(transform)
+        let width = abs(transformed.width)
+        let height = abs(transformed.height)
+        guard width > 0, height > 0 else {
+            return CGSize(width: abs(naturalSize.width), height: abs(naturalSize.height))
         }
+        return CGSize(width: width.rounded(), height: height.rounded())
+    }
+
+    private func evenEncodedDimensions(from naturalSize: CGSize) -> CGSize {
+        let width = max(Int(abs(naturalSize.width).rounded()), 2)
+        let height = max(Int(abs(naturalSize.height).rounded()), 2)
+        return CGSize(
+            width: width - (width % 2),
+            height: height - (height % 2)
+        )
+    }
+
+    private func sourceVideoBitrate(
+        estimatedDataRate: Double,
+        originalSizeMB: Double,
+        duration: CMTime
+    ) -> Double {
+        if estimatedDataRate > 0 {
+            return estimatedDataRate
+        }
+
+        let seconds = max(CMTimeGetSeconds(duration), 1)
+        let totalBits = originalSizeMB * 1_048_576 * 8
+        return max(totalBits / seconds, 1_200_000)
+    }
+
+    private func targetVideoBitrate(
+        sourceBitrate: Double,
+        displaySize: CGSize,
+        quality: VideoCompressionQuality
+    ) -> Int {
+        let pixelCount = max(displaySize.width * displaySize.height, 1)
+        let resolutionFloor: Double
+        if pixelCount >= 8_000_000 {
+            resolutionFloor = 8_000_000
+        } else if pixelCount >= 2_000_000 {
+            resolutionFloor = 3_200_000
+        } else if pixelCount >= 900_000 {
+            resolutionFloor = 1_800_000
+        } else {
+            resolutionFloor = 1_000_000
+        }
+
+        let bitrateFromQuality = sourceBitrate * quality.targetVideoBitrateMultiplier
+        let adaptiveFloor = min(sourceBitrate * 0.9, resolutionFloor)
+        return Int(max(bitrateFromQuality, adaptiveFloor))
     }
 
     private func compressedFileSizeMB(at url: URL) throws -> Double {

@@ -20,7 +20,11 @@ struct SupporterView: View {
 
     private var entitlementStatusMessage: String? {
         switch purchaseManager.entitlementState {
-        case .unknown, .verifying, .verified, .cachedOffline, .locked:
+        case .verifying:
+            L10n.string("正在检查购买状态...")
+        case .cachedOffline:
+            L10n.string("当前使用本机缓存的支持者版状态，联网后会自动校验。")
+        case .unknown, .verified, .locked:
             nil
         }
     }
@@ -34,9 +38,9 @@ struct SupporterView: View {
                     VStack(spacing: 20) {
                         if purchaseManager.isSupporter {
                             SupporterUnlockedContent(
-                                statsStore: dataManager.cleanupStatsStore,
                                 selectedThemeID: $selectedThemeID,
                                 theme: selectedTheme,
+                                purchaseDate: purchaseManager.supporterPurchaseDate,
                                 accessNotice: purchaseManager.isUsingCachedSupporterAccess ? entitlementStatusMessage : nil
                             )
                         } else {
@@ -155,52 +159,24 @@ private struct SupporterPaywallContent: View {
 }
 
 private struct SupporterUnlockedContent: View {
-    @ObservedObject var statsStore: CleanupStatsStore
     @Binding var selectedThemeID: String
     let theme: SupporterTheme
+    let purchaseDate: Date?
     let accessNotice: String?
-    @State private var showingClearConfirmation = false
-
-    private var summary: CleanupStatsSummary {
-        statsStore.summary
-    }
 
     var body: some View {
         VStack(spacing: 20) {
             SupporterBadgeCard(theme: theme)
 
+            SupporterPurchaseStatusCard(purchaseDate: purchaseDate)
+
             if let accessNotice {
                 SupporterEntitlementNotice(message: accessNotice)
             }
 
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                SupporterMetricCard(value: "\(summary.organizedPhotos)", label: L10n.string("累计整理"), tint: theme.color)
-                SupporterMetricCard(value: "\(summary.deletedPhotos)", label: L10n.string("累计删除"), tint: PhotoDeleteStyle.destructive)
-                SupporterMetricCard(value: summary.formattedSpaceSaved, label: L10n.string("估算节省"), tint: PhotoDeleteStyle.positive)
-                SupporterMetricCard(value: "\(summary.sessions)", label: L10n.string("清理次数"), tint: PhotoDeleteStyle.accent)
-            }
+            SupporterPlanComparisonCard()
 
             SupporterThemeSection(selectedThemeID: $selectedThemeID)
-
-            SupporterMonthlySection(summaries: statsStore.monthlySummaries)
-
-            SupporterHistorySection(sessions: Array(statsStore.sessions.prefix(20)))
-
-            Button(role: .destructive) {
-                showingClearConfirmation = true
-            } label: {
-                Text(L10n.string("清空统计记录"))
-                    .frame(maxWidth: .infinity)
-            }
-            .photoDeleteSecondaryButton()
-        }
-        .confirmationDialog(L10n.string("清空本机统计记录？"), isPresented: $showingClearConfirmation, titleVisibility: .visible) {
-            Button(L10n.string("清空统计记录"), role: .destructive) {
-                statsStore.clearAll()
-            }
-            Button(L10n.string("取消"), role: .cancel) {}
-        } message: {
-            Text(L10n.string("只会清空删图的本机统计，不会影响照片。"))
         }
     }
 }
@@ -255,6 +231,41 @@ private struct SupporterBadgeCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20)
         .photoDeleteCard()
+    }
+}
+
+private struct SupporterPurchaseStatusCard: View {
+    let purchaseDate: Date?
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "checkmark.seal.fill")
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundColor(PhotoDeleteStyle.positive)
+                .frame(width: 28)
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(L10n.string("购买状态"))
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.primaryText)
+
+                Text(statusText)
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer()
+        }
+        .padding(16)
+        .photoDeleteCard()
+    }
+
+    private var statusText: String {
+        guard let purchaseDate else {
+            return L10n.string("支持者版已解锁。若是恢复购买，联网后会自动同步购买时间。")
+        }
+        return String(format: L10n.string("已于 %@ 解锁支持者版。"), CleanupStatsFormatter.sessionDate.string(from: purchaseDate))
     }
 }
 
@@ -320,7 +331,7 @@ private struct SupporterThemeSection: View {
     }
 }
 
-private struct SupporterMonthlySection: View {
+struct SupporterMonthlySection: View {
     let summaries: [CleanupMonthlySummary]
 
     var body: some View {
@@ -365,7 +376,7 @@ private struct SupporterMonthlySection: View {
     }
 }
 
-private struct SupporterHistorySection: View {
+struct SupporterHistorySection: View {
     let sessions: [CleanupSession]
 
     var body: some View {
@@ -415,7 +426,7 @@ private struct SupporterHistorySection: View {
     }
 }
 
-private struct SupporterDivider: View {
+struct SupporterDivider: View {
     var body: some View {
         Divider()
             .background(PhotoDeleteStyle.hairline)
@@ -423,15 +434,17 @@ private struct SupporterDivider: View {
     }
 }
 
-private struct SupporterPlanComparisonCard: View {
+struct SupporterPlanComparisonCard: View {
     private let rows: [SupporterPlanComparisonRow.Model] = [
         .init(title: L10n.string("基础滑动整理"), free: .included, supporter: .included),
         .init(title: L10n.string("确认后删除和收藏"), free: .included, supporter: .included),
+        .init(title: L10n.string("本机清理历史"), free: .included, supporter: .included),
+        .init(title: L10n.string("基础节省空间统计"), free: .included, supporter: .included),
         .init(title: L10n.string("按日期清理"), free: .notIncluded, supporter: .included),
         .init(title: L10n.string("大文件清理"), free: .notIncluded, supporter: .included),
         .init(title: L10n.string("视频压缩"), free: .notIncluded, supporter: .included),
         .init(title: L10n.string("相似照片清理"), free: .notIncluded, supporter: .included),
-        .init(title: L10n.string("长期统计与历史"), free: .notIncluded, supporter: .included)
+        .init(title: L10n.string("支持者主题色"), free: .notIncluded, supporter: .included)
     ]
 
     var body: some View {
@@ -543,6 +556,103 @@ private struct SupporterEmptyText: View {
             .foregroundColor(PhotoDeleteStyle.secondaryText)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 8)
+    }
+}
+
+struct SupporterBenefitsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                PhotoDeleteScreenBackground()
+
+                ScrollView {
+                    VStack(spacing: 16) {
+                        Text(L10n.string("免费版可以查看清理历史和节省空间；支持者版额外解锁视频压缩、大文件清理、按日期清理和相似照片清理。"))
+                            .font(.system(size: 14, weight: .regular))
+                            .foregroundColor(PhotoDeleteStyle.secondaryText)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        SupporterPlanComparisonCard()
+                    }
+                    .padding(PhotoDeleteStyle.screenHorizontalPadding)
+                }
+            }
+            .navigationTitle(L10n.string("功能区别"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(L10n.string("完成")) {
+                        dismiss()
+                    }
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                }
+            }
+        }
+    }
+}
+
+struct CleanupHistoryView: View {
+    @ObservedObject var statsStore: CleanupStatsStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var showingClearConfirmation = false
+
+    private var summary: CleanupStatsSummary {
+        statsStore.summary
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                PhotoDeleteScreenBackground()
+
+                ScrollView {
+                    VStack(spacing: 16) {
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                            SupporterMetricCard(value: "\(summary.organizedPhotos)", label: L10n.string("累计整理"), tint: PhotoDeleteStyle.accent)
+                            SupporterMetricCard(value: "\(summary.deletedPhotos)", label: L10n.string("累计删除"), tint: PhotoDeleteStyle.destructive)
+                            SupporterMetricCard(value: summary.formattedSpaceSaved, label: L10n.string("估算节省"), tint: PhotoDeleteStyle.positive)
+                            SupporterMetricCard(value: "\(summary.sessions)", label: L10n.string("清理次数"), tint: PhotoDeleteStyle.warning)
+                        }
+
+                        SupporterMonthlySection(summaries: statsStore.monthlySummaries)
+
+                        SupporterHistorySection(sessions: Array(statsStore.sessions.prefix(50)))
+
+                        Button(role: .destructive) {
+                            showingClearConfirmation = true
+                        } label: {
+                            Text(L10n.string("清空统计记录"))
+                                .frame(maxWidth: .infinity)
+                        }
+                        .photoDeleteSecondaryButton()
+                    }
+                    .padding(PhotoDeleteStyle.screenHorizontalPadding)
+                    .padding(.top, 12)
+                    .padding(.bottom, 32)
+                }
+            }
+            .navigationTitle(L10n.string("清理历史"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(L10n.string("完成")) {
+                        dismiss()
+                    }
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                }
+            }
+        }
+        .confirmationDialog(L10n.string("清空本机统计记录？"), isPresented: $showingClearConfirmation, titleVisibility: .visible) {
+            Button(L10n.string("清空统计记录"), role: .destructive) {
+                statsStore.clearAll()
+            }
+            Button(L10n.string("取消"), role: .cancel) {}
+        } message: {
+            Text(L10n.string("只会清空删图的本机统计，不会影响照片。"))
+        }
     }
 }
 

@@ -35,8 +35,10 @@ class DataManager: ObservableObject {
     @Published var isLoadingAlbums = false
     @Published var albumLoadingProgress: Double = 0
     @Published private(set) var cleanupStatsRevision = UUID()
+    @Published private(set) var videoCompressionHistoryRevision = UUID()
     @Published private(set) var reviewedAssetIDs: Set<String> = []
     let cleanupStatsStore: CleanupStatsStore
+    let videoCompressionHistoryStore: VideoCompressionHistoryStore
     private let albumSnapshotStore = AlbumListSnapshotStore()
 
     private var isReloadingLibrary = false
@@ -77,8 +79,12 @@ class DataManager: ObservableObject {
         }
     }
 
-    init(cleanupStatsStore: CleanupStatsStore = CleanupStatsStore()) {
+    init(
+        cleanupStatsStore: CleanupStatsStore = CleanupStatsStore(),
+        videoCompressionHistoryStore: VideoCompressionHistoryStore = VideoCompressionHistoryStore()
+    ) {
         self.cleanupStatsStore = cleanupStatsStore
+        self.videoCompressionHistoryStore = videoCompressionHistoryStore
         loadReviewedAssetIDs()
         setupPhotoLibraryManager()
     }
@@ -400,6 +406,24 @@ class DataManager: ObservableObject {
         )
         deleteCandidates = Set(deleteCandidates.filter { remainingIDs.deleteIDs.contains($0.localIdentifier) })
         favoriteCandidates = Set(favoriteCandidates.filter { remainingIDs.favoriteIDs.contains($0.localIdentifier) })
+    }
+
+    func recordVideoCompressionSession(
+        videoCount: Int,
+        failedCount: Int,
+        originalSizeMB: Double,
+        compressedSizeMB: Double,
+        date: Date = Date()
+    ) {
+        guard videoCompressionHistoryStore.recordSession(
+            videoCount: videoCount,
+            failedCount: failedCount,
+            originalSizeMB: originalSizeMB,
+            compressedSizeMB: compressedSizeMB,
+            date: date
+        ) != nil else { return }
+
+        videoCompressionHistoryRevision = UUID()
     }
 
     private func refreshDerivedLibraryData() {
