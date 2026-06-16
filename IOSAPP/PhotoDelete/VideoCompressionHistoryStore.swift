@@ -13,6 +13,33 @@ private let videoCompressionHistoryLogger = Logger(
     category: "VideoCompressionHistory"
 )
 
+struct VideoCompressionSessionItem: Codable, Identifiable, Equatable {
+    let originalAssetIdentifier: String
+    let createdAssetIdentifier: String?
+    let originalSizeMB: Double
+    let compressedSizeMB: Double
+
+    var id: String {
+        "\(originalAssetIdentifier)-\(createdAssetIdentifier ?? "missing")"
+    }
+
+    var savedSizeMB: Double {
+        max(originalSizeMB - compressedSizeMB, 0)
+    }
+
+    var formattedOriginalSize: String {
+        CleanupStatsFormatter.space(originalSizeMB)
+    }
+
+    var formattedCompressedSize: String {
+        CleanupStatsFormatter.space(compressedSizeMB)
+    }
+
+    var formattedSavedSize: String {
+        CleanupStatsFormatter.space(savedSizeMB)
+    }
+}
+
 struct VideoCompressionSession: Codable, Identifiable, Equatable {
     let id: UUID
     let date: Date
@@ -20,6 +47,17 @@ struct VideoCompressionSession: Codable, Identifiable, Equatable {
     let failedCount: Int
     let originalSizeMB: Double
     let compressedSizeMB: Double
+    let items: [VideoCompressionSessionItem]
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case date
+        case videoCount
+        case failedCount
+        case originalSizeMB
+        case compressedSizeMB
+        case items
+    }
 
     init(
         id: UUID = UUID(),
@@ -27,7 +65,8 @@ struct VideoCompressionSession: Codable, Identifiable, Equatable {
         videoCount: Int,
         failedCount: Int,
         originalSizeMB: Double,
-        compressedSizeMB: Double
+        compressedSizeMB: Double,
+        items: [VideoCompressionSessionItem] = []
     ) {
         self.id = id
         self.date = date
@@ -35,6 +74,18 @@ struct VideoCompressionSession: Codable, Identifiable, Equatable {
         self.failedCount = max(failedCount, 0)
         self.originalSizeMB = max(originalSizeMB, 0)
         self.compressedSizeMB = max(compressedSizeMB, 0)
+        self.items = items
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        date = try container.decode(Date.self, forKey: .date)
+        videoCount = max(try container.decode(Int.self, forKey: .videoCount), 0)
+        failedCount = max(try container.decode(Int.self, forKey: .failedCount), 0)
+        originalSizeMB = max(try container.decode(Double.self, forKey: .originalSizeMB), 0)
+        compressedSizeMB = max(try container.decode(Double.self, forKey: .compressedSizeMB), 0)
+        items = try container.decodeIfPresent([VideoCompressionSessionItem].self, forKey: .items) ?? []
     }
 
     var savedSizeMB: Double {
@@ -116,7 +167,8 @@ final class VideoCompressionHistoryStore: ObservableObject {
         failedCount: Int,
         originalSizeMB: Double,
         compressedSizeMB: Double,
-        date: Date = Date()
+        date: Date = Date(),
+        items: [VideoCompressionSessionItem] = []
     ) -> VideoCompressionSession? {
         guard videoCount > 0 else { return nil }
 
@@ -125,7 +177,8 @@ final class VideoCompressionHistoryStore: ObservableObject {
             videoCount: videoCount,
             failedCount: failedCount,
             originalSizeMB: originalSizeMB,
-            compressedSizeMB: compressedSizeMB
+            compressedSizeMB: compressedSizeMB,
+            items: items
         )
         sessions.insert(session, at: 0)
         save()

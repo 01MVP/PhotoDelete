@@ -959,6 +959,35 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         )
     }
 
+    func estimatedVideoFileSizeMB(for asset: PHAsset) async throws -> Double {
+        guard asset.mediaType == .video else {
+            throw VideoCompressionError.notVideo
+        }
+
+        do {
+            let videoAsset = try await requestVideoAsset(for: asset, networkAccessAllowed: false)
+            let duration = try await videoAsset.load(.duration)
+            let videoTracks = try await videoAsset.loadTracks(withMediaType: .video)
+            let audioTracks = try await videoAsset.loadTracks(withMediaType: .audio)
+
+            var totalDataRate: Double = 0
+            for track in videoTracks + audioTracks {
+                let dataRate = try await track.load(.estimatedDataRate)
+                if dataRate > 0 {
+                    totalDataRate += Double(dataRate)
+                }
+            }
+
+            let seconds = max(CMTimeGetSeconds(duration), asset.duration, 1)
+            if totalDataRate > 0 {
+                return max(totalDataRate * seconds / 8 / 1_048_576, 0)
+            }
+        } catch {}
+
+        let megapixels = Double(asset.pixelWidth) * Double(asset.pixelHeight) / 1_000_000
+        return max(asset.duration * 8.0, megapixels * 0.75, 2.0)
+    }
+
     func applyCommittedBatchChanges(deletedAssets: [PHAsset], favoritedAssets: [PHAsset]) {
         let deletedIDs = Set(deletedAssets.map(\.localIdentifier))
         if !deletedIDs.isEmpty {
@@ -1111,11 +1140,14 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         return options
     }
 
-    private func requestVideoAsset(for asset: PHAsset) async throws -> AVAsset {
+    private func requestVideoAsset(
+        for asset: PHAsset,
+        networkAccessAllowed: Bool = true
+    ) async throws -> AVAsset {
         try await withCheckedThrowingContinuation { continuation in
             let options = PHVideoRequestOptions()
-            options.deliveryMode = .highQualityFormat
-            options.isNetworkAccessAllowed = true
+            options.deliveryMode = networkAccessAllowed ? .highQualityFormat : .automatic
+            options.isNetworkAccessAllowed = networkAccessAllowed
 
             imageManager.requestAVAsset(forVideo: asset, options: options) { videoAsset, _, info in
                 let isCancelled = (info?[PHImageCancelledKey] as? Bool) == true

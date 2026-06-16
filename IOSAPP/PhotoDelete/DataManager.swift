@@ -413,14 +413,16 @@ class DataManager: ObservableObject {
         failedCount: Int,
         originalSizeMB: Double,
         compressedSizeMB: Double,
-        date: Date = Date()
+        date: Date = Date(),
+        items: [VideoCompressionSessionItem] = []
     ) {
         guard videoCompressionHistoryStore.recordSession(
             videoCount: videoCount,
             failedCount: failedCount,
             originalSizeMB: originalSizeMB,
             compressedSizeMB: compressedSizeMB,
-            date: date
+            date: date,
+            items: items
         ) != nil else { return }
 
         videoCompressionHistoryRevision = UUID()
@@ -847,11 +849,18 @@ class DataManager: ObservableObject {
 
     func estimatedVideoCompressionEstimate(
         for assets: [PHAsset],
-        plan: VideoCompressionPlan = .default
+        plan: VideoCompressionPlan = .default,
+        knownOriginalSizeMBByAssetID: [String: Double] = [:]
     ) -> VideoCompressionEstimate {
-        let originalSize = assets.reduce(0) { $0 + estimatedAssetSizeMB($1) }
+        let originalSize = assets.reduce(0) { total, asset in
+            total + originalSizeMB(for: asset, knownOriginalSizeMBByAssetID: knownOriginalSizeMBByAssetID)
+        }
         let estimatedMidCompressedSize = assets.reduce(0) { total, asset in
-            total + estimatedCompressedSizeMB(for: asset, plan: plan)
+            total + estimatedCompressedSizeMB(
+                for: asset,
+                plan: plan,
+                knownOriginalSizeMBByAssetID: knownOriginalSizeMBByAssetID
+            )
         }
         let lowerBound = max(estimatedMidCompressedSize * 0.88, originalSize * 0.04)
         let upperBound = min(estimatedMidCompressedSize * 1.18, originalSize * 0.98)
@@ -891,8 +900,19 @@ class DataManager: ObservableObject {
         return max(megapixels * 0.55, 0.8)
     }
 
-    private func estimatedCompressedSizeMB(for asset: PHAsset, plan: VideoCompressionPlan) -> Double {
-        let originalSize = estimatedAssetSizeMB(asset)
+    private func originalSizeMB(
+        for asset: PHAsset,
+        knownOriginalSizeMBByAssetID: [String: Double]
+    ) -> Double {
+        knownOriginalSizeMBByAssetID[asset.localIdentifier] ?? estimatedAssetSizeMB(asset)
+    }
+
+    private func estimatedCompressedSizeMB(
+        for asset: PHAsset,
+        plan: VideoCompressionPlan,
+        knownOriginalSizeMBByAssetID: [String: Double]
+    ) -> Double {
+        let originalSize = originalSizeMB(for: asset, knownOriginalSizeMBByAssetID: knownOriginalSizeMBByAssetID)
         let sourceSize = CGSize(width: max(asset.pixelWidth, 1), height: max(asset.pixelHeight, 1))
         let outputSize = plan.resolution.targetDisplaySize(for: sourceSize)
         let sourcePixelCount = max(sourceSize.width * sourceSize.height, 1)

@@ -440,12 +440,19 @@ struct PhotoDeleteTests {
 
         let store = VideoCompressionHistoryStore(fileURL: fileURL)
         let date = makeDate(year: 2026, month: 6, day: 15, calendar: Calendar(identifier: .gregorian))
+        let item = VideoCompressionSessionItem(
+            originalAssetIdentifier: "original-video",
+            createdAssetIdentifier: "compressed-copy",
+            originalSizeMB: 70,
+            compressedSizeMB: 42
+        )
         store.recordSession(
             videoCount: 2,
             failedCount: 1,
             originalSizeMB: 100,
             compressedSizeMB: 62,
-            date: date
+            date: date,
+            items: [item]
         )
 
         #expect(store.sessions.count == 1)
@@ -453,10 +460,12 @@ struct PhotoDeleteTests {
         #expect(store.summary.failedCount == 1)
         #expect(store.summary.savedSizeMB == 38)
         #expect(store.sessions[0].formattedSavedSize == "38.0 MB")
+        #expect(store.sessions[0].items == [item])
 
         let reloadedStore = VideoCompressionHistoryStore(fileURL: fileURL)
         #expect(reloadedStore.sessions.count == 1)
         #expect(reloadedStore.summary.compressedSizeMB == 62)
+        #expect(reloadedStore.sessions[0].items.first?.createdAssetIdentifier == "compressed-copy")
     }
 
     @Test func dataManagerRecordsVideoCompressionHistoryAndUpdatesRevision() async throws {
