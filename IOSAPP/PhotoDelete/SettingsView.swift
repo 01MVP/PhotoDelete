@@ -188,10 +188,10 @@ struct SettingsView: View {
 
             VStack(spacing: 0) {
                 SettingRow(
-                    icon: purchaseManager.isSupporter ? "seal" : "sparkles",
-                    iconColor: purchaseManager.isSupporter ? PhotoDeleteStyle.positive : PhotoDeleteStyle.accent,
-                    title: purchaseManager.isSupporter ? L10n.string("支持者版已解锁") : L10n.string("解锁进阶功能"),
-                    subtitle: purchaseManager.isSupporter ? L10n.string("查看购买信息和功能区别") : L10n.string("视频压缩、大文件清理等付费功能"),
+                    icon: supporterRowIcon,
+                    iconColor: supporterRowIconColor,
+                    title: supporterRowTitle,
+                    subtitle: supporterRowSubtitle,
                     action: {
                         activeSheet = .supporter
                     }
@@ -199,6 +199,50 @@ struct SettingsView: View {
             }
             .photoDeleteCard()
         }
+    }
+
+    private var supporterRowIcon: String {
+        if purchaseManager.hasPaidSupporterAccess {
+            return "seal"
+        }
+
+        if purchaseManager.isUsingTrialSupporterAccess {
+            return "timer"
+        }
+
+        return "sparkles"
+    }
+
+    private var supporterRowIconColor: Color {
+        if purchaseManager.hasPaidSupporterAccess {
+            return PhotoDeleteStyle.positive
+        }
+
+        return PhotoDeleteStyle.accent
+    }
+
+    private var supporterRowTitle: String {
+        if purchaseManager.hasPaidSupporterAccess {
+            return L10n.string("支持者版已解锁")
+        }
+
+        if purchaseManager.isUsingTrialSupporterAccess {
+            return L10n.string("支持者版试用中")
+        }
+
+        return L10n.string("解锁进阶功能")
+    }
+
+    private var supporterRowSubtitle: String {
+        if purchaseManager.hasPaidSupporterAccess {
+            return L10n.string("查看购买信息和功能区别")
+        }
+
+        if purchaseManager.isUsingTrialSupporterAccess {
+            return String(format: L10n.string("还剩 %lld 天，可随时一次性解锁"), purchaseManager.supporterTrialDaysRemaining)
+        }
+
+        return L10n.string("视频压缩、大文件清理等付费功能")
     }
 
     // MARK: - 关于与支持

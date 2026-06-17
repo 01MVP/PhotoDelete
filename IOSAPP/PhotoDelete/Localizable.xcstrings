@@ -11398,6 +11398,50 @@
         }
       }
     },
+    "7 天免费试用中": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "7-Day Free Trial"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "7 天免费试用中"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "7 天免費試用中"
+          }
+        }
+      }
+    },
+    "7 天试用已结束。一次性解锁后可继续使用进阶功能。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The 7-day trial has ended. Unlock once to keep using advanced features."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "7 天试用已结束。一次性解锁后可继续使用进阶功能。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "7 天試用已結束。一次性解鎖後可繼續使用進階功能。"
+          }
+        }
+      }
+    },
     "一次性解锁按日期清理、大文件清理和相似照片清理。": {
       "localizations": {
         "en": {
@@ -11724,6 +11768,50 @@
           "stringUnit": {
             "state": "translated",
             "value": "一次性解鎖 %@"
+          }
+        }
+      }
+    },
+    "还剩 %lld 天。试用期间可使用进阶清理、长期统计和主题色。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld days remaining. Advanced cleanup, long-term stats, and theme colors are available during the trial."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "还剩 %lld 天。试用期间可使用进阶清理、长期统计和主题色。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還剩 %lld 天。試用期間可使用進階清理、長期統計和主題色。"
+          }
+        }
+      }
+    },
+    "还剩 %lld 天，可随时一次性解锁": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld days remaining. Unlock once anytime."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "还剩 %lld 天，可随时一次性解锁"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還剩 %lld 天，可隨時一次性解鎖"
           }
         }
       }
@@ -12384,6 +12472,50 @@
           "stringUnit": {
             "state": "translated",
             "value": "目前使用本機快取的支持者版狀態，連線後會自動驗證。"
+          }
+        }
+      }
+    },
+    "支持者版试用中": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supporter Trial Active"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "支持者版试用中"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "支持者版試用中"
+          }
+        }
+      }
+    },
+    "支持者版试用中，还剩 %lld 天。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supporter trial active, %lld days remaining."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "支持者版试用中，还剩 %lld 天。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "支持者版試用中，還剩 %lld 天。"
           }
         }
       }

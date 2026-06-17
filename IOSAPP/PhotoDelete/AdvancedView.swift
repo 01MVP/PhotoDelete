@@ -31,9 +31,13 @@ struct AdvancedView: View {
     }
 
     private var entitlementStatusMessage: String? {
+        if let trialStatusText = purchaseManager.supporterTrialStatusText {
+            return trialStatusText
+        }
+
         switch purchaseManager.entitlementState {
         case .unknown, .verifying, .verified, .cachedOffline, .locked:
-            nil
+            return nil
         }
     }
 
@@ -66,6 +70,9 @@ struct AdvancedView: View {
             selectedPeriodDate = Date()
         }
         .onChange(of: purchaseManager.entitlementState) { _ in
+            refreshAdvancedDashboard(resetSelectedPeriod: true, force: true)
+        }
+        .onChange(of: purchaseManager.supporterTrialStartDate) { _ in
             refreshAdvancedDashboard(resetSelectedPeriod: true, force: true)
         }
         .onChange(of: dataManager.cleanupStatsRevision) { _ in

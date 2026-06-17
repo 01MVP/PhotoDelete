@@ -42,11 +42,15 @@ final class PurchaseManager: ObservableObject {
     @Published private(set) var products: [Product] = []
     @Published private(set) var entitlementState: SupporterEntitlementState
     @Published private(set) var supporterPurchaseDate: Date?
+    @Published private(set) var supporterTrialStartDate: Date?
     @Published private(set) var isLoading = false
     @Published var errorMessage: String?
 
+    private static let supporterTrialDuration: TimeInterval = 7 * 24 * 60 * 60
+
     private let productIDs = [AppConstants.supporterProductID]
     private let userDefaults: UserDefaults
+    private let nowProvider: () -> Date
     private var updatesTask: Task<Void, Never>?
     private var productLoadRequest: (id: UUID, task: Task<[Product], Error>)?
 
@@ -58,26 +62,85 @@ final class PurchaseManager: ObservableObject {
         supporterProduct?.displayPrice ?? L10n.string("读取价格中")
     }
 
-    var isSupporter: Bool {
+    var hasPaidSupporterAccess: Bool {
         entitlementState.allowsSupporterAccess
+    }
+
+    var isSupporter: Bool {
+        hasPaidSupporterAccess || isSupporterTrialActive
     }
 
     var isUsingCachedSupporterAccess: Bool {
         entitlementState.isCachedAccess
     }
 
-    init(userDefaults: UserDefaults = .standard) {
-        self.userDefaults = userDefaults
-        self.entitlementState = .initial(hasCachedEntitlement: userDefaults.bool(forKey: AppConstants.supporterEntitlementKey))
-        self.supporterPurchaseDate = userDefaults.object(forKey: AppConstants.supporterPurchaseDateKey) as? Date
+    var isUsingTrialSupporterAccess: Bool {
+        !hasPaidSupporterAccess && isSupporterTrialActive
+    }
 
-        updatesTask = Task { [weak self] in
-            await self?.listenForTransactions()
+    var isSupporterTrialActive: Bool {
+        guard !hasPaidSupporterAccess,
+              let supporterTrialEndDate else {
+            return false
+        }
+        return nowProvider() < supporterTrialEndDate
+    }
+
+    var isSupporterTrialExpired: Bool {
+        guard !hasPaidSupporterAccess,
+              supporterTrialStartDate != nil else {
+            return false
+        }
+        return !isSupporterTrialActive
+    }
+
+    var supporterTrialEndDate: Date? {
+        supporterTrialStartDate?.addingTimeInterval(Self.supporterTrialDuration)
+    }
+
+    var supporterTrialDaysRemaining: Int {
+        guard isSupporterTrialActive,
+              let supporterTrialEndDate else {
+            return 0
+        }
+        let secondsRemaining = max(0, supporterTrialEndDate.timeIntervalSince(nowProvider()))
+        return max(1, Int(ceil(secondsRemaining / 86_400)))
+    }
+
+    var supporterTrialStatusText: String? {
+        if isUsingTrialSupporterAccess {
+            return String(format: L10n.string("支持者版试用中，还剩 %lld 天。"), supporterTrialDaysRemaining)
         }
 
-        Task {
-            await refreshEntitlementsSilently()
-            await loadProducts()
+        if isSupporterTrialExpired {
+            return L10n.string("7 天试用已结束。一次性解锁后可继续使用进阶功能。")
+        }
+
+        return nil
+    }
+
+    init(
+        userDefaults: UserDefaults = .standard,
+        nowProvider: @escaping () -> Date = { Date.now },
+        startsStoreKitTasks: Bool = true
+    ) {
+        self.userDefaults = userDefaults
+        self.nowProvider = nowProvider
+        self.entitlementState = .initial(hasCachedEntitlement: userDefaults.bool(forKey: AppConstants.supporterEntitlementKey))
+        self.supporterPurchaseDate = userDefaults.object(forKey: AppConstants.supporterPurchaseDateKey) as? Date
+        self.supporterTrialStartDate = userDefaults.object(forKey: AppConstants.supporterTrialStartDateKey) as? Date
+
+        startSupporterTrialIfNeeded()
+
+        if startsStoreKitTasks {
+            updatesTask = Task { [weak self] in
+                await self?.listenForTransactions()
+            }
+
+            Task {
+                await refreshEntitlementsSilently()
+                await loadProducts()
+            }
         }
     }
 
@@ -161,7 +224,7 @@ final class PurchaseManager: ObservableObject {
         do {
             try await AppStore.sync()
             await refreshEntitlements()
-            if !isSupporter {
+            if !hasPaidSupporterAccess {
                 errorMessage = L10n.string("没有找到可恢复的支持者版购买。")
             }
         } catch {
@@ -227,6 +290,17 @@ final class PurchaseManager: ObservableObject {
 
     private var hasCachedSupporterEntitlement: Bool {
         userDefaults.bool(forKey: AppConstants.supporterEntitlementKey)
+    }
+
+    private func startSupporterTrialIfNeeded() {
+        guard !hasPaidSupporterAccess,
+              supporterTrialStartDate == nil else {
+            return
+        }
+
+        let startDate = nowProvider()
+        supporterTrialStartDate = startDate
+        userDefaults.set(startDate, forKey: AppConstants.supporterTrialStartDateKey)
     }
 
     private func setVerifiedSupporterAccess(_ value: Bool, purchaseDate: Date? = nil) {

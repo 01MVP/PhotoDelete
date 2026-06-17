@@ -387,6 +387,7 @@ enum AppConstants {
     static let supporterProductID = "com.01mvp.photodelete.supporter.stats"
     static let supporterEntitlementKey = "photoDeleteSupporterUnlocked"
     static let supporterPurchaseDateKey = "photoDeleteSupporterPurchaseDate"
+    static let supporterTrialStartDateKey = "photoDeleteSupporterTrialStartDate"
     static let supporterThemeKey = "photoDeleteSupporterTheme"
     static var privacyShortText: String {
         L10n.string("照片整理只在本机完成。不需要账号，也不会上传你的照片。")

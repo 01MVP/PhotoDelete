@@ -249,6 +249,70 @@ struct PhotoDeleteTests {
         #expect(SupporterEntitlementState.verificationStarted(hasCachedEntitlement: false) == .verifying)
     }
 
+    @MainActor
+    @Test func supporterTrialStartsForNewUsers() async throws {
+        let suiteName = "PhotoDeleteSupporterTrial-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let manager = PurchaseManager(
+            userDefaults: defaults,
+            nowProvider: { now },
+            startsStoreKitTasks: false
+        )
+
+        #expect(manager.supporterTrialStartDate == now)
+        #expect(defaults.object(forKey: AppConstants.supporterTrialStartDateKey) as? Date == now)
+        #expect(!manager.hasPaidSupporterAccess)
+        #expect(manager.isUsingTrialSupporterAccess)
+        #expect(manager.isSupporter)
+        #expect(manager.supporterTrialDaysRemaining == 7)
+    }
+
+    @MainActor
+    @Test func supporterTrialExpiresAfterSevenDays() async throws {
+        let suiteName = "PhotoDeleteSupporterTrialExpired-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let startDate = Date(timeIntervalSince1970: 1_800_000_000)
+        defaults.set(startDate, forKey: AppConstants.supporterTrialStartDateKey)
+
+        let afterTrial = startDate.addingTimeInterval((7 * 24 * 60 * 60) + 1)
+        let manager = PurchaseManager(
+            userDefaults: defaults,
+            nowProvider: { afterTrial },
+            startsStoreKitTasks: false
+        )
+
+        #expect(!manager.hasPaidSupporterAccess)
+        #expect(!manager.isUsingTrialSupporterAccess)
+        #expect(!manager.isSupporter)
+        #expect(manager.isSupporterTrialExpired)
+        #expect(manager.supporterTrialDaysRemaining == 0)
+    }
+
+    @MainActor
+    @Test func cachedPaidSupporterDoesNotStartTrial() async throws {
+        let suiteName = "PhotoDeletePaidSupporterTrial-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        defaults.set(true, forKey: AppConstants.supporterEntitlementKey)
+
+        let manager = PurchaseManager(
+            userDefaults: defaults,
+            nowProvider: { Date(timeIntervalSince1970: 1_800_000_000) },
+            startsStoreKitTasks: false
+        )
+
+        #expect(manager.hasPaidSupporterAccess)
+        #expect(manager.isSupporter)
+        #expect(!manager.isUsingTrialSupporterAccess)
+        #expect(manager.supporterTrialStartDate == nil)
+    }
+
     // MARK: - CleanupStatsStore tests
 
     @Test func cleanupStatsStoreRecordsAndPersistsSessions() async throws {

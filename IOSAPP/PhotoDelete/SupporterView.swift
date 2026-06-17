@@ -36,19 +36,34 @@ struct SupporterView: View {
 
                 ScrollView {
                     VStack(spacing: 20) {
-                        if purchaseManager.isSupporter {
+                        if purchaseManager.hasPaidSupporterAccess {
                             SupporterUnlockedContent(
                                 selectedThemeID: $selectedThemeID,
                                 theme: selectedTheme,
                                 purchaseDate: purchaseManager.supporterPurchaseDate,
                                 accessNotice: purchaseManager.isUsingCachedSupporterAccess ? entitlementStatusMessage : nil
                             )
+                        } else if purchaseManager.isUsingTrialSupporterAccess {
+                            SupporterTrialContent(
+                                selectedThemeID: $selectedThemeID,
+                                remainingDays: purchaseManager.supporterTrialDaysRemaining,
+                                priceText: purchaseManager.supporterPriceText,
+                                isLoading: purchaseManager.isLoading,
+                                errorMessage: purchaseManager.errorMessage,
+                                statusMessage: entitlementStatusMessage,
+                                onPurchase: {
+                                    Task { await purchaseManager.purchaseSupporter() }
+                                },
+                                onRestore: {
+                                    Task { await purchaseManager.restorePurchases() }
+                                }
+                            )
                         } else {
                             SupporterPaywallContent(
                                 priceText: purchaseManager.supporterPriceText,
                                 isLoading: purchaseManager.isLoading,
                                 errorMessage: purchaseManager.errorMessage,
-                                statusMessage: entitlementStatusMessage,
+                                statusMessage: purchaseManager.supporterTrialStatusText ?? entitlementStatusMessage,
                                 onPurchase: {
                                     Task { await purchaseManager.purchaseSupporter() }
                                 },
@@ -78,6 +93,86 @@ struct SupporterView: View {
         }
         .task {
             await purchaseManager.loadProducts()
+        }
+    }
+}
+
+private struct SupporterTrialContent: View {
+    @Binding var selectedThemeID: String
+    let remainingDays: Int
+    let priceText: String
+    let isLoading: Bool
+    let errorMessage: String?
+    let statusMessage: String?
+    let onPurchase: () -> Void
+    let onRestore: () -> Void
+
+    var body: some View {
+        VStack(spacing: 20) {
+            VStack(spacing: 14) {
+                ZStack {
+                    Circle()
+                        .fill(PhotoDeleteStyle.elevatedSurface)
+                        .frame(width: 70, height: 70)
+
+                    Image(systemName: "timer")
+                        .font(.system(size: 30, weight: .semibold))
+                        .foregroundColor(PhotoDeleteStyle.accent)
+                }
+
+                VStack(spacing: 8) {
+                    Text(L10n.string("7 天免费试用中"))
+                        .font(.system(size: 28, weight: .semibold))
+                        .foregroundColor(PhotoDeleteStyle.primaryText)
+
+                    Text(String(format: L10n.string("还剩 %lld 天。试用期间可使用进阶清理、长期统计和主题色。"), remainingDays))
+                        .font(.system(size: 16, weight: .regular))
+                        .foregroundColor(PhotoDeleteStyle.secondaryText)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(3)
+                }
+            }
+            .padding(24)
+            .photoDeleteCard()
+
+            SupporterPlanComparisonCard()
+
+            SupporterThemeSection(selectedThemeID: $selectedThemeID)
+
+            VStack(spacing: 12) {
+                Button(action: onPurchase) {
+                    HStack(spacing: 8) {
+                        if isLoading {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: PhotoDeleteStyle.primaryButtonText))
+                                .scaleEffect(0.82)
+                        }
+                        Text(isLoading ? L10n.string("处理中...") : String(format: L10n.string("一次性解锁 %@"), priceText))
+                    }
+                }
+                .photoDeletePrimaryButton()
+                .disabled(isLoading)
+
+                Button(action: onRestore) {
+                    Text(L10n.string("恢复购买"))
+                }
+                .photoDeleteSecondaryButton()
+                .disabled(isLoading)
+
+                if let statusMessage {
+                    Text(statusMessage)
+                        .font(.system(size: 13, weight: .regular))
+                        .foregroundColor(PhotoDeleteStyle.secondaryText)
+                        .multilineTextAlignment(.center)
+                }
+
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(.system(size: 13, weight: .regular))
+                        .foregroundColor(PhotoDeleteStyle.warning)
+                        .multilineTextAlignment(.center)
+                }
+            }
         }
     }
 }
