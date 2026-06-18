@@ -14,17 +14,21 @@ struct MainTabView: View {
     @EnvironmentObject var dataManager: DataManager
     @EnvironmentObject var purchaseManager: PurchaseManager
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.photoDeleteTheme) private var theme
     @AppStorage(AppConstants.appAppearanceKey) private var appAppearanceValue = AppAppearance.system.rawValue
     @State private var selectedTab: PhotoDeleteMainTab = .organize
     
     var body: some View {
         tabRoot
-        .tint(PhotoDeleteStyle.accent)
+        .tint(theme.navigationTint)
         .onAppear {
             configureTabBarAppearance()
             dataManager.syncPhotoLibraryAuthorization()
         }
         .onChange(of: appAppearanceValue) { _ in
+            configureTabBarAppearance()
+        }
+        .onChange(of: theme) { _ in
             configureTabBarAppearance()
         }
         .onChange(of: scenePhase) { phase in
@@ -93,18 +97,18 @@ struct MainTabView: View {
 
         let appearance = UITabBarAppearance()
         appearance.configureWithTransparentBackground()
-        appearance.backgroundColor = PhotoDeleteStyle.uiBackground.withAlphaComponent(0.92)
+        appearance.backgroundColor = theme.uiBackground.withAlphaComponent(0.92)
         appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterial)
-        appearance.selectionIndicatorTintColor = PhotoDeleteStyle.uiAccent
+        appearance.selectionIndicatorTintColor = theme.uiTabSelected
 
-        appearance.stackedLayoutAppearance.normal.iconColor = PhotoDeleteStyle.uiSecondaryText
+        appearance.stackedLayoutAppearance.normal.iconColor = theme.uiSecondaryText
         appearance.stackedLayoutAppearance.normal.titleTextAttributes = [
-            .foregroundColor: PhotoDeleteStyle.uiSecondaryText
+            .foregroundColor: theme.uiSecondaryText
         ]
 
-        appearance.stackedLayoutAppearance.selected.iconColor = PhotoDeleteStyle.uiAccent
+        appearance.stackedLayoutAppearance.selected.iconColor = theme.uiTabSelected
         appearance.stackedLayoutAppearance.selected.titleTextAttributes = [
-            .foregroundColor: PhotoDeleteStyle.uiAccent
+            .foregroundColor: theme.uiTabSelected
         ]
 
         UITabBar.appearance().standardAppearance = appearance

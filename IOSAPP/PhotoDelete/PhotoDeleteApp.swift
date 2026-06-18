@@ -11,6 +11,8 @@ import SwiftUI
 struct PhotoDeleteApp: App {
     @AppStorage(AppConstants.appLanguageKey) private var appLanguageValue = AppLanguage.system.rawValue
     @AppStorage(AppConstants.appAppearanceKey) private var appAppearanceValue = AppAppearance.system.rawValue
+    @AppStorage(AppConstants.appThemeKey) private var appThemeValue = PhotoDeleteTheme.defaultTheme.rawValue
+    @StateObject private var purchaseManager = PurchaseManager()
 
     init() {
         #if DEBUG
@@ -22,7 +24,10 @@ struct PhotoDeleteApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(purchaseManager)
                 .environment(\.locale, selectedLanguage.locale)
+                .environment(\.photoDeleteTheme, selectedTheme)
+                .tint(selectedTheme.navigationTint)
                 .preferredColorScheme(selectedAppearance.colorScheme)
                 .statusBarHidden(false)
         }
@@ -34,6 +39,11 @@ struct PhotoDeleteApp: App {
 
     private var selectedAppearance: AppAppearance {
         AppAppearance(rawValue: appAppearanceValue) ?? .system
+    }
+
+    private var selectedTheme: PhotoDeleteTheme {
+        guard purchaseManager.isSupporter else { return .defaultTheme }
+        return PhotoDeleteTheme.normalized(appThemeValue)
     }
 }
 
@@ -75,7 +85,8 @@ private enum PhotoDeleteUITestDefaults {
             AppConstants.hasSeenAlbumShortcutHintKey,
             AppConstants.reviewProgressByScopeKey,
             AppConstants.customAlbumOrderKey,
-            AppConstants.appAppearanceKey
+            AppConstants.appAppearanceKey,
+            AppConstants.appThemeKey
         ].forEach(defaults.removeObject)
     }
 

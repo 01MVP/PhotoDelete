@@ -21,25 +21,17 @@ struct AlbumsView: View {
     @State private var activeSheet: AlbumSheet?
     @State private var sortMode: AlbumSortMode = .custom
     @State private var editMode: EditMode = .inactive
-    @State private var isAlbumSearchVisible = false
     @State private var pendingAlbumToDelete: PHAssetCollection?
     @State private var albumToast: PhotoDeleteToast?
     @State private var albumProgressByID: [String: AlbumProgressSnapshot] = [:]
     @State private var albumProgressGeneration = 0
-    @FocusState private var isAlbumSearchFocused: Bool
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
             ZStack {
                 PhotoDeleteScreenBackground()
 
-                VStack(spacing: 0) {
-                    if !dataManager.photoLibraryManager.hasPhotoLibraryAccess {
-                        authorizationSection
-                    } else {
-                        albumContent
-                    }
-                }
+                rootContent
                 .frame(maxWidth: PhotoDeleteAdaptiveLayout.listContentMaxWidth(horizontalSizeClass: horizontalSizeClass))
                 .frame(maxWidth: .infinity)
 
@@ -49,6 +41,24 @@ struct AlbumsView: View {
             }
             .navigationTitle(L10n.string("相册"))
             .navigationBarTitleDisplayMode(.large)
+            .searchable(
+                text: $searchText,
+                placement: .navigationBarDrawer(displayMode: .automatic),
+                prompt: Text(L10n.string("搜索相册"))
+            )
+            .toolbar {
+                if dataManager.photoLibraryManager.hasPhotoLibraryAccess {
+                    ToolbarItemGroup(placement: .topBarTrailing) {
+                        if editMode == .active {
+                            Button(L10n.string("完成"), action: toggleReordering)
+                                .font(.body.weight(.semibold))
+                        } else {
+                            sortMenu
+                            createAlbumButton
+                        }
+                    }
+                }
+            }
             .navigationDestination(for: AlbumNavigationDestination.self) { destination in
                 switch destination {
                 case .swipeAlbum(let selectedSwipeAlbum):
@@ -83,6 +93,15 @@ struct AlbumsView: View {
         }
     }
 
+    @ViewBuilder
+    private var rootContent: some View {
+        if !dataManager.photoLibraryManager.hasPhotoLibraryAccess {
+            authorizationSection
+        } else {
+            albumsList
+        }
+    }
+
     private var sortMenu: some View {
         Menu {
             Picker(L10n.string("排序"), selection: $sortMode) {
@@ -97,76 +116,31 @@ struct AlbumsView: View {
                 }
             }
         } label: {
-            Image(systemName: "arrow.up.arrow.down")
+            Label(L10n.string("排序"), systemImage: "arrow.up.arrow.down")
+                .labelStyle(.iconOnly)
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(PhotoDeleteStyle.accent)
-                .frame(width: 36, height: 34)
-                .contentShape(Circle())
-                .accessibilityHidden(true)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(L10n.string("排序"))
-        .photoDeleteMinimumTapTarget()
-    }
-
-    private var albumContent: some View {
-        VStack(spacing: 0) {
-            albumTopSection
-                .simultaneousGesture(albumSearchRevealGesture)
-            albumsList
-        }
     }
 
     private var albumTopSection: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            if isAlbumSearchVisible {
-                albumSearchRow
-                    .padding(.bottom, 2)
-            }
-
-            albumSubtitleRow
+        VStack(alignment: .leading, spacing: 0) {
             albumCountRow
         }
         .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
         .padding(.top, PhotoDeleteStyle.rootContentTopSpacing)
-        .padding(.bottom, 8)
+        .padding(.bottom, 10)
         .contentShape(Rectangle())
     }
 
-    private var albumSubtitleRow: some View {
-        Text(albumSubtitle)
-            .font(.subheadline)
-            .foregroundStyle(dataManager.photoLibraryManager.hasPhotoLibraryAccess ? PhotoDeleteStyle.secondaryText : PhotoDeleteStyle.accent)
-            .lineLimit(2)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
     private var albumCountRow: some View {
-        HStack(alignment: .center, spacing: 10) {
-            Text(albumHeaderSubtitle)
-                .font(.subheadline)
-                .foregroundStyle(PhotoDeleteStyle.secondaryText)
-                .lineLimit(1)
-
-            Spacer(minLength: 12)
-
-            albumToolbarActions
-        }
-        .frame(maxWidth: .infinity, minHeight: 34, alignment: .leading)
-    }
-
-    @ViewBuilder
-    private var albumToolbarActions: some View {
-        if editMode == .active {
-            Button(L10n.string("完成"), action: toggleReordering)
-                .font(.body.weight(.semibold))
-                .foregroundStyle(PhotoDeleteStyle.accent)
-                .buttonStyle(.plain)
-        } else {
-            sortMenu
-            createAlbumButton
-        }
+        Text(albumHeaderSubtitle)
+            .font(.subheadline)
+            .foregroundStyle(PhotoDeleteStyle.secondaryText)
+            .lineLimit(1)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var createAlbumButton: some View {
@@ -175,55 +149,8 @@ struct AlbumsView: View {
                 .labelStyle(.iconOnly)
                 .font(.system(size: 19, weight: .semibold))
                 .foregroundStyle(PhotoDeleteStyle.accent)
-                .frame(width: 36, height: 34)
-                .contentShape(Circle())
         }
-        .buttonStyle(.plain)
-        .photoDeleteMinimumTapTarget()
         .accessibilityLabel(L10n.string("创建相册"))
-    }
-
-    private var albumSearchRow: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(PhotoDeleteStyle.secondaryText)
-                .accessibilityHidden(true)
-
-            TextField(L10n.string("搜索相册"), text: $searchText)
-                .font(.body)
-                .foregroundStyle(PhotoDeleteStyle.primaryText)
-                .textInputAutocapitalization(.never)
-                .disableAutocorrection(true)
-                .submitLabel(.search)
-                .focused($isAlbumSearchFocused)
-
-            if !searchText.isEmpty {
-                Button {
-                    searchText = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(PhotoDeleteStyle.tertiaryText)
-                        .frame(width: 32, height: 32)
-                }
-                .buttonStyle(.plain)
-                .photoDeleteMinimumTapTarget()
-                .accessibilityLabel(L10n.string("清空"))
-            }
-        }
-        .padding(.leading, 14)
-        .padding(.trailing, 10)
-        .frame(maxWidth: .infinity, minHeight: 44)
-        .background(
-            RoundedRectangle(cornerRadius: 13, style: .continuous)
-                .fill(PhotoDeleteStyle.surface)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 13, style: .continuous)
-                .stroke(PhotoDeleteStyle.cardStroke, lineWidth: 1)
-        )
-        .transition(.move(edge: .top).combined(with: .opacity))
     }
 
     private func createAlbum() {
@@ -249,7 +176,10 @@ struct AlbumsView: View {
     private var albumsList: some View {
         let userAlbums = filteredUserAlbums
         List {
-            albumScrollOffsetProbe
+            albumTopSection
+                .listRowInsets(EdgeInsets())
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
 
             if isLoadingAlbums {
                 loadingRow
@@ -278,11 +208,8 @@ struct AlbumsView: View {
         .background(Color.clear)
         .environment(\.defaultMinListRowHeight, 0)
         .environment(\.editMode, $editMode)
-        .coordinateSpace(name: AlbumListLayout.coordinateSpace)
         .photoDeleteAlbumListTopMargin()
         .photoDeleteAlbumListSectionSpacing()
-        .simultaneousGesture(albumSearchRevealGesture)
-        .onPreferenceChange(AlbumListOffsetPreferenceKey.self, perform: handleAlbumScrollOffset)
         .scrollDismissesKeyboard(.immediately)
         .refreshable {
             dataManager.loadAlbums(showLoading: false)
@@ -290,22 +217,6 @@ struct AlbumsView: View {
         .safeAreaInset(edge: .bottom) {
             Color.clear.frame(height: 88)
         }
-    }
-
-    private var albumScrollOffsetProbe: some View {
-        Color.clear
-            .frame(height: 0)
-            .background(
-                GeometryReader { proxy in
-                    Color.clear.preference(
-                        key: AlbumListOffsetPreferenceKey.self,
-                        value: proxy.frame(in: .named(AlbumListLayout.coordinateSpace)).minY
-                    )
-                }
-            )
-            .listRowInsets(EdgeInsets())
-            .listRowSeparator(.hidden)
-            .listRowBackground(Color.clear)
     }
 
     private var loadingRow: some View {
@@ -456,13 +367,6 @@ struct AlbumsView: View {
         return L10n.string("\(albumCount) 个相册")
     }
 
-    private var albumSubtitle: String {
-        if !dataManager.photoLibraryManager.hasPhotoLibraryAccess {
-            return L10n.string("需要访问照片库权限")
-        }
-        return L10n.string("管理相册与整理进度")
-    }
-
     // MARK: - 计算属性
     private var isLoadingAlbums: Bool {
         dataManager.getUserAlbums().isEmpty &&
@@ -504,25 +408,7 @@ struct AlbumsView: View {
     private var shouldShowAlbumSwipeHint: Bool {
         !hasDismissedAlbumSwipeHint &&
             searchText.isEmpty &&
-            !isAlbumSearchVisible &&
             editMode != .active
-    }
-
-    private var albumSearchRevealGesture: some Gesture {
-        DragGesture(minimumDistance: 18, coordinateSpace: .local)
-            .onChanged { value in
-                guard dataManager.photoLibraryManager.hasPhotoLibraryAccess,
-                      editMode != .active,
-                      abs(value.translation.height) > abs(value.translation.width) else {
-                    return
-                }
-
-                if value.translation.height > 32 {
-                    revealAlbumSearch()
-                } else if value.translation.height < -22, searchText.isEmpty {
-                    hideAlbumSearch()
-                }
-            }
     }
 
     // MARK: - 方法
@@ -565,19 +451,6 @@ struct AlbumsView: View {
         customAlbumOrderData = value
     }
 
-    private func handleAlbumScrollOffset(_ offset: CGFloat) {
-        guard dataManager.photoLibraryManager.hasPhotoLibraryAccess,
-              editMode != .active else {
-            return
-        }
-
-        if offset > 38 {
-            revealAlbumSearch()
-        } else if offset < -12, searchText.isEmpty {
-            hideAlbumSearch()
-        }
-    }
-
     private func toggleReordering() {
         guard sortMode == .custom else { return }
         if editMode != .active && !searchText.isEmpty {
@@ -587,26 +460,7 @@ struct AlbumsView: View {
 
         HapticManager.impact(.light)
         withAnimation(.easeInOut(duration: 0.18)) {
-            if editMode != .active {
-                hideAlbumSearch()
-            }
             editMode = editMode == .active ? .inactive : .active
-        }
-    }
-
-    private func revealAlbumSearch() {
-        guard !isAlbumSearchVisible else { return }
-        withAnimation(.easeInOut(duration: 0.18)) {
-            isAlbumSearchVisible = true
-        }
-    }
-
-    private func hideAlbumSearch() {
-        guard isAlbumSearchVisible else { return }
-        isAlbumSearchFocused = false
-        searchText = ""
-        withAnimation(.easeInOut(duration: 0.18)) {
-            isAlbumSearchVisible = false
         }
     }
 
@@ -748,18 +602,6 @@ private extension View {
         } else {
             self
         }
-    }
-}
-
-private enum AlbumListLayout {
-    static let coordinateSpace = "PhotoDeleteAlbumListScroll"
-}
-
-private struct AlbumListOffsetPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
     }
 }
 
@@ -1049,7 +891,7 @@ struct CreateAlbumView: View {
                             HStack(spacing: 8) {
                                 if isCreating {
                                     ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                        .progressViewStyle(CircularProgressViewStyle(tint: PhotoDeleteStyle.primaryButtonText))
                                         .scaleEffect(0.8)
                                 } else {
                                     Image(systemName: "plus")
@@ -1168,7 +1010,7 @@ struct EditAlbumView: View {
                             HStack(spacing: 8) {
                                 if isUpdating {
                                     ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                        .progressViewStyle(CircularProgressViewStyle(tint: PhotoDeleteStyle.primaryButtonText))
                                         .scaleEffect(0.8)
                                 } else {
                                     Image(systemName: "checkmark")

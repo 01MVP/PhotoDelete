@@ -1,6 +1,292 @@
 {
   "sourceLanguage": "zh-Hans",
   "strings": {
+    "主题与外观": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Theme & Appearance"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "主题与外观"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "主題與外觀"
+          }
+        }
+      }
+    },
+    "选择界面色调，以及日间、夜间或跟随系统外观。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose the interface tone, plus light, dark, or system appearance."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "选择界面色调，以及日间、夜间或跟随系统外观。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇介面色調，以及日間、夜間或跟隨系統外觀。"
+          }
+        }
+      }
+    },
+    "界面色调": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Interface Tone"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "界面色调"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "介面色調"
+          }
+        }
+      }
+    },
+    "色调会影响背景、图标、按钮和选中状态。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tone affects backgrounds, icons, buttons, and selected states."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "色调会影响背景、图标、按钮和选中状态。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "色調會影響背景、圖標、按鈕和選中狀態。"
+          }
+        }
+      }
+    },
+    "支持者版可切换更多主题。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supporter unlocks additional themes."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "支持者版可切换更多主题。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "支持者版可切換更多主題。"
+          }
+        }
+      }
+    },
+    "清透蓝": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear Blue"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "清透蓝"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清透藍"
+          }
+        }
+      }
+    },
+    "青蓝背景，保持相册整理的清爽感。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A blue-toned background that keeps album cleanup feeling crisp."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "青蓝背景，保持相册整理的清爽感。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "青藍背景，保持相簿整理的清爽感。"
+          }
+        }
+      }
+    },
+    "鼠尾草绿": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sage Green"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "鼠尾草绿"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鼠尾草綠"
+          }
+        }
+      }
+    },
+    "柔和一点，减少纯白界面的工具感。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Softer and calmer, with less of a plain utility feel."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "柔和一点，减少纯白界面的工具感。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "柔和一點，減少純白介面的工具感。"
+          }
+        }
+      }
+    },
+    "暖砂色": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warm Sand"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "暖砂色"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暖砂色"
+          }
+        }
+      }
+    },
+    "更温暖，适合长时间整理。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warmer and easier to stay with during longer cleanup sessions."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "更温暖，适合长时间整理。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更溫暖，適合長時間整理。"
+          }
+        }
+      }
+    },
+    "石墨灰": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Graphite"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "石墨灰"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "石墨灰"
+          }
+        }
+      }
+    },
+    "更中性，突出照片内容。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "More neutral, keeping attention on photo content."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "更中性，突出照片内容。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更中性，突出照片內容。"
+          }
+        }
+      }
+    },
     "%@ %lld 张": {
       "localizations": {
         "en": {
@@ -1306,34 +1592,18 @@
         }
       }
     },
-    "个人设置与偏好": {
+    "主题切换": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Personal settings and preferences"
+            "value": "Theme switching"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "個人設置與偏好"
-          }
-        }
-      }
-    },
-    "主题色": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Theme color"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "主題色"
+            "value": "主題切換"
           }
         }
       }
@@ -3524,22 +3794,6 @@
         }
       }
     },
-    "天蓝": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sky"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "天藍"
-          }
-        }
-      }
-    },
     "如果你想要用 AI 开发类似的小 App，可以看看 01mvp.com 的实战教程。": {
       "localizations": {
         "en": {
@@ -4657,6 +4911,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "已選"
+          }
+        }
+      }
+    },
+    "解锁后可用": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Available after unlocking"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "解锁后可用"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "解鎖後可用"
           }
         }
       }
@@ -5850,28 +6126,6 @@
         }
       }
     },
-    "按日周月年和清理队列整理照片": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Organize photos by day, week, month, year, and cleanup queues"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "按日周月年和清理队列整理照片"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "按日周月年和清理隊列整理照片"
-          }
-        }
-      }
-    },
     "按时间整理": {
       "localizations": {
         "en": {
@@ -6252,23 +6506,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "操作失敗，請稍後重試。"
-          }
-        }
-      }
-    },
-    "支持者徽章与主题色": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Supporter badge and theme color"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "支持者徽章與主題色"
           }
         }
       }
@@ -7868,28 +8105,6 @@
         }
       }
     },
-    "正在读取照片信息": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reading Photo Info"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "正在读取照片信息"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在讀取照片信息"
-          }
-        }
-      }
-    },
     "正在读取照片信息 %@ · 可先进入整理": {
       "localizations": {
         "en": {
@@ -8610,22 +8825,6 @@
         }
       }
     },
-    "玫瑰": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rose"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "玫瑰"
-          }
-        }
-      }
-    },
     "用户相册": {
       "localizations": {
         "en": {
@@ -8844,28 +9043,6 @@
         }
       }
     },
-    "管理相册与整理进度": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Manage albums and review progress"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "管理相册与整理进度"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "管理相冊與整理進度"
-          }
-        }
-      }
-    },
     "真实照片库未完成这次批量操作，请稍后重试": {
       "localizations": {
         "en": {
@@ -8983,28 +9160,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "示例"
-          }
-        }
-      }
-    },
-    "示例展示，解锁后查看真实清理队列": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sample preview. Unlock to see real cleanup queues."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "示例展示，解锁后查看真实清理队列"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "示例展示，解鎖後查看真實清理隊列"
           }
         }
       }
@@ -9598,22 +9753,6 @@
         }
       }
     },
-    "薄荷": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mint"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "薄荷"
-          }
-        }
-      }
-    },
     "视频": {
       "localizations": {
         "en": {
@@ -10067,22 +10206,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "跳過"
-          }
-        }
-      }
-    },
-    "轻扫判断照片去留": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Swipe to decide what stays"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "輕掃判斷照片去留"
           }
         }
       }
@@ -11442,28 +11565,6 @@
         }
       }
     },
-    "一次性解锁按日期清理、大文件清理和相似照片清理。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "One-time unlock for date-based cleanup, large-file cleanup, and similar-photo cleanup."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "一次性解锁按日期清理、大文件清理和相似照片清理。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "一次性解鎖按日期清理、大檔案清理和相似照片清理。"
-          }
-        }
-      }
-    },
     "版本对比": {
       "localizations": {
         "en": {
@@ -11772,24 +11873,24 @@
         }
       }
     },
-    "还剩 %lld 天。试用期间可使用进阶清理、长期统计和主题色。": {
+    "还剩 %lld 天。试用期间可使用进阶清理、长期统计和主题切换。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%lld days remaining. Advanced cleanup, long-term stats, and theme colors are available during the trial."
+            "value": "%lld days remaining. Advanced cleanup, long-term stats, and theme switching are available during the trial."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "还剩 %lld 天。试用期间可使用进阶清理、长期统计和主题色。"
+            "value": "还剩 %lld 天。试用期间可使用进阶清理、长期统计和主题切换。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "還剩 %lld 天。試用期間可使用進階清理、長期統計和主題色。"
+            "value": "還剩 %lld 天。試用期間可使用進階清理、長期統計和主題切換。"
           }
         }
       }
@@ -12410,24 +12511,24 @@
         }
       }
     },
-    "一次性解锁按日期清理、大文件清理、视频压缩和相似照片清理。": {
+    "一次性解锁按日期清理、大文件清理、视频压缩、相似照片清理和主题切换。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "One-time unlock for date-based cleanup, large-file cleanup, video compression, and similar-photo cleanup."
+            "value": "One-time unlock for date-based cleanup, large-file cleanup, video compression, similar-photo cleanup, and theme switching."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "一次性解锁按日期清理、大文件清理、视频压缩和相似照片清理。"
+            "value": "一次性解锁按日期清理、大文件清理、视频压缩、相似照片清理和主题切换。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "一次性解鎖按日期清理、大檔案清理、影片壓縮和相似照片清理。"
+            "value": "一次性解鎖按日期清理、大檔案清理、影片壓縮、相似照片清理和主題切換。"
           }
         }
       }
@@ -12630,46 +12731,24 @@
         }
       }
     },
-    "支持者主题色": {
+    "免费版可以查看清理历史和节省空间；支持者版额外解锁视频压缩、大文件清理、按日期清理、相似照片清理和主题切换。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Supporter theme colors"
+            "value": "The free version includes cleanup history and space saved. Supporter additionally unlocks video compression, large file cleanup, date cleanup, similar photo cleanup, and theme switching."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "支持者主题色"
+            "value": "免费版可以查看清理历史和节省空间；支持者版额外解锁视频压缩、大文件清理、按日期清理、相似照片清理和主题切换。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "支持者主題色"
-          }
-        }
-      }
-    },
-    "免费版可以查看清理历史和节省空间；支持者版额外解锁视频压缩、大文件清理、按日期清理和相似照片清理。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The free version includes cleanup history and space saved. Supporter additionally unlocks video compression, large file cleanup, date cleanup, and similar photo cleanup."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "免费版可以查看清理历史和节省空间；支持者版额外解锁视频压缩、大文件清理、按日期清理和相似照片清理。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "免費版可以查看清理歷史和節省空間；支持者版額外解鎖影片壓縮、大檔案清理、按日期清理和相似照片清理。"
+            "value": "免費版可以查看清理歷史和節省空間；支持者版額外解鎖影片壓縮、大檔案清理、按日期清理、相似照片清理和主題切換。"
           }
         }
       }
@@ -12956,6 +13035,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在準備壓縮"
+          }
+        }
+      }
+    },
+    "可短暂切到后台，长视频建议保持 App 打开。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can briefly switch away. Keep the app open for longer videos."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "可短暂切到后台，长视频建议保持 App 打开。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可短暫切到背景，長影片建議保持 App 開啟。"
           }
         }
       }
@@ -13290,6 +13391,28 @@
         }
       }
     },
+    "压缩副本已保存，原视频尚未删除。可先查看对比，再决定是否删除原视频。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The compressed copy was saved. The original has not been deleted. Compare them first, then decide whether to delete the original."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "压缩副本已保存，原视频尚未删除。可先查看对比，再决定是否删除原视频。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "壓縮副本已儲存，原影片尚未刪除。可先查看對比，再決定是否刪除原影片。"
+          }
+        }
+      }
+    },
     "%lld 个视频未完成": {
       "localizations": {
         "en": {
@@ -13308,6 +13431,138 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld 個影片未完成"
+          }
+        }
+      }
+    },
+    "查看对比": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compare"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "查看对比"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看對比"
+          }
+        }
+      }
+    },
+    "保留原视频": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep original"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "保留原视频"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保留原影片"
+          }
+        }
+      }
+    },
+    "视频对比": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Video comparison"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "视频对比"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "影片對比"
+          }
+        }
+      }
+    },
+    "已节省": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "已节省"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已節省"
+          }
+        }
+      }
+    },
+    "已节省 %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "已节省 %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已節省 %@"
+          }
+        }
+      }
+    },
+    "减少 %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reduced %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "减少 %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "減少 %@"
           }
         }
       }
@@ -13528,6 +13783,50 @@
           "stringUnit": {
             "state": "translated",
             "value": "均衡推薦"
+          }
+        }
+      }
+    },
+    "高清": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "High"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "高清"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高清"
+          }
+        }
+      }
+    },
+    "省空间": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "节省"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "節省"
           }
         }
       }
@@ -14192,6 +14491,446 @@
         }
       }
     },
+    "无法精确读取": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unable to read precisely"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "无法精确读取"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法精確讀取"
+          }
+        }
+      }
+    },
+    "原文件大小正在计算": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calculating original size"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "原文件大小正在计算"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在計算原檔案大小"
+          }
+        }
+      }
+    },
+    "压缩完成后显示实际节省": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actual savings shown after compression"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "压缩完成后显示实际节省"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "壓縮完成後顯示實際節省"
+          }
+        }
+      }
+    },
+    "正在计算预计大小": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calculating estimated size"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "正在计算预计大小"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在計算預估大小"
+          }
+        }
+      }
+    },
+    "待下载": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Needs download"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "待下载"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "待下載"
+          }
+        }
+      }
+    },
+    "待确认": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pending"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "待确认"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "待確認"
+          }
+        }
+      }
+    },
+    "压缩时确认": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checked when compressing"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "压缩时确认"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "壓縮時確認"
+          }
+        }
+      }
+    },
+    "压缩时确认实际大小": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actual size checked when compressing"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "压缩时确认实际大小"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "壓縮時確認實際大小"
+          }
+        }
+      }
+    },
+    "压缩时确认原文件大小": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Original size checked when compressing"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "压缩时确认原文件大小"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "壓縮時確認原檔案大小"
+          }
+        }
+      }
+    },
+    "iCloud 视频": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iCloud Videos"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "iCloud 视频"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iCloud 影片"
+          }
+        }
+      }
+    },
+    "%lld 个视频在 iCloud": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld videos in iCloud"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%lld 个视频在 iCloud"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個影片在 iCloud"
+          }
+        }
+      }
+    },
+    "压缩时会下载原片并确认大小。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The original will download and the size will be checked when compressing."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "压缩时会下载原片并确认大小。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "壓縮時會下載原片並確認大小。"
+          }
+        }
+      }
+    },
+    "预览或处理时会下载原片。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The original will download when previewing or processing."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "预览或处理时会下载原片。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "預覽或處理時會下載原片。"
+          }
+        }
+      }
+    },
+    "查看 iCloud 视频说明": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View iCloud video explanation"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "查看 iCloud 视频说明"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看 iCloud 影片說明"
+          }
+        }
+      }
+    },
+    "带云朵的视频当前只保存在 iCloud。列表不会自动下载大视频，开始压缩后会下载原片并确认实际大小。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Videos with a cloud icon are currently stored in iCloud. The list will not automatically download large videos. Compression downloads the original and checks the actual size."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "带云朵的视频当前只保存在 iCloud。列表不会自动下载大视频，开始压缩后会下载原片并确认实际大小。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "帶雲朵的影片目前只保存在 iCloud。列表不會自動下載大型影片，開始壓縮後會下載原片並確認實際大小。"
+          }
+        }
+      }
+    },
+    "带云朵的视频当前只保存在 iCloud。列表不会自动下载大视频，预览或处理时会下载原片。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Videos with a cloud icon are currently stored in iCloud. The list will not automatically download large videos. The original will download when previewing or processing."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "带云朵的视频当前只保存在 iCloud。列表不会自动下载大视频，预览或处理时会下载原片。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "帶雲朵的影片目前只保存在 iCloud。列表不會自動下載大型影片，預覽或處理時會下載原片。"
+          }
+        }
+      }
+    },
+    "部分视频大小会在处理时确认，已知约 %@。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Some video sizes will be checked when processing. Known size is about %@."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "部分视频大小会在处理时确认，已知约 %@。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "部分影片大小會在處理時確認，已知約 %@。"
+          }
+        }
+      }
+    },
+    "已读取 %lld/%lld 个视频大小，已知约 %@。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld/%lld video sizes read. Known size is about %@."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "已读取 %lld/%lld 个视频大小，已知约 %@。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已讀取 %lld/%lld 個影片大小，已知約 %@。"
+          }
+        }
+      }
+    },
+    "%lld 项 · 选择后估算节省空间 · %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld items · Estimate savings after selecting · %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%lld 项 · 选择后估算节省空间 · %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 項 · 選擇後估算節省空間 · %@"
+          }
+        }
+      }
+    },
+    "%lld 项 · 进入后确认大小 · %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld items · Size checked after opening · %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%lld 项 · 进入后确认大小 · %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 項 · 進入後確認大小 · %@"
+          }
+        }
+      }
+    },
     "%lld 个视频 · 合计约 %@": {
       "localizations": {
         "en": {
@@ -14210,6 +14949,116 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld 個影片 · 合計約 %@"
+          }
+        }
+      }
+    },
+    "%lld 个视频 · 压缩时确认大小": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld videos · size checked when compressing"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%lld 个视频 · 压缩时确认大小"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個影片 · 壓縮時確認大小"
+          }
+        }
+      }
+    },
+    "已读取 %lld/%lld · 已知约 %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld/%lld read · known about %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "已读取 %lld/%lld · 已知约 %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已讀取 %lld/%lld · 已知約 %@"
+          }
+        }
+      }
+    },
+    "%lld 个视频 · 正在计算大小": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld videos · calculating size"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%lld 个视频 · 正在计算大小"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個影片 · 正在計算大小"
+          }
+        }
+      }
+    },
+    "已读取 %lld/%lld 个视频大小 · 合计约 %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld/%lld video sizes read · about %@ total"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "已读取 %lld/%lld 个视频大小 · 合计约 %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已讀取 %lld/%lld 個影片大小 · 合計約 %@"
+          }
+        }
+      }
+    },
+    "已选择 %lld 个视频 · %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld videos selected · %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "已选择 %lld 个视频 · %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已選擇 %lld 個影片 · %@"
           }
         }
       }

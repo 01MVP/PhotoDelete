@@ -12,11 +12,6 @@ struct SupporterView: View {
     @EnvironmentObject var purchaseManager: PurchaseManager
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @AppStorage(AppConstants.supporterThemeKey) private var selectedThemeID = SupporterTheme.sky.rawValue
-
-    private var selectedTheme: SupporterTheme {
-        SupporterTheme(rawValue: selectedThemeID) ?? .sky
-    }
 
     private var entitlementStatusMessage: String? {
         switch purchaseManager.entitlementState {
@@ -38,14 +33,11 @@ struct SupporterView: View {
                     VStack(spacing: 20) {
                         if purchaseManager.hasPaidSupporterAccess {
                             SupporterUnlockedContent(
-                                selectedThemeID: $selectedThemeID,
-                                theme: selectedTheme,
                                 purchaseDate: purchaseManager.supporterPurchaseDate,
                                 accessNotice: purchaseManager.isUsingCachedSupporterAccess ? entitlementStatusMessage : nil
                             )
                         } else if purchaseManager.isUsingTrialSupporterAccess {
                             SupporterTrialContent(
-                                selectedThemeID: $selectedThemeID,
                                 remainingDays: purchaseManager.supporterTrialDaysRemaining,
                                 priceText: purchaseManager.supporterPriceText,
                                 isLoading: purchaseManager.isLoading,
@@ -98,7 +90,6 @@ struct SupporterView: View {
 }
 
 private struct SupporterTrialContent: View {
-    @Binding var selectedThemeID: String
     let remainingDays: Int
     let priceText: String
     let isLoading: Bool
@@ -125,7 +116,7 @@ private struct SupporterTrialContent: View {
                         .font(.system(size: 28, weight: .semibold))
                         .foregroundColor(PhotoDeleteStyle.primaryText)
 
-                    Text(String(format: L10n.string("还剩 %lld 天。试用期间可使用进阶清理、长期统计和主题色。"), remainingDays))
+                    Text(String(format: L10n.string("还剩 %lld 天。试用期间可使用进阶清理、长期统计和主题切换。"), remainingDays))
                         .font(.system(size: 16, weight: .regular))
                         .foregroundColor(PhotoDeleteStyle.secondaryText)
                         .multilineTextAlignment(.center)
@@ -136,8 +127,6 @@ private struct SupporterTrialContent: View {
             .photoDeleteCard()
 
             SupporterPlanComparisonCard()
-
-            SupporterThemeSection(selectedThemeID: $selectedThemeID)
 
             VStack(spacing: 12) {
                 Button(action: onPurchase) {
@@ -203,7 +192,7 @@ private struct SupporterPaywallContent: View {
                         .font(.system(size: 28, weight: .semibold))
                         .foregroundColor(PhotoDeleteStyle.primaryText)
 
-                    Text(L10n.string("一次性解锁按日期清理、大文件清理、视频压缩和相似照片清理。"))
+                    Text(L10n.string("一次性解锁按日期清理、大文件清理、视频压缩、相似照片清理和主题切换。"))
                         .font(.system(size: 16, weight: .regular))
                         .foregroundColor(PhotoDeleteStyle.secondaryText)
                         .multilineTextAlignment(.center)
@@ -254,14 +243,12 @@ private struct SupporterPaywallContent: View {
 }
 
 private struct SupporterUnlockedContent: View {
-    @Binding var selectedThemeID: String
-    let theme: SupporterTheme
     let purchaseDate: Date?
     let accessNotice: String?
 
     var body: some View {
         VStack(spacing: 20) {
-            SupporterBadgeCard(theme: theme)
+            SupporterBadgeCard()
 
             SupporterPurchaseStatusCard(purchaseDate: purchaseDate)
 
@@ -270,8 +257,6 @@ private struct SupporterUnlockedContent: View {
             }
 
             SupporterPlanComparisonCard()
-
-            SupporterThemeSection(selectedThemeID: $selectedThemeID)
         }
     }
 }
@@ -297,19 +282,17 @@ private struct SupporterEntitlementNotice: View {
 }
 
 private struct SupporterBadgeCard: View {
-    let theme: SupporterTheme
-
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 12) {
                 ZStack {
                     Circle()
-                        .fill(theme.color.opacity(0.18))
+                        .fill(PhotoDeleteStyle.accent.opacity(0.18))
                         .frame(width: 54, height: 54)
 
                     Image(systemName: "seal.fill")
                         .font(.system(size: 25, weight: .semibold))
-                        .foregroundColor(theme.color)
+                        .foregroundColor(PhotoDeleteStyle.accent)
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -383,45 +366,6 @@ private struct SupporterMetricCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .photoDeleteCard()
-    }
-}
-
-private struct SupporterThemeSection: View {
-    @Binding var selectedThemeID: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text(L10n.string("主题色"))
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundColor(PhotoDeleteStyle.primaryText)
-
-            HStack(spacing: 12) {
-                ForEach(SupporterTheme.allCases) { theme in
-                    Button {
-                        selectedThemeID = theme.rawValue
-                        HapticManager.impact(.light)
-                    } label: {
-                        VStack(spacing: 8) {
-                            Circle()
-                                .fill(theme.color)
-                                .frame(width: 30, height: 30)
-                                .overlay(
-                                    Circle()
-                                        .stroke(PhotoDeleteStyle.primaryText.opacity(selectedThemeID == theme.rawValue ? 0.9 : 0), lineWidth: 2)
-                                )
-
-                            Text(theme.title)
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(PhotoDeleteStyle.secondaryText)
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-        .padding(18)
         .photoDeleteCard()
     }
 }
@@ -539,7 +483,7 @@ struct SupporterPlanComparisonCard: View {
         .init(title: L10n.string("大文件清理"), free: .notIncluded, supporter: .included),
         .init(title: L10n.string("视频压缩"), free: .notIncluded, supporter: .included),
         .init(title: L10n.string("相似照片清理"), free: .notIncluded, supporter: .included),
-        .init(title: L10n.string("支持者主题色"), free: .notIncluded, supporter: .included)
+        .init(title: L10n.string("主题切换"), free: .notIncluded, supporter: .included)
     ]
 
     var body: some View {
@@ -664,7 +608,7 @@ struct SupporterBenefitsSheet: View {
 
                 ScrollView {
                     VStack(spacing: 16) {
-                        Text(L10n.string("免费版可以查看清理历史和节省空间；支持者版额外解锁视频压缩、大文件清理、按日期清理和相似照片清理。"))
+                        Text(L10n.string("免费版可以查看清理历史和节省空间；支持者版额外解锁视频压缩、大文件清理、按日期清理、相似照片清理和主题切换。"))
                             .font(.system(size: 14, weight: .regular))
                             .foregroundColor(PhotoDeleteStyle.secondaryText)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -747,30 +691,6 @@ struct CleanupHistoryView: View {
             Button(L10n.string("取消"), role: .cancel) {}
         } message: {
             Text(L10n.string("只会清空删图的本机统计，不会影响照片。"))
-        }
-    }
-}
-
-enum SupporterTheme: String, CaseIterable, Identifiable {
-    case sky
-    case mint
-    case rose
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .sky: return L10n.string("天蓝")
-        case .mint: return L10n.string("薄荷")
-        case .rose: return L10n.string("玫瑰")
-        }
-    }
-
-    var color: Color {
-        switch self {
-        case .sky: return PhotoDeleteStyle.accent
-        case .mint: return PhotoDeleteStyle.positive
-        case .rose: return PhotoDeleteStyle.iconTint(for: "favorite")
         }
     }
 }

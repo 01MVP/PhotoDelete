@@ -46,8 +46,6 @@ final class PurchaseManager: ObservableObject {
     @Published private(set) var isLoading = false
     @Published var errorMessage: String?
 
-    private static let supporterTrialDuration: TimeInterval = 7 * 24 * 60 * 60
-
     private let productIDs = [AppConstants.supporterProductID]
     private let userDefaults: UserDefaults
     private let nowProvider: () -> Date
@@ -95,7 +93,7 @@ final class PurchaseManager: ObservableObject {
     }
 
     var supporterTrialEndDate: Date? {
-        supporterTrialStartDate?.addingTimeInterval(Self.supporterTrialDuration)
+        supporterTrialStartDate?.addingTimeInterval(AppConstants.supporterTrialDuration)
     }
 
     var supporterTrialDaysRemaining: Int {

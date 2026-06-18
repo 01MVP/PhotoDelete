@@ -82,7 +82,7 @@ private struct MVPGuidePointRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            PhotoDeleteIconTile(icon: icon, tint: PhotoDeleteStyle.accent, size: 34, cornerRadius: 10)
+            PhotoDeleteIconTile(icon: icon, size: 34, cornerRadius: 10)
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 4) {

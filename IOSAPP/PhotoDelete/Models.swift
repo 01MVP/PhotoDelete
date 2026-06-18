@@ -531,7 +531,6 @@ enum AdvancedCleanupKind: String, CaseIterable, Identifiable {
     case similarPhotos
     case largeFiles
     case videoCompression
-    case screenshots
     case videos
 
     var id: String { rawValue }
@@ -541,7 +540,6 @@ enum AdvancedCleanupKind: String, CaseIterable, Identifiable {
         case .similarPhotos: return L10n.string("相似照片")
         case .largeFiles: return L10n.string("大文件")
         case .videoCompression: return L10n.string("视频压缩")
-        case .screenshots: return L10n.string("截图")
         case .videos: return L10n.string("视频")
         }
     }
@@ -551,7 +549,6 @@ enum AdvancedCleanupKind: String, CaseIterable, Identifiable {
         case .similarPhotos: return L10n.string("按拍摄时间和画面比例估算的相近照片")
         case .largeFiles: return L10n.string("按估算占用空间优先处理")
         case .videoCompression: return L10n.string("预计可减少空间，原视频保留")
-        case .screenshots: return L10n.string("集中处理不再需要的截图")
         case .videos: return L10n.string("优先检查占用较高的视频")
         }
     }
@@ -561,17 +558,15 @@ enum AdvancedCleanupKind: String, CaseIterable, Identifiable {
         case .similarPhotos: return "square.stack.3d.down.right"
         case .largeFiles: return "internaldrive"
         case .videoCompression: return "arrow.down.forward.and.arrow.up.backward"
-        case .screenshots: return "iphone"
         case .videos: return "video.fill"
         }
     }
 
     var tint: Color {
         switch self {
-        case .similarPhotos: return Color(red: 0.72, green: 0.7, blue: 1.0)
+        case .similarPhotos: return PhotoDeleteTheme.current.secondaryAccent
         case .largeFiles: return PhotoDeleteStyle.warning
         case .videoCompression: return PhotoDeleteStyle.positive
-        case .screenshots: return PhotoDeleteStyle.accent
         case .videos: return PhotoDeleteStyle.iconTint(for: "video")
         }
     }
@@ -818,7 +813,6 @@ struct AdvancedLibrarySnapshot: Equatable {
                 AdvancedCleanupQueue(kind: .similarPhotos, assetCount: 184, estimatedSpaceMB: 860),
                 AdvancedCleanupQueue(kind: .largeFiles, assetCount: 46, estimatedSpaceMB: 3_240),
                 AdvancedCleanupQueue(kind: .videoCompression, assetCount: 28, estimatedSpaceMB: 2_760),
-                AdvancedCleanupQueue(kind: .screenshots, assetCount: 328, estimatedSpaceMB: 980),
                 AdvancedCleanupQueue(kind: .videos, assetCount: 62, estimatedSpaceMB: 7_800)
             ]
         )

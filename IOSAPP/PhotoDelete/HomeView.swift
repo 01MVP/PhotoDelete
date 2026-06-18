@@ -129,7 +129,6 @@ struct HomeView: View {
             if isLandscape {
                 HStack(alignment: .top, spacing: 22) {
                     VStack(spacing: 18) {
-                        rootStatusText
                         introSection(isCompact: true)
                         primaryOrganizeSection(isCompact: true)
                     }
@@ -143,7 +142,6 @@ struct HomeView: View {
                 }
             } else {
                 VStack(spacing: PhotoDeleteStyle.sectionSpacing) {
-                    rootStatusText
                     introSection(isCompact: false)
                     primaryOrganizeSection(isCompact: false)
                     secondaryEntrySection
@@ -152,7 +150,6 @@ struct HomeView: View {
             }
         } else {
             VStack(spacing: PhotoDeleteStyle.sectionSpacing) {
-                rootStatusText
                 introSection(isCompact: false)
                 authorizationSection
             }
@@ -166,7 +163,6 @@ struct HomeView: View {
                 HStack(alignment: .top, spacing: 12) {
                     PhotoDeleteIconTile(
                         icon: "hand.draw",
-                        tint: PhotoDeleteStyle.accent,
                         size: 28,
                         cornerRadius: 8
                     )
@@ -233,26 +229,6 @@ struct HomeView: View {
             hasLoadedPhotoLibrary: dataManager.photoLibraryManager.hasLoadedPhotoLibrary,
             totalPhotosCount: dataManager.photoLibraryManager.totalPhotosCount
         )
-    }
-
-    private var rootStatusText: some View {
-        Text(titleSubtitle)
-            .font(.subheadline)
-            .foregroundStyle(dataManager.photoLibraryManager.hasPhotoLibraryAccess ? PhotoDeleteStyle.secondaryText : PhotoDeleteStyle.accent)
-            .lineLimit(2)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var titleSubtitle: String {
-        switch libraryContentState {
-        case .needsAuthorization:
-            return L10n.string("需要访问照片库权限")
-        case .preparing:
-            return L10n.string("正在读取照片信息")
-        case .available, .empty:
-            return L10n.string("轻扫判断照片去留")
-        }
     }
 
     @ViewBuilder
@@ -389,7 +365,6 @@ struct HomeView: View {
             HStack(alignment: .top, spacing: 14) {
                 PhotoDeleteIconTile(
                     icon: "photo.on.rectangle.angled",
-                    tint: PhotoDeleteStyle.accent,
                     size: isCompact ? 42 : 48,
                     cornerRadius: 13,
                     filled: false

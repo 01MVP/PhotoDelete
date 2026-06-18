@@ -29,7 +29,8 @@ final class PhotoDeleteUITests: XCTestCase {
 
         XCTAssertTrue(
             app.staticTexts["删图"].waitForExistence(timeout: 10) ||
-                app.staticTexts["需要访问照片库"].waitForExistence(timeout: 2)
+                app.staticTexts["需要访问照片库"].waitForExistence(timeout: 2) ||
+                app.staticTexts["开始整理照片"].waitForExistence(timeout: 2)
         )
     }
 
@@ -55,7 +56,7 @@ final class PhotoDeleteUITests: XCTestCase {
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10))
         openSettingsTab(in: app)
 
-        XCTAssertTrue(app.staticTexts["个人设置与偏好"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["使用统计"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["偏好设置"].exists)
         XCTAssertTrue(app.staticTexts["数据与权限"].exists)
         XCTAssertTrue(app.staticTexts["关于与支持"].exists)

@@ -610,8 +610,6 @@ class DataManager: ObservableObject {
             return largeFileCandidates(maxCount: 240)
         case .videoCompression:
             return videoCompressionCandidates(maxCount: 240)
-        case .screenshots:
-            return photoLibraryManager.screenshots
         case .videos:
             return photoLibraryManager.videos.sorted {
                 estimatedAssetSizeMB($0) > estimatedAssetSizeMB($1)
@@ -731,7 +729,6 @@ class DataManager: ObservableObject {
         let similarGroups = makeSimilarPhotoGroups(maxGroups: 120)
         let largeFiles = largeFileCandidates(maxCount: 240)
         let videoCompressionCandidates = videoCompressionCandidates(maxCount: 240)
-        let screenshots = photoLibraryManager.screenshots
         let videos = photoLibraryManager.videos
 
         return [
@@ -749,11 +746,6 @@ class DataManager: ObservableObject {
                 kind: .videoCompression,
                 assetCount: videoCompressionCandidates.count,
                 estimatedSpaceMB: estimatedVideoCompressionEstimate(for: videoCompressionCandidates).estimatedSavedMidMB
-            ),
-            AdvancedCleanupQueue(
-                kind: .screenshots,
-                assetCount: screenshots.count,
-                estimatedSpaceMB: screenshots.reduce(0) { $0 + estimatedAssetSizeMB($1) }
             ),
             AdvancedCleanupQueue(
                 kind: .videos,

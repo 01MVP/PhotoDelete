@@ -28,6 +28,7 @@ struct SettingsView: View {
     @AppStorage(AppConstants.rightSwipeActionKey) private var rightSwipeActionValue = SwipeGesturePreset.standard.rightAction.rawValue
     @AppStorage(AppConstants.upSwipeActionKey) private var upSwipeActionValue = SwipeGesturePreset.standard.upAction.rawValue
     @AppStorage(AppConstants.appAppearanceKey) private var appAppearanceValue = AppAppearance.system.rawValue
+    @AppStorage(AppConstants.appThemeKey) private var appThemeValue = PhotoDeleteTheme.defaultTheme.rawValue
     @State private var activeSheet: SettingsSheet?
     @State private var showingClearLocalDataConfirmation = false
     @State private var settingsToast: PhotoDeleteToast?
@@ -39,12 +40,6 @@ struct SettingsView: View {
 
                 ScrollView {
                     VStack(spacing: PhotoDeleteStyle.sectionSpacing) {
-                        Text(L10n.string("个人设置与偏好"))
-                            .font(.subheadline)
-                            .foregroundStyle(PhotoDeleteStyle.secondaryText)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.top, PhotoDeleteStyle.rootContentTopSpacing)
-
                         // 使用统计
                         statsSection
 
@@ -68,6 +63,7 @@ struct SettingsView: View {
                             .frame(height: 100)
                     }
                     .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
+                    .padding(.top, PhotoDeleteStyle.rootContentTopSpacing)
                     .frame(maxWidth: PhotoDeleteAdaptiveLayout.readableContentMaxWidth(horizontalSizeClass: horizontalSizeClass))
                     .frame(maxWidth: .infinity)
                 }
@@ -281,7 +277,6 @@ struct SettingsView: View {
 
                 SettingRow(
                     icon: "person.text.rectangle",
-                    iconColor: PhotoDeleteStyle.accent,
                     title: L10n.string("关于创作者"),
                     action: {
                         activeSheet = .author
@@ -331,7 +326,6 @@ struct SettingsView: View {
             VStack(spacing: 0) {
                 SettingRow(
                     icon: "hand.draw",
-                    iconColor: PhotoDeleteStyle.accent,
                     title: L10n.string("手势控制"),
                     subtitle: gestureSettingsSubtitle,
                     action: {
@@ -345,7 +339,6 @@ struct SettingsView: View {
 
                 SettingRow(
                     icon: "globe",
-                    iconColor: PhotoDeleteStyle.accent,
                     title: L10n.string("语言"),
                     subtitle: selectedLanguage.title,
                     action: {
@@ -358,10 +351,10 @@ struct SettingsView: View {
                     .padding(.horizontal, 16)
 
                 SettingRow(
-                    icon: selectedAppearance.icon,
-                    iconColor: PhotoDeleteStyle.warning,
-                    title: L10n.string("外观"),
-                    subtitle: selectedAppearance.title,
+                    icon: selectedTheme.icon,
+                    iconColor: selectedTheme.primaryAccent,
+                    title: L10n.string("主题与外观"),
+                    subtitle: "\(selectedTheme.title) · \(selectedAppearance.title)",
                     action: {
                         activeSheet = .appearanceSettings
                     }
@@ -373,7 +366,6 @@ struct SettingsView: View {
 
                 SettingToggleRow(
                     icon: "hand.tap",
-                    iconColor: PhotoDeleteStyle.accent,
                     title: L10n.string("触感反馈"),
                     subtitle: L10n.string("滑动、撤销和归类时提供轻微反馈"),
                     isOn: $hapticsEnabled
@@ -422,7 +414,6 @@ struct SettingsView: View {
 
                 SettingRow(
                     icon: "photo.badge.checkmark",
-                    iconColor: PhotoDeleteStyle.secondaryText,
                     title: L10n.string("照片访问权限"),
                     subtitle: photoAccessSubtitle,
                     action: {
@@ -436,7 +427,6 @@ struct SettingsView: View {
 
                 SettingRow(
                     icon: "questionmark.circle",
-                    iconColor: PhotoDeleteStyle.secondaryText,
                     title: L10n.string("重新查看引导"),
                     showsChevron: false,
                     action: resetIntro
@@ -465,6 +455,10 @@ struct SettingsView: View {
 
     private var selectedAppearance: AppAppearance {
         AppAppearance(rawValue: appAppearanceValue) ?? .system
+    }
+
+    private var selectedTheme: PhotoDeleteTheme {
+        PhotoDeleteTheme.normalized(appThemeValue)
     }
 
     private func settingsToastView(_ toast: PhotoDeleteToast) -> some View {
@@ -775,7 +769,7 @@ private struct SettingsStorageSummaryRow: View {
 // MARK: - 设置行
 struct SettingRow: View {
     let icon: String
-    let iconColor: Color
+    var iconColor: Color? = nil
     let title: String
     var subtitle = ""
     var showsChevron = true
@@ -838,8 +832,9 @@ struct SettingRow: View {
 }
 
 struct SettingToggleRow: View {
+    @Environment(\.photoDeleteTheme) private var theme
     let icon: String
-    let iconColor: Color
+    var iconColor: Color? = nil
     let title: String
     let subtitle: String
     @Binding var isOn: Bool
@@ -860,7 +855,7 @@ struct SettingToggleRow: View {
                 }
             }
         }
-        .tint(PhotoDeleteStyle.accent)
+        .tint(theme.selectionTint)
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .frame(minHeight: PhotoDeleteStyle.rowMinHeight)
@@ -1230,7 +1225,16 @@ private struct LanguageSettingsView: View {
 private struct AppearanceSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @EnvironmentObject private var dataManager: DataManager
+    @EnvironmentObject private var purchaseManager: PurchaseManager
     @AppStorage(AppConstants.appAppearanceKey) private var selectedAppearanceID = AppAppearance.system.rawValue
+    @AppStorage(AppConstants.appThemeKey) private var selectedThemeID = PhotoDeleteTheme.defaultTheme.rawValue
+    @State private var showingSupporter = false
+
+    private let themeColumns = [
+        GridItem(.flexible(), spacing: 10),
+        GridItem(.flexible(), spacing: 10)
+    ]
 
     var body: some View {
         NavigationStack {
@@ -1239,55 +1243,9 @@ private struct AppearanceSettingsView: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(L10n.string("外观"))
-                                .font(.system(size: 24, weight: .semibold))
-                                .foregroundColor(PhotoDeleteStyle.primaryText)
-
-                            Text(L10n.string("选择日间、夜间，或跟随 iPhone 系统外观。"))
-                                .font(.system(size: 15, weight: .regular))
-                                .foregroundColor(PhotoDeleteStyle.secondaryText)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-
-                        VStack(spacing: 0) {
-                            ForEach(AppAppearance.allCases) { appearance in
-                                Button {
-                                    selectedAppearanceID = appearance.rawValue
-                                    HapticManager.impact(.light)
-                                } label: {
-                                    HStack(spacing: 12) {
-                                        Image(systemName: appearance.icon)
-                                            .font(.system(size: 20, weight: .semibold))
-                                            .foregroundColor(selectedAppearance == appearance ? PhotoDeleteStyle.accent : PhotoDeleteStyle.tertiaryText)
-                                            .frame(width: 24)
-
-                                        Text(appearance.title)
-                                            .font(.system(size: 16, weight: .semibold))
-                                            .foregroundColor(PhotoDeleteStyle.primaryText)
-                                            .lineLimit(1)
-
-                                        Spacer()
-
-                                        Image(systemName: selectedAppearance == appearance ? "checkmark.circle.fill" : "circle")
-                                            .font(.system(size: 20, weight: .semibold))
-                                            .foregroundColor(selectedAppearance == appearance ? PhotoDeleteStyle.positive : PhotoDeleteStyle.tertiaryText)
-                                    }
-                                    .padding(16)
-                                }
-                                .buttonStyle(.plain)
-                                .accessibilityHint(Text(appearance.detail))
-                                .accessibilityAddTraits(selectedAppearance == appearance ? .isSelected : [])
-                                .accessibilityValue(Text(selectedAppearance == appearance ? L10n.string("已选") : L10n.string("未选择")))
-
-                                if appearance != AppAppearance.allCases.last {
-                                    Divider()
-                                        .background(PhotoDeleteStyle.hairline)
-                                        .padding(.leading, 16)
-                                }
-                            }
-                        }
-                        .photoDeleteCard()
+                        headerSection
+                        themeSection
+                        appearanceSection
                     }
                     .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
                     .padding(.top, 20)
@@ -1296,7 +1254,7 @@ private struct AppearanceSettingsView: View {
                     .frame(maxWidth: .infinity)
                 }
             }
-            .navigationTitle(L10n.string("外观"))
+            .navigationTitle(L10n.string("主题与外观"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -1307,10 +1265,190 @@ private struct AppearanceSettingsView: View {
                 }
             }
         }
+        .sheet(isPresented: $showingSupporter) {
+            SupporterView()
+                .environmentObject(dataManager)
+                .environmentObject(purchaseManager)
+        }
+        .onAppear(perform: ensureThemeAccess)
+        .onChange(of: purchaseManager.isSupporter) { _ in
+            ensureThemeAccess()
+        }
+    }
+
+    private var headerSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(L10n.string("主题与外观"))
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundColor(PhotoDeleteStyle.primaryText)
+
+            Text(L10n.string("选择界面色调，以及日间、夜间或跟随系统外观。"))
+                .font(.system(size: 15, weight: .regular))
+                .foregroundColor(PhotoDeleteStyle.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var themeSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(L10n.string("界面色调"))
+                    .photoDeleteSectionHeading()
+
+                Text(canChooseThemes ? L10n.string("色调会影响背景、图标、按钮和选中状态。") : L10n.string("支持者版可切换更多主题。"))
+                    .photoDeleteSecondaryLabel(.subheadline)
+            }
+
+            LazyVGrid(columns: themeColumns, spacing: 10) {
+                ForEach(PhotoDeleteTheme.allCases) { theme in
+                    themeButton(theme)
+                }
+            }
+        }
+    }
+
+    private func themeButton(_ theme: PhotoDeleteTheme) -> some View {
+        let isLocked = !canChooseThemes && theme != .defaultTheme
+        let isSelected = selectedTheme == theme
+
+        return Button {
+            guard !isLocked else {
+                showingSupporter = true
+                HapticManager.impact(.light)
+                return
+            }
+            selectedThemeID = theme.rawValue
+            HapticManager.impact(.light)
+        } label: {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    PhotoDeleteThemeSwatches(colors: theme.swatches)
+                    Spacer(minLength: 8)
+                    Image(systemName: themeStatusImage(isSelected: isSelected, isLocked: isLocked))
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(isSelected ? theme.selectionTint : PhotoDeleteStyle.tertiaryText)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(theme.title)
+                        .font(.body.weight(.semibold))
+                        .foregroundColor(PhotoDeleteStyle.primaryText)
+                        .lineLimit(1)
+
+                    Text(theme.subtitle)
+                        .photoDeleteSecondaryLabel(.caption)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, minHeight: 138, alignment: .topLeading)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(isSelected ? theme.primaryAccentSoftFill : PhotoDeleteStyle.surfaceFill(for: selectedTheme, elevated: true))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(isSelected ? theme.primaryAccentSoftStroke : PhotoDeleteStyle.strokeFill(for: selectedTheme), lineWidth: 1)
+                    )
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .opacity(isLocked ? 0.76 : 1)
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint(Text(isLocked ? L10n.string("支持者版可切换更多主题。") : theme.subtitle))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityValue(Text(isSelected ? L10n.string("已选") : isLocked ? L10n.string("解锁后可用") : L10n.string("未选择")))
+    }
+
+    private var appearanceSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(L10n.string("外观"))
+                .photoDeleteSectionHeading()
+
+            VStack(spacing: 0) {
+                ForEach(AppAppearance.allCases) { appearance in
+                    Button {
+                        selectedAppearanceID = appearance.rawValue
+                        HapticManager.impact(.light)
+                    } label: {
+                        HStack(spacing: 12) {
+                            PhotoDeleteIconTile(
+                                icon: appearance.icon,
+                                tint: selectedAppearance == appearance ? selectedTheme.selectionTint : PhotoDeleteStyle.tertiaryText,
+                                size: 30,
+                                cornerRadius: 9
+                            )
+
+                            Text(appearance.title)
+                                .font(.body.weight(.semibold))
+                                .foregroundColor(PhotoDeleteStyle.primaryText)
+                                .lineLimit(1)
+
+                            Spacer()
+
+                            Image(systemName: selectedAppearance == appearance ? "checkmark.circle.fill" : "circle")
+                                .font(.body.weight(.semibold))
+                                .foregroundStyle(selectedAppearance == appearance ? selectedTheme.selectionTint : PhotoDeleteStyle.tertiaryText)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint(Text(appearance.detail))
+                    .accessibilityAddTraits(selectedAppearance == appearance ? .isSelected : [])
+                    .accessibilityValue(Text(selectedAppearance == appearance ? L10n.string("已选") : L10n.string("未选择")))
+
+                    if appearance != AppAppearance.allCases.last {
+                        Divider()
+                            .background(PhotoDeleteStyle.hairline)
+                            .padding(.leading, 58)
+                    }
+                }
+            }
+            .photoDeleteCard()
+        }
     }
 
     private var selectedAppearance: AppAppearance {
         AppAppearance(rawValue: selectedAppearanceID) ?? .system
+    }
+
+    private var selectedTheme: PhotoDeleteTheme {
+        guard canChooseThemes else { return .defaultTheme }
+        return PhotoDeleteTheme.normalized(selectedThemeID)
+    }
+
+    private var canChooseThemes: Bool {
+        purchaseManager.isSupporter
+    }
+
+    private func ensureThemeAccess() {
+        guard !canChooseThemes, selectedThemeID != PhotoDeleteTheme.defaultTheme.rawValue else { return }
+        selectedThemeID = PhotoDeleteTheme.defaultTheme.rawValue
+    }
+
+    private func themeStatusImage(isSelected: Bool, isLocked: Bool) -> String {
+        if isLocked { return "lock.fill" }
+        return isSelected ? "checkmark.circle.fill" : "circle"
+    }
+}
+
+private struct PhotoDeleteThemeSwatches: View {
+    let colors: [Color]
+
+    var body: some View {
+        HStack(spacing: -5) {
+            ForEach(Array(colors.enumerated()), id: \.offset) { _, color in
+                Circle()
+                    .fill(color)
+                    .frame(width: 22, height: 22)
+                    .overlay(
+                        Circle()
+                            .stroke(PhotoDeleteStyle.cardStroke, lineWidth: 1)
+                    )
+            }
+        }
+        .accessibilityHidden(true)
     }
 }
 

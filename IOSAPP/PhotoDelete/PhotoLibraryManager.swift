@@ -31,6 +31,17 @@ enum VideoCompressionQuality: String, CaseIterable, Identifiable {
         }
     }
 
+    var compactTitle: String {
+        switch self {
+        case .high:
+            return L10n.string("高清")
+        case .balanced:
+            return L10n.string("均衡")
+        case .spaceSaving:
+            return L10n.string("省空间")
+        }
+    }
+
     var subtitle: String {
         switch self {
         case .high:
@@ -189,6 +200,27 @@ struct VideoCompressionEstimate: Equatable {
             return CleanupStatsFormatter.space(estimatedSavedMidMB)
         }
         return "\(CleanupStatsFormatter.space(estimatedSavedLowMB)) - \(CleanupStatsFormatter.space(estimatedSavedHighMB))"
+    }
+}
+
+struct VideoFileSizeEstimate: Equatable {
+    enum Source: Equatable {
+        case localFile
+        case bitrate
+        case iCloud
+        case unavailable
+    }
+
+    let sizeMB: Double
+    let source: Source
+
+    var isReliable: Bool {
+        switch source {
+        case .localFile, .bitrate:
+            return true
+        case .iCloud, .unavailable:
+            return false
+        }
     }
 }
 
@@ -959,33 +991,118 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         )
     }
 
-    func estimatedVideoFileSizeMB(for asset: PHAsset) async throws -> Double {
+    func videoFileSizeEstimate(for asset: PHAsset) async throws -> VideoFileSizeEstimate {
         guard asset.mediaType == .video else {
             throw VideoCompressionError.notVideo
         }
 
+        let fallbackSizeMB = fallbackVideoFileSizeMB(for: asset)
         do {
-            let videoAsset = try await requestVideoAsset(for: asset, networkAccessAllowed: false)
-            let duration = try await videoAsset.load(.duration)
-            let videoTracks = try await videoAsset.loadTracks(withMediaType: .video)
-            let audioTracks = try await videoAsset.loadTracks(withMediaType: .audio)
-
-            var totalDataRate: Double = 0
-            for track in videoTracks + audioTracks {
-                let dataRate = try await track.load(.estimatedDataRate)
-                if dataRate > 0 {
-                    totalDataRate += Double(dataRate)
-                }
+            let request = try await requestVideoAssetForSizeEstimate(for: asset)
+            guard let videoAsset = request.asset else {
+                return VideoFileSizeEstimate(
+                    sizeMB: fallbackSizeMB,
+                    source: request.isInCloud ? .iCloud : .unavailable
+                )
             }
 
-            let seconds = max(CMTimeGetSeconds(duration), asset.duration, 1)
-            if totalDataRate > 0 {
-                return max(totalDataRate * seconds / 8 / 1_048_576, 0)
+            if let localFileSizeMB = localVideoFileSizeMB(for: videoAsset) {
+                return VideoFileSizeEstimate(sizeMB: localFileSizeMB, source: .localFile)
             }
+
+            if let bitrateSizeMB = try await bitrateEstimatedVideoFileSizeMB(
+                for: videoAsset,
+                fallbackDuration: asset.duration
+            ) {
+                return VideoFileSizeEstimate(sizeMB: bitrateSizeMB, source: .bitrate)
+            }
+
+            return VideoFileSizeEstimate(
+                sizeMB: fallbackSizeMB,
+                source: request.isInCloud ? .iCloud : .unavailable
+            )
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {}
 
+        return VideoFileSizeEstimate(sizeMB: fallbackSizeMB, source: .unavailable)
+    }
+
+    func estimatedVideoFileSizeMB(for asset: PHAsset) async throws -> Double {
+        let estimate = try await videoFileSizeEstimate(for: asset)
+        guard estimate.isReliable else {
+            throw VideoCompressionError.videoUnavailable
+        }
+        return estimate.sizeMB
+    }
+
+    private func localVideoFileSizeMB(for videoAsset: AVAsset) -> Double? {
+        guard let urlAsset = videoAsset as? AVURLAsset,
+              urlAsset.url.isFileURL,
+              let fileSize = try? urlAsset.url.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+              fileSize > 0 else {
+            return nil
+        }
+        return Double(fileSize) / 1_048_576
+    }
+
+    private func bitrateEstimatedVideoFileSizeMB(
+        for videoAsset: AVAsset,
+        fallbackDuration: TimeInterval
+    ) async throws -> Double? {
+        let duration = try await videoAsset.load(.duration)
+        let videoTracks = try await videoAsset.loadTracks(withMediaType: .video)
+        let audioTracks = try await videoAsset.loadTracks(withMediaType: .audio)
+
+        var totalDataRate: Double = 0
+        for track in videoTracks + audioTracks {
+            let dataRate = try await track.load(.estimatedDataRate)
+            if dataRate > 0 {
+                totalDataRate += Double(dataRate)
+            }
+        }
+
+        guard totalDataRate > 0 else { return nil }
+
+        let loadedSeconds = CMTimeGetSeconds(duration)
+        let seconds = max((loadedSeconds.isFinite && loadedSeconds > 0) ? loadedSeconds : fallbackDuration, 1)
+        return max(totalDataRate * seconds / 8 / 1_048_576, 0)
+    }
+
+    private func fallbackVideoFileSizeMB(for asset: PHAsset) -> Double {
         let megapixels = Double(asset.pixelWidth) * Double(asset.pixelHeight) / 1_000_000
         return max(asset.duration * 8.0, megapixels * 0.75, 2.0)
+    }
+
+    private func requestVideoAssetForSizeEstimate(
+        for asset: PHAsset
+    ) async throws -> (asset: AVAsset?, isInCloud: Bool) {
+        try await withCheckedThrowingContinuation { continuation in
+            let options = PHVideoRequestOptions()
+            options.deliveryMode = .automatic
+            options.isNetworkAccessAllowed = false
+
+            imageManager.requestAVAsset(forVideo: asset, options: options) { videoAsset, _, info in
+                let isCancelled = (info?[PHImageCancelledKey] as? Bool) == true
+                guard !isCancelled else {
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
+
+                let isInCloud = (info?[PHImageResultIsInCloudKey] as? Bool) == true
+                if let videoAsset {
+                    continuation.resume(returning: (videoAsset, isInCloud))
+                    return
+                }
+
+                if let error = info?[PHImageErrorKey] as? Error, !isInCloud {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                continuation.resume(returning: (nil, isInCloud))
+            }
+        }
     }
 
     func applyCommittedBatchChanges(deletedAssets: [PHAsset], favoritedAssets: [PHAsset]) {

@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT_PATH="$ROOT_DIR/IOSAPP/PhotoDelete.xcodeproj"
+PROJECT_FILE="$PROJECT_PATH/project.pbxproj"
 SCHEME="${SCHEME:-PhotoDelete}"
 TEAM_ID="${TEAM_ID:-PCJ84YD7HQ}"
 BUNDLE_ID="${BUNDLE_ID:-com.01mvp.photodelete}"
@@ -11,7 +12,79 @@ CODE_SIGN_IDENTITY="${CODE_SIGN_IDENTITY:-Apple Distribution}"
 CODE_SIGN_STYLE="${CODE_SIGN_STYLE:-Automatic}"
 ARCHIVE_CODE_SIGNING_ALLOWED="${ARCHIVE_CODE_SIGNING_ALLOWED:-YES}"
 ARCHIVE_CODE_SIGNING_ALLOWED="$(printf '%s' "$ARCHIVE_CODE_SIGNING_ALLOWED" | tr '[:lower:]' '[:upper:]')"
-MARKETING_VERSION="${MARKETING_VERSION:-1.0}"
+
+resolve_project_marketing_version() {
+  local version
+  version="$(
+    xcodebuild -showBuildSettings \
+      -project "$PROJECT_PATH" \
+      -scheme "$SCHEME" \
+      -configuration Release 2>/dev/null |
+      awk -F= '/^[[:space:]]*MARKETING_VERSION[[:space:]]*=/ {
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2)
+        print $2
+        exit
+      }'
+  )"
+
+  if [[ -z "$version" ]]; then
+    printf 'Unable to resolve MARKETING_VERSION from %s.\n' "$PROJECT_PATH" >&2
+    return 1
+  fi
+
+  printf '%s\n' "$version"
+}
+
+increment_marketing_version() {
+  local version="$1"
+  local parts
+  local last_index
+
+  IFS='.' read -r -a parts <<< "$version"
+  last_index=$((${#parts[@]} - 1))
+
+  if [[ $last_index -lt 0 || ! "${parts[$last_index]}" =~ ^[0-9]+$ ]]; then
+    printf 'Cannot auto-increment MARKETING_VERSION: %s\n' "$version" >&2
+    return 1
+  fi
+
+  parts[$last_index]="$((10#${parts[$last_index]} + 1))"
+  (IFS='.'; printf '%s\n' "${parts[*]}")
+}
+
+next_build_number_after() {
+  local previous="$1"
+  local candidate
+
+  candidate="$(TZ=Asia/Shanghai date +%Y%m%d%H%M)"
+  if [[ "$candidate" =~ ^[0-9]+$ && "$previous" =~ ^[0-9]+$ ]] && ((10#$candidate <= 10#$previous)); then
+    printf '%s\n' "$((10#$previous + 1))"
+  else
+    printf '%s\n' "$candidate"
+  fi
+}
+
+persist_project_marketing_version() {
+  local version="$1"
+
+  if [[ ! -f "$PROJECT_FILE" ]]; then
+    printf 'Project file not found at %s.\n' "$PROJECT_FILE" >&2
+    return 1
+  fi
+
+  /usr/bin/perl -0pi -e "s/MARKETING_VERSION = [0-9]+(?:\\.[0-9]+)*;/MARKETING_VERSION = $version;/g" "$PROJECT_FILE"
+}
+
+is_closed_marketing_version_error() {
+  local log_path="$1"
+
+  grep -Eq \
+    'Invalid Pre-Release Train|CFBundleShortVersionString .*must contain a higher version|code = 90186|code = 90062' \
+    "$log_path"
+}
+
+MARKETING_VERSION_WAS_EXPLICIT="${MARKETING_VERSION+x}"
+MARKETING_VERSION="${MARKETING_VERSION:-$(resolve_project_marketing_version)}"
 BUILD_NUMBER="${BUILD_NUMBER:-$(TZ=Asia/Shanghai date +%Y%m%d%H%M)}"
 SIMULATOR_DESTINATION="$("$ROOT_DIR/scripts/resolve-ios-simulator-destination.sh")"
 RELEASE_DIR="${PHOTO_DELETE_RELEASE_DIR:-/tmp/PhotoDeleteRelease}"
@@ -19,6 +92,8 @@ ARCHIVE_PATH="$RELEASE_DIR/PhotoDelete.xcarchive"
 EXPORT_PATH="$RELEASE_DIR/export"
 EXPORT_OPTIONS="$RELEASE_DIR/ExportOptions.plist"
 SKIP_TESTS="${SKIP_TESTS:-0}"
+AUTO_INCREMENT_MARKETING_VERSION="${AUTO_INCREMENT_MARKETING_VERSION:-1}"
+MAX_MARKETING_VERSION_UPLOAD_ATTEMPTS="${MAX_MARKETING_VERSION_UPLOAD_ATTEMPTS:-2}"
 
 check_icon_alpha() {
   local icon_dir="$ROOT_DIR/IOSAPP/PhotoDelete/Assets.xcassets/AppIcon.appiconset"
@@ -85,6 +160,15 @@ case "$ARCHIVE_CODE_SIGNING_ALLOWED" in
     ;;
 esac
 
+case "$AUTO_INCREMENT_MARKETING_VERSION" in
+  0|1)
+    ;;
+  *)
+    printf 'AUTO_INCREMENT_MARKETING_VERSION must be 0 or 1, got %s.\n' "$AUTO_INCREMENT_MARKETING_VERSION" >&2
+    exit 1
+    ;;
+esac
+
 if [[ "$SKIP_TESTS" != "1" ]]; then
   xcodebuild test \
     -project "$PROJECT_PATH" \
@@ -94,49 +178,83 @@ fi
 
 check_icon_alpha
 
-rm -rf "$RELEASE_DIR"
-mkdir -p "$RELEASE_DIR"
+archive_and_upload() {
+  local export_log
+  local archive_signing_args
 
-archive_signing_args=(
-  "DEVELOPMENT_TEAM=$TEAM_ID"
-  "CODE_SIGNING_ALLOWED=$ARCHIVE_CODE_SIGNING_ALLOWED"
-  "MARKETING_VERSION=$MARKETING_VERSION"
-  "CURRENT_PROJECT_VERSION=$BUILD_NUMBER"
-)
+  rm -rf "$RELEASE_DIR"
+  mkdir -p "$RELEASE_DIR"
 
-if [[ "$ARCHIVE_CODE_SIGNING_ALLOWED" != "NO" ]]; then
-  archive_signing_args+=("CODE_SIGN_STYLE=$CODE_SIGN_STYLE")
-fi
-
-if [[ "$ARCHIVE_CODE_SIGNING_ALLOWED" != "NO" && "$CODE_SIGN_STYLE" == "Manual" ]]; then
-  archive_signing_args+=(
-    "CODE_SIGN_IDENTITY=$CODE_SIGN_IDENTITY"
-    "PROVISIONING_PROFILE_SPECIFIER=$PROFILE_SPECIFIER"
+  archive_signing_args=(
+    "DEVELOPMENT_TEAM=$TEAM_ID"
+    "CODE_SIGNING_ALLOWED=$ARCHIVE_CODE_SIGNING_ALLOWED"
+    "MARKETING_VERSION=$MARKETING_VERSION"
+    "CURRENT_PROJECT_VERSION=$BUILD_NUMBER"
   )
-fi
 
-xcodebuild archive \
-  -project "$PROJECT_PATH" \
-  -scheme "$SCHEME" \
-  -configuration Release \
-  -destination 'generic/platform=iOS' \
-  -archivePath "$ARCHIVE_PATH" \
-  -allowProvisioningUpdates \
-  "${archive_signing_args[@]}"
+  if [[ "$ARCHIVE_CODE_SIGNING_ALLOWED" != "NO" ]]; then
+    archive_signing_args+=("CODE_SIGN_STYLE=$CODE_SIGN_STYLE")
+  fi
 
-verify_archive_version
+  if [[ "$ARCHIVE_CODE_SIGNING_ALLOWED" != "NO" && "$CODE_SIGN_STYLE" == "Manual" ]]; then
+    archive_signing_args+=(
+      "CODE_SIGN_IDENTITY=$CODE_SIGN_IDENTITY"
+      "PROVISIONING_PROFILE_SPECIFIER=$PROFILE_SPECIFIER"
+    )
+  fi
 
-if [[ "$ARCHIVE_CODE_SIGNING_ALLOWED" == "NO" ]]; then
-  printf 'Dry-run archive completed for PhotoDelete %s (%s); skipped export and upload because ARCHIVE_CODE_SIGNING_ALLOWED=NO.\n' "$MARKETING_VERSION" "$BUILD_NUMBER"
-  exit 0
-fi
+  xcodebuild archive \
+    -project "$PROJECT_PATH" \
+    -scheme "$SCHEME" \
+    -configuration Release \
+    -destination 'generic/platform=iOS' \
+    -archivePath "$ARCHIVE_PATH" \
+    -allowProvisioningUpdates \
+    "${archive_signing_args[@]}"
 
-write_export_options
+  verify_archive_version
 
-xcodebuild -exportArchive \
-  -archivePath "$ARCHIVE_PATH" \
-  -exportPath "$EXPORT_PATH" \
-  -exportOptionsPlist "$EXPORT_OPTIONS" \
-  -allowProvisioningUpdates
+  if [[ "$ARCHIVE_CODE_SIGNING_ALLOWED" == "NO" ]]; then
+    printf 'Dry-run archive completed for PhotoDelete %s (%s); skipped export and upload because ARCHIVE_CODE_SIGNING_ALLOWED=NO.\n' "$MARKETING_VERSION" "$BUILD_NUMBER"
+    return 0
+  fi
 
-printf 'Uploaded PhotoDelete %s (%s) to App Store Connect/TestFlight.\n' "$MARKETING_VERSION" "$BUILD_NUMBER"
+  write_export_options
+
+  export_log="$RELEASE_DIR/export-$MARKETING_VERSION-$BUILD_NUMBER.log"
+  if ! xcodebuild -exportArchive \
+    -archivePath "$ARCHIVE_PATH" \
+    -exportPath "$EXPORT_PATH" \
+    -exportOptionsPlist "$EXPORT_OPTIONS" \
+    -allowProvisioningUpdates 2>&1 | tee "$export_log"; then
+    if is_closed_marketing_version_error "$export_log"; then
+      return 86
+    fi
+    return 1
+  fi
+
+  printf 'Uploaded PhotoDelete %s (%s) to App Store Connect/TestFlight.\n' "$MARKETING_VERSION" "$BUILD_NUMBER"
+}
+
+attempt=1
+while true; do
+  if archive_and_upload; then
+    exit 0
+  fi
+
+  status=$?
+  if [[ "$status" == "86" &&
+        "$AUTO_INCREMENT_MARKETING_VERSION" == "1" &&
+        -z "$MARKETING_VERSION_WAS_EXPLICIT" &&
+        "$attempt" -lt "$MAX_MARKETING_VERSION_UPLOAD_ATTEMPTS" ]]; then
+    next_marketing_version="$(increment_marketing_version "$MARKETING_VERSION")"
+    printf 'App Store Connect rejected MARKETING_VERSION %s. Retrying with %s.\n' "$MARKETING_VERSION" "$next_marketing_version" >&2
+    persist_project_marketing_version "$next_marketing_version"
+    MARKETING_VERSION="$next_marketing_version"
+    BUILD_NUMBER="$(next_build_number_after "$BUILD_NUMBER")"
+    attempt=$((attempt + 1))
+    continue
+  fi
+
+  exit "$status"
+done

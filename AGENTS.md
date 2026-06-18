@@ -83,13 +83,14 @@ xcodebuild clean -project IOSAPP/PhotoDelete.xcodeproj -scheme PhotoDelete
 
 - TestFlight build numbers must use UTC+8 time in `yyyyMMddHHmm` format, matching Beijing/Shanghai local time. Do not generate release build numbers from UTC time.
 - Before uploading, make sure the new `CFBundleVersion` is numerically greater than the highest build already visible in App Store Connect/TestFlight; otherwise testers may not receive it as an update even if the upload succeeds.
+- Do not manually bump `MARKETING_VERSION` for every TestFlight upload. Reuse the current version while the pre-release train accepts new builds; if App Store Connect rejects the upload because the train is closed or `CFBundleShortVersionString` must be higher than the approved version, let `scripts/release-testflight.sh` auto-increment the last marketing-version component once, write it back to the Xcode project, and retry with a fresh UTC+8 build number.
 - The release script accepts an explicit override:
 
 ```bash
 BUILD_NUMBER=202606111630 scripts/release-testflight.sh
 ```
 
-`scripts/release-testflight.sh` runs tests unless `SKIP_TESTS=1`, checks that App Icon PNGs do not contain alpha channels, archives, exports, and uploads to App Store Connect/TestFlight.
+`scripts/release-testflight.sh` runs tests unless `SKIP_TESTS=1`, checks that App Icon PNGs do not contain alpha channels, archives, exports, uploads to App Store Connect/TestFlight, and handles one automatic marketing-version retry when Apple closes the current train.
 
 ## Architecture
 
@@ -121,7 +122,7 @@ BUILD_NUMBER=202606111630 scripts/release-testflight.sh
 - `CleanupAchievementsView.swift`: Achievement list and progress display.
 - `SettingsView.swift`: Usage stats, supporter entry, gesture/language/appearance preferences, data and permission controls, feedback, creator, and privacy sheets.
 - `SettingsSupportDetailViews.swift`: Creator/01MVP support sections used by Settings.
-- `SupporterView.swift`: Supporter paywall, unlocked long-term stats, monthly summaries, history, badge, and theme selection.
+- `SupporterView.swift`: Supporter paywall, unlocked long-term stats, monthly summaries, history, and badge. Theme switching is a supporter feature exposed from Settings.
 
 ### Website And Marketing
 

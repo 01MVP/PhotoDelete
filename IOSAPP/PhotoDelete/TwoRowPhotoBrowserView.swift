@@ -1148,22 +1148,16 @@ private final class TwoRowPhotoBrowserCell: UICollectionViewCell, UIGestureRecog
 }
 
 private enum TwoRowBrowserColors {
-    static let background = UIColor { traits in
-        traits.userInterfaceStyle == .dark
-            ? UIColor(red: 0.035, green: 0.037, blue: 0.042, alpha: 1)
-            : UIColor.systemGroupedBackground
+    static var background: UIColor {
+        PhotoDeleteTheme.current.uiBackground
     }
 
-    static let surface = UIColor { traits in
-        traits.userInterfaceStyle == .dark
-            ? UIColor(white: 1, alpha: 0.075)
-            : UIColor.secondarySystemGroupedBackground
+    static var surface: UIColor {
+        PhotoDeleteTheme.current.uiSurface
     }
 
-    static let hairline = UIColor { traits in
-        traits.userInterfaceStyle == .dark
-            ? UIColor(white: 1, alpha: 0.115)
-            : UIColor.separator.withAlphaComponent(0.14)
+    static var hairline: UIColor {
+        PhotoDeleteTheme.current.uiHairline
     }
 
     static let primaryText = UIColor { traits in
@@ -1178,21 +1172,15 @@ private enum TwoRowBrowserColors {
             : UIColor.secondaryLabel
     }
 
-    static let accent = UIColor { traits in
-        traits.userInterfaceStyle == .dark
-            ? UIColor(red: 0.64, green: 0.78, blue: 1, alpha: 1)
-            : UIColor.systemBlue
+    static var accent: UIColor {
+        PhotoDeleteTheme.current.uiAccent
     }
 
-    static let destructive = UIColor { traits in
-        traits.userInterfaceStyle == .dark
-            ? UIColor(red: 1, green: 0.38, blue: 0.34, alpha: 1)
-            : UIColor(red: 0.86, green: 0.13, blue: 0.12, alpha: 1)
+    static var destructive: UIColor {
+        PhotoDeleteTheme.current.uiDanger
     }
 
-    static let favorite = UIColor { traits in
-        traits.userInterfaceStyle == .dark
-            ? UIColor(red: 1.0, green: 0.62, blue: 0.72, alpha: 1)
-            : UIColor(red: 0.82, green: 0.16, blue: 0.38, alpha: 1)
+    static var favorite: UIColor {
+        PhotoDeleteTheme.current.uiFavorite
     }
 }

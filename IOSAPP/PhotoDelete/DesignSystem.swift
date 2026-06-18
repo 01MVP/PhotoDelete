@@ -6,30 +6,12 @@ import UIKit
 
 enum PhotoDeleteStyle {
     #if canImport(UIKit)
-    static let background = Color(uiColor: dynamicUIColor(
-        light: UIColor.systemGroupedBackground,
-        dark: UIColor(red: 0.035, green: 0.037, blue: 0.042, alpha: 1)
-    ))
-    static let backgroundTop = Color(uiColor: dynamicUIColor(
-        light: UIColor.systemGroupedBackground,
-        dark: UIColor(red: 0.058, green: 0.06, blue: 0.068, alpha: 1)
-    ))
-    static let surface = Color(uiColor: dynamicUIColor(
-        light: UIColor.secondarySystemGroupedBackground,
-        dark: UIColor(white: 1, alpha: 0.075)
-    ))
-    static let elevatedSurface = Color(uiColor: dynamicUIColor(
-        light: UIColor.tertiarySystemGroupedBackground,
-        dark: UIColor(white: 1, alpha: 0.105)
-    ))
-    static let hairline = Color(uiColor: dynamicUIColor(
-        light: UIColor.separator.withAlphaComponent(0.14),
-        dark: UIColor(white: 1, alpha: 0.115)
-    ))
-    static let cardStroke = Color(uiColor: dynamicUIColor(
-        light: UIColor.separator.withAlphaComponent(0.08),
-        dark: UIColor(white: 1, alpha: 0.115)
-    ))
+    static var background: Color { PhotoDeleteTheme.current.backgroundBottom }
+    static var backgroundTop: Color { PhotoDeleteTheme.current.backgroundTop }
+    static var surface: Color { PhotoDeleteTheme.current.surface }
+    static var elevatedSurface: Color { PhotoDeleteTheme.current.elevatedSurface }
+    static var hairline: Color { PhotoDeleteTheme.current.hairline }
+    static var cardStroke: Color { PhotoDeleteTheme.current.cardStroke }
     static let primaryText = Color(uiColor: dynamicUIColor(
         light: UIColor.label,
         dark: UIColor(white: 1, alpha: 0.96)
@@ -42,59 +24,37 @@ enum PhotoDeleteStyle {
         light: UIColor.tertiaryLabel,
         dark: UIColor(white: 1, alpha: 0.42)
     ))
-    static let accent = Color(uiColor: dynamicUIColor(
-        light: UIColor.systemBlue,
-        dark: UIColor(red: 0.64, green: 0.78, blue: 1, alpha: 1)
-    ))
-    static let destructive = Color(uiColor: dynamicUIColor(
-        light: UIColor(red: 0.86, green: 0.13, blue: 0.12, alpha: 1),
-        dark: UIColor(red: 1, green: 0.38, blue: 0.34, alpha: 1)
-    ))
-    static let positive = Color(uiColor: dynamicUIColor(
-        light: UIColor(red: 0.06, green: 0.5, blue: 0.22, alpha: 1),
-        dark: UIColor(red: 0.5, green: 0.9, blue: 0.64, alpha: 1)
-    ))
-    static let warning = Color(uiColor: dynamicUIColor(
-        light: UIColor(red: 0.78, green: 0.45, blue: 0.02, alpha: 1),
-        dark: UIColor(red: 1, green: 0.79, blue: 0.47, alpha: 1)
-    ))
-    static let primaryButtonText = Color(uiColor: dynamicUIColor(
-        light: UIColor.white,
-        dark: UIColor(white: 0, alpha: 0.88)
-    ))
+    static var accent: Color { PhotoDeleteTheme.current.primaryAccent }
+    static var destructive: Color { PhotoDeleteTheme.current.danger }
+    static var positive: Color { PhotoDeleteTheme.current.success }
+    static var warning: Color { PhotoDeleteTheme.current.warning }
+    static var favorite: Color { PhotoDeleteTheme.current.favorite }
+    static var primaryButtonText: Color { PhotoDeleteTheme.current.primaryAccentOnFill }
 
-    static let uiBackground = dynamicUIColor(
-        light: UIColor.systemGroupedBackground,
-        dark: UIColor(red: 0.035, green: 0.037, blue: 0.042, alpha: 1)
-    )
-    static let uiAccent = dynamicUIColor(
-        light: UIColor.systemBlue,
-        dark: UIColor(red: 0.64, green: 0.78, blue: 1, alpha: 1)
-    )
+    static var uiBackground: UIColor { PhotoDeleteTheme.current.uiBackground }
+    static var uiAccent: UIColor { PhotoDeleteTheme.current.uiAccent }
     static let uiSecondaryText = dynamicUIColor(
         light: UIColor.secondaryLabel,
         dark: UIColor(white: 1.0, alpha: 0.58)
     )
-    static let floatingShadow = Color(uiColor: dynamicUIColor(
-        light: UIColor(white: 0, alpha: 0.08),
-        dark: UIColor(white: 0, alpha: 0.24)
-    ))
+    static var floatingShadow: Color { PhotoDeleteTheme.current.floatingShadow }
     #else
-    static let background = Color(red: 0.035, green: 0.037, blue: 0.042)
-    static let backgroundTop = Color(red: 0.058, green: 0.06, blue: 0.068)
-    static let surface = Color.white.opacity(0.075)
-    static let elevatedSurface = Color.white.opacity(0.105)
-    static let hairline = Color.white.opacity(0.115)
-    static let cardStroke = Color.white.opacity(0.115)
+    static var background: Color { PhotoDeleteTheme.current.backgroundBottom }
+    static var backgroundTop: Color { PhotoDeleteTheme.current.backgroundTop }
+    static var surface: Color { PhotoDeleteTheme.current.surface }
+    static var elevatedSurface: Color { PhotoDeleteTheme.current.elevatedSurface }
+    static var hairline: Color { PhotoDeleteTheme.current.hairline }
+    static var cardStroke: Color { PhotoDeleteTheme.current.cardStroke }
     static let primaryText = Color.white.opacity(0.96)
     static let secondaryText = Color.white.opacity(0.62)
     static let tertiaryText = Color.white.opacity(0.42)
-    static let accent = Color(red: 0.64, green: 0.78, blue: 1.0)
-    static let destructive = Color(red: 1.0, green: 0.38, blue: 0.34)
-    static let positive = Color(red: 0.5, green: 0.9, blue: 0.64)
-    static let warning = Color(red: 1.0, green: 0.79, blue: 0.47)
-    static let primaryButtonText = Color.black.opacity(0.88)
-    static let floatingShadow = Color.black.opacity(0.24)
+    static var accent: Color { PhotoDeleteTheme.current.primaryAccent }
+    static var destructive: Color { PhotoDeleteTheme.current.danger }
+    static var positive: Color { PhotoDeleteTheme.current.success }
+    static var warning: Color { PhotoDeleteTheme.current.warning }
+    static var favorite: Color { PhotoDeleteTheme.current.favorite }
+    static var primaryButtonText: Color { PhotoDeleteTheme.current.primaryAccentOnFill }
+    static var floatingShadow: Color { PhotoDeleteTheme.current.floatingShadow }
     #endif
 
     static let screenHorizontalPadding: CGFloat = 20
@@ -106,26 +66,31 @@ enum PhotoDeleteStyle {
     static let rowMinHeight: CGFloat = 58
 
     static func iconTint(for key: String) -> Color {
+        let theme = PhotoDeleteTheme.current
         switch key {
-        case "delete", "trash": return destructive
-        case "favorite", "heart": return Color(uiColor: dynamicUIColor(
-            light: UIColor(red: 0.82, green: 0.16, blue: 0.38, alpha: 1),
-            dark: UIColor(red: 1.0, green: 0.62, blue: 0.72, alpha: 1)
-        ))
-        case "screenshot", "iphone": return Color(uiColor: dynamicUIColor(
-            light: UIColor(red: 0.0, green: 0.48, blue: 0.78, alpha: 1),
-            dark: UIColor(red: 0.44, green: 0.78, blue: 1.0, alpha: 1)
-        ))
-        case "video": return Color(uiColor: dynamicUIColor(
-            light: UIColor(red: 0.44, green: 0.31, blue: 0.88, alpha: 1),
-            dark: UIColor(red: 0.72, green: 0.7, blue: 1.0, alpha: 1)
-        ))
-        case "livephoto": return Color(uiColor: dynamicUIColor(
-            light: UIColor(red: 0.02, green: 0.55, blue: 0.42, alpha: 1),
-            dark: UIColor(red: 0.36, green: 0.84, blue: 0.68, alpha: 1)
-        ))
-        default: return accent
+        case "delete", "trash":
+            return theme.danger
+        case "favorite", "heart":
+            return theme.favorite
+        case "video", "livephoto":
+            return theme.secondaryAccent
+        case "screenshot", "iphone", "photo", "album":
+            return theme.primaryAccent
+        default:
+            return theme.primaryAccent
         }
+    }
+
+    static func surfaceFill(for theme: PhotoDeleteTheme, elevated: Bool = false) -> Color {
+        elevated ? theme.elevatedSurface : theme.surface
+    }
+
+    static func strokeFill(for theme: PhotoDeleteTheme) -> Color {
+        theme.cardStroke
+    }
+
+    static func hairlineFill(for theme: PhotoDeleteTheme) -> Color {
+        theme.hairline
     }
 
     #if canImport(UIKit)
@@ -194,11 +159,13 @@ enum PhotoDeleteAdaptiveLayout {
 }
 
 struct PhotoDeleteScreenBackground: View {
+    @Environment(\.photoDeleteTheme) private var theme
+
     var body: some View {
         LinearGradient(
             colors: [
-                PhotoDeleteStyle.backgroundTop,
-                PhotoDeleteStyle.background
+                theme.backgroundTop,
+                theme.backgroundBottom
             ],
             startPoint: .top,
             endPoint: .bottom
@@ -209,15 +176,16 @@ struct PhotoDeleteScreenBackground: View {
 
 struct PhotoDeleteCardBackground: ViewModifier {
     var radius: CGFloat = PhotoDeleteStyle.cardRadius
+    @Environment(\.photoDeleteTheme) private var theme
 
     func body(content: Content) -> some View {
         content
             .background(
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .fill(PhotoDeleteStyle.surface)
+                    .fill(PhotoDeleteStyle.surfaceFill(for: theme))
                     .overlay(
                         RoundedRectangle(cornerRadius: radius, style: .continuous)
-                            .stroke(PhotoDeleteStyle.cardStroke, lineWidth: 1)
+                            .stroke(PhotoDeleteStyle.strokeFill(for: theme), lineWidth: 1)
                     )
             )
     }
@@ -231,11 +199,29 @@ enum PhotoDeleteIconTileStyle {
 
 struct PhotoDeleteIconTile: View {
     let icon: String
-    let tint: Color
+    var tint: Color?
     var size: CGFloat = PhotoDeleteStyle.rowIconSize
     var cornerRadius: CGFloat = 9
     var style: PhotoDeleteIconTileStyle = .soft
     var filled: Bool? = nil
+
+    @Environment(\.photoDeleteTheme) private var theme
+
+    init(
+        icon: String,
+        tint: Color? = nil,
+        size: CGFloat = PhotoDeleteStyle.rowIconSize,
+        cornerRadius: CGFloat = 9,
+        style: PhotoDeleteIconTileStyle = .soft,
+        filled: Bool? = nil
+    ) {
+        self.icon = icon
+        self.tint = tint
+        self.size = size
+        self.cornerRadius = cornerRadius
+        self.style = style
+        self.filled = filled
+    }
 
     var body: some View {
         iconContent
@@ -249,23 +235,39 @@ struct PhotoDeleteIconTile: View {
         return style
     }
 
+    private var resolvedTint: Color {
+        tint ?? theme.primaryAccent
+    }
+
+    private var softFill: Color {
+        tint == nil ? theme.iconTileFill : resolvedTint.opacity(0.14)
+    }
+
+    private var softStroke: Color {
+        tint == nil ? theme.iconTileStroke : resolvedTint.opacity(0.14)
+    }
+
+    private var solidSymbolColor: Color {
+        tint == nil ? theme.primaryAccentOnFill : .white
+    }
+
     @ViewBuilder
     private var iconContent: some View {
         switch resolvedStyle {
         case .soft:
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(tint.opacity(0.14))
+                .fill(softFill)
                 .overlay(
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .stroke(tint.opacity(0.12), lineWidth: 1)
+                        .stroke(softStroke, lineWidth: 1)
                 )
-                .overlay(symbol.foregroundColor(tint))
+                .overlay(symbol.foregroundColor(resolvedTint))
         case .solid:
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(tint)
-                .overlay(symbol.foregroundColor(.white))
+                .fill(resolvedTint)
+                .overlay(symbol.foregroundColor(solidSymbolColor))
         case .plain:
-            symbol.foregroundColor(tint)
+            symbol.foregroundColor(resolvedTint)
         }
     }
 
@@ -278,16 +280,17 @@ struct PhotoDeleteIconTile: View {
 
 struct PhotoDeletePrimaryButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.photoDeleteTheme) private var theme
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.body.weight(.semibold))
-            .foregroundColor(PhotoDeleteStyle.primaryButtonText)
+            .foregroundColor(theme.buttonPrimaryText)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 15)
             .background(
                 RoundedRectangle(cornerRadius: PhotoDeleteStyle.controlRadius, style: .continuous)
-                    .fill(PhotoDeleteStyle.accent)
+                    .fill(configuration.isPressed ? theme.primaryAccentPressed : theme.buttonPrimaryFill)
             )
             .opacity(isEnabled ? (configuration.isPressed ? 0.82 : 1) : 0.42)
             .scaleEffect(configuration.isPressed ? 0.985 : 1)
@@ -297,19 +300,20 @@ struct PhotoDeletePrimaryButtonStyle: ButtonStyle {
 
 struct PhotoDeleteSecondaryButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.photoDeleteTheme) private var theme
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.body.weight(.semibold))
-            .foregroundColor(PhotoDeleteStyle.primaryText)
+            .foregroundColor(theme.buttonSecondaryText)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 15)
             .background(
                 RoundedRectangle(cornerRadius: PhotoDeleteStyle.controlRadius, style: .continuous)
-                    .fill(PhotoDeleteStyle.surface)
+                    .fill(theme.buttonSecondaryFill)
                     .overlay(
                         RoundedRectangle(cornerRadius: PhotoDeleteStyle.controlRadius, style: .continuous)
-                            .stroke(PhotoDeleteStyle.hairline, lineWidth: 1)
+                            .stroke(theme.buttonSecondaryStroke, lineWidth: 1)
                     )
             )
             .opacity(isEnabled ? (configuration.isPressed ? 0.74 : 1) : 0.42)
@@ -384,11 +388,12 @@ enum AppConstants {
     static let hasSeenAlbumShortcutHintKey = "photoDeleteHasSeenAlbumShortcutHint"
     static let reviewProgressByScopeKey = "photoDeleteReviewProgressByScope"
     static let appAppearanceKey = "photoDeleteAppAppearance"
+    static let appThemeKey = "photoDeleteAppTheme"
     static let supporterProductID = "com.01mvp.photodelete.supporter.stats"
     static let supporterEntitlementKey = "photoDeleteSupporterUnlocked"
     static let supporterPurchaseDateKey = "photoDeleteSupporterPurchaseDate"
     static let supporterTrialStartDateKey = "photoDeleteSupporterTrialStartDate"
-    static let supporterThemeKey = "photoDeleteSupporterTheme"
+    static let supporterTrialDuration: TimeInterval = 7 * 24 * 60 * 60
     static var privacyShortText: String {
         L10n.string("照片整理只在本机完成。不需要账号，也不会上传你的照片。")
     }
@@ -440,14 +445,18 @@ enum PhotoDeleteToastStyle {
     case favorite
     case warning
 
-    var color: Color {
+    func color(for theme: PhotoDeleteTheme) -> Color {
         switch self {
-        case .neutral: return PhotoDeleteStyle.accent
-        case .positive: return PhotoDeleteStyle.positive
-        case .destructive: return PhotoDeleteStyle.destructive
-        case .favorite: return PhotoDeleteStyle.iconTint(for: "favorite")
-        case .warning: return PhotoDeleteStyle.warning
+        case .neutral: return theme.primaryAccent
+        case .positive: return theme.success
+        case .destructive: return theme.danger
+        case .favorite: return theme.favorite
+        case .warning: return theme.warning
         }
+    }
+
+    var color: Color {
+        color(for: .current)
     }
 }
 
@@ -455,11 +464,17 @@ struct PhotoDeleteToastView: View {
     let toast: PhotoDeleteToast
     var onUndo: (() -> Void)?
 
+    @Environment(\.photoDeleteTheme) private var theme
+
+    private var toastColor: Color {
+        toast.style.color(for: theme)
+    }
+
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: toast.icon)
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundColor(toast.style.color)
+                .foregroundColor(toastColor)
                 .frame(width: 22)
 
             Text(toast.message.appLocalized)
@@ -475,7 +490,7 @@ struct PhotoDeleteToastView: View {
 
                 Button(L10n.string("撤销"), action: onUndo)
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.accent)
+                    .foregroundColor(theme.toolbarAction)
                     .buttonStyle(.plain)
             }
         }
@@ -483,13 +498,13 @@ struct PhotoDeleteToastView: View {
         .padding(.vertical, 11)
         .background(
             Capsule(style: .continuous)
-                .fill(PhotoDeleteStyle.background.opacity(0.9))
+                .fill(theme.elevatedSurface.opacity(0.94))
                 .overlay(
                     Capsule(style: .continuous)
-                        .stroke(toast.style.color.opacity(0.34), lineWidth: 1)
+                        .stroke(toastColor.opacity(0.34), lineWidth: 1)
                 )
         )
-        .shadow(color: PhotoDeleteStyle.floatingShadow, radius: 10, x: 0, y: 5)
+        .shadow(color: theme.floatingShadow, radius: 10, x: 0, y: 5)
     }
 }
 
@@ -498,11 +513,13 @@ struct PhotoAuthorizationCard: View {
     let subtitle: String
     let onRequestAccess: () -> Void
 
+    @Environment(\.photoDeleteTheme) private var theme
+
     var body: some View {
         VStack(spacing: 20) {
             Image(systemName: "photo.on.rectangle.angled")
                 .font(.largeTitle.weight(.medium))
-                .foregroundStyle(PhotoDeleteStyle.accent)
+                .foregroundStyle(theme.primaryAccent)
                 .accessibilityHidden(true)
 
             Text(L10n.string("需要访问照片库"))
