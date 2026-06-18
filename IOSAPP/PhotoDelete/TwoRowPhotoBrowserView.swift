@@ -11,6 +11,8 @@ struct TwoRowPhotoBrowserView: UIViewRepresentable {
     let pendingReviewedAssetIDs: Set<String>
     let deleteCandidateIDs: Set<String>
     let favoriteCandidateIDs: Set<String>
+    let albumFilingAssetIDs: Set<String>
+    let albumFiledAssetIDs: Set<String>
     let playingVideoAssetID: String?
     let rowHeight: CGFloat
     let thumbnailTargetSize: CGSize
@@ -88,6 +90,8 @@ struct TwoRowPhotoBrowserView: UIViewRepresentable {
         private var pendingReviewedAssetIDs: Set<String>
         private var deleteCandidateIDs: Set<String>
         private var favoriteCandidateIDs: Set<String>
+        private var albumFilingAssetIDs: Set<String>
+        private var albumFiledAssetIDs: Set<String>
         private var playingVideoAssetID: String?
         private var rowHeight: CGFloat
         private var thumbnailTargetSize: CGSize
@@ -110,6 +114,8 @@ struct TwoRowPhotoBrowserView: UIViewRepresentable {
             pendingReviewedAssetIDs = view.pendingReviewedAssetIDs
             deleteCandidateIDs = view.deleteCandidateIDs
             favoriteCandidateIDs = view.favoriteCandidateIDs
+            albumFilingAssetIDs = view.albumFilingAssetIDs
+            albumFiledAssetIDs = view.albumFiledAssetIDs
             playingVideoAssetID = view.playingVideoAssetID
             rowHeight = view.rowHeight
             thumbnailTargetSize = view.thumbnailTargetSize
@@ -135,6 +141,8 @@ struct TwoRowPhotoBrowserView: UIViewRepresentable {
             pendingReviewedAssetIDs = view.pendingReviewedAssetIDs
             deleteCandidateIDs = view.deleteCandidateIDs
             favoriteCandidateIDs = view.favoriteCandidateIDs
+            albumFilingAssetIDs = view.albumFilingAssetIDs
+            albumFiledAssetIDs = view.albumFiledAssetIDs
             playingVideoAssetID = view.playingVideoAssetID
             onSelectIndex = view.onSelectIndex
             onOpenAsset = view.onOpenAsset
@@ -277,6 +285,8 @@ struct TwoRowPhotoBrowserView: UIViewRepresentable {
                 isReviewed: reviewedAssetIDs.contains(id) || pendingReviewedAssetIDs.contains(id),
                 isInDeleteCandidates: deleteCandidateIDs.contains(id),
                 isInFavoriteCandidates: favoriteCandidateIDs.contains(id),
+                isBeingFiledToAlbum: albumFilingAssetIDs.contains(id),
+                isFiledToAlbum: albumFiledAssetIDs.contains(id),
                 isScreenshot: photoLibraryManager.isScreenshot(asset),
                 isVideo: asset.mediaType == .video,
                 isVideoPlaying: playingVideoAssetID == id,
@@ -623,6 +633,8 @@ private final class TwoRowPhotoBrowserCell: UICollectionViewCell, UIGestureRecog
         isReviewed: Bool,
         isInDeleteCandidates: Bool,
         isInFavoriteCandidates: Bool,
+        isBeingFiledToAlbum: Bool,
+        isFiledToAlbum: Bool,
         isScreenshot: Bool,
         isVideo: Bool,
         isVideoPlaying: Bool,
@@ -662,13 +674,17 @@ private final class TwoRowPhotoBrowserCell: UICollectionViewCell, UIGestureRecog
         updateStateOverlay(
             isReviewed: isReviewed,
             isInDeleteCandidates: isInDeleteCandidates,
-            isInFavoriteCandidates: isInFavoriteCandidates
+            isInFavoriteCandidates: isInFavoriteCandidates,
+            isBeingFiledToAlbum: isBeingFiledToAlbum,
+            isFiledToAlbum: isFiledToAlbum
         )
         updateAccessibility(
             isSelected: isSelected,
             isReviewed: isReviewed,
             isInDeleteCandidates: isInDeleteCandidates,
             isInFavoriteCandidates: isInFavoriteCandidates,
+            isBeingFiledToAlbum: isBeingFiledToAlbum,
+            isFiledToAlbum: isFiledToAlbum,
             isScreenshot: isScreenshot,
             isVideo: isVideo
         )
@@ -922,10 +938,12 @@ private final class TwoRowPhotoBrowserCell: UICollectionViewCell, UIGestureRecog
     private func updateStateOverlay(
         isReviewed: Bool,
         isInDeleteCandidates: Bool,
-        isInFavoriteCandidates: Bool
+        isInFavoriteCandidates: Bool,
+        isBeingFiledToAlbum: Bool,
+        isFiledToAlbum: Bool
     ) {
         _ = isReviewed
-        stateOverlayView.isHidden = !(isInDeleteCandidates || isInFavoriteCandidates)
+        stateOverlayView.isHidden = !(isInDeleteCandidates || isInFavoriteCandidates || isBeingFiledToAlbum || isFiledToAlbum)
         cancelButton.isHidden = !isInDeleteCandidates
 
         if isInDeleteCandidates {
@@ -936,6 +954,14 @@ private final class TwoRowPhotoBrowserCell: UICollectionViewCell, UIGestureRecog
             stateIconView.image = UIImage(systemName: "heart.fill")
             stateIconView.tintColor = TwoRowBrowserColors.favorite
             stateTitleLabel.text = L10n.string("待收藏")
+        } else if isBeingFiledToAlbum {
+            stateIconView.image = UIImage(systemName: "tray.and.arrow.down.fill")
+            stateIconView.tintColor = TwoRowBrowserColors.positive
+            stateTitleLabel.text = L10n.string("归类中")
+        } else if isFiledToAlbum {
+            stateIconView.image = UIImage(systemName: "checkmark.circle.fill")
+            stateIconView.tintColor = TwoRowBrowserColors.positive
+            stateTitleLabel.text = L10n.string("已归类")
         }
     }
 
@@ -944,6 +970,8 @@ private final class TwoRowPhotoBrowserCell: UICollectionViewCell, UIGestureRecog
         isReviewed: Bool,
         isInDeleteCandidates: Bool,
         isInFavoriteCandidates: Bool,
+        isBeingFiledToAlbum: Bool,
+        isFiledToAlbum: Bool,
         isScreenshot: Bool,
         isVideo: Bool
     ) {
@@ -954,6 +982,10 @@ private final class TwoRowPhotoBrowserCell: UICollectionViewCell, UIGestureRecog
             values.append(L10n.string("待删除"))
         } else if isInFavoriteCandidates {
             values.append(L10n.string("待收藏"))
+        } else if isBeingFiledToAlbum {
+            values.append(L10n.string("归类中"))
+        } else if isFiledToAlbum {
+            values.append(L10n.string("已归类"))
         } else if isReviewed {
             values.append(L10n.string("已整理"))
         }
@@ -1182,5 +1214,9 @@ private enum TwoRowBrowserColors {
 
     static var favorite: UIColor {
         PhotoDeleteTheme.current.uiFavorite
+    }
+
+    static var positive: UIColor {
+        PhotoDeleteTheme.current.uiSuccess
     }
 }

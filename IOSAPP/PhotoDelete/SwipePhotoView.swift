@@ -23,6 +23,7 @@ struct SwipePhotoView: View {
     @AppStorage(AppConstants.reviewModeKey) private var reviewModeValue = PhotoReviewMode.card.rawValue
     @AppStorage(AppConstants.hasSeenReviewModeHintKey) private var hasSeenReviewModeHint = false
     @AppStorage(AppConstants.hasSeenAlbumShortcutHintKey) private var hasSeenAlbumShortcutHint = false
+    @AppStorage(AppConstants.hasSeenDeleteButtonTipKey) private var hasSeenDeleteButtonTip = false
 
     let selectedCategory: PhotoCategory?
     let selectedTimeGroup: String?
@@ -52,9 +53,13 @@ struct SwipePhotoView: View {
     @State private var cardModeReviewActionCount = 0
     @State private var showReviewModeHint = false
     @State private var showAlbumShortcutHint = false
-    @State private var albumShortcutHintDismissWorkItem: DispatchWorkItem?
+    @State private var showDeleteButtonTip = false
+    @State private var sessionDeleteActionCount = 0
+    @State private var albumFilingAssetIDs: Set<String> = []
+    @State private var recentlyFiledAlbumAssetIDs: Set<String> = []
 
     private let reviewModeHintThreshold = 5
+    private let deleteButtonTipThreshold = 3
     private let albumShortcutTwoRowThreshold = 4
     private static let countFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
@@ -156,8 +161,13 @@ struct SwipePhotoView: View {
         return isAssetQueuedForDelete(asset)
     }
 
+    private var isCurrentPhotoBeingFiled: Bool {
+        guard let asset = currentRealPhoto else { return false }
+        return isAssetBeingFiledToAlbum(asset)
+    }
+
     private var canPerformPhotoAction: Bool {
-        currentRealPhoto != nil && !showCompletionMessage
+        currentRealPhoto != nil && !showCompletionMessage && !isCurrentPhotoBeingFiled
     }
 
     private var reviewMode: PhotoReviewMode {
@@ -436,6 +446,8 @@ struct SwipePhotoView: View {
                 photoLibraryManager: dataManager.photoLibraryManager,
                 isInDeleteCandidates: isAssetQueuedForDelete(asset),
                 isInFavoriteCandidates: isAssetQueuedForFavorite(asset),
+                isBeingFiledToAlbum: isAssetBeingFiledToAlbum(asset),
+                isFiledToAlbum: isAssetFiledToAlbum(asset),
                 isVideoPlaying: inlinePlayingVideoAssetID == asset.localIdentifier,
                 displaySize: cardSize,
                 targetSize: imageTargetSize(for: cardSize),
@@ -519,6 +531,8 @@ struct SwipePhotoView: View {
                 pendingReviewedAssetIDs: browserPendingReviewedAssetIDs,
                 deleteCandidateIDs: browserDeleteCandidateIDs,
                 favoriteCandidateIDs: browserFavoriteCandidateIDs,
+                albumFilingAssetIDs: albumFilingAssetIDs,
+                albumFiledAssetIDs: recentlyFiledAlbumAssetIDs,
                 playingVideoAssetID: inlinePlayingVideoAssetID,
                 rowHeight: tileHeight,
                 thumbnailTargetSize: thumbnailTargetSize,
@@ -656,7 +670,21 @@ struct SwipePhotoView: View {
     // MARK: - 底部控制区域
     private var bottomControls: some View {
         VStack(spacing: 10) {
+            if shouldShowAlbumShortcutGuidance {
+                AlbumShortcutHintBubble(onDismiss: acknowledgeAlbumShortcutHint)
+                    .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
             albumShortcutStrip(horizontalPadding: PhotoDeleteStyle.screenHorizontalPadding)
+            if showDeleteButtonTip && canPerformPhotoAction {
+                ReviewTipBanner(
+                    icon: "trash",
+                    message: L10n.string("按底部“删除”可连续加入待删除"),
+                    onDismiss: acknowledgeDeleteButtonTip
+                )
+                .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
             actionToolbar
         }
         .padding(.top, 8)
@@ -678,7 +706,19 @@ struct SwipePhotoView: View {
         VStack(alignment: .leading, spacing: 16) {
             sessionSummaryPanel
             gestureGuidePanel
+            if shouldShowAlbumShortcutGuidance {
+                AlbumShortcutHintBubble(onDismiss: acknowledgeAlbumShortcutHint)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
             albumShortcutStrip(horizontalPadding: 0)
+            if showDeleteButtonTip && canPerformPhotoAction {
+                ReviewTipBanner(
+                    icon: "trash",
+                    message: L10n.string("按“待删除”可连续加入待删除"),
+                    onDismiss: acknowledgeDeleteButtonTip
+                )
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
 
             Spacer(minLength: 8)
 
@@ -814,42 +854,38 @@ struct SwipePhotoView: View {
             let rows = albumShortcutRows
             let usesTwoRows = albumShortcutUsesTwoRows
 
-            ScrollView(.horizontal) {
-                Group {
-                    if usesTwoRows {
-                        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 8) {
+                AlbumShortcutManageButton(action: openAlbumsTab)
+
+                ScrollView(.horizontal) {
+                    Group {
+                        if usesTwoRows {
+                            VStack(alignment: .leading, spacing: 7) {
+                                albumShortcutRow(albums: rows.top)
+                                albumShortcutRow(albums: rows.bottom)
+                            }
+                        } else {
                             albumShortcutRow(albums: rows.top)
-                            albumShortcutRow(albums: rows.bottom)
                         }
-                    } else {
-                        albumShortcutRow(albums: rows.top)
                     }
+                    .padding(.vertical, 2)
                 }
-                .padding(.horizontal, horizontalPadding)
-                .padding(.vertical, 2)
-            }
-            .scrollIndicators(.hidden)
-            .frame(height: usesTwoRows ? 67 : 34)
-            .mask(
-                LinearGradient(
-                    stops: [
-                        .init(color: .clear, location: 0),
-                        .init(color: .black, location: 0.04),
-                        .init(color: .black, location: 0.94),
-                        .init(color: .clear, location: 1)
-                    ],
-                    startPoint: .leading,
-                    endPoint: .trailing
+                .scrollIndicators(.hidden)
+                .mask(
+                    LinearGradient(
+                        stops: [
+                            .init(color: .clear, location: 0),
+                            .init(color: .black, location: 0.05),
+                            .init(color: .black, location: 0.94),
+                            .init(color: .clear, location: 1)
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
                 )
-            )
-            .overlay(alignment: .topLeading) {
-                if showAlbumShortcutHint {
-                    AlbumShortcutHintBubble()
-                        .padding(.leading, horizontalPadding)
-                        .offset(y: -38)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
             }
+            .padding(.horizontal, horizontalPadding)
+            .frame(height: usesTwoRows ? 67 : 34)
             .onAppear {
                 revealAlbumShortcutHintIfNeeded()
             }
@@ -857,6 +893,13 @@ struct SwipePhotoView: View {
                 dismissAlbumShortcutHint()
             }
         }
+    }
+
+    private var shouldShowAlbumShortcutGuidance: Bool {
+        showAlbumShortcutHint &&
+            !isAlbumMode &&
+            canPerformPhotoAction &&
+            !dataManager.userAlbums.isEmpty
     }
 
     private func albumShortcutRow(albums: [AlbumInfo]) -> some View {
@@ -967,10 +1010,17 @@ struct SwipePhotoView: View {
     }
 
     private var portraitToastBottomPadding: CGFloat {
+        var padding: CGFloat = 100
         if !isAlbumMode && canPerformPhotoAction && !dataManager.userAlbums.isEmpty {
-            return albumShortcutUsesTwoRows ? 160 : 128
+            padding = albumShortcutUsesTwoRows ? 160 : 128
         }
-        return 100
+        if shouldShowAlbumShortcutGuidance {
+            padding += 70
+        }
+        if showDeleteButtonTip && canPerformPhotoAction {
+            padding += 70
+        }
+        return padding
     }
 
     private var albumShortcutRows: (top: [AlbumInfo], bottom: [AlbumInfo]) {
@@ -1112,7 +1162,7 @@ struct SwipePhotoView: View {
     }
 
     private func handleBrowserSwipeUpDelete(_ asset: PHAsset, at index: Int) {
-        guard !showCompletionMessage else { return }
+        guard canPerformPhotoAction else { return }
         selectBrowserPhoto(at: index)
 
         if isAssetQueuedForDelete(asset) {
@@ -1166,6 +1216,30 @@ struct SwipePhotoView: View {
         }
     }
 
+    private func recordDeleteButtonTipOpportunity() {
+        guard !hasSeenDeleteButtonTip,
+              !showDeleteButtonTip,
+              !isAlbumMode,
+              sessionPhotos.count >= deleteButtonTipThreshold + 1 else {
+            return
+        }
+
+        sessionDeleteActionCount += 1
+        guard sessionDeleteActionCount >= deleteButtonTipThreshold else { return }
+
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+            showDeleteButtonTip = true
+        }
+    }
+
+    private func acknowledgeDeleteButtonTip() {
+        hasSeenDeleteButtonTip = true
+        guard showDeleteButtonTip else { return }
+        withAnimation(.easeOut(duration: 0.18)) {
+            showDeleteButtonTip = false
+        }
+    }
+
     private func revealAlbumShortcutHintIfNeeded() {
         guard !hasSeenAlbumShortcutHint,
               !showAlbumShortcutHint,
@@ -1175,27 +1249,29 @@ struct SwipePhotoView: View {
             return
         }
 
-        hasSeenAlbumShortcutHint = true
-        albumShortcutHintDismissWorkItem?.cancel()
         withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) {
             showAlbumShortcutHint = true
         }
-
-        let workItem = DispatchWorkItem {
-            dismissAlbumShortcutHint()
-        }
-        albumShortcutHintDismissWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3.2, execute: workItem)
     }
 
-    private func dismissAlbumShortcutHint() {
-        albumShortcutHintDismissWorkItem?.cancel()
-        albumShortcutHintDismissWorkItem = nil
+    private func acknowledgeAlbumShortcutHint() {
+        dismissAlbumShortcutHint(markSeen: true)
+    }
 
+    private func dismissAlbumShortcutHint(markSeen: Bool = false) {
+        if markSeen {
+            hasSeenAlbumShortcutHint = true
+        }
         guard showAlbumShortcutHint else { return }
         withAnimation(.easeOut(duration: 0.16)) {
             showAlbumShortcutHint = false
         }
+    }
+
+    private func openAlbumsTab() {
+        HapticManager.impact(.light)
+        dismissAlbumShortcutHint(markSeen: true)
+        NotificationCenter.default.post(name: AppConstants.openAlbumsTabNotificationName, object: nil)
     }
 
     private func createDragGesture() -> some Gesture {
@@ -1228,7 +1304,9 @@ struct SwipePhotoView: View {
             return
         }
 
-        guard let asset = currentRealPhoto, isValidPhotoIndex(currentPhotoIndex) else {
+        guard canPerformPhotoAction,
+              let asset = currentRealPhoto,
+              isValidPhotoIndex(currentPhotoIndex) else {
             resetCardPosition()
             return
         }
@@ -1453,6 +1531,14 @@ struct SwipePhotoView: View {
             dataManager.isInFavoriteCandidates(asset)
     }
 
+    private func isAssetBeingFiledToAlbum(_ asset: PHAsset) -> Bool {
+        albumFilingAssetIDs.contains(asset.localIdentifier)
+    }
+
+    private func isAssetFiledToAlbum(_ asset: PHAsset) -> Bool {
+        recentlyFiledAlbumAssetIDs.contains(asset.localIdentifier)
+    }
+
     private func isAssetLocallyReviewed(_ asset: PHAsset) -> Bool {
         pendingSwipeMutations[asset.localIdentifier] != nil ||
             dataManager.isReviewed(asset) ||
@@ -1461,13 +1547,13 @@ struct SwipePhotoView: View {
     }
 
     private func handleFavoriteAction() {
-        guard !showCompletionMessage, let asset = currentRealPhoto else { return }
+        guard canPerformPhotoAction, let asset = currentRealPhoto else { return }
         markFavoriteCandidate(asset)
         moveToNextPhoto()
     }
 
     private func handleDeleteAction() {
-        guard !showCompletionMessage, let asset = currentRealPhoto else { return }
+        guard canPerformPhotoAction, let asset = currentRealPhoto else { return }
         if isAssetQueuedForDelete(asset) {
             cancelDeleteCandidate(asset, at: currentPhotoIndex)
             return
@@ -1478,7 +1564,7 @@ struct SwipePhotoView: View {
     }
 
     private func handleSkipAction() {
-        guard !showCompletionMessage, let asset = currentRealPhoto else { return }
+        guard canPerformPhotoAction, let asset = currentRealPhoto else { return }
         markSkip(asset)
         moveToNextPhoto()
     }
@@ -1565,6 +1651,7 @@ struct SwipePhotoView: View {
         actionHistory.append(.delete(asset, originalIndex: originalIndex, wasReviewed: wasReviewed))
         HapticManager.impact(.medium)
         showFeedback(L10n.string("已加入待删除"), icon: "trash", style: .destructive, showsUndo: true)
+        recordDeleteButtonTipOpportunity()
         recordReviewModeHintOpportunity()
     }
 
@@ -1597,7 +1684,7 @@ struct SwipePhotoView: View {
     }
 
     private func handleAddToAlbum(_ albumInfo: AlbumInfo) {
-        dismissAlbumShortcutHint()
+        dismissAlbumShortcutHint(markSeen: true)
 
         guard !showCompletionMessage,
               let asset = currentRealPhoto,
@@ -1606,19 +1693,31 @@ struct SwipePhotoView: View {
             return
         }
 
-        // 将照片添加到指定相册
+        let assetID = asset.localIdentifier
+        guard !albumFilingAssetIDs.contains(assetID) else { return }
+
+        albumFilingAssetIDs.insert(assetID)
+        recentlyFiledAlbumAssetIDs.remove(assetID)
+
         let wasReviewed = dataManager.markReviewed(asset)
         recordSessionReviewedChange(wasReviewed: wasReviewed)
         HapticManager.impact(.light)
         showFeedback(L10n.string("正在归类到 \(albumInfo.title)"), icon: "tray.and.arrow.down", style: .neutral, duration: 1.0)
         dataManager.addPhotoToAlbum(asset, album: assetCollection) { success in
             DispatchQueue.main.async {
+                self.albumFilingAssetIDs.remove(assetID)
                 if success {
-                    // 添加成功后移动到下一张照片
+                    self.recentlyFiledAlbumAssetIDs.insert(assetID)
                     HapticManager.notify(.success)
                     self.showFeedback(L10n.string("已归类到 \(albumInfo.title)"), icon: "checkmark.circle.fill", style: .positive)
-                    self.moveToNextPhoto()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
+                        self.recentlyFiledAlbumAssetIDs.remove(assetID)
+                        if self.currentRealPhoto?.localIdentifier == assetID {
+                            self.moveToNextPhoto()
+                        }
+                    }
                 } else {
+                    self.recentlyFiledAlbumAssetIDs.remove(assetID)
                     self.dataManager.restoreReviewedState(asset, wasReviewed: wasReviewed)
                     self.restoreSessionReviewedCount(wasReviewed: wasReviewed)
                     HapticManager.notify(.error)
@@ -1814,6 +1913,8 @@ private struct SwipePhotoCardFrame: View {
     let photoLibraryManager: PhotoLibraryManager
     let isInDeleteCandidates: Bool
     let isInFavoriteCandidates: Bool
+    let isBeingFiledToAlbum: Bool
+    let isFiledToAlbum: Bool
     let isVideoPlaying: Bool
     let displaySize: CGSize
     let targetSize: CGSize
@@ -1825,6 +1926,8 @@ private struct SwipePhotoCardFrame: View {
             photoLibraryManager: photoLibraryManager,
             isInDeleteCandidates: isInDeleteCandidates,
             isInFavoriteCandidates: isInFavoriteCandidates,
+            isBeingFiledToAlbum: isBeingFiledToAlbum,
+            isFiledToAlbum: isFiledToAlbum,
             isVideoPlaying: isVideoPlaying,
             displaySize: displaySize,
             targetSize: targetSize,
@@ -2134,6 +2237,8 @@ struct RealPhotoCard: View {
     let photoLibraryManager: PhotoLibraryManager
     let isInDeleteCandidates: Bool
     let isInFavoriteCandidates: Bool
+    let isBeingFiledToAlbum: Bool
+    let isFiledToAlbum: Bool
     let isVideoPlaying: Bool
     let displaySize: CGSize
     let targetSize: CGSize
@@ -2283,17 +2388,17 @@ struct RealPhotoCard: View {
 
     @ViewBuilder
     private var candidateOverlay: some View {
-        if isInDeleteCandidates || isInFavoriteCandidates {
+        if isInDeleteCandidates || isInFavoriteCandidates || isBeingFiledToAlbum || isFiledToAlbum {
             ZStack {
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .fill(PhotoDeleteStyle.background.opacity(0.72))
 
                 VStack(spacing: 12) {
-                    Image(systemName: isInDeleteCandidates ? "trash.fill" : "heart.fill")
+                    Image(systemName: candidateOverlayIcon)
                         .font(.system(size: 38, weight: .medium))
-                        .foregroundColor(isInDeleteCandidates ? PhotoDeleteStyle.destructive : PhotoDeleteStyle.iconTint(for: "favorite"))
+                        .foregroundColor(candidateOverlayTint)
 
-                    Text(isInDeleteCandidates ? L10n.string("待删除") : L10n.string("待收藏"))
+                    Text(candidateOverlayTitle)
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(PhotoDeleteStyle.primaryText)
                 }
@@ -2303,9 +2408,33 @@ struct RealPhotoCard: View {
         }
     }
 
+    private var candidateOverlayIcon: String {
+        if isInDeleteCandidates { return "trash.fill" }
+        if isInFavoriteCandidates { return "heart.fill" }
+        if isBeingFiledToAlbum { return "tray.and.arrow.down.fill" }
+        return "checkmark.circle.fill"
+    }
+
+    private var candidateOverlayTint: Color {
+        if isInDeleteCandidates { return PhotoDeleteStyle.destructive }
+        if isInFavoriteCandidates { return PhotoDeleteStyle.iconTint(for: "favorite") }
+        return PhotoDeleteStyle.positive
+    }
+
+    private var candidateOverlayTitle: String {
+        if isInDeleteCandidates { return L10n.string("待删除") }
+        if isInFavoriteCandidates { return L10n.string("待收藏") }
+        if isBeingFiledToAlbum { return L10n.string("归类中") }
+        return L10n.string("已归类")
+    }
+
     @ViewBuilder
     private var previewStatusOverlay: some View {
-        if !isInDeleteCandidates && !isInFavoriteCandidates && (isShowingDegradedPreview || isDownloadingFromCloud) {
+        if !isInDeleteCandidates,
+           !isInFavoriteCandidates,
+           !isBeingFiledToAlbum,
+           !isFiledToAlbum,
+           isShowingDegradedPreview || isDownloadingFromCloud {
             HStack(spacing: 8) {
                 if let cloudDownloadProgress {
                     ProgressView(value: cloudDownloadProgress)
@@ -2437,6 +2566,10 @@ struct RealPhotoCard: View {
             values.append(L10n.string("待删除"))
         } else if isInFavoriteCandidates {
             values.append(L10n.string("待收藏"))
+        } else if isBeingFiledToAlbum {
+            values.append(L10n.string("归类中"))
+        } else if isFiledToAlbum {
+            values.append(L10n.string("已归类"))
         }
 
         return values.joined(separator: "，")
@@ -2497,30 +2630,82 @@ private struct PhotoSelectionLoadingCard: View {
     }
 }
 
-private struct AlbumShortcutHintBubble: View {
+private struct ReviewTipBanner: View {
+    let icon: String
+    let message: String
+    let onDismiss: () -> Void
+
     var body: some View {
-        Label {
-            Text(L10n.string("点相册名归类当前照片"))
-                .font(.system(size: 11, weight: .semibold))
-        } icon: {
-            Image(systemName: "tray.and.arrow.down")
-                .font(.system(size: 11, weight: .semibold))
+        HStack(spacing: 9) {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(PhotoDeleteStyle.accent)
+                .frame(width: 22, height: 22)
+
+            Text(message)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(PhotoDeleteStyle.primaryText)
+                .lineLimit(2)
+                .minimumScaleFactor(0.88)
+
+            Spacer(minLength: 6)
+
+            Button(action: onDismiss) {
+                Text(L10n.string("知道了"))
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.accent)
+                    .frame(minWidth: 44, minHeight: 44)
+            }
+            .buttonStyle(.plain)
         }
-        .foregroundColor(PhotoDeleteStyle.primaryText.opacity(0.82))
-        .lineLimit(1)
-        .fixedSize(horizontal: true, vertical: false)
-        .padding(.horizontal, 11)
-        .frame(height: 30)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
         .background(
-            Capsule(style: .continuous)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(PhotoDeleteStyle.surface.opacity(0.94))
                 .overlay(
-                    Capsule(style: .continuous)
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .stroke(PhotoDeleteStyle.hairline.opacity(0.64), lineWidth: 1)
                 )
         )
         .shadow(color: PhotoDeleteStyle.floatingShadow.opacity(0.72), radius: 7, x: 0, y: 3)
-        .accessibilityLabel(Text(L10n.string("点相册名归类当前照片")))
+    }
+}
+
+private struct AlbumShortcutHintBubble: View {
+    let onDismiss: () -> Void
+
+    var body: some View {
+        ReviewTipBanner(
+            icon: "tray.and.arrow.down",
+            message: L10n.string("点击归类到相册"),
+            onDismiss: onDismiss
+        )
+    }
+}
+
+private struct AlbumShortcutManageButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(L10n.string("管理相册"), systemImage: "folder.badge.gearshape")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(PhotoDeleteStyle.accent)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+                .frame(width: 88, height: 28)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(PhotoDeleteStyle.accent.opacity(0.12))
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .stroke(PhotoDeleteStyle.accent.opacity(0.24), lineWidth: 1)
+                        )
+                )
+        }
+        .buttonStyle(PhotoDeletePressScaleButtonStyle())
+        .accessibilityHint(L10n.string("打开相册页管理相册"))
     }
 }
 

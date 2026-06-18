@@ -120,6 +120,7 @@ enum PhotoDeleteTheme: String, CaseIterable, Identifiable, Equatable {
     var uiPrimaryButtonText: UIColor { palette.primaryAccentOnFill.uiColor }
     var uiDanger: UIColor { palette.danger.uiColor }
     var uiFavorite: UIColor { palette.favorite.uiColor }
+    var uiSuccess: UIColor { palette.success.uiColor }
     var uiSecondaryText: UIColor {
         UIColor { traits in
             traits.userInterfaceStyle == .dark

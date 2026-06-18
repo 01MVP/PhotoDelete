@@ -310,6 +310,13 @@ struct AlbumsView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .simultaneousGesture(
+            LongPressGesture(minimumDuration: 0.55)
+                .onEnded { _ in
+                    startReorderingFromAlbumRow()
+                }
+        )
+        .accessibilityHint(L10n.string("点按整理这个相册，长按调整排序"))
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             if let editableAlbum {
                 Button(role: .destructive) {
@@ -464,6 +471,23 @@ struct AlbumsView: View {
         }
     }
 
+    private func startReorderingFromAlbumRow() {
+        guard searchText.isEmpty else {
+            showAlbumToast(L10n.string("请先清除搜索再调整顺序"), icon: "magnifyingglass", style: .warning)
+            return
+        }
+
+        if sortMode != .custom {
+            sortMode = .custom
+        }
+
+        guard editMode != .active else { return }
+        HapticManager.impact(.light)
+        withAnimation(.easeInOut(duration: 0.18)) {
+            editMode = .active
+        }
+    }
+
     private func moveUserAlbums(from source: IndexSet, to destination: Int) {
         guard sortMode == .custom, searchText.isEmpty else {
             showAlbumToast(L10n.string("请先清除搜索再调整顺序"), icon: "magnifyingglass", style: .warning)
@@ -609,17 +633,25 @@ private struct AlbumSwipeHintRow: View {
     let onDismiss: () -> Void
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(alignment: .top, spacing: 10) {
             Image(systemName: "hand.draw")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundColor(PhotoDeleteStyle.accent)
                 .frame(width: 24, height: 24)
 
-            Text(L10n.string("左滑相册可编辑或删除"))
-                .font(.system(size: 13, weight: .regular))
-                .foregroundColor(PhotoDeleteStyle.secondaryText)
-                .lineLimit(1)
-                .minimumScaleFactor(0.82)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(L10n.string("长按相册可自定义排序"))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.primaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+
+                Text(L10n.string("左滑相册可编辑或删除"))
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+            }
 
             Spacer(minLength: 8)
 
@@ -627,10 +659,11 @@ private struct AlbumSwipeHintRow: View {
                 Text(L10n.string("知道了"))
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(PhotoDeleteStyle.accent)
+                    .frame(minWidth: 44, minHeight: 44)
             }
             .buttonStyle(.borderless)
         }
-        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
         .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
         .listRowSeparator(.hidden)
     }
