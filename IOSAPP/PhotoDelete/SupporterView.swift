@@ -53,9 +53,13 @@ struct SupporterView: View {
                         } else {
                             SupporterPaywallContent(
                                 priceText: purchaseManager.supporterPriceText,
+                                canStartTrial: purchaseManager.canStartSupporterTrial,
                                 isLoading: purchaseManager.isLoading,
                                 errorMessage: purchaseManager.errorMessage,
                                 statusMessage: purchaseManager.supporterTrialStatusText ?? entitlementStatusMessage,
+                                onStartTrial: {
+                                    purchaseManager.startSupporterTrial()
+                                },
                                 onPurchase: {
                                     Task { await purchaseManager.purchaseSupporter() }
                                 },
@@ -112,7 +116,7 @@ private struct SupporterTrialContent: View {
                 }
 
                 VStack(spacing: 8) {
-                    Text(L10n.string("7 天免费试用中"))
+                    Text(L10n.string("3 天免费体验中"))
                         .font(.system(size: 28, weight: .semibold))
                         .foregroundColor(PhotoDeleteStyle.primaryText)
 
@@ -148,6 +152,11 @@ private struct SupporterTrialContent: View {
                 .photoDeleteSecondaryButton()
                 .disabled(isLoading)
 
+                Text(L10n.string("体验到期不会自动扣费，基础整理始终免费。"))
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                    .multilineTextAlignment(.center)
+
                 if let statusMessage {
                     Text(statusMessage)
                         .font(.system(size: 13, weight: .regular))
@@ -168,9 +177,11 @@ private struct SupporterTrialContent: View {
 
 private struct SupporterPaywallContent: View {
     let priceText: String
+    let canStartTrial: Bool
     let isLoading: Bool
     let errorMessage: String?
     let statusMessage: String?
+    let onStartTrial: () -> Void
     let onPurchase: () -> Void
     let onRestore: () -> Void
 
@@ -192,7 +203,7 @@ private struct SupporterPaywallContent: View {
                         .font(.system(size: 28, weight: .semibold))
                         .foregroundColor(PhotoDeleteStyle.primaryText)
 
-                    Text(L10n.string("一次性解锁按日期清理、大文件清理、视频压缩、相似照片清理和主题切换。"))
+                    Text(heroSubtitle)
                         .font(.system(size: 16, weight: .regular))
                         .foregroundColor(PhotoDeleteStyle.secondaryText)
                         .multilineTextAlignment(.center)
@@ -205,24 +216,51 @@ private struct SupporterPaywallContent: View {
             SupporterPlanComparisonCard()
 
             VStack(spacing: 12) {
-                Button(action: onPurchase) {
-                    HStack(spacing: 8) {
-                        if isLoading {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: PhotoDeleteStyle.primaryButtonText))
-                                .scaleEffect(0.82)
-                        }
-                        Text(isLoading ? L10n.string("处理中...") : String(format: L10n.string("一次性解锁 %@"), priceText))
+                if canStartTrial {
+                    Button(action: onStartTrial) {
+                        Label(L10n.string("开始 3 天免费体验"), systemImage: "timer")
+                            .labelStyle(.titleAndIcon)
                     }
+                    .photoDeletePrimaryButton()
+                    .disabled(isLoading)
+
+                    Button(action: onPurchase) {
+                        HStack(spacing: 8) {
+                            if isLoading {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: PhotoDeleteStyle.accent))
+                                    .scaleEffect(0.82)
+                            }
+                            Text(isLoading ? L10n.string("处理中...") : String(format: L10n.string("一次性解锁 %@"), priceText))
+                        }
+                    }
+                    .photoDeleteSecondaryButton()
+                    .disabled(isLoading)
+                } else {
+                    Button(action: onPurchase) {
+                        HStack(spacing: 8) {
+                            if isLoading {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: PhotoDeleteStyle.primaryButtonText))
+                                    .scaleEffect(0.82)
+                            }
+                            Text(isLoading ? L10n.string("处理中...") : String(format: L10n.string("一次性解锁 %@"), priceText))
+                        }
+                    }
+                    .photoDeletePrimaryButton()
+                    .disabled(isLoading)
                 }
-                .photoDeletePrimaryButton()
-                .disabled(isLoading)
 
                 Button(action: onRestore) {
                     Text(L10n.string("恢复购买"))
                 }
                 .photoDeleteSecondaryButton()
                 .disabled(isLoading)
+
+                Text(L10n.string("体验到期不会自动扣费，基础整理始终免费。"))
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                    .multilineTextAlignment(.center)
 
                 if let statusMessage {
                     Text(statusMessage)
@@ -239,6 +277,14 @@ private struct SupporterPaywallContent: View {
                 }
             }
         }
+    }
+
+    private var heroSubtitle: String {
+        if canStartTrial {
+            return L10n.string("免费体验 3 天进阶功能，也可以直接一次性解锁。")
+        }
+
+        return L10n.string("一次性解锁按日期清理、大文件清理、视频压缩、相似照片清理和主题切换。")
     }
 }
 

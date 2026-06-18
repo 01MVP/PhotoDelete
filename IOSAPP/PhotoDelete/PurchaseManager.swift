@@ -76,6 +76,10 @@ final class PurchaseManager: ObservableObject {
         !hasPaidSupporterAccess && isSupporterTrialActive
     }
 
+    var canStartSupporterTrial: Bool {
+        !hasPaidSupporterAccess && supporterTrialStartDate == nil
+    }
+
     var isSupporterTrialActive: Bool {
         guard !hasPaidSupporterAccess,
               let supporterTrialEndDate else {
@@ -111,7 +115,7 @@ final class PurchaseManager: ObservableObject {
         }
 
         if isSupporterTrialExpired {
-            return L10n.string("7 天试用已结束。一次性解锁后可继续使用进阶功能。")
+            return L10n.string("3 天体验已结束，基础整理仍可继续使用。一次性解锁后可继续使用进阶功能。")
         }
 
         return nil
@@ -128,8 +132,6 @@ final class PurchaseManager: ObservableObject {
         self.supporterPurchaseDate = userDefaults.object(forKey: AppConstants.supporterPurchaseDateKey) as? Date
         self.supporterTrialStartDate = userDefaults.object(forKey: AppConstants.supporterTrialStartDateKey) as? Date
 
-        startSupporterTrialIfNeeded()
-
         if startsStoreKitTasks {
             updatesTask = Task { [weak self] in
                 await self?.listenForTransactions()
@@ -144,6 +146,14 @@ final class PurchaseManager: ObservableObject {
 
     deinit {
         updatesTask?.cancel()
+    }
+
+    func startSupporterTrial() {
+        guard canStartSupporterTrial else { return }
+
+        let startDate = nowProvider()
+        supporterTrialStartDate = startDate
+        userDefaults.set(startDate, forKey: AppConstants.supporterTrialStartDateKey)
     }
 
     func loadProducts() async {
@@ -288,17 +298,6 @@ final class PurchaseManager: ObservableObject {
 
     private var hasCachedSupporterEntitlement: Bool {
         userDefaults.bool(forKey: AppConstants.supporterEntitlementKey)
-    }
-
-    private func startSupporterTrialIfNeeded() {
-        guard !hasPaidSupporterAccess,
-              supporterTrialStartDate == nil else {
-            return
-        }
-
-        let startDate = nowProvider()
-        supporterTrialStartDate = startDate
-        userDefaults.set(startDate, forKey: AppConstants.supporterTrialStartDateKey)
     }
 
     private func setVerifiedSupporterAccess(_ value: Bool, purchaseDate: Date? = nil) {

@@ -11521,46 +11521,200 @@
         }
       }
     },
-    "7 天免费试用中": {
+    "3 天免费体验中": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "7-Day Free Trial"
+            "value": "3-Day Free Trial"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "7 天免费试用中"
+            "value": "3 天免费体验中"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "7 天免費試用中"
+            "value": "3 天免費體驗中"
           }
         }
       }
     },
-    "7 天试用已结束。一次性解锁后可继续使用进阶功能。": {
+    "3 天体验已结束，基础整理仍可继续使用。一次性解锁后可继续使用进阶功能。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The 7-day trial has ended. Unlock once to keep using advanced features."
+            "value": "The 3-day trial has ended. Core cleanup still works. Unlock once to keep using advanced features."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "7 天试用已结束。一次性解锁后可继续使用进阶功能。"
+            "value": "3 天体验已结束，基础整理仍可继续使用。一次性解锁后可继续使用进阶功能。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "7 天試用已結束。一次性解鎖後可繼續使用進階功能。"
+            "value": "3 天體驗已結束，基礎整理仍可繼續使用。一次性解鎖後可繼續使用進階功能。"
+          }
+        }
+      }
+    },
+    "免费体验 3 天进阶功能，也可以直接一次性解锁。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try advanced features free for 3 days, or unlock once now."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "免费体验 3 天进阶功能，也可以直接一次性解锁。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "免費體驗 3 天進階功能，也可以直接一次性解鎖。"
+          }
+        }
+      }
+    },
+    "开始 3 天免费体验": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start 3-Day Free Trial"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "开始 3 天免费体验"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開始 3 天免費體驗"
+          }
+        }
+      }
+    },
+    "体验到期不会自动扣费，基础整理始终免费。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The trial will not charge automatically. Core cleanup stays free."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "体验到期不会自动扣费，基础整理始终免费。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "體驗到期不會自動扣費，基礎整理始終免費。"
+          }
+        }
+      }
+    },
+    "免费体验进阶功能": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try Advanced Features"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "免费体验进阶功能"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "免費體驗進階功能"
+          }
+        }
+      }
+    },
+    "体验已结束": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trial Ended"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "体验已结束"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "體驗已結束"
+          }
+        }
+      }
+    },
+    "3 天体验已结束，可一次性解锁进阶功能": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The 3-day trial has ended. Unlock once to keep advanced features."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "3 天体验已结束，可一次性解锁进阶功能"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "3 天體驗已結束，可一次性解鎖進階功能"
+          }
+        }
+      }
+    },
+    "可先免费体验 3 天，也可一次性解锁": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try free for 3 days, or unlock once"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "可先免费体验 3 天，也可一次性解锁"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可先免費體驗 3 天，也可一次性解鎖"
           }
         }
       }

@@ -395,7 +395,7 @@ enum AppConstants {
     static let supporterEntitlementKey = "photoDeleteSupporterUnlocked"
     static let supporterPurchaseDateKey = "photoDeleteSupporterPurchaseDate"
     static let supporterTrialStartDateKey = "photoDeleteSupporterTrialStartDate"
-    static let supporterTrialDuration: TimeInterval = 7 * 24 * 60 * 60
+    static let supporterTrialDuration: TimeInterval = 3 * 24 * 60 * 60
     static var privacyShortText: String {
         L10n.string("照片整理只在本机完成。不需要账号，也不会上传你的照片。")
     }

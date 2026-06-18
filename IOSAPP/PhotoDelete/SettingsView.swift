@@ -226,6 +226,10 @@ struct SettingsView: View {
             return L10n.string("支持者版试用中")
         }
 
+        if purchaseManager.isSupporterTrialExpired {
+            return L10n.string("体验已结束")
+        }
+
         return L10n.string("解锁进阶功能")
     }
 
@@ -238,7 +242,11 @@ struct SettingsView: View {
             return String(format: L10n.string("还剩 %lld 天，可随时一次性解锁"), purchaseManager.supporterTrialDaysRemaining)
         }
 
-        return L10n.string("视频压缩、大文件清理等付费功能")
+        if purchaseManager.isSupporterTrialExpired {
+            return L10n.string("3 天体验已结束，可一次性解锁进阶功能")
+        }
+
+        return L10n.string("可先免费体验 3 天，也可一次性解锁")
     }
 
     // MARK: - 关于与支持
