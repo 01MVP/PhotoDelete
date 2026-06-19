@@ -829,7 +829,7 @@ struct AdvancedSimilarPhotoGroup: Identifiable {
 
     var title: String {
         guard let date = representativeDate else { return L10n.string("相似照片") }
-        return AdvancedSimilarPhotoGroupFormatter.groupTitle.string(from: date)
+        return AdvancedSimilarPhotoGroupFormatter.groupTitle(for: date)
     }
 
     var representativeDate: Date? {
@@ -894,9 +894,7 @@ struct CleanupCelebration: Identifiable, Equatable {
 }
 
 private enum AdvancedSimilarPhotoGroupFormatter {
-    static let groupTitle: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.setLocalizedDateFormatFromTemplate("MMM d")
-        return formatter
-    }()
+    static func groupTitle(for date: Date) -> String {
+        AppDateFormatter.string(from: date, template: "MMMd")
+    }
 }

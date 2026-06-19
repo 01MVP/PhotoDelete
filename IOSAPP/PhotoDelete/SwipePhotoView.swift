@@ -855,8 +855,6 @@ struct SwipePhotoView: View {
             let usesTwoRows = albumShortcutUsesTwoRows
 
             HStack(spacing: 8) {
-                AlbumShortcutManageButton(action: openAlbumsTab)
-
                 ScrollView(.horizontal) {
                     Group {
                         if usesTwoRows {
@@ -883,6 +881,8 @@ struct SwipePhotoView: View {
                         endPoint: .trailing
                     )
                 )
+
+                AlbumShortcutManageButton(action: openAlbumsTab)
             }
             .padding(.horizontal, horizontalPadding)
             .frame(height: usesTwoRows ? 67 : 34)
@@ -2204,7 +2204,11 @@ private enum AdvancedSwipeDateFormatter {
             return dayTitle.string(from: date)
         case .week:
             let components = Calendar.current.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date)
-            return L10n.string("\(components.yearForWeekOfYear ?? 0) 年第 \(components.weekOfYear ?? 0) 周")
+            return String(
+                format: L10n.string("%lld 年第 %lld 周"),
+                Int64(components.yearForWeekOfYear ?? 0),
+                Int64(components.weekOfYear ?? 0)
+            )
         case .month:
             return monthTitle.string(from: date)
         case .year:
@@ -2212,23 +2216,17 @@ private enum AdvancedSwipeDateFormatter {
         }
     }
 
-    static let dayTitle: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.setLocalizedDateFormatFromTemplate("MMMEd")
-        return formatter
-    }()
+    static var dayTitle: DateFormatter {
+        AppDateFormatter.configuredFormatter(template: "MMMEd")
+    }
 
-    private static let monthTitle: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.setLocalizedDateFormatFromTemplate("y年M月")
-        return formatter
-    }()
+    private static var monthTitle: DateFormatter {
+        AppDateFormatter.configuredFormatter(template: "yMMM")
+    }
 
-    private static let yearTitle: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.setLocalizedDateFormatFromTemplate("y年")
-        return formatter
-    }()
+    private static var yearTitle: DateFormatter {
+        AppDateFormatter.configuredFormatter(template: "y")
+    }
 }
 
 // MARK: - 真实照片卡片
@@ -2689,12 +2687,10 @@ private struct AlbumShortcutManageButton: View {
 
     var body: some View {
         Button(action: action) {
-            Label(L10n.string("管理相册"), systemImage: "folder.badge.gearshape")
-                .font(.system(size: 11, weight: .semibold))
+            Image(systemName: "folder.badge.gearshape")
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(PhotoDeleteStyle.accent)
-                .lineLimit(1)
-                .minimumScaleFactor(0.78)
-                .frame(width: 88, height: 28)
+                .frame(width: 34, height: 28)
                 .background(
                     Capsule(style: .continuous)
                         .fill(PhotoDeleteStyle.accent.opacity(0.12))
@@ -2705,6 +2701,7 @@ private struct AlbumShortcutManageButton: View {
                 )
         }
         .buttonStyle(PhotoDeletePressScaleButtonStyle())
+        .accessibilityLabel(L10n.string("管理相册"))
         .accessibilityHint(L10n.string("打开相册页管理相册"))
     }
 }

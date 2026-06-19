@@ -677,6 +677,37 @@ struct PhotoDeleteTests {
         #expect(AppAppearance.allCases.map(\.rawValue) == ["system", "light", "dark"])
     }
 
+    @Test func defaultPhotoDeleteThemeIsSage() async throws {
+        #expect(PhotoDeleteTheme.defaultTheme == .sage)
+    }
+
+    @Test func appLanguageIncludesTraditionalChinese() async throws {
+        #expect(AppLanguage.allCases.contains(.zhHant))
+        #expect(AppLanguage.zhHant.rawValue == "zh-Hant")
+    }
+
+    @Test func appDateFormatterUsesRequestedLocale() async throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let date = makeDate(year: 2026, month: 6, day: 11, calendar: calendar)
+
+        let englishMonth = AppDateFormatter.string(
+            from: date,
+            template: "MMM",
+            locale: Locale(identifier: "en")
+        )
+        let traditionalMonth = AppDateFormatter.string(
+            from: date,
+            template: "MMM",
+            locale: Locale(identifier: "zh-Hant")
+        )
+
+        #expect(englishMonth.localizedCaseInsensitiveContains("jun"))
+        #expect(!englishMonth.contains("月"))
+        #expect(traditionalMonth.contains("6"))
+        #expect(traditionalMonth.contains("月"))
+    }
+
     @Test func homeLibraryStateDoesNotShowEmptyBeforeInitialLoadCompletes() async throws {
         #expect(HomeLibraryContentState.resolve(
             hasPhotoLibraryAccess: true,

@@ -2206,6 +2206,28 @@
         }
       }
     },
+    "全选": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select All"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "全选"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全選"
+          }
+        }
+      }
+    },
     "全部徽章": {
       "localizations": {
         "en": {
@@ -3587,7 +3609,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "只會刪除相冊，不會刪除相冊里的照片。"
+            "value": "只會刪除相冊，不會刪除相冊裡的照片。"
           }
         }
       }
@@ -4915,6 +4937,72 @@
         }
       }
     },
+    "已展开": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Expanded"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "已展开"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已展開"
+          }
+        }
+      }
+    },
+    "已折叠": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collapsed"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "已折叠"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已摺疊"
+          }
+        }
+      }
+    },
+    "已压缩": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compressed"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "已压缩"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已壓縮"
+          }
+        }
+      }
+    },
     "解锁后可用": {
       "localizations": {
         "en": {
@@ -5353,6 +5441,72 @@
           "stringUnit": {
             "state": "translated",
             "value": "當前照片庫里暫時沒有符合這個入口的項目。"
+          }
+        }
+      }
+    },
+    "当前筛选没有内容": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Results for This Filter"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "当前筛选没有内容"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目前篩選沒有內容"
+          }
+        }
+      }
+    },
+    "可以切换到全部，或稍后再回来查看。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch to All, or check again later."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "可以切换到全部，或稍后再回来查看。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可以切換到全部，或稍後再回來查看。"
+          }
+        }
+      }
+    },
+    "可压缩视频": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Videos to Compress"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "可压缩视频"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可壓縮影片"
           }
         }
       }
@@ -6924,6 +7078,28 @@
         }
       }
     },
+    "新副本": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New copy"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "新副本"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新副本"
+          }
+        }
+      }
+    },
     "新徽章：%@": {
       "localizations": {
         "en": {
@@ -7480,6 +7656,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "未選擇"
+          }
+        }
+      }
+    },
+    "未压缩": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uncompressed"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "未压缩"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未壓縮"
           }
         }
       }
@@ -9989,7 +10187,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "請先清除搜索再調整順序"
+            "value": "請先清除搜尋再調整順序"
           }
         }
       }
@@ -10523,7 +10721,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "這個相冊不支持刪除。"
+            "value": "這個相冊不支援刪除。"
           }
         }
       }
@@ -12225,6 +12423,28 @@
         }
       }
     },
+    "选择要压缩的视频，合计约 %@。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select videos to compress. About %@ total."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "选择要压缩的视频，合计约 %@。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇要壓縮的影片，合計約 %@。"
+          }
+        }
+      }
+    },
     "压缩画质": {
       "localizations": {
         "en": {
@@ -12357,6 +12577,28 @@
         }
       }
     },
+    "压缩后视频会保存到照片库，原视频不会自动删除。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compressed videos are saved to Photos. Originals are not deleted automatically."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "压缩后视频会保存到照片库，原视频不会自动删除。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "壓縮後影片會儲存到照片庫，原影片不會自動刪除。"
+          }
+        }
+      }
+    },
     "未找到可压缩的视频": {
       "localizations": {
         "en": {
@@ -12397,6 +12639,50 @@
           "stringUnit": {
             "state": "translated",
             "value": "目前照片庫裡暫時沒有可壓縮的影片。"
+          }
+        }
+      }
+    },
+    "没有需要压缩的视频": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No videos need compression"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "没有需要压缩的视频"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有需要壓縮的影片"
+          }
+        }
+      }
+    },
+    "压缩完成的视频会留在最近压缩记录里。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finished videos stay in recent compression history."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "压缩完成的视频会留在最近压缩记录里。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "壓縮完成的影片會留在最近壓縮記錄裡。"
           }
         }
       }
@@ -12753,6 +13039,28 @@
         }
       }
     },
+    "还剩 %lld 天": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld days remaining"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "还剩 %lld 天"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還剩 %lld 天"
+          }
+        }
+      }
+    },
     "支持者版试用中，还剩 %lld 天。": {
       "localizations": {
         "en": {
@@ -12771,6 +13079,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "支持者版試用中，還剩 %lld 天。"
+          }
+        }
+      }
+    },
+    "解锁": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlock"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "解锁"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "解鎖"
           }
         }
       }
@@ -13215,6 +13545,28 @@
         }
       }
     },
+    "请保持 App 打开，离开 App 可能暂停压缩。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep the app open. Leaving the app may pause compression."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "请保持 App 打开，离开 App 可能暂停压缩。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請保持 App 開啟，離開 App 可能會暫停壓縮。"
+          }
+        }
+      }
+    },
     "正在处理第 %lld 个视频": {
       "localizations": {
         "en": {
@@ -13255,6 +13607,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "暫時找不到壓縮副本。"
+          }
+        }
+      }
+    },
+    "暂时找不到压缩后视频。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The compressed video cannot be found right now."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "暂时找不到压缩后视频。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暫時找不到壓縮後影片。"
           }
         }
       }
@@ -13325,6 +13699,116 @@
         }
       }
     },
+    "保持 %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kept %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "保持 %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保持 %@"
+          }
+        }
+      }
+    },
+    "%@ → %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ → %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%@ → %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ → %@"
+          }
+        }
+      }
+    },
+    "全部保持原分辨率": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All kept original resolution"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "全部保持原分辨率"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全部保持原解析度"
+          }
+        }
+      }
+    },
+    "输出 %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Output %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "输出 %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "輸出 %@"
+          }
+        }
+      }
+    },
+    "多种分辨率": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Multiple resolutions"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "多种分辨率"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "多種解析度"
+          }
+        }
+      }
+    },
     "分辨率保持 %@": {
       "localizations": {
         "en": {
@@ -13391,6 +13875,50 @@
         }
       }
     },
+    "%lld 个": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%lld 个"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個"
+          }
+        }
+      }
+    },
+    "已生成 1 个压缩副本": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Created 1 compressed copy"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "已生成 1 个压缩副本"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已產生 1 個壓縮副本"
+          }
+        }
+      }
+    },
     "已生成 %lld 个压缩副本": {
       "localizations": {
         "en": {
@@ -13409,6 +13937,50 @@
           "stringUnit": {
             "state": "translated",
             "value": "已產生 %lld 個壓縮副本"
+          }
+        }
+      }
+    },
+    "已生成 1 个压缩后视频": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Created 1 compressed video"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "已生成 1 个压缩后视频"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已產生 1 個壓縮後影片"
+          }
+        }
+      }
+    },
+    "已生成 %lld 个压缩后视频": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Created %lld compressed videos"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "已生成 %lld 个压缩后视频"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已產生 %lld 個壓縮後影片"
           }
         }
       }
@@ -13479,6 +14051,28 @@
         }
       }
     },
+    "原片已压缩": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Original compressed"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "原片已压缩"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原片已壓縮"
+          }
+        }
+      }
+    },
     "压缩后": {
       "localizations": {
         "en": {
@@ -13497,6 +14091,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "壓縮後"
+          }
+        }
+      }
+    },
+    "压缩后视频": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compressed video"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "压缩后视频"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "壓縮後影片"
           }
         }
       }
@@ -13563,6 +14179,94 @@
           "stringUnit": {
             "state": "translated",
             "value": "壓縮副本已儲存，原影片尚未刪除。可先查看對比，再決定是否刪除原影片。"
+          }
+        }
+      }
+    },
+    "压缩副本已保存，原视频尚未删除。请先查看对比，再决定是否删除原视频。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The compressed copy was saved. The original has not been deleted. Compare them first, then decide whether to delete the original."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "压缩副本已保存，原视频尚未删除。请先查看对比，再决定是否删除原视频。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "壓縮副本已儲存，原影片尚未刪除。請先查看對比，再決定是否刪除原影片。"
+          }
+        }
+      }
+    },
+    "压缩副本已保存，但空间减少不明显。建议先保留原视频。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The compressed copy was saved, but space savings are small. Keep the original for now."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "压缩副本已保存，但空间减少不明显。建议先保留原视频。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "壓縮副本已儲存，但節省空間不明顯。建議先保留原影片。"
+          }
+        }
+      }
+    },
+    "已生成压缩后视频，原视频尚未删除。请先查看对比，再决定是否删除原视频。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A compressed video was created. The original has not been deleted. Compare them first, then decide whether to delete the original."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "已生成压缩后视频，原视频尚未删除。请先查看对比，再决定是否删除原视频。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已產生壓縮後影片，原影片尚未刪除。請先查看對比，再決定是否刪除原影片。"
+          }
+        }
+      }
+    },
+    "已生成压缩后视频，但空间减少不明显。建议先保留原视频。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A compressed video was created, but space savings are small. Keep the original for now."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "已生成压缩后视频，但空间减少不明显。建议先保留原视频。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已產生壓縮後影片，但節省空間不明顯。建議先保留原影片。"
           }
         }
       }
@@ -13787,6 +14491,28 @@
         }
       }
     },
+    "最近压缩记录 · %lld 次 · 已减少 %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recent compression history · %lld records · Saved %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "最近压缩记录 · %lld 次 · 已减少 %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近壓縮記錄 · %lld 次 · 已減少 %@"
+          }
+        }
+      }
+    },
     "%lld 个视频 · %@ → %@": {
       "localizations": {
         "en": {
@@ -13827,6 +14553,50 @@
           "stringUnit": {
             "state": "translated",
             "value": "壓縮完成"
+          }
+        }
+      }
+    },
+    "压缩部分完成": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compression partly complete"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "压缩部分完成"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "壓縮部分完成"
+          }
+        }
+      }
+    },
+    "节省比例": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Savings"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "节省比例"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "節省比例"
           }
         }
       }
@@ -14755,6 +15525,28 @@
         }
       }
     },
+    "待压缩": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To compress"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "待压缩"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "待壓縮"
+          }
+        }
+      }
+    },
     "待确认": {
       "localizations": {
         "en": {
@@ -15256,7 +16048,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "刪除選中"
+            "value": "刪除所選"
           }
         }
       }
@@ -15278,7 +16070,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "壓縮選中"
+            "value": "壓縮所選"
           }
         }
       }
@@ -15323,6 +16115,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "壓縮副本可能已刪除"
+          }
+        }
+      }
+    },
+    "压缩后视频可能已删除": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compressed video may have been deleted"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "压缩后视频可能已删除"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "壓縮後影片可能已刪除"
           }
         }
       }

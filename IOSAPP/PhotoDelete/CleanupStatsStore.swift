@@ -312,18 +312,17 @@ final class CleanupStatsStore: ObservableObject {
 }
 
 enum CleanupStatsFormatter {
-    static let sessionDate: DateFormatter = {
+    static var sessionDate: DateFormatter {
         let formatter = DateFormatter()
+        formatter.locale = AppLanguage.current.locale
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
         return formatter
-    }()
+    }
 
-    static let month: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.setLocalizedDateFormatFromTemplate("yMMMM")
-        return formatter
-    }()
+    static var month: DateFormatter {
+        AppDateFormatter.configuredFormatter(template: "yMMMM")
+    }
 
     static func space(_ megabytes: Double) -> String {
         if megabytes < 1000 {

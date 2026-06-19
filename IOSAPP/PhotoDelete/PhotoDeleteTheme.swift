@@ -10,7 +10,7 @@ enum PhotoDeleteTheme: String, CaseIterable, Identifiable, Equatable {
     case sand
     case graphite
 
-    static let defaultTheme: PhotoDeleteTheme = .cleanBlue
+    static let defaultTheme: PhotoDeleteTheme = .sage
 
     var id: String { rawValue }
 

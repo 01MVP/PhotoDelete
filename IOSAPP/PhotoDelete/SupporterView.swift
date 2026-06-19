@@ -24,6 +24,14 @@ struct SupporterView: View {
         }
     }
 
+    private var showsBottomActionBar: Bool {
+        !purchaseManager.hasPaidSupporterAccess
+    }
+
+    private var contentBottomPadding: CGFloat {
+        showsBottomActionBar ? 210 : 40
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -38,42 +46,40 @@ struct SupporterView: View {
                             )
                         } else if purchaseManager.isUsingTrialSupporterAccess {
                             SupporterTrialContent(
-                                remainingDays: purchaseManager.supporterTrialDaysRemaining,
-                                priceText: purchaseManager.supporterPriceText,
-                                isLoading: purchaseManager.isLoading,
-                                errorMessage: purchaseManager.errorMessage,
-                                statusMessage: entitlementStatusMessage,
-                                onPurchase: {
-                                    Task { await purchaseManager.purchaseSupporter() }
-                                },
-                                onRestore: {
-                                    Task { await purchaseManager.restorePurchases() }
-                                }
+                                remainingDays: purchaseManager.supporterTrialDaysRemaining
                             )
                         } else {
                             SupporterPaywallContent(
-                                priceText: purchaseManager.supporterPriceText,
-                                canStartTrial: purchaseManager.canStartSupporterTrial,
-                                isLoading: purchaseManager.isLoading,
-                                errorMessage: purchaseManager.errorMessage,
-                                statusMessage: purchaseManager.supporterTrialStatusText ?? entitlementStatusMessage,
-                                onStartTrial: {
-                                    purchaseManager.startSupporterTrial()
-                                },
-                                onPurchase: {
-                                    Task { await purchaseManager.purchaseSupporter() }
-                                },
-                                onRestore: {
-                                    Task { await purchaseManager.restorePurchases() }
-                                }
+                                canStartTrial: purchaseManager.canStartSupporterTrial
                             )
                         }
                     }
                     .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
                     .padding(.top, 20)
-                    .padding(.bottom, 40)
+                    .padding(.bottom, contentBottomPadding)
                     .frame(maxWidth: PhotoDeleteAdaptiveLayout.readableContentMaxWidth(horizontalSizeClass: horizontalSizeClass))
                     .frame(maxWidth: .infinity)
+                }
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if showsBottomActionBar {
+                    SupporterBottomActionBar(
+                        isTrialActive: purchaseManager.isUsingTrialSupporterAccess,
+                        canStartTrial: purchaseManager.canStartSupporterTrial,
+                        priceText: purchaseManager.supporterPriceText,
+                        isLoading: purchaseManager.isLoading,
+                        statusMessage: purchaseManager.supporterTrialStatusText ?? entitlementStatusMessage,
+                        errorMessage: purchaseManager.errorMessage,
+                        onStartTrial: {
+                            purchaseManager.startSupporterTrial()
+                        },
+                        onPurchase: {
+                            Task { await purchaseManager.purchaseSupporter() }
+                        },
+                        onRestore: {
+                            Task { await purchaseManager.restorePurchases() }
+                        }
+                    )
                 }
             }
             .navigationTitle(L10n.string("支持者版"))
@@ -95,12 +101,6 @@ struct SupporterView: View {
 
 private struct SupporterTrialContent: View {
     let remainingDays: Int
-    let priceText: String
-    let isLoading: Bool
-    let errorMessage: String?
-    let statusMessage: String?
-    let onPurchase: () -> Void
-    let onRestore: () -> Void
 
     var body: some View {
         VStack(spacing: 20) {
@@ -131,59 +131,12 @@ private struct SupporterTrialContent: View {
             .photoDeleteCard()
 
             SupporterPlanComparisonCard()
-
-            VStack(spacing: 12) {
-                Button(action: onPurchase) {
-                    HStack(spacing: 8) {
-                        if isLoading {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: PhotoDeleteStyle.primaryButtonText))
-                                .scaleEffect(0.82)
-                        }
-                        Text(isLoading ? L10n.string("处理中...") : String(format: L10n.string("一次性解锁 %@"), priceText))
-                    }
-                }
-                .photoDeletePrimaryButton()
-                .disabled(isLoading)
-
-                Button(action: onRestore) {
-                    Text(L10n.string("恢复购买"))
-                }
-                .photoDeleteSecondaryButton()
-                .disabled(isLoading)
-
-                Text(L10n.string("体验到期不会自动扣费，基础整理始终免费。"))
-                    .font(.system(size: 13, weight: .regular))
-                    .foregroundColor(PhotoDeleteStyle.secondaryText)
-                    .multilineTextAlignment(.center)
-
-                if let statusMessage {
-                    Text(statusMessage)
-                        .font(.system(size: 13, weight: .regular))
-                        .foregroundColor(PhotoDeleteStyle.secondaryText)
-                        .multilineTextAlignment(.center)
-                }
-
-                if let errorMessage {
-                    Text(errorMessage)
-                        .font(.system(size: 13, weight: .regular))
-                        .foregroundColor(PhotoDeleteStyle.warning)
-                        .multilineTextAlignment(.center)
-                }
-            }
         }
     }
 }
 
 private struct SupporterPaywallContent: View {
-    let priceText: String
     let canStartTrial: Bool
-    let isLoading: Bool
-    let errorMessage: String?
-    let statusMessage: String?
-    let onStartTrial: () -> Void
-    let onPurchase: () -> Void
-    let onRestore: () -> Void
 
     var body: some View {
         VStack(spacing: 20) {
@@ -214,68 +167,6 @@ private struct SupporterPaywallContent: View {
             .photoDeleteCard()
 
             SupporterPlanComparisonCard()
-
-            VStack(spacing: 12) {
-                if canStartTrial {
-                    Button(action: onStartTrial) {
-                        Label(L10n.string("开始 3 天免费体验"), systemImage: "timer")
-                            .labelStyle(.titleAndIcon)
-                    }
-                    .photoDeletePrimaryButton()
-                    .disabled(isLoading)
-
-                    Button(action: onPurchase) {
-                        HStack(spacing: 8) {
-                            if isLoading {
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: PhotoDeleteStyle.accent))
-                                    .scaleEffect(0.82)
-                            }
-                            Text(isLoading ? L10n.string("处理中...") : String(format: L10n.string("一次性解锁 %@"), priceText))
-                        }
-                    }
-                    .photoDeleteSecondaryButton()
-                    .disabled(isLoading)
-                } else {
-                    Button(action: onPurchase) {
-                        HStack(spacing: 8) {
-                            if isLoading {
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: PhotoDeleteStyle.primaryButtonText))
-                                    .scaleEffect(0.82)
-                            }
-                            Text(isLoading ? L10n.string("处理中...") : String(format: L10n.string("一次性解锁 %@"), priceText))
-                        }
-                    }
-                    .photoDeletePrimaryButton()
-                    .disabled(isLoading)
-                }
-
-                Button(action: onRestore) {
-                    Text(L10n.string("恢复购买"))
-                }
-                .photoDeleteSecondaryButton()
-                .disabled(isLoading)
-
-                Text(L10n.string("体验到期不会自动扣费，基础整理始终免费。"))
-                    .font(.system(size: 13, weight: .regular))
-                    .foregroundColor(PhotoDeleteStyle.secondaryText)
-                    .multilineTextAlignment(.center)
-
-                if let statusMessage {
-                    Text(statusMessage)
-                        .font(.system(size: 13, weight: .regular))
-                        .foregroundColor(PhotoDeleteStyle.secondaryText)
-                        .multilineTextAlignment(.center)
-                }
-
-                if let errorMessage {
-                    Text(errorMessage)
-                        .font(.system(size: 13, weight: .regular))
-                        .foregroundColor(PhotoDeleteStyle.warning)
-                        .multilineTextAlignment(.center)
-                }
-            }
         }
     }
 
@@ -285,6 +176,121 @@ private struct SupporterPaywallContent: View {
         }
 
         return L10n.string("一次性解锁按日期清理、大文件清理、视频压缩、相似照片清理和主题切换。")
+    }
+}
+
+private struct SupporterBottomActionBar: View {
+    let isTrialActive: Bool
+    let canStartTrial: Bool
+    let priceText: String
+    let isLoading: Bool
+    let statusMessage: String?
+    let errorMessage: String?
+    let onStartTrial: () -> Void
+    let onPurchase: () -> Void
+    let onRestore: () -> Void
+
+    var body: some View {
+        VStack(spacing: 11) {
+            Capsule(style: .continuous)
+                .fill(PhotoDeleteStyle.hairline)
+                .frame(width: 38, height: 4)
+                .padding(.bottom, 2)
+
+            if isTrialActive {
+                purchaseButton(style: .primary)
+            } else if canStartTrial {
+                Button(action: onStartTrial) {
+                    Label(L10n.string("开始 3 天免费体验"), systemImage: "timer")
+                        .labelStyle(.titleAndIcon)
+                }
+                .photoDeletePrimaryButton()
+                .disabled(isLoading)
+
+                purchaseButton(style: .secondary)
+            } else {
+                purchaseButton(style: .primary)
+            }
+
+            Button(action: onRestore) {
+                Text(L10n.string("恢复购买"))
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.accent)
+            }
+            .buttonStyle(.plain)
+            .disabled(isLoading)
+
+            Text(L10n.string("体验到期不会自动扣费，基础整理始终免费。"))
+                .font(.system(size: 12, weight: .regular))
+                .foregroundColor(PhotoDeleteStyle.secondaryText)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let statusMessage {
+                Text(statusMessage)
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundColor(PhotoDeleteStyle.warning)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
+        .padding(.top, 14)
+        .padding(.bottom, 18)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(PhotoDeleteStyle.background.opacity(0.98))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .stroke(PhotoDeleteStyle.hairline, lineWidth: 1)
+                )
+                .ignoresSafeArea(edges: .bottom)
+        )
+    }
+
+    @ViewBuilder
+    private func purchaseButton(style: PurchaseButtonStyle) -> some View {
+        let loadingTint: Color = style == .primary ? PhotoDeleteStyle.primaryButtonText : PhotoDeleteStyle.accent
+
+        Button(action: onPurchase) {
+            HStack(spacing: 8) {
+                if isLoading {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: loadingTint))
+                        .scaleEffect(0.78)
+                }
+                Text(isLoading ? L10n.string("处理中...") : String(format: L10n.string("一次性解锁 %@"), priceText))
+            }
+        }
+        .modifier(PurchaseButtonModifier(style: style))
+        .disabled(isLoading)
+    }
+}
+
+private enum PurchaseButtonStyle {
+    case primary
+    case secondary
+}
+
+private struct PurchaseButtonModifier: ViewModifier {
+    let style: PurchaseButtonStyle
+
+    func body(content: Content) -> some View {
+        switch style {
+        case .primary:
+            content.photoDeletePrimaryButton()
+        case .secondary:
+            content.photoDeleteSecondaryButton()
+        }
     }
 }
 

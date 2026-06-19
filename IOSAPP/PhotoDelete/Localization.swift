@@ -34,6 +34,38 @@ enum L10n {
     }
 }
 
+enum AppDateFormatter {
+    static func string(
+        from date: Date,
+        template: String,
+        locale: Locale = AppLanguage.current.locale
+    ) -> String {
+        configuredFormatter(template: template, locale: locale).string(from: date)
+    }
+
+    static func string(
+        from date: Date,
+        dateStyle: DateFormatter.Style,
+        timeStyle: DateFormatter.Style
+    ) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = AppLanguage.current.locale
+        formatter.dateStyle = dateStyle
+        formatter.timeStyle = timeStyle
+        return formatter.string(from: date)
+    }
+
+    static func configuredFormatter(
+        template: String,
+        locale: Locale = AppLanguage.current.locale
+    ) -> DateFormatter {
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.setLocalizedDateFormatFromTemplate(template)
+        return formatter
+    }
+}
+
 extension String {
     var appLocalized: String {
         L10n.key(self)

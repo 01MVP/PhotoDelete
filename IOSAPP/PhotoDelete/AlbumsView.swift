@@ -21,7 +21,6 @@ struct AlbumsView: View {
     @State private var activeSheet: AlbumSheet?
     @State private var sortMode: AlbumSortMode = .custom
     @State private var editMode: EditMode = .inactive
-    @State private var pendingAlbumToDelete: PHAssetCollection?
     @State private var albumToast: PhotoDeleteToast?
     @State private var albumProgressByID: [String: AlbumProgressSnapshot] = [:]
     @State private var albumProgressGeneration = 0
@@ -320,7 +319,7 @@ struct AlbumsView: View {
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             if let editableAlbum {
                 Button(role: .destructive) {
-                    pendingAlbumToDelete = editableAlbum
+                    deleteAlbum(editableAlbum)
                 } label: {
                     Label(L10n.string("删除"), systemImage: "trash")
                 }
@@ -334,32 +333,7 @@ struct AlbumsView: View {
                 .tint(PhotoDeleteStyle.accent)
             }
         }
-        .confirmationDialog(
-            L10n.string("删除这个相册？"),
-            isPresented: Binding(
-                get: {
-                    guard let editableAlbum else { return false }
-                    return pendingAlbumToDelete?.localIdentifier == editableAlbum.localIdentifier
-                },
-                set: { isPresented in
-                    if !isPresented {
-                        pendingAlbumToDelete = nil
-                    }
-                }
-            ),
-            titleVisibility: .visible
-        ) {
-            Button(L10n.string("删除相册"), role: .destructive) {
-                guard let editableAlbum else { return }
-                deleteAlbum(editableAlbum)
-                pendingAlbumToDelete = nil
-            }
-            Button(L10n.string("取消"), role: .cancel) {
-                pendingAlbumToDelete = nil
-            }
-        } message: {
-            Text(L10n.string("只会删除相册，不会删除相册里的照片。"))
-        }
+        .listRowBackground(PhotoDeleteStyle.surface)
         .listRowSeparatorTint(PhotoDeleteStyle.hairline)
     }
 
@@ -665,6 +639,7 @@ private struct AlbumSwipeHintRow: View {
         }
         .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
         .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+        .listRowBackground(PhotoDeleteStyle.surface)
         .listRowSeparator(.hidden)
     }
 }
