@@ -732,6 +732,39 @@ class DataManager: ObservableObject {
         }
     }
 
+    func makePhotoPeriodSummaries(
+        for scope: AdvancedTimeScope,
+        calendar: Calendar = .current
+    ) -> [PhotoPeriodSummary] {
+        let screenshotIDs = Set(photoLibraryManager.screenshots.map(\.localIdentifier))
+        let reviewedIDs = reviewedAssetIDs
+        let deleteCandidateIDs = Set(deleteCandidates.map(\.localIdentifier))
+        let favoriteCandidateIDs = Set(favoriteCandidates.map(\.localIdentifier))
+        var buckets: [Date: DaySummaryAccumulator] = [:]
+
+        for asset in photoLibraryManager.allPhotos {
+            guard let creationDate = asset.creationDate else { continue }
+            let identifier = asset.localIdentifier
+            let isReviewed = reviewedIDs.contains(identifier) ||
+                deleteCandidateIDs.contains(identifier) ||
+                favoriteCandidateIDs.contains(identifier) ||
+                asset.isFavorite
+            let isScreenshot = screenshotIDs.contains(identifier)
+            let estimatedSize = estimatedAssetSizeMB(asset)
+            let interval = calendar.dateInterval(for: scope, containing: creationDate)
+            var accumulator = buckets[interval.start] ?? DaySummaryAccumulator()
+            accumulator.add(
+                asset: asset,
+                isScreenshot: isScreenshot,
+                isReviewed: isReviewed,
+                estimatedSizeMB: estimatedSize
+            )
+            buckets[interval.start] = accumulator
+        }
+
+        return Self.photoPeriodSummaries(from: buckets, scope: scope, calendar: calendar)
+    }
+
     func makePhotoPeriodSummariesByScope(
         calendar: Calendar = .current
     ) -> [AdvancedTimeScope: [PhotoPeriodSummary]] {
@@ -812,32 +845,33 @@ class DataManager: ObservableObject {
             )
         }
 
-        func summaries(
-            from buckets: [Date: DaySummaryAccumulator],
-            scope: AdvancedTimeScope
-        ) -> [PhotoPeriodSummary] {
-            buckets.map { periodStart, accumulator in
-                let interval = calendar.dateInterval(for: scope, containing: periodStart)
-                return PhotoPeriodSummary(
-                    scope: scope,
-                    intervalStart: interval.start,
-                    intervalEnd: interval.end,
-                    assetCount: accumulator.photoCount,
-                    screenshotCount: accumulator.screenshotCount,
-                    videoCount: accumulator.videoCount,
-                    reviewedCount: accumulator.reviewedCount,
-                    estimatedSizeMB: accumulator.estimatedSizeMB
-                )
-            }
-            .sorted { $0.intervalStart > $1.intervalStart }
-        }
-
         return [
-            .day: summaries(from: dayBuckets, scope: .day),
-            .week: summaries(from: weekBuckets, scope: .week),
-            .month: summaries(from: monthBuckets, scope: .month),
-            .year: summaries(from: yearBuckets, scope: .year)
+            .day: Self.photoPeriodSummaries(from: dayBuckets, scope: .day, calendar: calendar),
+            .week: Self.photoPeriodSummaries(from: weekBuckets, scope: .week, calendar: calendar),
+            .month: Self.photoPeriodSummaries(from: monthBuckets, scope: .month, calendar: calendar),
+            .year: Self.photoPeriodSummaries(from: yearBuckets, scope: .year, calendar: calendar)
         ]
+    }
+
+    private static func photoPeriodSummaries(
+        from buckets: [Date: DaySummaryAccumulator],
+        scope: AdvancedTimeScope,
+        calendar: Calendar
+    ) -> [PhotoPeriodSummary] {
+        buckets.map { periodStart, accumulator in
+            let interval = calendar.dateInterval(for: scope, containing: periodStart)
+            return PhotoPeriodSummary(
+                scope: scope,
+                intervalStart: interval.start,
+                intervalEnd: interval.end,
+                assetCount: accumulator.photoCount,
+                screenshotCount: accumulator.screenshotCount,
+                videoCount: accumulator.videoCount,
+                reviewedCount: accumulator.reviewedCount,
+                estimatedSizeMB: accumulator.estimatedSizeMB
+            )
+        }
+        .sorted { $0.intervalStart > $1.intervalStart }
     }
 
     func makeAdvancedCleanupQueues() -> [AdvancedCleanupQueue] {

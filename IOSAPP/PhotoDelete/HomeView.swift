@@ -464,7 +464,7 @@ struct HomeView: View {
         if libraryContentState == .available {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
-                    Text(L10n.string("浏览整理"))
+                    Text(L10n.string("地点整理"))
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundColor(PhotoDeleteStyle.primaryText)
                     Spacer()
@@ -472,19 +472,6 @@ struct HomeView: View {
                 .padding(.horizontal, 2)
 
                 VStack(spacing: 0) {
-                    HomeEntryRow(
-                        icon: "calendar",
-                        title: L10n.string("时间"),
-                        detail: L10n.string("按月份继续"),
-                        tint: PhotoDeleteStyle.accent
-                    ) {
-                        navigationPath.append(SwipeViewDestination.timeBrowser)
-                    }
-
-                    Divider()
-                        .background(PhotoDeleteStyle.hairline)
-                        .padding(.leading, 62)
-
                     HomeEntryRow(
                         icon: "location",
                         title: L10n.string("地点"),

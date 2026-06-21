@@ -517,6 +517,15 @@ enum AdvancedTimeScope: String, CaseIterable, Identifiable {
         }
     }
 
+    var icon: String {
+        switch self {
+        case .day: return "calendar"
+        case .week: return "calendar.badge.clock"
+        case .month: return "calendar.circle"
+        case .year: return "calendar.badge.exclamationmark"
+        }
+    }
+
     var calendarComponent: Calendar.Component {
         switch self {
         case .day: return .day

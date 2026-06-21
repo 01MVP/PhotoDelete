@@ -12,8 +12,10 @@ struct TimeOrganizeView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var selectedScope: AdvancedTimeScope = .month
     @State private var periodSummariesByScope: [AdvancedTimeScope: [PhotoPeriodSummary]] = [:]
+    @State private var visiblePeriodLimit = 80
 
-    private let visibleScopes: [AdvancedTimeScope] = [.day, .month, .year]
+    private let visibleScopes: [AdvancedTimeScope] = [.month]
+    private let periodLimitStep = 80
 
     var body: some View {
         ZStack {
@@ -21,13 +23,15 @@ struct TimeOrganizeView: View {
 
             ScrollView {
                 LazyVStack(spacing: 16) {
-                    Picker(L10n.string("时间维度"), selection: $selectedScope) {
-                        ForEach(visibleScopes) { scope in
-                            Text(scope.title)
-                                .tag(scope)
+                    if visibleScopes.count > 1 {
+                        Picker(L10n.string("时间维度"), selection: $selectedScope) {
+                            ForEach(visibleScopes) { scope in
+                                Text(scope.title)
+                                    .tag(scope)
+                            }
                         }
+                        .pickerStyle(.segmented)
                     }
-                    .pickerStyle(.segmented)
 
                     if shouldShowPreparingState {
                         OrganizeLoadingCard(
@@ -53,6 +57,18 @@ struct TimeOrganizeView: View {
                             }
                         }
                         .photoDeleteCard()
+
+                        if hasMorePeriods {
+                            Button(action: showMorePeriods) {
+                                Text(L10n.string("显示更多"))
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(PhotoDeleteStyle.accent)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 12)
+                            }
+                            .buttonStyle(.plain)
+                            .photoDeleteMinimumTapTarget()
+                        }
                     }
                 }
                 .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
@@ -64,18 +80,32 @@ struct TimeOrganizeView: View {
         }
         .navigationTitle(L10n.string("时间"))
         .navigationBarTitleDisplayMode(.large)
-        .onAppear(perform: refreshSummaries)
-        .onChange(of: dataManager.cleanupStatsRevision) { _ in
+        .onAppear {
             refreshSummaries()
         }
-        .onReceive(dataManager.photoLibraryManager.$allPhotos) { _ in
+        .onChange(of: selectedScope) { _ in
+            visiblePeriodLimit = periodLimitStep
             refreshSummaries()
+        }
+        .onChange(of: dataManager.cleanupStatsRevision) { _ in
+            refreshSummaries(resetCachedScopes: true)
+        }
+        .onReceive(dataManager.photoLibraryManager.$allPhotos) { _ in
+            refreshSummaries(resetCachedScopes: true)
         }
     }
 
-    private var visibleSummaries: [PhotoPeriodSummary] {
+    private var allVisibleSummaries: [PhotoPeriodSummary] {
         (periodSummariesByScope[selectedScope] ?? [])
             .filter { $0.assetCount > 0 }
+    }
+
+    private var visibleSummaries: [PhotoPeriodSummary] {
+        Array(allVisibleSummaries.prefix(visiblePeriodLimit))
+    }
+
+    private var hasMorePeriods: Bool {
+        allVisibleSummaries.count > visiblePeriodLimit
     }
 
     private var shouldShowPreparingState: Bool {
@@ -108,12 +138,25 @@ struct TimeOrganizeView: View {
         .photoDeleteCard()
     }
 
-    private func refreshSummaries() {
+    private func refreshSummaries(resetCachedScopes: Bool = false) {
         guard dataManager.photoLibraryManager.hasPhotoLibraryAccess else {
             periodSummariesByScope = [:]
             return
         }
-        periodSummariesByScope = dataManager.makePhotoPeriodSummariesByScope()
+
+        if resetCachedScopes {
+            periodSummariesByScope = [:]
+        }
+
+        var summaries = periodSummariesByScope
+        summaries[selectedScope] = dataManager.makePhotoPeriodSummaries(for: selectedScope)
+        periodSummariesByScope = summaries
+    }
+
+    private func showMorePeriods() {
+        withAnimation(.easeInOut(duration: 0.18)) {
+            visiblePeriodLimit += periodLimitStep
+        }
     }
 }
 

@@ -22,6 +22,9 @@ struct AdvancedView: View {
     @State private var advancedRefreshWorkItem: DispatchWorkItem?
     @State private var lastDashboardRefreshKey: AdvancedDashboardRefreshKey?
     @State private var showingSupporterBenefits = false
+    @State private var visibleAdvancedPeriodLimit = 8
+
+    private let advancedPeriodLimitStep = 16
 
     private var isLocked: Bool {
         !purchaseManager.isSupporter
@@ -59,6 +62,8 @@ struct AdvancedView: View {
         }
         .onChange(of: selectedScope) { _ in
             selectedPeriodDate = Date()
+            visibleAdvancedPeriodLimit = 8
+            refreshAdvancedDashboard(resetSelectedPeriod: false, force: true)
         }
         .onChange(of: purchaseManager.entitlementState) { _ in
             refreshAdvancedDashboard(resetSelectedPeriod: true, force: true)
@@ -91,11 +96,8 @@ struct AdvancedView: View {
             ScrollView {
                 let snapshot = dashboardSnapshot
                 let periodSummaries = visiblePeriodSummaries
-                let selectedPeriod = selectedPeriodSummary(in: periodSummaries)
 
-                VStack(spacing: 18) {
-                    achievementEntry
-
+                VStack(spacing: 16) {
                     if purchaseManager.isUsingTrialSupporterAccess {
                         AdvancedTrialStatusBanner(
                             remainingDays: purchaseManager.supporterTrialDaysRemaining,
@@ -104,42 +106,30 @@ struct AdvancedView: View {
                         )
                     }
 
-                    VStack(spacing: 18) {
-                        if isAwaitingPhotoLibraryAccess {
-                            PhotoAuthorizationCard(
-                                subtitle: L10n.string("进阶功能需要读取本机照片库，才能生成真实月份进度和清理队列。"),
-                                onRequestAccess: { dataManager.requestPhotoLibraryAccess() }
-                            )
-                        } else if shouldShowAdvancedPreparingCard {
-                            AdvancedLibraryPreparingCard(progress: advancedLoadingProgress)
-                        } else {
-                            AdvancedTimeScopePicker(selectedScope: $selectedScope)
+                    if isAwaitingPhotoLibraryAccess {
+                        PhotoAuthorizationCard(
+                            subtitle: L10n.string("进阶功能需要读取本机照片库，才能生成真实月份进度和清理队列。"),
+                            onRequestAccess: { dataManager.requestPhotoLibraryAccess() }
+                        )
+                    } else if shouldShowAdvancedPreparingCard {
+                        AdvancedLibraryPreparingCard(progress: advancedLoadingProgress)
+                    } else {
+                        cleanupEntrySection(
+                            queues: snapshot.cleanupQueues,
+                            isLocked: isLocked
+                        )
+                        .redacted(reason: shouldRedactAdvancedContent ? .placeholder : [])
+                        .allowsHitTesting(!shouldRedactAdvancedContent)
 
-                            AdvancedPeriodNavigator(
-                                summary: selectedPeriod,
-                                canGoForward: canAdvance(from: selectedPeriod),
-                                onPrevious: { moveSelectedPeriod(by: -1) },
-                                onNext: { moveSelectedPeriod(by: 1) }
-                            )
+                        advancedPeriodListSection(
+                            summaries: periodSummaries,
+                            isLocked: isLocked
+                        )
+                        .redacted(reason: shouldRedactAdvancedContent ? .placeholder : [])
+                        .allowsHitTesting(!shouldRedactAdvancedContent)
 
-                            AdvancedPeriodProgressCard(summary: selectedPeriod, isDemo: isLocked)
-
-                            periodProgressSection(
-                                summaries: periodSummaries,
-                                selectedPeriod: selectedPeriod,
-                                isLocked: isLocked
-                            )
-
-                            cleanupEntrySection(
-                                queues: snapshot.cleanupQueues,
-                                isLocked: isLocked
-                            )
-                        }
+                        achievementEntry
                     }
-                    .opacity(isLocked ? 0.42 : 1)
-                    .redacted(reason: shouldRedactAdvancedContent ? .placeholder : [])
-                    .allowsHitTesting(!isLocked && !shouldRedactAdvancedContent)
-                    .accessibilityHidden(isLocked || shouldRedactAdvancedContent)
 
                     Spacer()
                         .frame(height: isLocked ? 24 : 96)
@@ -172,9 +162,17 @@ struct AdvancedView: View {
 
     private var visiblePeriodSummaries: [PhotoPeriodSummary] {
         if let summaries = periodSummariesByScope[selectedScope] {
-            return summaries
+            return summaries.filter { $0.assetCount > 0 }
         }
-        return demoPeriodSummaries(for: selectedScope)
+        return demoPeriodSummaries(for: selectedScope).filter { $0.assetCount > 0 }
+    }
+
+    private var displayedAdvancedPeriodSummaries: [PhotoPeriodSummary] {
+        Array(visiblePeriodSummaries.prefix(visibleAdvancedPeriodLimit))
+    }
+
+    private var hasMoreAdvancedPeriods: Bool {
+        visiblePeriodSummaries.count > visibleAdvancedPeriodLimit
     }
 
     private var isPreparingRealAdvancedData: Bool {
@@ -246,6 +244,67 @@ struct AdvancedView: View {
         .buttonStyle(.plain)
     }
 
+    private func advancedPeriodListSection(
+        summaries: [PhotoPeriodSummary],
+        isLocked: Bool
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(L10n.string("按时间清理"))
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundColor(PhotoDeleteStyle.primaryText)
+
+                    Text(L10n.string("按日、周、月、年继续整理。"))
+                        .font(.system(size: 12, weight: .regular))
+                        .foregroundColor(PhotoDeleteStyle.secondaryText)
+                }
+
+                Spacer()
+            }
+
+            AdvancedTimeScopePicker(selectedScope: $selectedScope)
+
+            if summaries.isEmpty {
+                AdvancedEmptyState(
+                    icon: "calendar",
+                    title: L10n.string("还没有可按时间整理的照片"),
+                    subtitle: L10n.string("当前授权范围内没有带拍摄时间的照片。")
+                )
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(displayedAdvancedPeriodSummaries.enumerated()), id: \.element.id) { index, summary in
+                        Button {
+                            openAdvancedPeriod(summary, isLocked: isLocked)
+                        } label: {
+                            AdvancedTimePeriodRow(summary: summary, isLocked: isLocked)
+                        }
+                        .buttonStyle(.plain)
+
+                        if index != displayedAdvancedPeriodSummaries.count - 1 {
+                            Divider()
+                                .background(PhotoDeleteStyle.hairline)
+                                .padding(.leading, 62)
+                        }
+                    }
+                }
+                .photoDeleteCard()
+
+                if hasMoreAdvancedPeriods {
+                    Button(action: showMoreAdvancedPeriods) {
+                        Text(L10n.string("显示更多"))
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(PhotoDeleteStyle.accent)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.plain)
+                    .photoDeleteMinimumTapTarget()
+                }
+            }
+        }
+    }
+
     private func periodProgressSection(
         summaries: [PhotoPeriodSummary],
         selectedPeriod: PhotoPeriodSummary,
@@ -305,22 +364,20 @@ struct AdvancedView: View {
         isLocked: Bool
     ) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text(L10n.string("清理入口"))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(L10n.string("高效清理"))
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundColor(PhotoDeleteStyle.primaryText)
 
-                Spacer()
-
-                Text(isLocked ? L10n.string("示例") : L10n.string("专门列表"))
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.tertiaryText)
+                Text(L10n.string("找出更值得处理的照片和视频。"))
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
             }
 
             VStack(spacing: 0) {
                 ForEach(Array(queues.enumerated()), id: \.element.id) { index, queue in
                     if isLocked {
-                        Button(action: purchaseSupporter) {
+                        Button(action: openLockedAdvancedFeature) {
                             AdvancedCleanupEntryRow(queue: queue, isLocked: true)
                         }
                         .buttonStyle(.plain)
@@ -479,6 +536,33 @@ struct AdvancedView: View {
         return nextStart <= currentStart
     }
 
+    private func openAdvancedPeriod(_ summary: PhotoPeriodSummary, isLocked: Bool) {
+        guard !isLocked else {
+            openLockedAdvancedFeature()
+            return
+        }
+
+        selectedPeriodDate = summary.intervalStart
+        activePeriodRoute = AdvancedPeriodRoute(
+            scope: summary.scope,
+            intervalStart: summary.intervalStart
+        )
+    }
+
+    private func showMoreAdvancedPeriods() {
+        withAnimation(.easeInOut(duration: 0.18)) {
+            visibleAdvancedPeriodLimit += advancedPeriodLimitStep
+        }
+    }
+
+    private func openLockedAdvancedFeature() {
+        if purchaseManager.canStartSupporterTrial {
+            startSupporterTrial()
+        } else {
+            purchaseSupporter()
+        }
+    }
+
     private func purchaseSupporter() {
         Task { await purchaseManager.purchaseSupporter() }
     }
@@ -512,11 +596,7 @@ struct AdvancedView: View {
 
         if isLocked || !dataManager.photoLibraryManager.hasPhotoLibraryAccess {
             dashboardSnapshot = AdvancedLibrarySnapshot.demo(referenceDate: Date())
-            periodSummariesByScope = Dictionary(
-                uniqueKeysWithValues: AdvancedTimeScope.allCases.map { scope in
-                    (scope, demoPeriodSummaries(for: scope))
-                }
-            )
+            periodSummariesByScope = [:]
             return
         }
 
@@ -526,7 +606,9 @@ struct AdvancedView: View {
             monthSummaries: [],
             cleanupQueues: dataManager.makeAdvancedCleanupQueues()
         )
-        periodSummariesByScope = dataManager.makePhotoPeriodSummariesByScope()
+        var summaries = periodSummariesByScope
+        summaries[selectedScope] = dataManager.makePhotoPeriodSummaries(for: selectedScope)
+        periodSummariesByScope = summaries
     }
 }
 
@@ -767,15 +849,9 @@ private struct AdvancedCleanupEntryRow: View {
             )
 
             VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
-                    Text(queue.kind.title)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(PhotoDeleteStyle.primaryText)
-
-                    if isLocked {
-                        AdvancedDemoTag()
-                    }
-                }
+                Text(queue.kind.title)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.primaryText)
 
                 Text(detailText)
                     .font(.system(size: 12, weight: .regular))
@@ -803,6 +879,58 @@ private struct AdvancedCleanupEntryRow: View {
         case .similarPhotos, .largeFiles:
             return L10n.string("\(queue.assetCount) 项 · \(queue.formattedSpace) · \(queue.kind.subtitle)")
         }
+    }
+}
+
+private struct AdvancedTimePeriodRow: View {
+    let summary: PhotoPeriodSummary
+    let isLocked: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            PhotoDeleteIconTile(
+                icon: summary.scope.icon,
+                tint: PhotoDeleteStyle.accent,
+                size: 38,
+                cornerRadius: 11
+            )
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(AdvancedPeriodFormatter.title(for: summary))
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.primaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+
+                Text(detailText)
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            }
+
+            Spacer(minLength: 8)
+
+            Text(L10n.shortPhotoCount(summary.assetCount))
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(PhotoDeleteStyle.secondaryText)
+                .lineLimit(1)
+
+            Image(systemName: isLocked ? "lock.fill" : "chevron.right")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(PhotoDeleteStyle.tertiaryText)
+        }
+        .padding(14)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+    }
+
+    private var detailText: String {
+        String(
+            format: L10n.string("剩余 %lld 张 · 估算 %@"),
+            Int64(summary.remainingCount),
+            summary.formattedEstimatedSize
+        )
     }
 }
 
@@ -934,7 +1062,7 @@ private struct AdvancedBottomPaywall: View {
             return L10n.string("免费体验 3 天进阶功能，也可以直接一次性解锁。")
         }
 
-        return L10n.string("一次性解锁按日期清理、大文件清理、视频压缩、相似照片清理和主题切换。")
+        return L10n.string("一次性解锁完整时间列表、大文件清理、视频压缩、相似照片清理和主题切换。")
     }
 }
 

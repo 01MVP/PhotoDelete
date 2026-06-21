@@ -175,7 +175,7 @@ private struct SupporterPaywallContent: View {
             return L10n.string("免费体验 3 天进阶功能，也可以直接一次性解锁。")
         }
 
-        return L10n.string("一次性解锁按日期清理、大文件清理、视频压缩、相似照片清理和主题切换。")
+        return L10n.string("一次性解锁完整时间列表、大文件清理、视频压缩、相似照片清理和主题切换。")
     }
 }
 
@@ -527,11 +527,15 @@ struct SupporterDivider: View {
 
 struct SupporterPlanComparisonCard: View {
     private let rows: [SupporterPlanComparisonRow.Model] = [
+        .init(title: L10n.string("随机整理"), free: .included, supporter: .included),
         .init(title: L10n.string("基础滑动整理"), free: .included, supporter: .included),
         .init(title: L10n.string("确认后删除和收藏"), free: .included, supporter: .included),
+        .init(title: L10n.string("基础时间整理"), free: .included, supporter: .included),
+        .init(title: L10n.string("基础地点整理"), free: .included, supporter: .included),
         .init(title: L10n.string("本机清理历史"), free: .included, supporter: .included),
         .init(title: L10n.string("基础节省空间统计"), free: .included, supporter: .included),
-        .init(title: L10n.string("按日期清理"), free: .notIncluded, supporter: .included),
+        .init(title: L10n.string("完整时间列表"), free: .notIncluded, supporter: .included),
+        .init(title: L10n.string("地点筛选"), free: .notIncluded, supporter: .included),
         .init(title: L10n.string("大文件清理"), free: .notIncluded, supporter: .included),
         .init(title: L10n.string("视频压缩"), free: .notIncluded, supporter: .included),
         .init(title: L10n.string("相似照片清理"), free: .notIncluded, supporter: .included),
@@ -660,7 +664,7 @@ struct SupporterBenefitsSheet: View {
 
                 ScrollView {
                     VStack(spacing: 16) {
-                        Text(L10n.string("免费版可以查看清理历史和节省空间；支持者版额外解锁视频压缩、大文件清理、按日期清理、相似照片清理和主题切换。"))
+                        Text(L10n.string("免费版保留随机、滑动、基础时间和地点整理；支持者版额外解锁完整时间列表、地点筛选、视频压缩、大文件清理、相似照片清理和主题切换。"))
                             .font(.system(size: 14, weight: .regular))
                             .foregroundColor(PhotoDeleteStyle.secondaryText)
                             .frame(maxWidth: .infinity, alignment: .leading)

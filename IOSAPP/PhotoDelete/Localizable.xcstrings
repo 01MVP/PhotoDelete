@@ -17417,6 +17417,248 @@
         }
       }
     },
+    "显示更多": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show More"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "显示更多"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "顯示更多"
+          }
+        }
+      }
+    },
+    "按日、周、月、年继续整理。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continue by day, week, month, or year."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "按日、周、月、年继续整理。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按日、週、月、年繼續整理。"
+          }
+        }
+      }
+    },
+    "高效清理": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Focused Cleanup"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "高效清理"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高效清理"
+          }
+        }
+      }
+    },
+    "找出更值得处理的照片和视频。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Find photos and videos worth handling first."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "找出更值得处理的照片和视频。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找出更值得處理的照片和影片。"
+          }
+        }
+      }
+    },
+    "剩余 %lld 张 · 估算 %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld left · about %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "剩余 %lld 张 · 估算 %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "剩餘 %lld 張 · 估算 %@"
+          }
+        }
+      }
+    },
+    "一次性解锁完整时间列表、大文件清理、视频压缩、相似照片清理和主题切换。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlock full time lists, large-file cleanup, video compression, similar-photo cleanup, and themes with one purchase."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "一次性解锁完整时间列表、大文件清理、视频压缩、相似照片清理和主题切换。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一次性解鎖完整時間列表、大檔案清理、影片壓縮、相似照片清理和主題切換。"
+          }
+        }
+      }
+    },
+    "随机整理": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Random Review"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "随机整理"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隨機整理"
+          }
+        }
+      }
+    },
+    "基础时间整理": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Basic Time Organizing"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "基础时间整理"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "基礎時間整理"
+          }
+        }
+      }
+    },
+    "基础地点整理": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Basic Place Organizing"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "基础地点整理"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "基礎地點整理"
+          }
+        }
+      }
+    },
+    "完整时间列表": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Full Time Lists"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "完整时间列表"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完整時間列表"
+          }
+        }
+      }
+    },
+    "免费版保留随机、滑动、基础时间和地点整理；支持者版额外解锁完整时间列表、地点筛选、视频压缩、大文件清理、相似照片清理和主题切换。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Free keeps random review, swiping, and basic time and place organizing. Supporter adds full time lists, place filters, video compression, large-file cleanup, similar-photo cleanup, and themes."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "免费版保留随机、滑动、基础时间和地点整理；支持者版额外解锁完整时间列表、地点筛选、视频压缩、大文件清理、相似照片清理和主题切换。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "免費版保留隨機、滑動、基礎時間和地點整理；支持者版額外解鎖完整時間列表、地點篩選、影片壓縮、大檔案清理、相似照片清理和主題切換。"
+          }
+        }
+      }
+    },
     "压缩副本": {
       "localizations": {
         "en": {
