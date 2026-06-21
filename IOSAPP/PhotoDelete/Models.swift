@@ -429,6 +429,26 @@ struct TimeGroupInfo: Identifiable {
     }
 }
 
+enum HistoricalTodayResolver {
+    static func isHistoricalToday(
+        _ creationDate: Date,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Bool {
+        let creationComponents = calendar.dateComponents([.year, .month, .day], from: creationDate)
+        let todayComponents = calendar.dateComponents([.year, .month, .day], from: now)
+
+        guard let creationYear = creationComponents.year,
+              let currentYear = todayComponents.year else {
+            return false
+        }
+
+        return creationYear < currentYear &&
+            creationComponents.month == todayComponents.month &&
+            creationComponents.day == todayComponents.day
+    }
+}
+
 // MARK: - 整理统计
 struct OrganizeStats {
     var totalPhotos: Int = 0

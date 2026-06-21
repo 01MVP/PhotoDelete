@@ -97,6 +97,8 @@ struct SettingsView: View {
                     .environmentObject(purchaseManager)
             case .cleanupHistory:
                 CleanupHistoryView(statsStore: dataManager.cleanupStatsStore)
+            case .cleanupAchievements:
+                CleanupAchievementsView(statsStore: dataManager.cleanupStatsStore, showsDoneButton: true)
             case .gestureSettings:
                 GestureSettingsView()
             case .languageSettings:
@@ -168,9 +170,31 @@ struct SettingsView: View {
                         activeSheet = .cleanupHistory
                     }
                 )
+
+                Divider()
+                    .background(PhotoDeleteStyle.hairline)
+                    .padding(.horizontal, 16)
+
+                SettingRow(
+                    icon: "seal.fill",
+                    iconColor: PhotoDeleteStyle.warning,
+                    title: L10n.string("清理成就"),
+                    subtitle: cleanupAchievementsSubtitle,
+                    action: {
+                        activeSheet = .cleanupAchievements
+                    }
+                )
             }
             .photoDeleteCard()
         }
+    }
+
+    private var cleanupAchievementsSubtitle: String {
+        String(
+            format: L10n.string("已获得 %lld/%lld 枚徽章"),
+            Int64(dataManager.cleanupStatsStore.unlockedAchievements.count),
+            Int64(dataManager.cleanupStatsStore.achievementProgresses.count)
+        )
     }
 
     // MARK: - 支持者版
@@ -692,6 +716,7 @@ private enum SettingsSheet: Identifiable {
     case privacy
     case supporter
     case cleanupHistory
+    case cleanupAchievements
     case gestureSettings
     case languageSettings
     case appearanceSettings
@@ -704,6 +729,7 @@ private enum SettingsSheet: Identifiable {
         case .privacy: return "privacy"
         case .supporter: return "supporter"
         case .cleanupHistory: return "cleanupHistory"
+        case .cleanupAchievements: return "cleanupAchievements"
         case .gestureSettings: return "gestureSettings"
         case .languageSettings: return "languageSettings"
         case .appearanceSettings: return "appearanceSettings"

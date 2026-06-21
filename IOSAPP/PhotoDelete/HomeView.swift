@@ -13,6 +13,7 @@ enum SwipeViewDestination: Hashable {
     case album(AlbumInfo)
     case random(PhotoRandomReviewScope)
     case timeBrowser
+    case historicalToday
     case period(AdvancedTimeScope, Date)
     case locationBrowser
     case location(String)
@@ -28,6 +29,8 @@ enum SwipeViewDestination: Hashable {
         case (.random(let lhsScope), .random(let rhsScope)):
             return lhsScope == rhsScope
         case (.timeBrowser, .timeBrowser):
+            return true
+        case (.historicalToday, .historicalToday):
             return true
         case (.period(let lhsScope, let lhsDate), .period(let rhsScope, let rhsDate)):
             return lhsScope == rhsScope && lhsDate == rhsDate
@@ -56,6 +59,8 @@ enum SwipeViewDestination: Hashable {
             hasher.combine(scope)
         case .timeBrowser:
             hasher.combine("timeBrowser")
+        case .historicalToday:
+            hasher.combine("historicalToday")
         case .period(let scope, let date):
             hasher.combine("period")
             hasher.combine(scope)
@@ -158,6 +163,14 @@ struct HomeView: View {
                 case .timeBrowser:
                     TimeOrganizeView()
                         .environmentObject(dataManager)
+                case .historicalToday:
+                    SwipePhotoView(
+                        selectedCategory: nil,
+                        selectedTimeGroup: nil,
+                        selectedAlbumInfo: nil,
+                        selectedHistoricalToday: true
+                    )
+                    .environmentObject(dataManager)
                 case .period(let scope, let intervalStart):
                     SwipePhotoView(
                         selectedCategory: nil,
@@ -538,6 +551,21 @@ struct HomeView: View {
                 .padding(.horizontal, 2)
 
                 VStack(spacing: 0) {
+                    if dataManager.historicalTodayPhotoCount > 0 {
+                        HomeEntryRow(
+                            icon: "calendar.badge.clock",
+                            title: L10n.string("历史上的今天"),
+                            detail: L10n.shortPhotoCount(dataManager.historicalTodayPhotoCount),
+                            tint: PhotoDeleteStyle.warning
+                        ) {
+                            navigationPath.append(SwipeViewDestination.historicalToday)
+                        }
+
+                        Divider()
+                            .background(PhotoDeleteStyle.hairline)
+                            .padding(.leading, 62)
+                    }
+
                     ForEach(Array(dataManager.timeGroups.enumerated()), id: \.element.id) { index, timeGroupInfo in
                         HomeEntryRow(
                             icon: timeGroupInfo.timeGroup.icon,

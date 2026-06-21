@@ -99,6 +99,28 @@ struct PhotoDeleteTests {
         }
     }
 
+    @Test func historicalTodayResolverMatchesPastSameMonthDayOnly() async throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = makeDate(year: 2026, month: 6, day: 22, calendar: calendar)
+
+        #expect(HistoricalTodayResolver.isHistoricalToday(makeDate(year: 2025, month: 6, day: 22, calendar: calendar), now: now, calendar: calendar))
+        #expect(HistoricalTodayResolver.isHistoricalToday(makeDate(year: 2022, month: 6, day: 22, calendar: calendar), now: now, calendar: calendar))
+        #expect(!HistoricalTodayResolver.isHistoricalToday(makeDate(year: 2026, month: 6, day: 22, calendar: calendar), now: now, calendar: calendar))
+        #expect(!HistoricalTodayResolver.isHistoricalToday(makeDate(year: 2025, month: 6, day: 21, calendar: calendar), now: now, calendar: calendar))
+        #expect(!HistoricalTodayResolver.isHistoricalToday(makeDate(year: 2027, month: 6, day: 22, calendar: calendar), now: now, calendar: calendar))
+    }
+
+    @Test func historicalTodayResolverHandlesLeapDayStrictly() async throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let leapDay = makeDate(year: 2028, month: 2, day: 29, calendar: calendar)
+
+        #expect(HistoricalTodayResolver.isHistoricalToday(makeDate(year: 2024, month: 2, day: 29, calendar: calendar), now: leapDay, calendar: calendar))
+        #expect(!HistoricalTodayResolver.isHistoricalToday(makeDate(year: 2027, month: 2, day: 28, calendar: calendar), now: leapDay, calendar: calendar))
+        #expect(!HistoricalTodayResolver.isHistoricalToday(makeDate(year: 2027, month: 3, day: 1, calendar: calendar), now: leapDay, calendar: calendar))
+    }
+
     // MARK: - OrganizeStats tests
 
     @Test func organizeStatsFormatsSavedSpace() async throws {

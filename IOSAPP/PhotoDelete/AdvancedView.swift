@@ -22,9 +22,7 @@ struct AdvancedView: View {
     @State private var advancedRefreshWorkItem: DispatchWorkItem?
     @State private var lastDashboardRefreshKey: AdvancedDashboardRefreshKey?
     @State private var showingSupporterBenefits = false
-    @State private var visibleAdvancedPeriodLimit = 8
-
-    private let advancedPeriodLimitStep = 16
+    @State private var visibleAdvancedPeriodLimit = 5
 
     private var isLocked: Bool {
         !purchaseManager.isSupporter
@@ -62,7 +60,7 @@ struct AdvancedView: View {
         }
         .onChange(of: selectedScope) { _ in
             selectedPeriodDate = Date()
-            visibleAdvancedPeriodLimit = 8
+            visibleAdvancedPeriodLimit = 5
             refreshAdvancedDashboard(resetSelectedPeriod: false, force: true)
         }
         .onChange(of: purchaseManager.entitlementState) { _ in
@@ -127,8 +125,6 @@ struct AdvancedView: View {
                         )
                         .redacted(reason: shouldRedactAdvancedContent ? .placeholder : [])
                         .allowsHitTesting(!shouldRedactAdvancedContent)
-
-                        achievementEntry
                     }
 
                     Spacer()
@@ -169,10 +165,6 @@ struct AdvancedView: View {
 
     private var displayedAdvancedPeriodSummaries: [PhotoPeriodSummary] {
         Array(visiblePeriodSummaries.prefix(visibleAdvancedPeriodLimit))
-    }
-
-    private var hasMoreAdvancedPeriods: Bool {
-        visiblePeriodSummaries.count > visibleAdvancedPeriodLimit
     }
 
     private var isPreparingRealAdvancedData: Bool {
@@ -235,15 +227,6 @@ struct AdvancedView: View {
         )
     }
 
-    private var achievementEntry: some View {
-        NavigationLink {
-            CleanupAchievementsView(statsStore: dataManager.cleanupStatsStore)
-        } label: {
-            CleanupAchievementsEntryCard(statsStore: dataManager.cleanupStatsStore)
-        }
-        .buttonStyle(.plain)
-    }
-
     private func advancedPeriodListSection(
         summaries: [PhotoPeriodSummary],
         isLocked: Bool
@@ -261,6 +244,18 @@ struct AdvancedView: View {
                 }
 
                 Spacer()
+
+                if !isLocked, !summaries.isEmpty {
+                    NavigationLink {
+                        AdvancedPeriodListView(summaries: summaries)
+                            .environmentObject(dataManager)
+                    } label: {
+                        Text(L10n.string("全部"))
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(PhotoDeleteStyle.accent)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
 
             AdvancedTimeScopePicker(selectedScope: $selectedScope)
@@ -289,18 +284,6 @@ struct AdvancedView: View {
                     }
                 }
                 .photoDeleteCard()
-
-                if hasMoreAdvancedPeriods {
-                    Button(action: showMoreAdvancedPeriods) {
-                        Text(L10n.string("显示更多"))
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(PhotoDeleteStyle.accent)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                    }
-                    .buttonStyle(.plain)
-                    .photoDeleteMinimumTapTarget()
-                }
             }
         }
     }
@@ -547,12 +530,6 @@ struct AdvancedView: View {
             scope: summary.scope,
             intervalStart: summary.intervalStart
         )
-    }
-
-    private func showMoreAdvancedPeriods() {
-        withAnimation(.easeInOut(duration: 0.18)) {
-            visibleAdvancedPeriodLimit += advancedPeriodLimitStep
-        }
     }
 
     private func openLockedAdvancedFeature() {
@@ -888,12 +865,7 @@ private struct AdvancedTimePeriodRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            PhotoDeleteIconTile(
-                icon: summary.scope.icon,
-                tint: PhotoDeleteStyle.accent,
-                size: 38,
-                cornerRadius: 11
-            )
+            AdvancedPeriodProgressBadge(progress: summary.progress)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(AdvancedPeriodFormatter.title(for: summary))
@@ -911,11 +883,6 @@ private struct AdvancedTimePeriodRow: View {
 
             Spacer(minLength: 8)
 
-            Text(L10n.shortPhotoCount(summary.assetCount))
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(PhotoDeleteStyle.secondaryText)
-                .lineLimit(1)
-
             Image(systemName: isLocked ? "lock.fill" : "chevron.right")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(PhotoDeleteStyle.tertiaryText)
@@ -931,6 +898,22 @@ private struct AdvancedTimePeriodRow: View {
             Int64(summary.remainingCount),
             summary.formattedEstimatedSize
         )
+    }
+}
+
+private struct AdvancedPeriodProgressBadge: View {
+    let progress: Double
+
+    var body: some View {
+        AdvancedProgressRing(progress: progress, size: 48, lineWidth: 5) {
+            Text("\(Int(progress * 100))%")
+                .font(.system(size: 11, weight: .semibold))
+                .monospacedDigit()
+                .foregroundColor(PhotoDeleteStyle.primaryText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .accessibilityHidden(true)
     }
 }
 
@@ -1159,7 +1142,7 @@ private struct AdvancedPeriodListView: View {
             PhotoDeleteScreenBackground()
 
             ScrollView {
-                VStack(spacing: 16) {
+                LazyVStack(spacing: 16) {
                     VStack(spacing: 0) {
                         ForEach(Array(summaries.enumerated()), id: \.element.id) { index, summary in
                             NavigationLink {

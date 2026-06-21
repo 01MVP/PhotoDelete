@@ -17527,6 +17527,50 @@
         }
       }
     },
+    "已获得 %lld/%lld 枚徽章": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld/%lld badges earned"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "已获得 %lld/%lld 枚徽章"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已獲得 %lld/%lld 枚徽章"
+          }
+        }
+      }
+    },
+    "历史上的今天": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On This Day"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "历史上的今天"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "歷史上的今天"
+          }
+        }
+      }
+    },
     "一次性解锁完整时间列表、大文件清理、视频压缩、相似照片清理和主题切换。": {
       "localizations": {
         "en": {

@@ -30,6 +30,7 @@ class DataManager: ObservableObject {
 
     // 时间组和相册信息缓存
     @Published var timeGroups: [TimeGroupInfo] = []
+    @Published var historicalTodayPhotoCount = 0
     @Published var locationGroups: [PhotoLocationGroupInfo] = []
     @Published var systemAlbums: [AlbumInfo] = []
     @Published var userAlbums: [AlbumInfo] = []
@@ -47,6 +48,8 @@ class DataManager: ObservableObject {
     private var hasLoadedAlbums = false
     private var isFetchingAlbums = false
     private var timeGroupCache: [TimeGroup: [PHAsset]] = [:]
+    private var historicalTodayCache: [PHAsset] = []
+    private var historicalTodayCacheReferenceDay: Date?
     private var locationGroupCache: [String: [PHAsset]] = [:]
     private var progressRefreshWorkItem: DispatchWorkItem?
     private var progressRefreshGeneration = 0
@@ -58,6 +61,8 @@ class DataManager: ObservableObject {
     private struct TimeGroupBuildResult {
         let cache: [TimeGroup: [PHAsset]]
         let timeGroups: [TimeGroupInfo]
+        let historicalTodayPhotos: [PHAsset]
+        let historicalTodayReferenceDay: Date
     }
 
     private struct LocationGroupBuildResult {
@@ -453,6 +458,9 @@ class DataManager: ObservableObject {
         photoLibraryManager.clearLoadedLibraryData(clearSnapshot: true)
         timeGroupCache = [:]
         timeGroups = []
+        historicalTodayCache = []
+        historicalTodayCacheReferenceDay = nil
+        historicalTodayPhotoCount = 0
         locationGroupCache = [:]
         locationGroups = []
         systemAlbums = []
@@ -540,6 +548,9 @@ class DataManager: ObservableObject {
                     guard let self, self.progressRefreshGeneration == generation else { return }
                     self.timeGroupCache = result.cache
                     self.timeGroups = result.timeGroups
+                    self.historicalTodayCache = result.historicalTodayPhotos
+                    self.historicalTodayCacheReferenceDay = result.historicalTodayReferenceDay
+                    self.historicalTodayPhotoCount = result.historicalTodayPhotos.count
                 }
             }
         }
@@ -694,6 +705,15 @@ class DataManager: ObservableObject {
             guard let creationDate = asset.creationDate else { return false }
             return creationDate >= start && creationDate < end
         }
+    }
+
+    func getPhotosForHistoricalToday(now: Date = Date(), calendar: Calendar = .current) -> [PHAsset] {
+        let todayStart = calendar.startOfDay(for: now)
+        if historicalTodayCacheReferenceDay == todayStart {
+            return historicalTodayCache
+        }
+
+        return Self.historicalTodayPhotos(from: photoLibraryManager.allPhotos, now: now, calendar: calendar)
     }
 
     func getPhotosForPeriod(
@@ -1136,11 +1156,17 @@ class DataManager: ObservableObject {
         calendar: Calendar = .current
     ) -> TimeGroupBuildResult {
         var cache: [TimeGroup: [PHAsset]] = [:]
+        var historicalTodayPhotos: [PHAsset] = []
+        let historicalTodayReferenceDay = calendar.startOfDay(for: now)
 
         for asset in photos {
             guard let creationDate = asset.creationDate else { continue }
             let group = TimeGroupResolver.group(for: creationDate, now: now, calendar: calendar)
             cache[group, default: []].append(asset)
+
+            if HistoricalTodayResolver.isHistoricalToday(creationDate, now: now, calendar: calendar) {
+                historicalTodayPhotos.append(asset)
+            }
         }
 
         let timeGroups = TimeGroup.allCases.map { timeGroup in
@@ -1165,7 +1191,36 @@ class DataManager: ObservableObject {
             )
         }
 
-        return TimeGroupBuildResult(cache: cache, timeGroups: timeGroups)
+        return TimeGroupBuildResult(
+            cache: cache,
+            timeGroups: timeGroups,
+            historicalTodayPhotos: sortedByNewestFirst(historicalTodayPhotos),
+            historicalTodayReferenceDay: historicalTodayReferenceDay
+        )
+    }
+
+    private static func historicalTodayPhotos(
+        from photos: [PHAsset],
+        now: Date,
+        calendar: Calendar
+    ) -> [PHAsset] {
+        let matches = photos.filter { asset in
+            guard let creationDate = asset.creationDate else { return false }
+            return HistoricalTodayResolver.isHistoricalToday(creationDate, now: now, calendar: calendar)
+        }
+
+        return sortedByNewestFirst(matches)
+    }
+
+    private static func sortedByNewestFirst(_ photos: [PHAsset]) -> [PHAsset] {
+        photos.sorted {
+            let lhsDate = $0.creationDate ?? .distantPast
+            let rhsDate = $1.creationDate ?? .distantPast
+            if lhsDate == rhsDate {
+                return $0.localIdentifier < $1.localIdentifier
+            }
+            return lhsDate > rhsDate
+        }
     }
 
     private static func buildLocationGroupData(

@@ -33,6 +33,7 @@ struct SwipePhotoView: View {
     let selectedAdvancedCleanup: AdvancedCleanupKind?
     let selectedLocationGroupID: String?
     let randomReviewScope: PhotoRandomReviewScope?
+    let selectedHistoricalToday: Bool
 
     @State private var dragOffset = CGSize.zero
     @State private var rotationAngle: Double = 0
@@ -77,7 +78,8 @@ struct SwipePhotoView: View {
         selectedAdvancedTimeScope: AdvancedTimeScope? = nil,
         selectedAdvancedCleanup: AdvancedCleanupKind? = nil,
         selectedLocationGroupID: String? = nil,
-        randomReviewScope: PhotoRandomReviewScope? = nil
+        randomReviewScope: PhotoRandomReviewScope? = nil,
+        selectedHistoricalToday: Bool = false
     ) {
         self.selectedCategory = selectedCategory
         self.selectedTimeGroup = selectedTimeGroup
@@ -87,6 +89,7 @@ struct SwipePhotoView: View {
         self.selectedAdvancedCleanup = selectedAdvancedCleanup
         self.selectedLocationGroupID = selectedLocationGroupID
         self.randomReviewScope = randomReviewScope
+        self.selectedHistoricalToday = selectedHistoricalToday
     }
 
     enum SwipeDirection {
@@ -122,6 +125,8 @@ struct SwipePhotoView: View {
                 for: randomReviewScope,
                 scopeID: sessionProgressScopeID
             )
+        } else if selectedHistoricalToday {
+            return dataManager.getPhotosForHistoricalToday()
         } else if let selectedLocationGroupID {
             return dataManager.getPhotosForLocationGroup(selectedLocationGroupID)
         } else if let albumInfo = selectedAlbumInfo {
@@ -1588,6 +1593,11 @@ struct SwipePhotoView: View {
             return "period:\(selectedAdvancedTimeScope.rawValue):\(Int(intervalStart.timeIntervalSince1970))"
         }
 
+        if selectedHistoricalToday {
+            let today = Calendar.current.startOfDay(for: Date())
+            return "historicalToday:\(Int(today.timeIntervalSince1970))"
+        }
+
         if let selectedDate {
             let dayStart = Calendar.current.startOfDay(for: selectedDate)
             return "day:\(Int(dayStart.timeIntervalSince1970))"
@@ -1998,6 +2008,9 @@ struct SwipePhotoView: View {
         if randomReviewScope != nil {
             return L10n.string("遇见从前")
         }
+        if selectedHistoricalToday {
+            return L10n.string("历史上的今天")
+        }
         if selectedLocationGroupID != nil {
             return L10n.string("地点整理")
         }
@@ -2016,6 +2029,8 @@ struct SwipePhotoView: View {
     private func getDisplayTitle() -> String {
         if let randomReviewScope {
             return randomReviewScope.title
+        } else if selectedHistoricalToday {
+            return L10n.string("历史上的今天")
         } else if let selectedLocationGroupID {
             return locationGroupTitle(for: selectedLocationGroupID)
         } else if let albumInfo = selectedAlbumInfo {
