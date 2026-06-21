@@ -31,6 +31,8 @@ struct SwipePhotoView: View {
     let selectedDate: Date?
     let selectedAdvancedTimeScope: AdvancedTimeScope?
     let selectedAdvancedCleanup: AdvancedCleanupKind?
+    let selectedLocationGroupID: String?
+    let randomReviewScope: PhotoRandomReviewScope?
 
     @State private var dragOffset = CGSize.zero
     @State private var rotationAngle: Double = 0
@@ -73,7 +75,9 @@ struct SwipePhotoView: View {
         selectedAlbumInfo: AlbumInfo?,
         selectedDate: Date? = nil,
         selectedAdvancedTimeScope: AdvancedTimeScope? = nil,
-        selectedAdvancedCleanup: AdvancedCleanupKind? = nil
+        selectedAdvancedCleanup: AdvancedCleanupKind? = nil,
+        selectedLocationGroupID: String? = nil,
+        randomReviewScope: PhotoRandomReviewScope? = nil
     ) {
         self.selectedCategory = selectedCategory
         self.selectedTimeGroup = selectedTimeGroup
@@ -81,6 +85,8 @@ struct SwipePhotoView: View {
         self.selectedDate = selectedDate
         self.selectedAdvancedTimeScope = selectedAdvancedTimeScope
         self.selectedAdvancedCleanup = selectedAdvancedCleanup
+        self.selectedLocationGroupID = selectedLocationGroupID
+        self.randomReviewScope = randomReviewScope
     }
 
     enum SwipeDirection {
@@ -111,7 +117,14 @@ struct SwipePhotoView: View {
             return []
         }
 
-        if let albumInfo = selectedAlbumInfo {
+        if let randomReviewScope {
+            return dataManager.makeRandomReviewPhotos(
+                for: randomReviewScope,
+                scopeID: sessionProgressScopeID
+            )
+        } else if let selectedLocationGroupID {
+            return dataManager.getPhotosForLocationGroup(selectedLocationGroupID)
+        } else if let albumInfo = selectedAlbumInfo {
             return dataManager.getPhotosForAlbum(albumInfo)
         } else if let selectedDate, let selectedAdvancedTimeScope {
             return dataManager.getPhotosForPeriod(selectedAdvancedTimeScope, containing: selectedDate)
@@ -449,6 +462,7 @@ struct SwipePhotoView: View {
                 isBeingFiledToAlbum: isAssetBeingFiledToAlbum(asset),
                 isFiledToAlbum: isAssetFiledToAlbum(asset),
                 isVideoPlaying: inlinePlayingVideoAssetID == asset.localIdentifier,
+                memoryCaption: memoryCaption(for: asset),
                 displaySize: cardSize,
                 targetSize: imageTargetSize(for: cardSize),
                 onStopVideoPlayback: stopInlineVideoPlayback
@@ -487,6 +501,13 @@ struct SwipePhotoView: View {
                 )
             }
         }
+    }
+
+    private func memoryCaption(for asset: PHAsset) -> PhotoMemoryCaption {
+        PhotoMemoryCaption(
+            title: PhotoMemoryCaptionFormatter.relativeTitle(for: asset.creationDate),
+            subtitle: PhotoMemoryCaptionFormatter.dateSubtitle(for: asset.creationDate)
+        )
     }
 
     private func dragFeedback(for translation: CGSize) -> PhotoSwipeDragFeedbackState? {
@@ -636,13 +657,37 @@ struct SwipePhotoView: View {
                     .font(.system(size: 54, weight: .medium))
                     .foregroundColor(PhotoDeleteStyle.positive)
 
-                Text(L10n.string("整理完成！"))
+                Text(completionTitle)
                     .font(.system(size: 24, weight: .semibold))
                     .foregroundColor(PhotoDeleteStyle.primaryText)
 
-                Text(L10n.string("您已经浏览完所有照片"))
+                Text(completionSubtitle)
                     .font(.system(size: 15, weight: .regular))
                     .foregroundColor(PhotoDeleteStyle.secondaryText)
+                    .multilineTextAlignment(.center)
+
+                if randomReviewScope != nil {
+                    HStack(spacing: 10) {
+                        CompletionStatPill(
+                            icon: "trash",
+                            value: sessionActionCount(for: .delete),
+                            title: L10n.string("删除"),
+                            tint: PhotoDeleteStyle.destructive
+                        )
+                        CompletionStatPill(
+                            icon: "heart",
+                            value: sessionActionCount(for: .favorite),
+                            title: L10n.string("收藏"),
+                            tint: PhotoDeleteStyle.iconTint(for: "favorite")
+                        )
+                        CompletionStatPill(
+                            icon: "checkmark",
+                            value: sessionActionCount(for: .keep),
+                            title: L10n.string("保留"),
+                            tint: PhotoDeleteStyle.positive
+                        )
+                    }
+                }
 
                 HStack(spacing: 12) {
                     if hasUnreviewedPhotos {
@@ -653,11 +698,18 @@ struct SwipePhotoView: View {
                         .photoDeleteSecondaryButton()
                     }
 
-                    Button(L10n.string("完成整理")) {
+                    Button(completionPrimaryActionTitle) {
                         handleFinishAction()
                         showCompletionMessage = false
                     }
                     .photoDeletePrimaryButton()
+
+                    if randomReviewScope != nil {
+                        Button(L10n.string("再遇见一组")) {
+                            startNextRandomReviewSession()
+                        }
+                        .photoDeleteSecondaryButton()
+                    }
                 }
             }
             .padding(24)
@@ -665,6 +717,47 @@ struct SwipePhotoView: View {
             .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
         }
         .transition(.opacity)
+    }
+
+    private var completionTitle: String {
+        randomReviewScope == nil ? L10n.string("整理完成！") : L10n.string("这一组整理完了")
+    }
+
+    private var completionSubtitle: String {
+        if randomReviewScope == nil {
+            return L10n.string("您已经浏览完所有照片")
+        }
+
+        return String(
+            format: L10n.string("已整理 %lld/%lld 张，确认后再统一删除。"),
+            Int64(organizedProgress),
+            Int64(totalPhotosCount)
+        )
+    }
+
+    private var completionPrimaryActionTitle: String {
+        if pendingDeleteCount > 0 || !dataManager.deleteCandidates.isEmpty {
+            return L10n.string("确认删除")
+        }
+        if pendingFavoriteCount > 0 || !dataManager.favoriteCandidates.isEmpty {
+            return L10n.string("确认收藏")
+        }
+        return L10n.string("完成整理")
+    }
+
+    private func sessionActionCount(for action: SwipeGestureAction) -> Int {
+        actionHistory.reduce(0) { count, historyAction in
+            switch (action, historyAction) {
+            case (.delete, .delete):
+                return count + 1
+            case (.favorite, .favorite):
+                return count + 1
+            case (.keep, .skip):
+                return count + 1
+            default:
+                return count
+            }
+        }
     }
 
     // MARK: - 底部控制区域
@@ -998,11 +1091,33 @@ struct SwipePhotoView: View {
     }
 
     private var headerProgressSubtitle: String {
+        if let memoryHeaderSubtitle {
+            return memoryHeaderSubtitle
+        }
+
         guard totalPhotosCount > 0 else {
             return L10n.shortPhotoCount(0)
         }
 
         return "\(L10n.string("已整理")) \(formattedCount(organizedProgress))/\(formattedCount(totalPhotosCount))"
+    }
+
+    private var memoryHeaderSubtitle: String? {
+        guard randomReviewScope != nil,
+              let asset = currentRealPhoto,
+              totalPhotosCount > 0 else {
+            return nil
+        }
+
+        let caption = memoryCaption(for: asset)
+        let progress = String(
+            format: L10n.string("第 %lld/%lld 张"),
+            Int64(currentProgress),
+            Int64(totalPhotosCount)
+        )
+        return [caption.title, caption.subtitle, progress]
+            .compactMap { $0 }
+            .joined(separator: " · ")
     }
 
     private func formattedCount(_ count: Int) -> String {
@@ -1456,6 +1571,14 @@ struct SwipePhotoView: View {
     }
 
     private var sessionProgressScopeID: String {
+        if let randomReviewScope {
+            return "random:\(randomReviewScope.rawValue)"
+        }
+
+        if let selectedLocationGroupID {
+            return "location:\(selectedLocationGroupID)"
+        }
+
         if let albumInfo = selectedAlbumInfo {
             return "album:\(albumInfo.id)"
         }
@@ -1576,6 +1699,22 @@ struct SwipePhotoView: View {
         } else {
             dismiss()
         }
+    }
+
+    private func startNextRandomReviewSession() {
+        guard randomReviewScope != nil else { return }
+        flushPendingSwipeMutations()
+        dataManager.clearRandomReviewSession(scopeID: sessionProgressScopeID)
+        actionHistory.removeAll()
+        currentPhotoIndex = 0
+        showCompletionMessage = false
+        didInitializeSession = false
+        sessionPhotos = []
+        sessionReviewedCount = 0
+        cardModeReviewActionCount = 0
+        sessionDeleteActionCount = 0
+        initializeSessionIfNeeded()
+        HapticManager.impact(.light)
     }
 
     private func handleUndoAction() {
@@ -1856,6 +1995,12 @@ struct SwipePhotoView: View {
     }
 
     private var sessionModeTitle: String {
+        if randomReviewScope != nil {
+            return L10n.string("遇见从前")
+        }
+        if selectedLocationGroupID != nil {
+            return L10n.string("地点整理")
+        }
         if selectedAlbumInfo != nil {
             return L10n.string("相册整理")
         }
@@ -1869,7 +2014,11 @@ struct SwipePhotoView: View {
     }
 
     private func getDisplayTitle() -> String {
-        if let albumInfo = selectedAlbumInfo {
+        if let randomReviewScope {
+            return randomReviewScope.title
+        } else if let selectedLocationGroupID {
+            return locationGroupTitle(for: selectedLocationGroupID)
+        } else if let albumInfo = selectedAlbumInfo {
             return albumInfo.title
         } else if let selectedDate, let selectedAdvancedTimeScope {
             return AdvancedSwipeDateFormatter.title(for: selectedAdvancedTimeScope, containing: selectedDate)
@@ -1884,6 +2033,10 @@ struct SwipePhotoView: View {
         } else {
             return PhotoCategory.all.title
         }
+    }
+
+    private func locationGroupTitle(for groupID: String) -> String {
+        dataManager.locationGroups.first { $0.id == groupID }?.title ?? L10n.string("地点")
     }
 
     private func showFeedback(
@@ -1908,6 +2061,37 @@ struct SwipePhotoView: View {
     }
 }
 
+private struct CompletionStatPill: View {
+    let icon: String
+    let value: Int
+    let title: String
+    let tint: Color
+
+    var body: some View {
+        VStack(spacing: 5) {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: .bold))
+                Text("\(value)")
+                    .font(.system(size: 14, weight: .semibold))
+                    .monospacedDigit()
+            }
+            .foregroundColor(tint)
+
+            Text(title)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(PhotoDeleteStyle.secondaryText)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 9)
+        .background(
+            RoundedRectangle(cornerRadius: PhotoDeleteStyle.controlRadius, style: .continuous)
+                .fill(PhotoDeleteStyle.elevatedSurface)
+        )
+    }
+}
+
 private struct SwipePhotoCardFrame: View {
     let asset: PHAsset
     let photoLibraryManager: PhotoLibraryManager
@@ -1916,6 +2100,7 @@ private struct SwipePhotoCardFrame: View {
     let isBeingFiledToAlbum: Bool
     let isFiledToAlbum: Bool
     let isVideoPlaying: Bool
+    let memoryCaption: PhotoMemoryCaption
     let displaySize: CGSize
     let targetSize: CGSize
     let onStopVideoPlayback: () -> Void
@@ -1929,6 +2114,7 @@ private struct SwipePhotoCardFrame: View {
             isBeingFiledToAlbum: isBeingFiledToAlbum,
             isFiledToAlbum: isFiledToAlbum,
             isVideoPlaying: isVideoPlaying,
+            memoryCaption: memoryCaption,
             displaySize: displaySize,
             targetSize: targetSize,
             onStopVideoPlayback: onStopVideoPlayback
@@ -2238,6 +2424,7 @@ struct RealPhotoCard: View {
     let isBeingFiledToAlbum: Bool
     let isFiledToAlbum: Bool
     let isVideoPlaying: Bool
+    let memoryCaption: PhotoMemoryCaption
     let displaySize: CGSize
     let targetSize: CGSize
     let onStopVideoPlayback: () -> Void
@@ -2544,6 +2731,11 @@ struct RealPhotoCard: View {
             }
         } else {
             values.append(L10n.string("照片"))
+        }
+
+        values.append(memoryCaption.title)
+        if let subtitle = memoryCaption.subtitle {
+            values.append(subtitle)
         }
 
         if photoLibraryManager.isScreenshot(asset) {

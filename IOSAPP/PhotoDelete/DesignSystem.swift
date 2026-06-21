@@ -388,6 +388,7 @@ enum AppConstants {
     static let hasSeenAlbumShortcutHintKey = "photoDeleteHasSeenAlbumShortcutHintV2"
     static let hasSeenDeleteButtonTipKey = "photoDeleteHasSeenDeleteButtonTip"
     static let reviewProgressByScopeKey = "photoDeleteReviewProgressByScope"
+    static let randomReviewSessionsKey = "photoDeleteRandomReviewSessions"
     static let appAppearanceKey = "photoDeleteAppAppearance"
     static let appThemeKey = "photoDeleteAppTheme"
     static let openAlbumsTabNotificationName = Notification.Name("photoDeleteOpenAlbumsTab")

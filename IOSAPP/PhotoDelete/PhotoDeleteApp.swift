@@ -86,6 +86,7 @@ private enum PhotoDeleteUITestDefaults {
             AppConstants.hasSeenDeleteButtonTipKey,
             AppConstants.hasDismissedAlbumSwipeHintKey,
             AppConstants.reviewProgressByScopeKey,
+            AppConstants.randomReviewSessionsKey,
             AppConstants.customAlbumOrderKey,
             AppConstants.appAppearanceKey,
             AppConstants.appThemeKey

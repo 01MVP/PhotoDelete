@@ -1016,6 +1016,112 @@ struct PhotoDeleteTests {
         }
     }
 
+    // MARK: - Review discovery tests
+
+    @Test func randomReviewPlannerExcludesReviewedAndDeduplicates() async throws {
+        let planned = PhotoRandomReviewPlanner.plannedIdentifiers(
+            from: ["a", "b", "a", "c", "d"],
+            excluding: ["b"],
+            seed: "seed",
+            limit: 10
+        )
+
+        #expect(Set(planned) == ["a", "c", "d"])
+        #expect(planned.count == 3)
+        #expect(!planned.contains("b"))
+    }
+
+    @Test func randomReviewPlannerIsStableForSameSeed() async throws {
+        let identifiers = ["a", "b", "c", "d", "e"]
+        let first = PhotoRandomReviewPlanner.plannedIdentifiers(
+            from: identifiers,
+            excluding: [],
+            seed: "stable",
+            limit: 3
+        )
+        let second = PhotoRandomReviewPlanner.plannedIdentifiers(
+            from: identifiers,
+            excluding: [],
+            seed: "stable",
+            limit: 3
+        )
+
+        #expect(first == second)
+        #expect(first.count == 3)
+    }
+
+    @Test func randomReviewPlannerPrunesExistingSessionToValidIdentifiers() async throws {
+        let existing = PhotoRandomReviewPlanner.existingSessionIdentifiers(
+            ["a", "missing", "a", "b"],
+            keepingValid: ["a", "b"]
+        )
+
+        #expect(existing == ["a", "b"])
+    }
+
+    @Test func randomReviewSessionStoreRoundTripsAndClearsScope() async throws {
+        let suiteName = "PhotoDeleteRandomSession-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        PhotoRandomReviewSessionStore.save(
+            assetIdentifiers: ["asset-1", "asset-2"],
+            scopeID: "random:memories",
+            defaults: defaults
+        )
+
+        #expect(PhotoRandomReviewSessionStore.load(scopeID: "random:memories", defaults: defaults) == ["asset-1", "asset-2"])
+        #expect(PhotoRandomReviewSessionStore.load(scopeID: "random:all", defaults: defaults).isEmpty)
+
+        PhotoRandomReviewSessionStore.clear(scopeID: "random:memories", defaults: defaults)
+        #expect(PhotoRandomReviewSessionStore.load(scopeID: "random:memories", defaults: defaults).isEmpty)
+    }
+
+    @Test func locationGroupingSeparatesNoLocationAndCountsReviewed() async throws {
+        let records = [
+            PhotoLocationAssetRecord(identifier: "sh-1", latitude: 31.23, longitude: 121.47, isReviewed: true),
+            PhotoLocationAssetRecord(identifier: "sh-2", latitude: 31.24, longitude: 121.48, isReviewed: false),
+            PhotoLocationAssetRecord(identifier: "unknown", latitude: nil, longitude: nil, isReviewed: false)
+        ]
+
+        let result = PhotoLocationGrouping.buildGroups(from: records)
+        let noLocation = try #require(result.groups.first { $0.id == PhotoLocationGrouping.noLocationID })
+        let locationGroup = try #require(result.groups.first { !$0.isNoLocationGroup })
+
+        #expect(noLocation.assetCount == 1)
+        #expect(noLocation.reviewedCount == 0)
+        #expect(locationGroup.assetCount == 2)
+        #expect(locationGroup.reviewedCount == 1)
+        #expect(Set(result.identifiersByGroupID[locationGroup.id] ?? []) == ["sh-1", "sh-2"])
+    }
+
+    @Test func locationGroupingLimitsVisibleLocationBuckets() async throws {
+        let records = (0..<8).map { index in
+            PhotoLocationAssetRecord(
+                identifier: "asset-\(index)",
+                latitude: Double(index),
+                longitude: Double(index),
+                isReviewed: false
+            )
+        }
+
+        let result = PhotoLocationGrouping.buildGroups(from: records, maximumGroups: 3)
+        #expect(result.groups.count == 3)
+        #expect(result.groups.allSatisfy { !$0.isNoLocationGroup })
+    }
+
+    @Test func memoryCaptionFormatterHandlesUnknownTodayAndPastDates() async throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = makeDate(year: 2026, month: 6, day: 21, calendar: calendar)
+        let threeYearsAgo = makeDate(year: 2023, month: 6, day: 21, calendar: calendar)
+
+        #expect(PhotoMemoryCaptionFormatter.relativeTitle(for: nil, now: now, calendar: calendar) == L10n.string("拍摄时间未知"))
+        #expect(PhotoMemoryCaptionFormatter.relativeTitle(for: now, now: now, calendar: calendar) == L10n.string("今天"))
+        #expect(PhotoMemoryCaptionFormatter.relativeTitle(for: threeYearsAgo, now: now, calendar: calendar) == String(format: L10n.string("%lld 年前"), Int64(3)))
+        #expect(PhotoMemoryCaptionFormatter.dateSubtitle(for: threeYearsAgo) != nil)
+    }
+
     // MARK: - Helpers
 
     private func makeDate(year: Int, month: Int, day: Int, calendar: Calendar) -> Date {

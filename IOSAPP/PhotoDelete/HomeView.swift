@@ -11,6 +11,11 @@ enum SwipeViewDestination: Hashable {
     case category(PhotoCategory)
     case timeGroup(String)
     case album(AlbumInfo)
+    case random(PhotoRandomReviewScope)
+    case timeBrowser
+    case period(AdvancedTimeScope, Date)
+    case locationBrowser
+    case location(String)
 
     static func == (lhs: SwipeViewDestination, rhs: SwipeViewDestination) -> Bool {
         switch (lhs, rhs) {
@@ -20,6 +25,16 @@ enum SwipeViewDestination: Hashable {
             return lhsTimeGroup == rhsTimeGroup
         case (.album(let lhsAlbum), .album(let rhsAlbum)):
             return lhsAlbum.id == rhsAlbum.id
+        case (.random(let lhsScope), .random(let rhsScope)):
+            return lhsScope == rhsScope
+        case (.timeBrowser, .timeBrowser):
+            return true
+        case (.period(let lhsScope, let lhsDate), .period(let rhsScope, let rhsDate)):
+            return lhsScope == rhsScope && lhsDate == rhsDate
+        case (.locationBrowser, .locationBrowser):
+            return true
+        case (.location(let lhsID), .location(let rhsID)):
+            return lhsID == rhsID
         default:
             return false
         }
@@ -36,6 +51,20 @@ enum SwipeViewDestination: Hashable {
         case .album(let album):
             hasher.combine("album")
             hasher.combine(album.id)
+        case .random(let scope):
+            hasher.combine("random")
+            hasher.combine(scope)
+        case .timeBrowser:
+            hasher.combine("timeBrowser")
+        case .period(let scope, let date):
+            hasher.combine("period")
+            hasher.combine(scope)
+            hasher.combine(date)
+        case .locationBrowser:
+            hasher.combine("locationBrowser")
+        case .location(let id):
+            hasher.combine("location")
+            hasher.combine(id)
         }
     }
 }
@@ -118,6 +147,37 @@ struct HomeView: View {
                 case .album(let albumInfo):
                     SwipePhotoView(selectedCategory: nil, selectedTimeGroup: nil, selectedAlbumInfo: albumInfo)
                         .environmentObject(dataManager)
+                case .random(let scope):
+                    SwipePhotoView(
+                        selectedCategory: nil,
+                        selectedTimeGroup: nil,
+                        selectedAlbumInfo: nil,
+                        randomReviewScope: scope
+                    )
+                    .environmentObject(dataManager)
+                case .timeBrowser:
+                    TimeOrganizeView()
+                        .environmentObject(dataManager)
+                case .period(let scope, let intervalStart):
+                    SwipePhotoView(
+                        selectedCategory: nil,
+                        selectedTimeGroup: nil,
+                        selectedAlbumInfo: nil,
+                        selectedDate: intervalStart,
+                        selectedAdvancedTimeScope: scope
+                    )
+                    .environmentObject(dataManager)
+                case .locationBrowser:
+                    LocationOrganizeView()
+                        .environmentObject(dataManager)
+                case .location(let groupID):
+                    SwipePhotoView(
+                        selectedCategory: nil,
+                        selectedTimeGroup: nil,
+                        selectedAlbumInfo: nil,
+                        selectedLocationGroupID: groupID
+                    )
+                    .environmentObject(dataManager)
                 }
             }
         }
@@ -131,6 +191,7 @@ struct HomeView: View {
                     VStack(spacing: 18) {
                         introSection(isCompact: true)
                         primaryOrganizeSection(isCompact: true)
+                        browseOrganizeSection
                     }
                     .frame(maxWidth: .infinity)
 
@@ -144,6 +205,7 @@ struct HomeView: View {
                 VStack(spacing: PhotoDeleteStyle.sectionSpacing) {
                     introSection(isCompact: false)
                     primaryOrganizeSection(isCompact: false)
+                    browseOrganizeSection
                     secondaryEntrySection
                     timelineSection
                 }
@@ -364,18 +426,18 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: isCompact ? 16 : 18) {
             HStack(alignment: .top, spacing: 14) {
                 PhotoDeleteIconTile(
-                    icon: "photo.on.rectangle.angled",
+                    icon: "sparkles",
                     size: isCompact ? 42 : 48,
                     cornerRadius: 13,
                     filled: false
                 )
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(L10n.string("开始整理照片"))
+                    Text(L10n.string("遇见从前"))
                         .font(.system(size: isCompact ? 21 : 24, weight: .semibold))
                         .foregroundColor(PhotoDeleteStyle.primaryText)
 
-                    Text(L10n.string("滑动时可以执行删除、保留或收藏。点完成后再统一确认。"))
+                    Text(L10n.string("随机翻出未整理的照片，边回忆边整理。"))
                         .font(.system(size: 15, weight: .regular))
                         .foregroundColor(PhotoDeleteStyle.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -383,18 +445,58 @@ struct HomeView: View {
             }
 
             Button {
-                navigationPath.append(SwipeViewDestination.category(.all))
+                navigationPath.append(SwipeViewDestination.random(.memories))
             } label: {
                 HStack(spacing: 9) {
-                    Image(systemName: "arrow.right")
+                    Image(systemName: "sparkles")
                         .font(.system(size: 15, weight: .semibold))
-                    Text(L10n.string("整理全部照片"))
+                    Text(L10n.string("开始"))
                 }
             }
             .photoDeletePrimaryButton()
         }
         .padding(isCompact ? 18 : 20)
         .photoDeleteCard()
+    }
+
+    @ViewBuilder
+    private var browseOrganizeSection: some View {
+        if libraryContentState == .available {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text(L10n.string("浏览整理"))
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundColor(PhotoDeleteStyle.primaryText)
+                    Spacer()
+                }
+                .padding(.horizontal, 2)
+
+                VStack(spacing: 0) {
+                    HomeEntryRow(
+                        icon: "calendar",
+                        title: L10n.string("时间"),
+                        detail: L10n.string("按月份继续"),
+                        tint: PhotoDeleteStyle.accent
+                    ) {
+                        navigationPath.append(SwipeViewDestination.timeBrowser)
+                    }
+
+                    Divider()
+                        .background(PhotoDeleteStyle.hairline)
+                        .padding(.leading, 62)
+
+                    HomeEntryRow(
+                        icon: "location",
+                        title: L10n.string("地点"),
+                        detail: L10n.string("按地点继续"),
+                        tint: PhotoDeleteStyle.accent
+                    ) {
+                        navigationPath.append(SwipeViewDestination.locationBrowser)
+                    }
+                }
+                .photoDeleteCard()
+            }
+        }
     }
 
     // MARK: - 快速入口区域

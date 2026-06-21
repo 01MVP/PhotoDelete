@@ -30,6 +30,7 @@ class DataManager: ObservableObject {
 
     // 时间组和相册信息缓存
     @Published var timeGroups: [TimeGroupInfo] = []
+    @Published var locationGroups: [PhotoLocationGroupInfo] = []
     @Published var systemAlbums: [AlbumInfo] = []
     @Published var userAlbums: [AlbumInfo] = []
     @Published var isLoadingAlbums = false
@@ -46,6 +47,7 @@ class DataManager: ObservableObject {
     private var hasLoadedAlbums = false
     private var isFetchingAlbums = false
     private var timeGroupCache: [TimeGroup: [PHAsset]] = [:]
+    private var locationGroupCache: [String: [PHAsset]] = [:]
     private var progressRefreshWorkItem: DispatchWorkItem?
     private var progressRefreshGeneration = 0
     private var libraryDataRefreshWorkItem: DispatchWorkItem?
@@ -56,6 +58,11 @@ class DataManager: ObservableObject {
     private struct TimeGroupBuildResult {
         let cache: [TimeGroup: [PHAsset]]
         let timeGroups: [TimeGroupInfo]
+    }
+
+    private struct LocationGroupBuildResult {
+        let cache: [String: [PHAsset]]
+        let locationGroups: [PhotoLocationGroupInfo]
     }
 
     private struct DaySummaryAccumulator {
@@ -190,6 +197,7 @@ class DataManager: ObservableObject {
             self.pruneReviewedAssetIDs()
             self.prunePendingCandidates()
             self.loadTimeGroups()
+            self.loadLocationGroups()
             self.loadAlbums(showLoading: !self.hasLoadedAlbums)
             self.updateStats()
             self.isPreparingLibrary = false
@@ -214,6 +222,7 @@ class DataManager: ObservableObject {
             self.pruneReviewedAssetIDs()
             self.prunePendingCandidates()
             self.loadTimeGroups()
+            self.loadLocationGroups()
             _ = self.restoreCachedAlbums()
             self.updateStats()
 
@@ -222,6 +231,7 @@ class DataManager: ObservableObject {
                 self.pruneReviewedAssetIDs()
                 self.prunePendingCandidates()
                 self.loadTimeGroups()
+                self.loadLocationGroups()
                 if didRefreshLibrary {
                     self.hasLoadedAlbums = false
                     self.loadAlbums(showLoading: false)
@@ -432,6 +442,7 @@ class DataManager: ObservableObject {
         pruneReviewedAssetIDs()
         prunePendingCandidates()
         loadTimeGroups()
+        loadLocationGroups()
         updateStats()
     }
 
@@ -442,12 +453,15 @@ class DataManager: ObservableObject {
         photoLibraryManager.clearLoadedLibraryData(clearSnapshot: true)
         timeGroupCache = [:]
         timeGroups = []
+        locationGroupCache = [:]
+        locationGroups = []
         systemAlbums = []
         userAlbums = []
         albumSnapshotStore.clear()
         deleteCandidates.removeAll()
         favoriteCandidates.removeAll()
         reviewedAssetIDs.removeAll()
+        PhotoRandomReviewSessionStore.clearAll()
         saveReviewedAssetIDsNow()
         hasLoadedAlbums = false
         isLoadingAlbums = false
@@ -494,8 +508,10 @@ class DataManager: ObservableObject {
         deleteCandidates.removeAll()
         favoriteCandidates.removeAll()
         reviewedAssetIDs.removeAll()
+        PhotoRandomReviewSessionStore.clearAll()
         saveReviewedAssetIDsNow()
         loadTimeGroups()
+        loadLocationGroups()
         updateStats()
     }
 
@@ -554,6 +570,105 @@ class DataManager: ObservableObject {
         case .favorites:
             return photoLibraryManager.favorites
         }
+    }
+
+    func getPhotosForRandomReviewScope(_ scope: PhotoRandomReviewScope) -> [PHAsset] {
+        switch scope {
+        case .memories:
+            let cutoff = Calendar.current.date(
+                byAdding: .month,
+                value: -PhotoRandomReviewPlanner.oldPhotoMinimumMonthAge,
+                to: Date()
+            ) ?? Date()
+            let oldPhotos = photoLibraryManager.allPhotos.filter { asset in
+                guard let creationDate = asset.creationDate else { return false }
+                return creationDate < cutoff
+            }
+            return oldPhotos.isEmpty ? photoLibraryManager.allPhotos : oldPhotos
+        case .all:
+            return photoLibraryManager.allPhotos
+        case .screenshots:
+            return photoLibraryManager.screenshots
+        case .videos:
+            return photoLibraryManager.videos
+        case .livePhotos:
+            return photoLibraryManager.livePhotos
+        case .favorites:
+            return photoLibraryManager.favorites
+        }
+    }
+
+    func makeRandomReviewPhotos(
+        for scope: PhotoRandomReviewScope,
+        scopeID: String,
+        limit: Int = PhotoRandomReviewPlanner.defaultBatchSize
+    ) -> [PHAsset] {
+        let sourcePhotos = getPhotosForRandomReviewScope(scope)
+        let validSourcePhotos = scope == .memories ? photoLibraryManager.allPhotos : sourcePhotos
+        let validIDs = Set(validSourcePhotos.map(\.localIdentifier))
+        let existingIDs = PhotoRandomReviewPlanner.existingSessionIdentifiers(
+            PhotoRandomReviewSessionStore.load(scopeID: scopeID),
+            keepingValid: validIDs
+        )
+
+        if !existingIDs.isEmpty {
+            return Self.assets(in: validSourcePhotos, preserving: existingIDs)
+        }
+
+        let plannedIDs = plannedRandomReviewIdentifiers(
+            from: sourcePhotos,
+            scope: scope,
+            limit: limit
+        )
+        let plannedIDSet = Set(plannedIDs)
+        let assetSource = plannedIDSet.isSubset(of: validIDs) ? sourcePhotos : photoLibraryManager.allPhotos
+        PhotoRandomReviewSessionStore.save(
+            assetIdentifiers: plannedIDs,
+            scopeID: scopeID
+        )
+        return Self.assets(in: assetSource, preserving: plannedIDs)
+    }
+
+    func clearRandomReviewSession(scopeID: String) {
+        PhotoRandomReviewSessionStore.clear(scopeID: scopeID)
+    }
+
+    private func plannedRandomReviewIdentifiers(
+        from photos: [PHAsset],
+        scope: PhotoRandomReviewScope,
+        limit: Int
+    ) -> [String] {
+        let excludedIDs = reviewedAssetIDs
+            .union(deleteCandidates.map(\.localIdentifier))
+            .union(favoriteCandidates.map(\.localIdentifier))
+        let seed = UUID().uuidString
+        let identifiers = photos.map(\.localIdentifier)
+        let planned = PhotoRandomReviewPlanner.plannedIdentifiers(
+            from: identifiers,
+            excluding: excludedIDs,
+            seed: seed,
+            limit: limit
+        )
+
+        if !planned.isEmpty || scope != .memories {
+            return planned
+        }
+
+        return PhotoRandomReviewPlanner.plannedIdentifiers(
+            from: photoLibraryManager.allPhotos.map(\.localIdentifier),
+            excluding: excludedIDs,
+            seed: seed,
+            limit: limit
+        )
+    }
+
+    private static func assets(in photos: [PHAsset], preserving identifiers: [String]) -> [PHAsset] {
+        var assetsByID: [String: PHAsset] = [:]
+        assetsByID.reserveCapacity(photos.count)
+        for photo in photos {
+            assetsByID[photo.localIdentifier] = photo
+        }
+        return identifiers.compactMap { assetsByID[$0] }
     }
 
     func makeSettingsStatsSummary() -> AdvancedLibraryStats {
@@ -938,6 +1053,46 @@ class DataManager: ObservableObject {
         scheduleProgressRefresh(delay: 0)
     }
 
+    func loadLocationGroups() {
+        guard photoLibraryManager.hasPhotoLibraryAccess else { return }
+
+        let photos = photoLibraryManager.allPhotos
+        let reviewedIDs = reviewedAssetIDs
+        let deleteCandidateIDs = Set(deleteCandidates.map(\.localIdentifier))
+        let favoriteCandidateIDs = Set(favoriteCandidates.map(\.localIdentifier))
+
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let result = Self.buildLocationGroupData(
+                photos: photos,
+                reviewedAssetIDs: reviewedIDs,
+                deleteCandidateIDs: deleteCandidateIDs,
+                favoriteCandidateIDs: favoriteCandidateIDs
+            )
+
+            DispatchQueue.main.async {
+                self?.locationGroupCache = result.cache
+                self?.locationGroups = result.locationGroups
+            }
+        }
+    }
+
+    func getPhotosForLocationGroup(_ groupID: String) -> [PHAsset] {
+        if let cached = locationGroupCache[groupID] {
+            return cached
+        }
+
+        let records = photoLibraryManager.allPhotos.map { asset in
+            PhotoLocationAssetRecord(
+                identifier: asset.localIdentifier,
+                location: asset.location,
+                isReviewed: isAssetOrganized(asset)
+            )
+        }
+        let result = PhotoLocationGrouping.buildGroups(from: records)
+        let ids = result.identifiersByGroupID[groupID] ?? []
+        return Self.assets(in: photoLibraryManager.allPhotos, preserving: ids)
+    }
+
     private static func buildTimeGroupData(
         photos: [PHAsset],
         reviewedAssetIDs: Set<String>,
@@ -977,6 +1132,46 @@ class DataManager: ObservableObject {
         }
 
         return TimeGroupBuildResult(cache: cache, timeGroups: timeGroups)
+    }
+
+    private static func buildLocationGroupData(
+        photos: [PHAsset],
+        reviewedAssetIDs: Set<String>,
+        deleteCandidateIDs: Set<String>,
+        favoriteCandidateIDs: Set<String>
+    ) -> LocationGroupBuildResult {
+        let records = photos.map { asset in
+            let identifier = asset.localIdentifier
+            let isOrganized = reviewedAssetIDs.contains(identifier) ||
+                deleteCandidateIDs.contains(identifier) ||
+                favoriteCandidateIDs.contains(identifier) ||
+                asset.isFavorite
+            return PhotoLocationAssetRecord(
+                identifier: identifier,
+                location: asset.location,
+                isReviewed: isOrganized
+            )
+        }
+        let result = PhotoLocationGrouping.buildGroups(from: records)
+        var cache: [String: [PHAsset]] = [:]
+        for (groupID, identifiers) in result.identifiersByGroupID {
+            cache[groupID] = assets(in: photos, preserving: identifiers)
+        }
+
+        return LocationGroupBuildResult(
+            cache: cache,
+            locationGroups: result.groups
+        )
+    }
+
+    private func isAssetOrganized(_ asset: PHAsset) -> Bool {
+        let identifier = asset.localIdentifier
+        let deleteCandidateIDs = Set(deleteCandidates.map(\.localIdentifier))
+        let favoriteCandidateIDs = Set(favoriteCandidates.map(\.localIdentifier))
+        return reviewedAssetIDs.contains(identifier) ||
+            deleteCandidateIDs.contains(identifier) ||
+            favoriteCandidateIDs.contains(identifier) ||
+            asset.isFavorite
     }
 
     private func loadReviewedAssetIDs() {
