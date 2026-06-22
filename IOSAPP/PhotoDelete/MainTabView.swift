@@ -35,6 +35,9 @@ struct MainTabView: View {
             guard phase == .active else { return }
             configureTabBarAppearance()
             dataManager.syncPhotoLibraryAuthorization()
+            Task {
+                await purchaseManager.refreshEntitlementsSilently()
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: AppConstants.openAlbumsTabNotificationName)) { _ in
             selectedTab = .albums
