@@ -6,6 +6,8 @@ temp.*
 # Generated marketing/ASO workspace artifacts
 Marketing/PhotoDeleteCampaign/aso-skill/
 Marketing/PhotoDeleteCampaign/appstore-showcase-20260617/
+Marketing/PhotoDeleteCampaign/xhs-*/
+Marketing/PhotoDeleteCampaign/scripts/generate_xhs_*.py
 
 # Uncompressed social cover intermediates
 Marketing/PhotoDeleteCampaign/social-covers-20260612/exports/*.png
