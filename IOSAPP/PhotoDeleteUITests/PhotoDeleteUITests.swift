@@ -65,6 +65,13 @@ final class PhotoDeleteUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["给删图评分"].exists)
         XCTAssertTrue(app.staticTexts["邮件反馈"].exists)
         XCTAssertTrue(app.staticTexts["关于创作者"].exists)
+        app.swipeUp()
+        XCTAssertTrue(app.staticTexts["作者的更多 App"].waitForExistence(timeout: 2))
+        let oneZenAppRow = app.descendants(matching: .any)["settings-onezen-app-row"]
+        if !oneZenAppRow.waitForExistence(timeout: 1) {
+            app.swipeUp()
+        }
+        XCTAssertTrue(oneZenAppRow.waitForExistence(timeout: 2))
         XCTAssertFalse(app.staticTexts["微信反馈"].exists)
         XCTAssertFalse(app.staticTexts["MVP 教程"].exists)
         XCTAssertFalse(app.staticTexts["创作理念"].exists)

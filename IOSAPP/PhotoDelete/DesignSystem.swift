@@ -363,6 +363,7 @@ enum AppConstants {
     static let feedbackEmail = "contact@01mvp.com"
     static let wechatID = "mvps01"
     static let websiteURL = "https://01mvp.com"
+    static let oneZenAppStoreURL = URL(string: "https://apps.apple.com/cn/app/id6780318004")!
     static let technicalAppName = "PhotoDelete"
     static let zhHansAppStoreName = "删图 - 相册清理助手"
     static let enAppStoreName = "Photo Delete: Swipe Cleaner"

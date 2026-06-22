@@ -55,6 +55,9 @@ struct SettingsView: View {
                         // 关于与支持
                         aboutSection
 
+                        // 作者的更多 App
+                        moreAppsSection
+
                         // 版本信息
                         versionInfo
 
@@ -340,6 +343,28 @@ struct SettingsView: View {
                     action: {
                         activeSheet = .about
                     }
+                )
+            }
+            .photoDeleteCard()
+        }
+    }
+
+    // MARK: - 作者的更多 App
+    private var moreAppsSection: some View {
+        VStack(spacing: 16) {
+            HStack {
+                Text(L10n.string("作者的更多 App"))
+                    .photoDeleteSectionHeading()
+                Spacer()
+            }
+
+            VStack(spacing: 0) {
+                AppPromotionRow(
+                    imageName: "OneZenAppIcon",
+                    title: L10n.string("OneZen 一念"),
+                    subtitle: L10n.string("冥想、呼吸与专注练习"),
+                    accessibilityIdentifier: "settings-onezen-app-row",
+                    action: openOneZenAppStore
                 )
             }
             .photoDeleteCard()
@@ -660,6 +685,12 @@ struct SettingsView: View {
         }
     }
 
+    private func openOneZenAppStore() {
+        #if canImport(UIKit)
+        UIApplication.shared.open(AppConstants.oneZenAppStoreURL)
+        #endif
+    }
+
     private func clearLocalOrganizeData() {
         dataManager.clearLocalOrganizeData()
         showSettingsToast(L10n.string("已清空本机整理记录"), icon: "checkmark.circle.fill", style: .positive)
@@ -894,6 +925,58 @@ struct SettingToggleRow: View {
         .padding(.vertical, 12)
         .frame(minHeight: PhotoDeleteStyle.rowMinHeight)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct AppPromotionRow: View {
+    let imageName: String
+    let title: String
+    let subtitle: String
+    let accessibilityIdentifier: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(imageName)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 38, height: 38)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(PhotoDeleteStyle.hairline, lineWidth: 1)
+                    )
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .photoDeletePrimaryLabel()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.84)
+
+                    Text(subtitle)
+                        .photoDeleteSecondaryLabel(.subheadline)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.84)
+                }
+
+                Spacer(minLength: 12)
+
+                Image(systemName: "arrow.up.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(PhotoDeleteStyle.tertiaryText)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .frame(minHeight: PhotoDeleteStyle.rowMinHeight)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(title))
+        .accessibilityValue(Text(subtitle))
+        .accessibilityIdentifier(accessibilityIdentifier)
     }
 }
 
