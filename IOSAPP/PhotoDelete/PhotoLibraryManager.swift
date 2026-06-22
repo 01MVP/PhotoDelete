@@ -13,6 +13,13 @@ struct PhotoLibraryImageResult {
     let isFinal: Bool
 }
 
+struct PhotoLibraryLivePhotoResult {
+    let livePhoto: PHLivePhoto?
+    let isDegraded: Bool
+    let isInCloud: Bool
+    let isFinal: Bool
+}
+
 enum VideoCompressionQuality: String, CaseIterable, Identifiable {
     case high
     case balanced
@@ -927,6 +934,49 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     func cancelImageRequest(_ requestID: PHImageRequestID?) {
         guard let requestID else { return }
         imageManager.cancelImageRequest(requestID)
+    }
+
+    @discardableResult
+    func loadLivePhotoResult(
+        for asset: PHAsset,
+        size: CGSize,
+        completion: @escaping (PhotoLibraryLivePhotoResult) -> Void
+    ) -> PHImageRequestID? {
+        guard isLivePhoto(asset) else {
+            completion(PhotoLibraryLivePhotoResult(
+                livePhoto: nil,
+                isDegraded: false,
+                isInCloud: false,
+                isFinal: true
+            ))
+            return nil
+        }
+
+        let options = PHLivePhotoRequestOptions()
+        options.deliveryMode = .opportunistic
+        options.version = .current
+        options.isNetworkAccessAllowed = true
+
+        return imageManager.requestLivePhoto(
+            for: asset,
+            targetSize: size,
+            contentMode: .aspectFit,
+            options: options
+        ) { livePhoto, info in
+            DispatchQueue.main.async {
+                let isCancelled = (info?[PHImageCancelledKey] as? Bool) == true
+                let isInCloud = (info?[PHImageResultIsInCloudKey] as? Bool) == true
+                let isDegraded = (info?[PHImageResultIsDegradedKey] as? Bool) == true
+                guard !isCancelled else { return }
+
+                completion(PhotoLibraryLivePhotoResult(
+                    livePhoto: livePhoto,
+                    isDegraded: isDegraded,
+                    isInCloud: isInCloud,
+                    isFinal: !isDegraded
+                ))
+            }
+        }
     }
 
     @discardableResult

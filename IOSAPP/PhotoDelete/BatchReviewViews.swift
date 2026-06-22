@@ -6,6 +6,7 @@
 import SwiftUI
 import AVKit
 import Photos
+import PhotosUI
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -899,8 +900,10 @@ struct CandidatePhotoPreviewView: View {
     let photoLibraryManager: PhotoLibraryManager
 
     @State private var image: UIImage?
+    @State private var livePhoto: PHLivePhoto?
     @State private var isLoading = true
     @State private var requestID: PHImageRequestID?
+    @State private var failedToLoadLivePhoto = false
     @State private var zoomScale: CGFloat = 1
     @State private var settledZoomScale: CGFloat = 1
 
@@ -915,6 +918,14 @@ struct CandidatePhotoPreviewView: View {
                             asset: asset,
                             photoLibraryManager: photoLibraryManager
                         )
+                    } else if isLivePhotoAsset {
+                        if let livePhoto {
+                            LivePhotoPreviewRepresentable(livePhoto: livePhoto)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .accessibilityLabel(L10n.string("实况照片"))
+                        } else {
+                            loadingContent
+                        }
                     } else if let image {
                         Image(uiImage: image)
                             .resizable()
@@ -925,29 +936,18 @@ struct CandidatePhotoPreviewView: View {
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .accessibilityLabel(L10n.string("放大的照片"))
                     } else {
-                        VStack(spacing: 14) {
-                            if isLoading {
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: PhotoDeleteStyle.accent))
-                            } else {
-                                Image(systemName: "photo")
-                                    .font(.system(size: 36, weight: .medium))
-                                    .foregroundColor(PhotoDeleteStyle.secondaryText)
-                            }
-
-                            Text(isLoading ? L10n.string("正在读取照片") : L10n.string("无法读取这张照片"))
-                                .font(.system(size: 15, weight: .medium))
-                                .foregroundColor(PhotoDeleteStyle.secondaryText)
-                        }
+                        loadingContent
                     }
                 }
                 .onAppear {
-                    if asset.mediaType != .video {
+                    if isLivePhotoAsset {
+                        loadLivePhoto(in: geometry.size)
+                    } else if asset.mediaType != .video {
                         loadImage(in: geometry.size)
                     }
                 }
             }
-            .navigationTitle(asset.mediaType == .video ? L10n.string("视频预览") : L10n.string("照片预览"))
+            .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -959,6 +959,37 @@ struct CandidatePhotoPreviewView: View {
         }
         .onDisappear {
             photoLibraryManager.cancelImageRequest(requestID)
+        }
+    }
+
+    private var isLivePhotoAsset: Bool {
+        photoLibraryManager.isLivePhoto(asset)
+    }
+
+    private var navigationTitle: String {
+        if asset.mediaType == .video {
+            return L10n.string("视频预览")
+        }
+        if isLivePhotoAsset {
+            return L10n.string("实况照片")
+        }
+        return L10n.string("照片预览")
+    }
+
+    private var loadingContent: some View {
+        VStack(spacing: 14) {
+            if isLoading {
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: PhotoDeleteStyle.accent))
+            } else {
+                Image(systemName: "photo")
+                    .font(.system(size: 36, weight: .medium))
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+            }
+
+            Text(isLoading ? L10n.string("正在读取照片") : L10n.string("无法读取这张照片"))
+                .font(.system(size: 15, weight: .medium))
+                .foregroundColor(PhotoDeleteStyle.secondaryText)
         }
     }
 
@@ -984,6 +1015,29 @@ struct CandidatePhotoPreviewView: View {
         }
     }
 
+    private func loadLivePhoto(in size: CGSize) {
+        guard requestID == nil, livePhoto == nil, !failedToLoadLivePhoto else { return }
+        isLoading = true
+        let targetSize = CGSize(
+            width: max(size.width * displayScale, 800),
+            height: max(size.height * displayScale, 1_200)
+        )
+
+        requestID = photoLibraryManager.loadLivePhotoResult(for: asset, size: targetSize) { result in
+            if let loadedLivePhoto = result.livePhoto {
+                livePhoto = loadedLivePhoto
+                isLoading = false
+            } else if result.isFinal {
+                failedToLoadLivePhoto = true
+                isLoading = false
+            }
+
+            if result.isFinal {
+                requestID = nil
+            }
+        }
+    }
+
     private func loadImage(in size: CGSize) {
         guard requestID == nil, image == nil else { return }
         isLoading = true
@@ -997,5 +1051,36 @@ struct CandidatePhotoPreviewView: View {
             isLoading = false
             requestID = nil
         }
+    }
+}
+
+private struct LivePhotoPreviewRepresentable: UIViewRepresentable {
+    let livePhoto: PHLivePhoto
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeUIView(context: Context) -> PHLivePhotoView {
+        let view = PHLivePhotoView()
+        view.contentMode = .scaleAspectFit
+        return view
+    }
+
+    func updateUIView(_ uiView: PHLivePhotoView, context: Context) {
+        guard context.coordinator.displayedLivePhoto !== livePhoto else { return }
+        context.coordinator.displayedLivePhoto = livePhoto
+        uiView.livePhoto = livePhoto
+        uiView.startPlayback(with: .hint)
+    }
+
+    static func dismantleUIView(_ uiView: PHLivePhotoView, coordinator: Coordinator) {
+        uiView.stopPlayback()
+        uiView.livePhoto = nil
+        coordinator.displayedLivePhoto = nil
+    }
+
+    final class Coordinator {
+        weak var displayedLivePhoto: PHLivePhoto?
     }
 }
