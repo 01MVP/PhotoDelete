@@ -2181,9 +2181,17 @@ private enum VideoCompressionError: LocalizedError {
 extension PhotoLibraryManager: PHPhotoLibraryChangeObserver {
     func photoLibraryDidChange(_ changeInstance: PHChange) {
         DispatchQueue.main.async { [weak self] in
-            guard let self,
-                  let fetchResult = self.allPhotosResult,
-                  let changes = changeInstance.changeDetails(for: fetchResult) else {
+            guard let self else {
+                return
+            }
+
+            guard let fetchResult = self.allPhotosResult else {
+                self.onLibraryDataChanged?()
+                return
+            }
+
+            guard let changes = changeInstance.changeDetails(for: fetchResult) else {
+                self.onLibraryDataChanged?()
                 return
             }
 

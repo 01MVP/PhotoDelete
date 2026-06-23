@@ -82,9 +82,10 @@ struct AlbumsView: View {
         }
         .onAppear {
             dataManager.loadAlbumsIfNeeded()
+            dataManager.refreshAlbumsFromLibrary(showLoading: false)
             refreshAlbumProgress()
         }
-        .onChange(of: dataManager.userAlbums.count) { _ in
+        .onChange(of: albumProgressRefreshToken) { _ in
             refreshAlbumProgress()
         }
         .onChange(of: dataManager.reviewedAssetIDs) { _ in
@@ -294,7 +295,7 @@ struct AlbumsView: View {
     }
 
     private func albumRow(_ albumInfo: AlbumInfo, allowsActions: Bool) -> some View {
-        let editableAlbum = editableAssetCollection(for: albumInfo, allowsActions: allowsActions)
+        let canEditAlbum = editableAssetCollection(for: albumInfo, allowsActions: allowsActions) != nil
 
         return Button(action: {
             openAlbum(albumInfo)
@@ -317,16 +318,16 @@ struct AlbumsView: View {
         )
         .accessibilityHint(L10n.string("点按整理这个相册，长按调整排序"))
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            if let editableAlbum {
+            if canEditAlbum {
                 Button(role: .destructive) {
-                    deleteAlbum(editableAlbum)
+                    deleteAlbum(albumInfo)
                 } label: {
                     Label(L10n.string("删除"), systemImage: "trash")
                 }
                 .tint(PhotoDeleteStyle.destructive)
 
                 Button {
-                    activeSheet = .edit(editableAlbum)
+                    editAlbum(albumInfo)
                 } label: {
                     Label(L10n.string("编辑"), systemImage: "pencil")
                 }
@@ -384,6 +385,12 @@ struct AlbumsView: View {
 
     private var filteredUserAlbums: [AlbumInfo] {
         filteredAlbums(dataManager.getUserAlbums())
+    }
+
+    private var albumProgressRefreshToken: [String] {
+        dataManager.userAlbums.map { album in
+            "\(album.id)|\(album.title)|\(album.photosCount)|\(album.thumbnailAsset?.localIdentifier ?? "")"
+        }
     }
 
     private var shouldShowAlbumSwipeHint: Bool {
@@ -524,14 +531,20 @@ struct AlbumsView: View {
     }
 
     private func openAlbum(_ albumInfo: AlbumInfo) {
-        guard albumInfo.photosCount > 0 else {
+        guard let currentAlbumInfo = dataManager.currentUserAlbumInfo(for: albumInfo) else {
+            HapticManager.impact(.light)
+            showAlbumToast(L10n.string("这个相册已不存在，列表已更新"), icon: "arrow.clockwise", style: .warning)
+            return
+        }
+
+        guard currentAlbumInfo.photosCount > 0 else {
             HapticManager.impact(.light)
             showAlbumToast(L10n.string("这个相册还没有照片"), icon: "photo", style: .warning)
             return
         }
 
         HapticManager.impact(.light)
-        navigationPath.append(AlbumNavigationDestination.swipeAlbum(albumInfo))
+        navigationPath.append(AlbumNavigationDestination.swipeAlbum(currentAlbumInfo))
     }
 
     private func editableAssetCollection(
@@ -546,14 +559,32 @@ struct AlbumsView: View {
         return collection
     }
 
-    private func deleteAlbum(_ album: PHAssetCollection) {
+    private func editAlbum(_ albumInfo: AlbumInfo) {
+        guard let currentAlbumInfo = dataManager.currentUserAlbumInfo(for: albumInfo),
+              let album = currentAlbumInfo.assetCollection else {
+            HapticManager.impact(.light)
+            showAlbumToast(L10n.string("这个相册已不存在，列表已更新"), icon: "arrow.clockwise", style: .warning)
+            return
+        }
+
+        activeSheet = .edit(album)
+    }
+
+    private func deleteAlbum(_ albumInfo: AlbumInfo) {
+        guard let currentAlbumInfo = dataManager.currentUserAlbumInfo(for: albumInfo),
+              let album = currentAlbumInfo.assetCollection else {
+            HapticManager.impact(.light)
+            showAlbumToast(L10n.string("这个相册已不存在，列表已更新"), icon: "arrow.clockwise", style: .warning)
+            return
+        }
+
         dataManager.deleteUserAlbum(album) { success in
             if success {
                 HapticManager.notify(.success)
                 self.showAlbumToast(L10n.string("相册已删除"), icon: "trash", style: .positive)
             } else {
                 HapticManager.notify(.error)
-                self.showAlbumToast(L10n.string("删除失败，请再试一次"), icon: "exclamationmark.triangle", style: .warning)
+                self.showAlbumToast(L10n.string("相册列表已更新，请再试一次"), icon: "arrow.clockwise", style: .warning)
             }
         }
     }
@@ -1060,15 +1091,29 @@ struct EditAlbumView: View {
     private func updateAlbum() {
         let trimmedName = newName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty, album.assetCollectionType == .album else { return }
+        guard dataManager.currentUserAlbumInfo(for: album) != nil else {
+            errorMessage = L10n.string("这个相册已不存在，列表已更新")
+            dismissAfterShowingMissingAlbumMessage()
+            return
+        }
 
         isUpdating = true
         dataManager.renameUserAlbum(album, title: trimmedName) { success in
             self.isUpdating = false
             if success {
                 self.dismiss()
+            } else if self.dataManager.currentUserAlbumInfo(for: album) == nil {
+                self.errorMessage = L10n.string("这个相册已不存在，列表已更新")
+                self.dismissAfterShowingMissingAlbumMessage()
             } else {
                 self.errorMessage = L10n.string("更新相册失败，请再试一次")
             }
+        }
+    }
+
+    private func dismissAfterShowingMissingAlbumMessage() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            dismiss()
         }
     }
 }

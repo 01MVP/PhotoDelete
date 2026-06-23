@@ -60,6 +60,7 @@ struct SwipePhotoView: View {
     @State private var sessionDeleteActionCount = 0
     @State private var albumFilingAssetIDs: Set<String> = []
     @State private var recentlyFiledAlbumAssetIDs: Set<String> = []
+    @State private var currentAlbumInfo: AlbumInfo?
 
     private let reviewModeHintThreshold = 5
     private let deleteButtonTipThreshold = 3
@@ -129,7 +130,7 @@ struct SwipePhotoView: View {
             return dataManager.getPhotosForHistoricalToday()
         } else if let selectedLocationGroupID {
             return dataManager.getPhotosForLocationGroup(selectedLocationGroupID)
-        } else if let albumInfo = selectedAlbumInfo {
+        } else if let albumInfo = activeAlbumInfo {
             return dataManager.getPhotosForAlbum(albumInfo)
         } else if let selectedDate, let selectedAdvancedTimeScope {
             return dataManager.getPhotosForPeriod(selectedAdvancedTimeScope, containing: selectedDate)
@@ -167,6 +168,10 @@ struct SwipePhotoView: View {
 
     private var isAlbumMode: Bool {
         return selectedAlbumInfo != nil
+    }
+
+    private var activeAlbumInfo: AlbumInfo? {
+        currentAlbumInfo ?? selectedAlbumInfo
     }
 
     private var isCurrentPhotoFavorited: Bool {
@@ -247,7 +252,7 @@ struct SwipePhotoView: View {
             didInitializeSession = false
             syncPendingOperationCounts()
         }) {
-            BatchConfirmView(albumInfo: selectedAlbumInfo) {
+            BatchConfirmView(albumInfo: activeAlbumInfo) {
                 if shouldDismissAfterBatch {
                     dismiss()
                 }
@@ -273,7 +278,12 @@ struct SwipePhotoView: View {
         }
         .onAppear {
             syncPendingOperationCounts()
-            initializeSessionIfNeeded()
+            if refreshSelectedAlbumState() {
+                initializeSessionIfNeeded()
+            }
+        }
+        .onChange(of: albumStateRefreshToken) { _ in
+            refreshSelectedAlbumState()
         }
         .onChange(of: dataManager.photoLibraryManager.isLoading) { _ in
             initializeSessionIfNeeded()
@@ -1164,6 +1174,43 @@ struct SwipePhotoView: View {
         sessionReviewedCount < totalPhotosCount
     }
 
+    private var albumStateRefreshToken: [String] {
+        guard isAlbumMode else { return [] }
+        return dataManager.userAlbums.map { album in
+            "\(album.id)|\(album.title)|\(album.photosCount)|\(album.thumbnailAsset?.localIdentifier ?? "")"
+        }
+    }
+
+    @discardableResult
+    private func refreshSelectedAlbumState(showMissingToast: Bool = true) -> Bool {
+        guard let selectedAlbumInfo else { return true }
+
+        guard let latestAlbumInfo = dataManager.currentUserAlbumInfo(for: selectedAlbumInfo) else {
+            currentAlbumInfo = nil
+            if showMissingToast {
+                showFeedback(L10n.string("这个相册已不存在，列表已更新"), icon: "arrow.clockwise", style: .warning)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                    dismiss()
+                }
+            }
+            return false
+        }
+
+        let previousAlbumInfo = activeAlbumInfo
+        currentAlbumInfo = latestAlbumInfo
+
+        guard didInitializeSession,
+              previousAlbumInfo?.id == latestAlbumInfo.id,
+              previousAlbumInfo?.title != latestAlbumInfo.title ||
+              previousAlbumInfo?.photosCount != latestAlbumInfo.photosCount ||
+              previousAlbumInfo?.thumbnailAsset?.localIdentifier != latestAlbumInfo.thumbnailAsset?.localIdentifier else {
+            return true
+        }
+
+        refreshSessionPhotos(dataManager.getPhotosForAlbum(latestAlbumInfo))
+        return true
+    }
+
     private func initializeSessionIfNeeded() {
         guard !didInitializeSession else { return }
 
@@ -1836,8 +1883,15 @@ struct SwipePhotoView: View {
         dismissAlbumShortcutHint(markSeen: true)
 
         guard !showCompletionMessage,
-              let asset = currentRealPhoto,
-              let assetCollection = albumInfo.assetCollection else {
+              let asset = currentRealPhoto else {
+            showFeedback(L10n.string("无法归类到这个相册"), icon: "exclamationmark.triangle", style: .warning)
+            return
+        }
+        guard let currentAlbumInfo = dataManager.currentUserAlbumInfo(for: albumInfo) else {
+            showFeedback(L10n.string("这个相册已不存在，列表已更新"), icon: "arrow.clockwise", style: .warning)
+            return
+        }
+        guard let assetCollection = currentAlbumInfo.assetCollection else {
             showFeedback(L10n.string("无法归类到这个相册"), icon: "exclamationmark.triangle", style: .warning)
             return
         }
@@ -1851,14 +1905,14 @@ struct SwipePhotoView: View {
         let wasReviewed = dataManager.markReviewed(asset)
         recordSessionReviewedChange(wasReviewed: wasReviewed)
         HapticManager.impact(.light)
-        showFeedback(L10n.string("正在归类到 \(albumInfo.title)"), icon: "tray.and.arrow.down", style: .neutral, duration: 1.0)
+        showFeedback(L10n.string("正在归类到 \(currentAlbumInfo.title)"), icon: "tray.and.arrow.down", style: .neutral, duration: 1.0)
         dataManager.addPhotoToAlbum(asset, album: assetCollection) { success in
             DispatchQueue.main.async {
                 self.albumFilingAssetIDs.remove(assetID)
                 if success {
                     self.recentlyFiledAlbumAssetIDs.insert(assetID)
                     HapticManager.notify(.success)
-                    self.showFeedback(L10n.string("已归类到 \(albumInfo.title)"), icon: "checkmark.circle.fill", style: .positive)
+                    self.showFeedback(L10n.string("已归类到 \(currentAlbumInfo.title)"), icon: "checkmark.circle.fill", style: .positive)
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
                         self.recentlyFiledAlbumAssetIDs.remove(assetID)
                         if self.currentRealPhoto?.localIdentifier == assetID {
@@ -1870,7 +1924,11 @@ struct SwipePhotoView: View {
                     self.dataManager.restoreReviewedState(asset, wasReviewed: wasReviewed)
                     self.restoreSessionReviewedCount(wasReviewed: wasReviewed)
                     HapticManager.notify(.error)
-                    self.showFeedback(L10n.string("归类失败，请再试一次"), icon: "exclamationmark.triangle", style: .warning)
+                    if self.dataManager.currentUserAlbumInfo(for: currentAlbumInfo) == nil {
+                        self.showFeedback(L10n.string("这个相册已不存在，列表已更新"), icon: "arrow.clockwise", style: .warning)
+                    } else {
+                        self.showFeedback(L10n.string("归类失败，请再试一次"), icon: "exclamationmark.triangle", style: .warning)
+                    }
                 }
             }
         }
@@ -2033,7 +2091,7 @@ struct SwipePhotoView: View {
             return L10n.string("历史上的今天")
         } else if let selectedLocationGroupID {
             return locationGroupTitle(for: selectedLocationGroupID)
-        } else if let albumInfo = selectedAlbumInfo {
+        } else if let albumInfo = activeAlbumInfo {
             return albumInfo.title
         } else if let selectedDate, let selectedAdvancedTimeScope {
             return AdvancedSwipeDateFormatter.title(for: selectedAdvancedTimeScope, containing: selectedDate)

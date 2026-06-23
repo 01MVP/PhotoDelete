@@ -24,6 +24,7 @@ struct MainTabView: View {
         .onAppear {
             configureTabBarAppearance()
             dataManager.syncPhotoLibraryAuthorization()
+            dataManager.refreshAlbumsFromLibrary(showLoading: false)
         }
         .onChange(of: appAppearanceValue) { _ in
             configureTabBarAppearance()
@@ -35,6 +36,7 @@ struct MainTabView: View {
             guard phase == .active else { return }
             configureTabBarAppearance()
             dataManager.syncPhotoLibraryAuthorization()
+            dataManager.refreshAlbumsFromLibrary(showLoading: false)
             Task {
                 await purchaseManager.refreshEntitlementsSilently()
             }

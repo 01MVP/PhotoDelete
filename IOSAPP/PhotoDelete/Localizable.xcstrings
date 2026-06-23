@@ -8218,6 +8218,28 @@
         }
       }
     },
+    "相册列表已更新，请再试一次": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Album list updated. Try again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "相册列表已更新，请再试一次"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "相冊列表已更新，請再試一次"
+          }
+        }
+      }
+    },
     "正在统计相册数量和封面。": {
       "localizations": {
         "en": {
@@ -10829,6 +10851,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "這個相冊還沒有照片"
+          }
+        }
+      }
+    },
+    "这个相册已不存在，列表已更新": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This album no longer exists. The list has been updated."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "这个相册已不存在，列表已更新"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這個相冊已不存在，列表已更新"
           }
         }
       }

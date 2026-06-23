@@ -47,6 +47,8 @@ class DataManager: ObservableObject {
     private var isRestoringLibrarySnapshot = false
     private var hasLoadedAlbums = false
     private var isFetchingAlbums = false
+    private var pendingAlbumRefresh = false
+    private var pendingAlbumRefreshShouldShowLoading = false
     private var timeGroupCache: [TimeGroup: [PHAsset]] = [:]
     private var historicalTodayCache: [PHAsset] = []
     private var historicalTodayCacheReferenceDay: Date?
@@ -241,7 +243,7 @@ class DataManager: ObservableObject {
                     self.hasLoadedAlbums = false
                     self.loadAlbums(showLoading: false)
                 } else {
-                    self.loadAlbumsIfNeeded()
+                    self.loadAlbums(showLoading: false)
                 }
                 self.updateStats()
             }
@@ -1338,17 +1340,25 @@ class DataManager: ObservableObject {
         loadAlbums(showLoading: true)
     }
 
+    func refreshAlbumsFromLibrary(showLoading: Bool = false) {
+        loadAlbums(showLoading: showLoading)
+    }
+
     func loadAlbums(showLoading: Bool? = nil) {
         guard photoLibraryManager.hasPhotoLibraryAccess else {
             isLoadingAlbums = false
             hasLoadedAlbums = false
             isFetchingAlbums = false
+            pendingAlbumRefresh = false
+            pendingAlbumRefreshShouldShowLoading = false
             albumLoadingProgress = 0
             return
         }
 
         let shouldShowLoading = showLoading ?? (!hasLoadedAlbums && systemAlbums.isEmpty && userAlbums.isEmpty)
         guard !isFetchingAlbums else {
+            pendingAlbumRefresh = true
+            pendingAlbumRefreshShouldShowLoading = pendingAlbumRefreshShouldShowLoading || shouldShowLoading
             if shouldShowLoading {
                 isLoadingAlbums = true
             }
@@ -1423,17 +1433,7 @@ class DataManager: ObservableObject {
 
             // 用户创建的相册
             userCollections.enumerateObjects { collection, _, _ in
-                let fetchOptions = PHFetchOptions()
-                let assets = PHAsset.fetchAssets(in: collection, options: fetchOptions)
-
-                let thumbnailAsset = assets.firstObject
-                let albumInfo = AlbumInfo(
-                    assetCollection: collection,
-                    type: .userCreated,
-                    photosCount: assets.count,
-                    thumbnailAsset: thumbnailAsset
-                )
-                userAlbums.append(albumInfo)
+                userAlbums.append(self.makeUserAlbumInfo(from: collection))
                 publishProgress()
             }
 
@@ -1445,6 +1445,12 @@ class DataManager: ObservableObject {
                 self.albumLoadingProgress = 1
                 self.isLoadingAlbums = false
                 self.saveAlbumSnapshot()
+                if self.pendingAlbumRefresh {
+                    let showPendingLoading = self.pendingAlbumRefreshShouldShowLoading
+                    self.pendingAlbumRefresh = false
+                    self.pendingAlbumRefreshShouldShowLoading = false
+                    self.loadAlbums(showLoading: showPendingLoading)
+                }
             }
         }
     }
@@ -1489,6 +1495,18 @@ class DataManager: ObservableObject {
     private func fetchAsset(withIdentifier identifier: String?) -> PHAsset? {
         guard let identifier else { return nil }
         return PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: nil).firstObject
+    }
+
+    private func makeUserAlbumInfo(from collection: PHAssetCollection) -> AlbumInfo {
+        let fetchOptions = PHFetchOptions()
+        fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+        let assets = PHAsset.fetchAssets(in: collection, options: fetchOptions)
+        return AlbumInfo(
+            assetCollection: collection,
+            type: .userCreated,
+            photosCount: assets.count,
+            thumbnailAsset: assets.firstObject
+        )
     }
 
     private func saveAlbumSnapshot() {
@@ -1584,6 +1602,15 @@ class DataManager: ObservableObject {
         return userAlbums
     }
 
+    func currentUserAlbumInfo(for albumInfo: AlbumInfo) -> AlbumInfo? {
+        guard albumInfo.type == .userCreated else { return albumInfo }
+        return refreshUserAlbumIfAvailable(id: albumInfo.id)
+    }
+
+    func currentUserAlbumInfo(for album: PHAssetCollection) -> AlbumInfo? {
+        refreshUserAlbumIfAvailable(id: album.localIdentifier)
+    }
+
     func insertCreatedUserAlbum(withIdentifier identifier: String?) {
         guard let identifier else { return }
         let collections = PHAssetCollection.fetchAssetCollections(
@@ -1592,13 +1619,7 @@ class DataManager: ObservableObject {
         )
         guard let collection = collections.firstObject else { return }
 
-        let albumInfo = AlbumInfo(
-            assetCollection: collection,
-            type: .userCreated,
-            photosCount: 0,
-            thumbnailAsset: nil
-        )
-        upsertUserAlbum(albumInfo)
+        upsertUserAlbum(makeUserAlbumInfo(from: collection))
         hasLoadedAlbums = true
         saveAlbumSnapshot()
     }
@@ -1638,13 +1659,17 @@ class DataManager: ObservableObject {
             }
             if success {
                 self.renameUserAlbum(id: album.localIdentifier, title: title)
+            } else {
+                self.refreshAlbumsFromLibrary(showLoading: false)
             }
             completion(success)
         }
     }
 
     func removeUserAlbum(id: String) {
+        let previousCount = userAlbums.count
         userAlbums.removeAll { $0.id == id }
+        guard userAlbums.count != previousCount else { return }
         saveAlbumSnapshot()
     }
 
@@ -1655,6 +1680,8 @@ class DataManager: ObservableObject {
             }
             if success {
                 self.removeUserAlbum(id: album.localIdentifier)
+            } else {
+                self.refreshAlbumsFromLibrary(showLoading: false)
             }
             completion(success)
         }
@@ -1679,23 +1706,26 @@ class DataManager: ObservableObject {
 
     @discardableResult
     private func refreshUserAlbumFromLibrary(id: String) -> Bool {
-        guard let index = userAlbums.firstIndex(where: { $0.id == id }) else { return false }
-        let album = userAlbums[index]
-        guard let collection = album.assetCollection else { return false }
-
-        let fetchOptions = PHFetchOptions()
-        fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-        let assets = PHAsset.fetchAssets(in: collection, options: fetchOptions)
-        userAlbums[index] = AlbumInfo(
-            id: album.id,
-            title: album.title,
-            assetCollection: album.assetCollection,
-            type: album.type,
-            photosCount: assets.count,
-            thumbnailAsset: assets.firstObject
-        )
-        saveAlbumSnapshot()
+        guard userAlbums.contains(where: { $0.id == id }) else { return false }
+        _ = refreshUserAlbumIfAvailable(id: id)
         return true
+    }
+
+    @discardableResult
+    private func refreshUserAlbumIfAvailable(id: String) -> AlbumInfo? {
+        guard let index = userAlbums.firstIndex(where: { $0.id == id }) else { return nil }
+        guard let collection = fetchAssetCollection(withIdentifier: id),
+              collection.assetCollectionType == .album else {
+            userAlbums.remove(at: index)
+            saveAlbumSnapshot()
+            refreshAlbumsFromLibrary(showLoading: false)
+            return nil
+        }
+
+        let albumInfo = makeUserAlbumInfo(from: collection)
+        userAlbums[index] = albumInfo
+        saveAlbumSnapshot()
+        return albumInfo
     }
 
     private func upsertUserAlbum(_ albumInfo: AlbumInfo) {
