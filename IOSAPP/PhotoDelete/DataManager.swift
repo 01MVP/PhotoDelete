@@ -10,6 +10,7 @@ import Photos
 import UIKit
 import Combine
 import OSLog
+import CoreLocation
 
 private let dataManagerLogger = Logger(
     subsystem: Bundle.main.bundleIdentifier ?? "PhotoDelete",
@@ -39,8 +40,11 @@ class DataManager: ObservableObject {
     @Published private(set) var cleanupStatsRevision = UUID()
     @Published private(set) var videoCompressionHistoryRevision = UUID()
     @Published private(set) var reviewedAssetIDs: Set<String> = []
+    @Published private(set) var periodSummariesByScope: [AdvancedTimeScope: [PhotoPeriodSummary]] = [:]
+    @Published private(set) var isLoadingPeriodSummaries = false
     let cleanupStatsStore: CleanupStatsStore
     let videoCompressionHistoryStore: VideoCompressionHistoryStore
+    private let locationTitleCacheStore: PhotoLocationTitleCacheStore
     private let albumSnapshotStore = AlbumListSnapshotStore()
 
     private var isReloadingLibrary = false
@@ -53,8 +57,11 @@ class DataManager: ObservableObject {
     private var historicalTodayCache: [PHAsset] = []
     private var historicalTodayCacheReferenceDay: Date?
     private var locationGroupCache: [String: [PHAsset]] = [:]
+    private var locationGroupBuildGeneration = 0
+    private var locationTitleResolutionTask: Task<Void, Never>?
     private var progressRefreshWorkItem: DispatchWorkItem?
     private var progressRefreshGeneration = 0
+    private var periodSummaryRefreshGeneration = 0
     private var libraryDataRefreshWorkItem: DispatchWorkItem?
     private var nextLibraryDataRefreshDelay: TimeInterval?
     private var reviewedAssetIDsSaveWorkItem: DispatchWorkItem?
@@ -70,6 +77,7 @@ class DataManager: ObservableObject {
     private struct LocationGroupBuildResult {
         let cache: [String: [PHAsset]]
         let locationGroups: [PhotoLocationGroupInfo]
+        let representativeCoordinatesByGroupID: [String: CLLocationCoordinate2D]
     }
 
     private struct DaySummaryAccumulator {
@@ -95,10 +103,12 @@ class DataManager: ObservableObject {
 
     init(
         cleanupStatsStore: CleanupStatsStore = CleanupStatsStore(),
-        videoCompressionHistoryStore: VideoCompressionHistoryStore = VideoCompressionHistoryStore()
+        videoCompressionHistoryStore: VideoCompressionHistoryStore = VideoCompressionHistoryStore(),
+        locationTitleCacheStore: PhotoLocationTitleCacheStore = PhotoLocationTitleCacheStore()
     ) {
         self.cleanupStatsStore = cleanupStatsStore
         self.videoCompressionHistoryStore = videoCompressionHistoryStore
+        self.locationTitleCacheStore = locationTitleCacheStore
         loadReviewedAssetIDs()
         setupPhotoLibraryManager()
     }
@@ -465,6 +475,10 @@ class DataManager: ObservableObject {
         historicalTodayPhotoCount = 0
         locationGroupCache = [:]
         locationGroups = []
+        locationTitleResolutionTask?.cancel()
+        locationTitleCacheStore.clear()
+        periodSummariesByScope = [:]
+        isLoadingPeriodSummaries = false
         systemAlbums = []
         userAlbums = []
         albumSnapshotStore.clear()
@@ -553,6 +567,10 @@ class DataManager: ObservableObject {
                     self.historicalTodayCache = result.historicalTodayPhotos
                     self.historicalTodayCacheReferenceDay = result.historicalTodayReferenceDay
                     self.historicalTodayPhotoCount = result.historicalTodayPhotos.count
+                    self.loadLocationGroups()
+                    if !self.periodSummariesByScope.isEmpty {
+                        self.refreshPhotoPeriodSummaries(for: Array(self.periodSummariesByScope.keys))
+                    }
                 }
             }
         }
@@ -619,60 +637,40 @@ class DataManager: ObservableObject {
         let sourcePhotos = getPhotosForRandomReviewScope(scope)
         let validSourcePhotos = scope == .memories ? photoLibraryManager.allPhotos : sourcePhotos
         let validIDs = Set(validSourcePhotos.map(\.localIdentifier))
-        let existingIDs = PhotoRandomReviewPlanner.existingSessionIdentifiers(
-            PhotoRandomReviewSessionStore.load(scopeID: scopeID),
-            keepingValid: validIDs
-        )
-
-        if !existingIDs.isEmpty {
-            return Self.assets(in: validSourcePhotos, preserving: existingIDs)
-        }
-
-        let plannedIDs = plannedRandomReviewIdentifiers(
-            from: sourcePhotos,
-            scope: scope,
+        let existingIDs = PhotoRandomReviewSessionStore.load(scopeID: scopeID)
+        let resolvedIDs = PhotoRandomReviewPlanner.resolvedSessionIdentifiers(
+            existingSessionIDs: existingIDs,
+            candidateIdentifiers: sourcePhotos.map(\.localIdentifier),
+            fallbackCandidateIdentifiers: scope == .memories ? photoLibraryManager.allPhotos.map(\.localIdentifier) : [],
+            validIdentifiers: validIDs,
+            excludedIdentifiers: randomReviewExcludedIdentifiers(),
+            seed: UUID().uuidString,
             limit: limit
         )
-        let plannedIDSet = Set(plannedIDs)
-        let assetSource = plannedIDSet.isSubset(of: validIDs) ? sourcePhotos : photoLibraryManager.allPhotos
-        PhotoRandomReviewSessionStore.save(
-            assetIdentifiers: plannedIDs,
-            scopeID: scopeID
-        )
-        return Self.assets(in: assetSource, preserving: plannedIDs)
+
+        guard !resolvedIDs.isEmpty else {
+            PhotoRandomReviewSessionStore.clear(scopeID: scopeID)
+            return []
+        }
+
+        if resolvedIDs != existingIDs {
+            PhotoRandomReviewSessionStore.save(
+                assetIdentifiers: resolvedIDs,
+                scopeID: scopeID
+            )
+        }
+
+        return Self.assets(in: validSourcePhotos, preserving: resolvedIDs)
+    }
+
+    private func randomReviewExcludedIdentifiers() -> Set<String> {
+        reviewedAssetIDs
+            .union(deleteCandidates.map(\.localIdentifier))
+            .union(favoriteCandidates.map(\.localIdentifier))
     }
 
     func clearRandomReviewSession(scopeID: String) {
         PhotoRandomReviewSessionStore.clear(scopeID: scopeID)
-    }
-
-    private func plannedRandomReviewIdentifiers(
-        from photos: [PHAsset],
-        scope: PhotoRandomReviewScope,
-        limit: Int
-    ) -> [String] {
-        let excludedIDs = reviewedAssetIDs
-            .union(deleteCandidates.map(\.localIdentifier))
-            .union(favoriteCandidates.map(\.localIdentifier))
-        let seed = UUID().uuidString
-        let identifiers = photos.map(\.localIdentifier)
-        let planned = PhotoRandomReviewPlanner.plannedIdentifiers(
-            from: identifiers,
-            excluding: excludedIDs,
-            seed: seed,
-            limit: limit
-        )
-
-        if !planned.isEmpty || scope != .memories {
-            return planned
-        }
-
-        return PhotoRandomReviewPlanner.plannedIdentifiers(
-            from: photoLibraryManager.allPhotos.map(\.localIdentifier),
-            excluding: excludedIDs,
-            seed: seed,
-            limit: limit
-        )
     }
 
     private static func assets(in photos: [PHAsset], preserving identifiers: [String]) -> [PHAsset] {
@@ -758,68 +756,96 @@ class DataManager: ObservableObject {
         for scope: AdvancedTimeScope,
         calendar: Calendar = .current
     ) -> [PhotoPeriodSummary] {
-        let screenshotIDs = Set(photoLibraryManager.screenshots.map(\.localIdentifier))
-        let reviewedIDs = reviewedAssetIDs
-        let deleteCandidateIDs = Set(deleteCandidates.map(\.localIdentifier))
-        let favoriteCandidateIDs = Set(favoriteCandidates.map(\.localIdentifier))
-        var buckets: [Date: DaySummaryAccumulator] = [:]
-
-        for asset in photoLibraryManager.allPhotos {
-            guard let creationDate = asset.creationDate else { continue }
-            let identifier = asset.localIdentifier
-            let isReviewed = reviewedIDs.contains(identifier) ||
-                deleteCandidateIDs.contains(identifier) ||
-                favoriteCandidateIDs.contains(identifier) ||
-                asset.isFavorite
-            let isScreenshot = screenshotIDs.contains(identifier)
-            let estimatedSize = estimatedAssetSizeMB(asset)
-            let interval = calendar.dateInterval(for: scope, containing: creationDate)
-            var accumulator = buckets[interval.start] ?? DaySummaryAccumulator()
-            accumulator.add(
-                asset: asset,
-                isScreenshot: isScreenshot,
-                isReviewed: isReviewed,
-                estimatedSizeMB: estimatedSize
-            )
-            buckets[interval.start] = accumulator
-        }
-
-        return Self.photoPeriodSummaries(from: buckets, scope: scope, calendar: calendar)
+        Self.makePhotoPeriodSummariesByScope(
+            photos: photoLibraryManager.allPhotos,
+            screenshotIDs: Set(photoLibraryManager.screenshots.map(\.localIdentifier)),
+            reviewedIDs: reviewedAssetIDs,
+            deleteCandidateIDs: Set(deleteCandidates.map(\.localIdentifier)),
+            favoriteCandidateIDs: Set(favoriteCandidates.map(\.localIdentifier)),
+            scopes: [scope],
+            calendar: calendar
+        )[scope] ?? []
     }
 
     func makePhotoPeriodSummariesByScope(
         calendar: Calendar = .current
     ) -> [AdvancedTimeScope: [PhotoPeriodSummary]] {
+        Self.makePhotoPeriodSummariesByScope(
+            photos: photoLibraryManager.allPhotos,
+            screenshotIDs: Set(photoLibraryManager.screenshots.map(\.localIdentifier)),
+            reviewedIDs: reviewedAssetIDs,
+            deleteCandidateIDs: Set(deleteCandidates.map(\.localIdentifier)),
+            favoriteCandidateIDs: Set(favoriteCandidates.map(\.localIdentifier)),
+            scopes: AdvancedTimeScope.allCases,
+            calendar: calendar
+        )
+    }
+
+    func refreshPhotoPeriodSummaries(
+        for scopes: [AdvancedTimeScope],
+        calendar: Calendar = .current,
+        resetCachedScopes: Bool = false
+    ) {
+        guard photoLibraryManager.hasPhotoLibraryAccess else {
+            periodSummariesByScope = [:]
+            isLoadingPeriodSummaries = false
+            return
+        }
+
+        let requestedScopes = Array(Set(scopes))
+        guard !requestedScopes.isEmpty else { return }
+
+        if resetCachedScopes {
+            periodSummariesByScope = [:]
+        }
+
+        periodSummaryRefreshGeneration += 1
+        let generation = periodSummaryRefreshGeneration
+        let photos = photoLibraryManager.allPhotos
         let screenshotIDs = Set(photoLibraryManager.screenshots.map(\.localIdentifier))
         let reviewedIDs = reviewedAssetIDs
         let deleteCandidateIDs = Set(deleteCandidates.map(\.localIdentifier))
         let favoriteCandidateIDs = Set(favoriteCandidates.map(\.localIdentifier))
-        var dayBuckets: [Date: DaySummaryAccumulator] = [:]
-        var weekBuckets: [Date: DaySummaryAccumulator] = [:]
-        var monthBuckets: [Date: DaySummaryAccumulator] = [:]
-        var yearBuckets: [Date: DaySummaryAccumulator] = [:]
+        isLoadingPeriodSummaries = true
 
-        func add(
-            asset: PHAsset,
-            creationDate: Date,
-            isScreenshot: Bool,
-            isReviewed: Bool,
-            estimatedSize: Double,
-            to buckets: inout [Date: DaySummaryAccumulator],
-            scope: AdvancedTimeScope
-        ) {
-            let interval = calendar.dateInterval(for: scope, containing: creationDate)
-            var accumulator = buckets[interval.start] ?? DaySummaryAccumulator()
-            accumulator.add(
-                asset: asset,
-                isScreenshot: isScreenshot,
-                isReviewed: isReviewed,
-                estimatedSizeMB: estimatedSize
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let summaries = Self.makePhotoPeriodSummariesByScope(
+                photos: photos,
+                screenshotIDs: screenshotIDs,
+                reviewedIDs: reviewedIDs,
+                deleteCandidateIDs: deleteCandidateIDs,
+                favoriteCandidateIDs: favoriteCandidateIDs,
+                scopes: requestedScopes,
+                calendar: calendar
             )
-            buckets[interval.start] = accumulator
+
+            DispatchQueue.main.async {
+                guard let self, self.periodSummaryRefreshGeneration == generation else { return }
+                var merged = resetCachedScopes ? [:] : self.periodSummariesByScope
+                for (scope, scopeSummaries) in summaries {
+                    merged[scope] = scopeSummaries
+                }
+                self.periodSummariesByScope = merged
+                self.isLoadingPeriodSummaries = false
+            }
+        }
+    }
+
+    private static func makePhotoPeriodSummariesByScope(
+        photos: [PHAsset],
+        screenshotIDs: Set<String>,
+        reviewedIDs: Set<String>,
+        deleteCandidateIDs: Set<String>,
+        favoriteCandidateIDs: Set<String>,
+        scopes: [AdvancedTimeScope],
+        calendar: Calendar
+    ) -> [AdvancedTimeScope: [PhotoPeriodSummary]] {
+        var bucketsByScope: [AdvancedTimeScope: [Date: DaySummaryAccumulator]] = [:]
+        for scope in scopes {
+            bucketsByScope[scope] = [:]
         }
 
-        for asset in photoLibraryManager.allPhotos {
+        for asset in photos {
             guard let creationDate = asset.creationDate else { continue }
             let identifier = asset.localIdentifier
             let isReviewed = reviewedIDs.contains(identifier) ||
@@ -827,52 +853,30 @@ class DataManager: ObservableObject {
                 favoriteCandidateIDs.contains(identifier) ||
                 asset.isFavorite
             let isScreenshot = screenshotIDs.contains(identifier)
-            let estimatedSize = estimatedAssetSizeMB(asset)
+            let estimatedSize = Self.estimatedAssetSizeMBForAsset(asset)
 
-            add(
-                asset: asset,
-                creationDate: creationDate,
-                isScreenshot: isScreenshot,
-                isReviewed: isReviewed,
-                estimatedSize: estimatedSize,
-                to: &dayBuckets,
-                scope: .day
-            )
-            add(
-                asset: asset,
-                creationDate: creationDate,
-                isScreenshot: isScreenshot,
-                isReviewed: isReviewed,
-                estimatedSize: estimatedSize,
-                to: &weekBuckets,
-                scope: .week
-            )
-            add(
-                asset: asset,
-                creationDate: creationDate,
-                isScreenshot: isScreenshot,
-                isReviewed: isReviewed,
-                estimatedSize: estimatedSize,
-                to: &monthBuckets,
-                scope: .month
-            )
-            add(
-                asset: asset,
-                creationDate: creationDate,
-                isScreenshot: isScreenshot,
-                isReviewed: isReviewed,
-                estimatedSize: estimatedSize,
-                to: &yearBuckets,
-                scope: .year
-            )
+            for scope in scopes {
+                let interval = calendar.dateInterval(for: scope, containing: creationDate)
+                var accumulator = bucketsByScope[scope]?[interval.start] ?? DaySummaryAccumulator()
+                accumulator.add(
+                    asset: asset,
+                    isScreenshot: isScreenshot,
+                    isReviewed: isReviewed,
+                    estimatedSizeMB: estimatedSize
+                )
+                bucketsByScope[scope]?[interval.start] = accumulator
+            }
         }
 
-        return [
-            .day: Self.photoPeriodSummaries(from: dayBuckets, scope: .day, calendar: calendar),
-            .week: Self.photoPeriodSummaries(from: weekBuckets, scope: .week, calendar: calendar),
-            .month: Self.photoPeriodSummaries(from: monthBuckets, scope: .month, calendar: calendar),
-            .year: Self.photoPeriodSummaries(from: yearBuckets, scope: .year, calendar: calendar)
-        ]
+        var summariesByScope: [AdvancedTimeScope: [PhotoPeriodSummary]] = [:]
+        for scope in scopes {
+            summariesByScope[scope] = Self.photoPeriodSummaries(
+                from: bucketsByScope[scope] ?? [:],
+                scope: scope,
+                calendar: calendar
+            )
+        }
+        return summariesByScope
     }
 
     private static func photoPeriodSummaries(
@@ -1056,6 +1060,10 @@ class DataManager: ObservableObject {
     }
 
     private func estimatedAssetSizeMB(_ asset: PHAsset) -> Double {
+        Self.estimatedAssetSizeMBForAsset(asset)
+    }
+
+    private static func estimatedAssetSizeMBForAsset(_ asset: PHAsset) -> Double {
         let megapixels = Double(asset.pixelWidth) * Double(asset.pixelHeight) / 1_000_000
         if asset.mediaType == .video {
             return max(asset.duration * 8.0, megapixels * 0.75, 2.0)
@@ -1112,22 +1120,32 @@ class DataManager: ObservableObject {
     func loadLocationGroups() {
         guard photoLibraryManager.hasPhotoLibraryAccess else { return }
 
+        locationGroupBuildGeneration += 1
+        let generation = locationGroupBuildGeneration
         let photos = photoLibraryManager.allPhotos
         let reviewedIDs = reviewedAssetIDs
         let deleteCandidateIDs = Set(deleteCandidates.map(\.localIdentifier))
         let favoriteCandidateIDs = Set(favoriteCandidates.map(\.localIdentifier))
+        let titleCache = locationTitleCacheStore.titleCache()
 
         DispatchQueue.global(qos: .utility).async { [weak self] in
             let result = Self.buildLocationGroupData(
                 photos: photos,
                 reviewedAssetIDs: reviewedIDs,
                 deleteCandidateIDs: deleteCandidateIDs,
-                favoriteCandidateIDs: favoriteCandidateIDs
+                favoriteCandidateIDs: favoriteCandidateIDs,
+                locationTitleCache: titleCache
             )
 
             DispatchQueue.main.async {
-                self?.locationGroupCache = result.cache
-                self?.locationGroups = result.locationGroups
+                guard let self, self.locationGroupBuildGeneration == generation else { return }
+                self.locationGroupCache = result.cache
+                self.locationGroups = result.locationGroups
+                self.locationTitleCacheStore.prune(keeping: Set(result.cache.keys))
+                self.resolveLocationTitlesIfNeeded(
+                    for: result.representativeCoordinatesByGroupID,
+                    generation: generation
+                )
             }
         }
     }
@@ -1147,6 +1165,75 @@ class DataManager: ObservableObject {
         let result = PhotoLocationGrouping.buildGroups(from: records)
         let ids = result.identifiersByGroupID[groupID] ?? []
         return Self.assets(in: photoLibraryManager.allPhotos, preserving: ids)
+    }
+
+    private func resolveLocationTitlesIfNeeded(
+        for coordinatesByGroupID: [String: CLLocationCoordinate2D],
+        generation: Int
+    ) {
+        let cachedTitles = locationTitleCacheStore.titleCache()
+        let missingCoordinates = coordinatesByGroupID
+            .filter { groupID, _ in cachedTitles[groupID] == nil && groupID != PhotoLocationGrouping.noLocationID }
+            .sorted { $0.key < $1.key }
+            .prefix(PhotoLocationGrouping.defaultMaximumGroups)
+
+        guard !missingCoordinates.isEmpty else { return }
+
+        locationTitleResolutionTask?.cancel()
+        locationTitleResolutionTask = Task.detached(priority: .utility) { [weak self] in
+            var resolvedTitles: [String: PhotoLocationResolvedTitle] = [:]
+
+            for (groupID, coordinate) in missingCoordinates {
+                guard !Task.isCancelled else { return }
+
+                let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+                let geocoder = CLGeocoder()
+                let placemarks = try? await geocoder.reverseGeocodeLocation(location)
+                guard let placemark = placemarks?.first,
+                      let title = Self.locationDisplayTitle(for: placemark) else {
+                    continue
+                }
+
+                resolvedTitles[groupID] = PhotoLocationResolvedTitle(
+                    title: title,
+                    latitude: coordinate.latitude,
+                    longitude: coordinate.longitude
+                )
+
+                try? await Task.sleep(nanoseconds: 150_000_000)
+            }
+
+            guard !Task.isCancelled, !resolvedTitles.isEmpty else { return }
+            let titlesToMerge = resolvedTitles
+
+            await MainActor.run { [weak self] in
+                guard let self,
+                      self.locationGroupBuildGeneration == generation else {
+                    return
+                }
+
+                self.locationTitleCacheStore.merge(titlesToMerge)
+                let result = Self.buildLocationGroupData(
+                    photos: self.photoLibraryManager.allPhotos,
+                    reviewedAssetIDs: self.reviewedAssetIDs,
+                    deleteCandidateIDs: Set(self.deleteCandidates.map(\.localIdentifier)),
+                    favoriteCandidateIDs: Set(self.favoriteCandidates.map(\.localIdentifier)),
+                    locationTitleCache: self.locationTitleCacheStore.titleCache()
+                )
+                self.locationGroupCache = result.cache
+                self.locationGroups = result.locationGroups
+            }
+        }
+    }
+
+    private static func locationDisplayTitle(for placemark: CLPlacemark) -> String? {
+        PhotoLocationGrouping.displayTitle(
+            name: placemark.name,
+            locality: placemark.locality,
+            subLocality: placemark.subLocality,
+            administrativeArea: placemark.administrativeArea,
+            country: placemark.country
+        )
     }
 
     private static func buildTimeGroupData(
@@ -1229,7 +1316,8 @@ class DataManager: ObservableObject {
         photos: [PHAsset],
         reviewedAssetIDs: Set<String>,
         deleteCandidateIDs: Set<String>,
-        favoriteCandidateIDs: Set<String>
+        favoriteCandidateIDs: Set<String>,
+        locationTitleCache: [String: PhotoLocationResolvedTitle] = [:]
     ) -> LocationGroupBuildResult {
         let records = photos.map { asset in
             let identifier = asset.localIdentifier
@@ -1243,7 +1331,7 @@ class DataManager: ObservableObject {
                 isReviewed: isOrganized
             )
         }
-        let result = PhotoLocationGrouping.buildGroups(from: records)
+        let result = PhotoLocationGrouping.buildGroups(from: records, titleCache: locationTitleCache)
         var cache: [String: [PHAsset]] = [:]
         for (groupID, identifiers) in result.identifiersByGroupID {
             cache[groupID] = assets(in: photos, preserving: identifiers)
@@ -1251,7 +1339,8 @@ class DataManager: ObservableObject {
 
         return LocationGroupBuildResult(
             cache: cache,
-            locationGroups: result.groups
+            locationGroups: result.groups,
+            representativeCoordinatesByGroupID: result.representativeCoordinatesByGroupID
         )
     }
 

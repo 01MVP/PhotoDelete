@@ -246,7 +246,7 @@ struct SettingsView: View {
 
     private var supporterRowTitle: String {
         if purchaseManager.hasPaidSupporterAccess {
-            return L10n.string("支持者版已解锁")
+            return L10n.string("支持者版已完整解锁")
         }
 
         if purchaseManager.isUsingTrialSupporterAccess {

@@ -42,6 +42,8 @@ struct SwipePhotoView: View {
     @State private var showCompletionMessage = false
     @State private var actionHistory: [SwipeAction] = []
     @State private var sessionPhotos: [PHAsset] = []
+    @State private var allSessionPhotos: [PHAsset] = []
+    @State private var loadedSessionPhotoCount = 0
     @State private var sessionReviewedCount = 0
     @State private var shouldDismissAfterBatch = false
     @State private var feedbackToast: PhotoDeleteToast?
@@ -149,7 +151,7 @@ struct SwipePhotoView: View {
     }
 
     private var totalPhotosCount: Int {
-        return sessionPhotos.count
+        return allSessionPhotos.isEmpty ? sessionPhotos.count : allSessionPhotos.count
     }
 
     private var currentProgress: Int {
@@ -168,6 +170,10 @@ struct SwipePhotoView: View {
 
     private var isAlbumMode: Bool {
         return selectedAlbumInfo != nil
+    }
+
+    private var shouldPageSessionPhotos: Bool {
+        randomReviewScope == nil && selectedAdvancedCleanup == nil
     }
 
     private var activeAlbumInfo: AlbumInfo? {
@@ -293,6 +299,7 @@ struct SwipePhotoView: View {
         }
         .onChange(of: currentPhotoIndex) { _ in
             stopInlineVideoPlaybackIfNeeded(forNextIndex: currentPhotoIndex)
+            expandLoadedSessionPhotosIfNeeded(for: currentPhotoIndex)
             scheduleSessionProgressSave()
         }
     }
@@ -1224,25 +1231,67 @@ struct SwipePhotoView: View {
     }
 
     private func refreshSessionPhotos(_ photos: [PHAsset]? = nil) {
-        let photos = photos ?? filteredRealPhotos
-        sessionPhotos = photos
+        let fullPhotos = photos ?? filteredRealPhotos
+        allSessionPhotos = fullPhotos
         if let inlinePlayingVideoAssetID,
-           !photos.contains(where: { $0.localIdentifier == inlinePlayingVideoAssetID }) {
+           !fullPhotos.contains(where: { $0.localIdentifier == inlinePlayingVideoAssetID }) {
             self.inlinePlayingVideoAssetID = nil
         }
-        sessionReviewedCount = dataManager.reviewedCount(in: photos)
+
+        sessionReviewedCount = dataManager.reviewedCount(in: fullPhotos)
+        let targetIndex: Int
         if didInitializeSession {
-            currentPhotoIndex = min(currentPhotoIndex, max(photos.count - 1, 0))
-        } else if let restoredIndex = restoredSessionProgressIndex(in: photos) {
-            currentPhotoIndex = firstLocallyUnreviewedPhotoIndex(startingAt: restoredIndex) ?? restoredIndex
-        } else if let firstUnreviewedIndex = photos.firstIndex(where: { !dataManager.isReviewed($0) }) {
-            currentPhotoIndex = firstUnreviewedIndex
+            targetIndex = min(currentPhotoIndex, max(fullPhotos.count - 1, 0))
+        } else if let restoredIndex = restoredSessionProgressIndex(in: fullPhotos) {
+            targetIndex = firstLocallyUnreviewedPhotoIndex(in: fullPhotos, startingAt: restoredIndex) ?? restoredIndex
+        } else if let firstUnreviewedIndex = fullPhotos.firstIndex(where: { !dataManager.isReviewed($0) }) {
+            targetIndex = firstUnreviewedIndex
         } else {
-            currentPhotoIndex = 0
-            showCompletionMessage = !photos.isEmpty
+            targetIndex = 0
+            showCompletionMessage = !fullPhotos.isEmpty
         }
+
+        let loadedCount = loadedSessionCount(totalCount: fullPhotos.count, targetIndex: targetIndex)
+        loadedSessionPhotoCount = loadedCount
+        sessionPhotos = Array(fullPhotos.prefix(loadedCount))
+        currentPhotoIndex = min(targetIndex, max(sessionPhotos.count - 1, 0))
         preloadUpcomingImages(from: currentPhotoIndex)
         persistSessionProgressIfPossible()
+    }
+
+    private func loadedSessionCount(totalCount: Int, targetIndex: Int) -> Int {
+        guard shouldPageSessionPhotos else { return totalCount }
+
+        let initialCount = PhotoReviewSessionPaginator.initialLoadedCount(totalCount: totalCount)
+        guard targetIndex >= initialCount else { return initialCount }
+        return min(totalCount, targetIndex + 1)
+    }
+
+    @discardableResult
+    private func expandLoadedSessionPhotosIfNeeded(for index: Int, force: Bool = false) -> Bool {
+        guard shouldPageSessionPhotos,
+              loadedSessionPhotoCount < allSessionPhotos.count else {
+            return false
+        }
+
+        let newLoadedCount: Int
+        if force {
+            newLoadedCount = min(
+                allSessionPhotos.count,
+                loadedSessionPhotoCount + PhotoReviewSessionPaginator.defaultPageSize
+            )
+        } else {
+            newLoadedCount = PhotoReviewSessionPaginator.expandedLoadedCount(
+                totalCount: allSessionPhotos.count,
+                currentLoadedCount: loadedSessionPhotoCount,
+                currentIndex: index
+            )
+        }
+
+        guard newLoadedCount > loadedSessionPhotoCount else { return false }
+        loadedSessionPhotoCount = newLoadedCount
+        sessionPhotos = Array(allSessionPhotos.prefix(newLoadedCount))
+        return true
     }
 
     private func preloadUpcomingImages(from index: Int) {
@@ -1541,7 +1590,12 @@ struct SwipePhotoView: View {
 
         stopInlineVideoPlayback()
         let nextSearchStart = currentPhotoIndex + 1
-        let newIndex = firstLocallyUnreviewedPhotoIndex(startingAt: nextSearchStart) ?? nextSearchStart
+        var newIndex = firstLocallyUnreviewedPhotoIndex(startingAt: nextSearchStart) ?? nextSearchStart
+        while newIndex >= sessionPhotos.count,
+              expandLoadedSessionPhotosIfNeeded(for: sessionPhotos.count, force: true) {
+            newIndex = firstLocallyUnreviewedPhotoIndex(startingAt: nextSearchStart) ?? nextSearchStart
+        }
+
         if newIndex < sessionPhotos.count {
             if reviewMode == .browser {
                 currentPhotoIndex = newIndex
@@ -1576,7 +1630,13 @@ struct SwipePhotoView: View {
 
     private func continueToNextUnreviewedPhoto() {
         flushPendingSwipeMutations()
-        guard let nextIndex = firstLocallyUnreviewedPhotoIndex(startingAt: 0) else {
+        var nextIndex = firstLocallyUnreviewedPhotoIndex(startingAt: 0)
+        while nextIndex == nil,
+              expandLoadedSessionPhotosIfNeeded(for: sessionPhotos.count, force: true) {
+            nextIndex = firstLocallyUnreviewedPhotoIndex(startingAt: 0)
+        }
+
+        guard let nextIndex else {
             return
         }
         currentPhotoIndex = nextIndex
@@ -1586,6 +1646,11 @@ struct SwipePhotoView: View {
     private func firstLocallyUnreviewedPhotoIndex(startingAt startIndex: Int) -> Int? {
         guard startIndex < sessionPhotos.count else { return nil }
         return sessionPhotos[startIndex...].firstIndex { !isAssetLocallyReviewed($0) }
+    }
+
+    private func firstLocallyUnreviewedPhotoIndex(in photos: [PHAsset], startingAt startIndex: Int) -> Int? {
+        guard startIndex < photos.count else { return nil }
+        return photos[startIndex...].firstIndex { !isAssetLocallyReviewed($0) }
     }
 
     private func restoredSessionProgressIndex(in photos: [PHAsset]) -> Int? {
@@ -1767,6 +1832,8 @@ struct SwipePhotoView: View {
         showCompletionMessage = false
         didInitializeSession = false
         sessionPhotos = []
+        allSessionPhotos = []
+        loadedSessionPhotoCount = 0
         sessionReviewedCount = 0
         cardModeReviewActionCount = 0
         sessionDeleteActionCount = 0
@@ -2629,6 +2696,18 @@ struct RealPhotoCard: View {
                 }
             }
 
+            if photoLibraryManager.isLivePhoto(asset) {
+                ZStack {
+                    Circle()
+                        .fill(PhotoDeleteStyle.background.opacity(0.62))
+                        .frame(width: 30, height: 30)
+
+                    Image(systemName: "livephoto")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.white)
+                }
+            }
+
             if photoLibraryManager.isScreenshot(asset) {
                 ZStack {
                     Circle()
@@ -2813,6 +2892,10 @@ struct RealPhotoCard: View {
 
         if photoLibraryManager.isScreenshot(asset) {
             values.append(L10n.string("截图"))
+        }
+
+        if photoLibraryManager.isLivePhoto(asset) {
+            values.append(L10n.string("实况照片"))
         }
 
         if asset.isFavorite || isInFavoriteCandidates {

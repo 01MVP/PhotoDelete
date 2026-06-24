@@ -361,6 +361,30 @@ struct PhotoDeleteTests {
         #expect(!manager.canStartSupporterTrial)
     }
 
+    @MainActor
+    @Test func paidSupporterAccessOverridesExistingTrialState() async throws {
+        let suiteName = "PhotoDeleteRedeemedSupporterTrial-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        defaults.set(true, forKey: AppConstants.supporterEntitlementKey)
+        defaults.set(now.addingTimeInterval(-86_400), forKey: AppConstants.supporterTrialStartDateKey)
+
+        let manager = PurchaseManager(
+            userDefaults: defaults,
+            nowProvider: { now },
+            startsStoreKitTasks: false
+        )
+
+        #expect(manager.hasPaidSupporterAccess)
+        #expect(manager.isSupporter)
+        #expect(!manager.isUsingTrialSupporterAccess)
+        #expect(!manager.isSupporterTrialActive)
+        #expect(manager.supporterTrialStatusText == nil)
+        #expect(!manager.canStartSupporterTrial)
+    }
+
     // MARK: - CleanupStatsStore tests
 
     @Test func cleanupStatsStoreRecordsAndPersistsSessions() async throws {
@@ -1081,6 +1105,39 @@ struct PhotoDeleteTests {
         #expect(existing == ["a", "b"])
     }
 
+    @Test func randomReviewPlannerFiltersExistingSessionAndBackfillsToLimit() async throws {
+        let resolved = PhotoRandomReviewPlanner.resolvedSessionIdentifiers(
+            existingSessionIDs: ["a", "missing", "reviewed", "a", "b"],
+            candidateIdentifiers: ["a", "b", "c", "d", "reviewed"],
+            validIdentifiers: ["a", "b", "c", "d", "reviewed"],
+            excludedIdentifiers: ["reviewed"],
+            seed: "fill",
+            limit: 4
+        )
+
+        #expect(Array(resolved.prefix(2)) == ["a", "b"])
+        #expect(resolved.count == 4)
+        #expect(Set(resolved).count == resolved.count)
+        #expect(!resolved.contains("reviewed"))
+        #expect(!resolved.contains("missing"))
+    }
+
+    @Test func randomReviewPlannerRefillsLegacyTenItemSessionToDefaultBatchSize() async throws {
+        let identifiers = makeAssetIDs(32)
+        let resolved = PhotoRandomReviewPlanner.resolvedSessionIdentifiers(
+            existingSessionIDs: Array(identifiers.prefix(10)),
+            candidateIdentifiers: identifiers,
+            validIdentifiers: Set(identifiers),
+            excludedIdentifiers: [],
+            seed: "legacy-ten",
+            limit: PhotoRandomReviewPlanner.defaultBatchSize
+        )
+
+        #expect(resolved.count == PhotoRandomReviewPlanner.defaultBatchSize)
+        #expect(Array(resolved.prefix(10)) == Array(identifiers.prefix(10)))
+        #expect(Set(resolved).count == resolved.count)
+    }
+
     @Test func randomReviewSessionStoreRoundTripsAndClearsScope() async throws {
         let suiteName = "PhotoDeleteRandomSession-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suiteName))
@@ -1117,6 +1174,41 @@ struct PhotoDeleteTests {
         #expect(Set(result.identifiersByGroupID[locationGroup.id] ?? []) == ["sh-1", "sh-2"])
     }
 
+    @Test func locationGroupingUsesCachedHumanTitle() async throws {
+        let records = [
+            PhotoLocationAssetRecord(identifier: "sh-1", latitude: 31.23, longitude: 121.47, isReviewed: false),
+            PhotoLocationAssetRecord(identifier: "sh-2", latitude: 31.24, longitude: 121.48, isReviewed: false)
+        ]
+        let groupID = PhotoLocationGrouping.groupID(latitude: 31.23, longitude: 121.47)
+
+        let result = PhotoLocationGrouping.buildGroups(
+            from: records,
+            titleCache: [
+                groupID: PhotoLocationResolvedTitle(title: "上海 · 黄浦", resolvedAt: makeDate(year: 2026, month: 6, day: 24, calendar: Calendar(identifier: .gregorian)))
+            ]
+        )
+        let locationGroup = try #require(result.groups.first { !$0.isNoLocationGroup })
+
+        #expect(locationGroup.title == "上海 · 黄浦")
+        #expect(result.representativeCoordinatesByGroupID[locationGroup.id] != nil)
+    }
+
+    @Test func locationGroupingTreatsInvalidCoordinatesAsNoLocation() async throws {
+        let records = [
+            PhotoLocationAssetRecord(identifier: "invalid-lat", latitude: 91, longitude: 121.47, isReviewed: true),
+            PhotoLocationAssetRecord(identifier: "invalid-lon", latitude: 31.23, longitude: 181, isReviewed: false),
+            PhotoLocationAssetRecord(identifier: "missing", latitude: nil, longitude: nil, isReviewed: false)
+        ]
+
+        let result = PhotoLocationGrouping.buildGroups(from: records)
+        let noLocation = try #require(result.groups.first { $0.id == PhotoLocationGrouping.noLocationID })
+
+        #expect(result.groups.count == 1)
+        #expect(noLocation.title == L10n.string("无地点信息"))
+        #expect(noLocation.assetCount == 3)
+        #expect(noLocation.reviewedCount == 1)
+    }
+
     @Test func locationGroupingLimitsVisibleLocationBuckets() async throws {
         let records = (0..<8).map { index in
             PhotoLocationAssetRecord(
@@ -1132,6 +1224,67 @@ struct PhotoDeleteTests {
         #expect(result.groups.allSatisfy { !$0.isNoLocationGroup })
     }
 
+    @Test func locationDisplayTitlePrefersLocalityAndArea() async throws {
+        let cityArea = PhotoLocationGrouping.displayTitle(
+            name: "China",
+            locality: "上海",
+            subLocality: "徐汇",
+            administrativeArea: "上海市",
+            country: "中国"
+        )
+        let regionOnly = PhotoLocationGrouping.displayTitle(
+            locality: nil,
+            subLocality: nil,
+            administrativeArea: "Île-de-France",
+            country: "France"
+        )
+
+        #expect(cityArea == "上海 · 徐汇")
+        #expect(regionOnly == "Île-de-France")
+    }
+
+    @Test func locationTitleCacheStorePersistsAndPrunes() async throws {
+        let fileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("PhotoDeleteLocationTitleCache-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+
+        let store = PhotoLocationTitleCacheStore(fileURL: fileURL)
+        store.merge([
+            "location:1:1": PhotoLocationResolvedTitle(title: "上海", resolvedAt: makeDate(year: 2026, month: 6, day: 24, calendar: Calendar(identifier: .gregorian))),
+            "location:2:2": PhotoLocationResolvedTitle(title: "杭州", resolvedAt: makeDate(year: 2026, month: 6, day: 24, calendar: Calendar(identifier: .gregorian)))
+        ])
+
+        let reloaded = PhotoLocationTitleCacheStore(fileURL: fileURL)
+        #expect(reloaded.titlesByGroupID["location:1:1"]?.title == "上海")
+        #expect(reloaded.titlesByGroupID["location:2:2"]?.title == "杭州")
+
+        reloaded.prune(keeping: ["location:2:2"])
+        let pruned = PhotoLocationTitleCacheStore(fileURL: fileURL)
+        #expect(pruned.titlesByGroupID["location:1:1"] == nil)
+        #expect(pruned.titlesByGroupID["location:2:2"]?.title == "杭州")
+    }
+
+    @Test func reviewSessionPaginatorExpandsNearEndAndClampsAtTotal() async throws {
+        #expect(PhotoReviewSessionPaginator.initialLoadedCount(totalCount: 500) == 80)
+        #expect(PhotoReviewSessionPaginator.expandedLoadedCount(totalCount: 500, currentLoadedCount: 80, currentIndex: 40) == 80)
+        #expect(PhotoReviewSessionPaginator.expandedLoadedCount(totalCount: 500, currentLoadedCount: 80, currentIndex: 75) == 160)
+        #expect(PhotoReviewSessionPaginator.expandedLoadedCount(totalCount: 120, currentLoadedCount: 80, currentIndex: 75) == 120)
+    }
+
+    @Test func visibleListPaginationFiltersBeforePagingAndClampsLimit() async throws {
+        let summaries = [
+            makePeriodSummary(index: 0, assetCount: 0),
+            makePeriodSummary(index: 1, assetCount: 12),
+            makePeriodSummary(index: 2, assetCount: 8)
+        ]
+        let filtered = VisibleListPagination.filteredItems(summaries) { $0.assetCount > 0 }
+
+        #expect(filtered.map(\.assetCount) == [12, 8])
+        #expect(VisibleListPagination.visibleItems(filtered, limit: 1).count == 1)
+        #expect(VisibleListPagination.hasMore(totalCount: filtered.count, limit: 1))
+        #expect(VisibleListPagination.advancedLimit(totalCount: filtered.count, currentLimit: 1, step: 20) == 2)
+    }
+
     @Test func memoryCaptionFormatterHandlesUnknownTodayAndPastDates() async throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
@@ -1145,6 +1298,32 @@ struct PhotoDeleteTests {
     }
 
     // MARK: - Helpers
+
+    private func makeAssetIDs(_ count: Int, prefix: String = "asset") -> [String] {
+        (0..<count).map { "\(prefix)-\($0)" }
+    }
+
+    private func makePeriodSummary(
+        index: Int,
+        scope: AdvancedTimeScope = .month,
+        assetCount: Int = 1,
+        reviewedCount: Int = 0
+    ) -> PhotoPeriodSummary {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let date = makeDate(year: 2026, month: 1 + index, day: 1, calendar: calendar)
+        let interval = calendar.dateInterval(for: scope, containing: date)
+        return PhotoPeriodSummary(
+            scope: scope,
+            intervalStart: interval.start,
+            intervalEnd: interval.end,
+            assetCount: assetCount,
+            screenshotCount: 0,
+            videoCount: 0,
+            reviewedCount: reviewedCount,
+            estimatedSizeMB: 0
+        )
+    }
 
     private func makeDate(year: Int, month: Int, day: Int, calendar: Calendar) -> Date {
         let components = DateComponents(calendar: calendar, timeZone: calendar.timeZone, year: year, month: month, day: day, hour: 12)

@@ -11,11 +11,10 @@ struct TimeOrganizeView: View {
     @EnvironmentObject var dataManager: DataManager
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var selectedScope: AdvancedTimeScope = .month
-    @State private var periodSummariesByScope: [AdvancedTimeScope: [PhotoPeriodSummary]] = [:]
-    @State private var visiblePeriodLimit = 80
+    @State private var visiblePeriodLimit = 24
 
     private let visibleScopes: [AdvancedTimeScope] = [.month]
-    private let periodLimitStep = 80
+    private let periodLimitStep = 24
 
     var body: some View {
         ZStack {
@@ -96,16 +95,18 @@ struct TimeOrganizeView: View {
     }
 
     private var allVisibleSummaries: [PhotoPeriodSummary] {
-        (periodSummariesByScope[selectedScope] ?? [])
-            .filter { $0.assetCount > 0 }
+        VisibleListPagination.filteredItems(
+            dataManager.periodSummariesByScope[selectedScope] ?? [],
+            include: { $0.assetCount > 0 }
+        )
     }
 
     private var visibleSummaries: [PhotoPeriodSummary] {
-        Array(allVisibleSummaries.prefix(visiblePeriodLimit))
+        VisibleListPagination.visibleItems(allVisibleSummaries, limit: visiblePeriodLimit)
     }
 
     private var hasMorePeriods: Bool {
-        allVisibleSummaries.count > visiblePeriodLimit
+        VisibleListPagination.hasMore(totalCount: allVisibleSummaries.count, limit: visiblePeriodLimit)
     }
 
     private var shouldShowPreparingState: Bool {
@@ -114,8 +115,9 @@ struct TimeOrganizeView: View {
             (
                 dataManager.photoLibraryManager.hasPhotoLibraryAccess &&
                 !dataManager.photoLibraryManager.hasLoadedPhotoLibrary &&
-                periodSummariesByScope.isEmpty
-            )
+                dataManager.periodSummariesByScope.isEmpty
+            ) ||
+            (dataManager.isLoadingPeriodSummaries && visibleSummaries.isEmpty)
     }
 
     private var emptyState: some View {
@@ -140,22 +142,22 @@ struct TimeOrganizeView: View {
 
     private func refreshSummaries(resetCachedScopes: Bool = false) {
         guard dataManager.photoLibraryManager.hasPhotoLibraryAccess else {
-            periodSummariesByScope = [:]
             return
         }
 
-        if resetCachedScopes {
-            periodSummariesByScope = [:]
-        }
-
-        var summaries = periodSummariesByScope
-        summaries[selectedScope] = dataManager.makePhotoPeriodSummaries(for: selectedScope)
-        periodSummariesByScope = summaries
+        dataManager.refreshPhotoPeriodSummaries(
+            for: [selectedScope],
+            resetCachedScopes: resetCachedScopes
+        )
     }
 
     private func showMorePeriods() {
         withAnimation(.easeInOut(duration: 0.18)) {
-            visiblePeriodLimit += periodLimitStep
+            visiblePeriodLimit = VisibleListPagination.advancedLimit(
+                totalCount: allVisibleSummaries.count,
+                currentLimit: visiblePeriodLimit,
+                step: periodLimitStep
+            )
         }
     }
 }

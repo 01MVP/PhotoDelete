@@ -107,16 +107,67 @@ enum PhotoRandomReviewPlanner {
 
     static func existingSessionIdentifiers(
         _ identifiers: [String],
-        keepingValid validIdentifiers: Set<String>
+        keepingValid validIdentifiers: Set<String>,
+        excluding excludedIdentifiers: Set<String> = [],
+        limit: Int = Int.max
     ) -> [String] {
+        guard limit > 0 else { return [] }
+
         var seen: Set<String> = []
-        return identifiers.compactMap { identifier in
+        var result: [String] = []
+        for identifier in identifiers {
             guard validIdentifiers.contains(identifier),
+                  !excludedIdentifiers.contains(identifier),
                   seen.insert(identifier).inserted else {
-                return nil
+                continue
             }
-            return identifier
+            result.append(identifier)
+            if result.count >= limit {
+                break
+            }
         }
+        return result
+    }
+
+    static func resolvedSessionIdentifiers(
+        existingSessionIDs: [String],
+        candidateIdentifiers: [String],
+        fallbackCandidateIdentifiers: [String] = [],
+        validIdentifiers: Set<String>,
+        excludedIdentifiers: Set<String>,
+        seed: String,
+        limit: Int
+    ) -> [String] {
+        guard limit > 0 else { return [] }
+
+        var resolved = existingSessionIdentifiers(
+            existingSessionIDs,
+            keepingValid: validIdentifiers,
+            excluding: excludedIdentifiers,
+            limit: limit
+        )
+        guard resolved.count < limit else { return resolved }
+
+        var selectedIDs = Set(resolved)
+        let primaryFill = plannedIdentifiers(
+            from: candidateIdentifiers,
+            excluding: excludedIdentifiers.union(selectedIDs),
+            seed: seed,
+            limit: limit - resolved.count
+        )
+        resolved.append(contentsOf: primaryFill)
+        selectedIDs.formUnion(primaryFill)
+
+        guard resolved.count < limit else { return resolved }
+
+        let fallbackFill = plannedIdentifiers(
+            from: fallbackCandidateIdentifiers,
+            excluding: excludedIdentifiers.union(selectedIDs),
+            seed: seed,
+            limit: limit - resolved.count
+        )
+        resolved.append(contentsOf: fallbackFill)
+        return resolved
     }
 
     private static func stableHash(seed: String, identifier: String) -> UInt64 {
@@ -228,6 +279,25 @@ struct PhotoLocationGroupInfo: Identifiable, Equatable, Hashable {
     }
 }
 
+struct PhotoLocationResolvedTitle: Codable, Equatable, Hashable, Sendable {
+    let title: String
+    let resolvedAt: Date
+    let latitude: Double?
+    let longitude: Double?
+
+    init(
+        title: String,
+        resolvedAt: Date = Date(),
+        latitude: Double? = nil,
+        longitude: Double? = nil
+    ) {
+        self.title = title
+        self.resolvedAt = resolvedAt
+        self.latitude = latitude
+        self.longitude = longitude
+    }
+}
+
 enum PhotoLocationGrouping {
     static let noLocationID = "location:none"
     static let defaultMaximumGroups = 30
@@ -236,14 +306,16 @@ enum PhotoLocationGrouping {
     struct Result {
         let groups: [PhotoLocationGroupInfo]
         let identifiersByGroupID: [String: [String]]
+        let representativeCoordinatesByGroupID: [String: CLLocationCoordinate2D]
     }
 
     static func buildGroups(
         from records: [PhotoLocationAssetRecord],
-        maximumGroups: Int = defaultMaximumGroups
+        maximumGroups: Int = defaultMaximumGroups,
+        titleCache: [String: PhotoLocationResolvedTitle] = [:]
     ) -> Result {
         guard maximumGroups > 0 else {
-            return Result(groups: [], identifiersByGroupID: [:])
+            return Result(groups: [], identifiersByGroupID: [:], representativeCoordinatesByGroupID: [:])
         }
 
         var buckets: [String: [PhotoLocationAssetRecord]] = [:]
@@ -265,12 +337,14 @@ enum PhotoLocationGrouping {
 
         var groups: [PhotoLocationGroupInfo] = []
         var cache: [String: [String]] = [:]
+        var representativeCoordinates: [String: CLLocationCoordinate2D] = [:]
 
         for (index, bucket) in sortedLocationBuckets.enumerated() {
+            let fallbackTitle = String(format: L10n.string("地点区域 %lld"), Int64(index + 1))
             groups.append(
                 PhotoLocationGroupInfo(
                     id: bucket.id,
-                    title: String(format: L10n.string("附近地点 %lld"), Int64(index + 1)),
+                    title: (titleCache[bucket.id]?.title).nilIfBlank ?? fallbackTitle,
                     subtitle: locationSubtitle(for: bucket.records),
                     assetCount: bucket.records.count,
                     reviewedCount: bucket.records.filter(\.isReviewed).count,
@@ -278,6 +352,7 @@ enum PhotoLocationGrouping {
                 )
             )
             cache[bucket.id] = bucket.records.map(\.identifier)
+            representativeCoordinates[bucket.id] = representativeCoordinate(for: bucket.records)
         }
 
         if !noLocationRecords.isEmpty {
@@ -294,7 +369,11 @@ enum PhotoLocationGrouping {
             cache[noLocationID] = noLocationRecords.map(\.identifier)
         }
 
-        return Result(groups: groups, identifiersByGroupID: cache)
+        return Result(
+            groups: groups,
+            identifiersByGroupID: cache,
+            representativeCoordinatesByGroupID: representativeCoordinates
+        )
     }
 
     static func groupID(latitude: Double?, longitude: Double?) -> String {
@@ -320,6 +399,116 @@ enum PhotoLocationGrouping {
             Int64(records.count),
             Int64(reviewedCount)
         )
+    }
+
+    private static func representativeCoordinate(for records: [PhotoLocationAssetRecord]) -> CLLocationCoordinate2D? {
+        let validCoordinates = records.compactMap { record -> CLLocationCoordinate2D? in
+            guard let latitude = record.latitude,
+                  let longitude = record.longitude,
+                  latitude >= -90,
+                  latitude <= 90,
+                  longitude >= -180,
+                  longitude <= 180 else {
+                return nil
+            }
+            return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        }
+        guard !validCoordinates.isEmpty else { return nil }
+
+        let latitude = validCoordinates.reduce(0) { $0 + $1.latitude } / Double(validCoordinates.count)
+        let longitude = validCoordinates.reduce(0) { $0 + $1.longitude } / Double(validCoordinates.count)
+        return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    }
+
+    static func displayTitle(
+        name: String? = nil,
+        locality: String?,
+        subLocality: String?,
+        administrativeArea: String?,
+        country: String?
+    ) -> String? {
+        let countryTitle = country.nilIfBlank
+        let localityParts = [locality, subLocality]
+            .compactMap { $0.nilIfBlank }
+            .uniquedPreservingOrder()
+        if !localityParts.isEmpty {
+            return localityParts.joined(separator: " · ")
+        }
+
+        if let administrativeArea = administrativeArea.nilIfBlank {
+            return administrativeArea
+        }
+
+        if let name = name.nilIfBlank,
+           name != countryTitle {
+            return name
+        }
+
+        return countryTitle
+    }
+}
+
+enum PhotoReviewSessionPaginator {
+    static let defaultInitialPageSize = 80
+    static let defaultPageSize = 80
+    static let preloadThreshold = 12
+
+    static func initialLoadedCount(totalCount: Int, initialPageSize: Int = defaultInitialPageSize) -> Int {
+        min(max(totalCount, 0), max(initialPageSize, 0))
+    }
+
+    static func expandedLoadedCount(
+        totalCount: Int,
+        currentLoadedCount: Int,
+        currentIndex: Int,
+        pageSize: Int = defaultPageSize,
+        threshold: Int = preloadThreshold
+    ) -> Int {
+        let clampedTotal = max(totalCount, 0)
+        let clampedLoaded = min(max(currentLoadedCount, 0), clampedTotal)
+        guard clampedTotal > clampedLoaded else { return clampedLoaded }
+        guard currentIndex >= max(clampedLoaded - max(threshold, 0), 0) else {
+            return clampedLoaded
+        }
+        return min(clampedTotal, clampedLoaded + max(pageSize, 0))
+    }
+}
+
+enum VisibleListPagination {
+    static func filteredItems<T>(_ items: [T], include: (T) -> Bool) -> [T] {
+        items.filter(include)
+    }
+
+    static func visibleItems<T>(_ items: [T], limit: Int) -> [T] {
+        Array(items.prefix(max(limit, 0)))
+    }
+
+    static func hasMore(totalCount: Int, limit: Int) -> Bool {
+        totalCount > max(limit, 0)
+    }
+
+    static func advancedLimit(totalCount: Int, currentLimit: Int, step: Int) -> Int {
+        min(max(totalCount, 0), max(currentLimit, 0) + max(step, 0))
+    }
+}
+
+private extension String {
+    var nilIfBlank: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+private extension Optional where Wrapped == String {
+    var nilIfBlank: String? {
+        self?.nilIfBlank
+    }
+}
+
+private extension Array where Element == String {
+    func uniquedPreservingOrder() -> [String] {
+        var seen: Set<String> = []
+        return filter { seen.insert($0).inserted }
     }
 }
 

@@ -6765,6 +6765,28 @@
         }
       }
     },
+    "支持者版已完整解锁": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supporter Fully Unlocked"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "支持者版已完整解锁"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "支持者版已完整解鎖"
+          }
+        }
+      }
+    },
     "支持者版解锁月度记录和清理历史": {
       "localizations": {
         "en": {
@@ -6951,6 +6973,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "整理全部照片"
+          }
+        }
+      }
+    },
+    "从全部照片开始，按你的节奏逐张整理。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start with your full library and organize one photo at a time."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "从全部照片开始，按你的节奏逐张整理。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "從全部照片開始，按你的節奏逐張整理。"
           }
         }
       }
@@ -8280,6 +8324,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在讀取照片"
+          }
+        }
+      }
+    },
+    "正在读取照片信息": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading Photo Info"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "正在读取照片信息"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在讀取照片資訊"
           }
         }
       }
@@ -10387,6 +10453,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "謝謝你支持這個免費的小工具繼續維護。"
+          }
+        }
+      }
+    },
+    "一次解锁，长期可用；试用状态会自动结束。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlocked once, available long term; the trial state ends automatically."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "一次解锁，长期可用；试用状态会自动结束。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一次解鎖，長期可用；試用狀態會自動結束。"
           }
         }
       }
@@ -13262,6 +13350,28 @@
         }
       }
     },
+    "已完成支持者版解锁。若是兑换码或恢复购买，联网后会自动同步购买时间。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supporter is unlocked. If this came from a code or restore, the purchase date will sync automatically when online."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "已完成支持者版解锁。若是兑换码或恢复购买，联网后会自动同步购买时间。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已完成支持者版解鎖。若是兌換碼或恢復購買，連線後會自動同步購買時間。"
+          }
+        }
+      }
+    },
     "已于 %@ 解锁支持者版。": {
       "localizations": {
         "en": {
@@ -13280,6 +13390,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "已於 %@ 解鎖支持者版。"
+          }
+        }
+      }
+    },
+    "已于 %@ 完整解锁支持者版，一次解锁长期可用。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supporter was fully unlocked on %@. One unlock stays available long term."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "已于 %@ 完整解锁支持者版，一次解锁长期可用。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已於 %@ 完整解鎖支持者版，一次解鎖長期可用。"
           }
         }
       }
@@ -16734,6 +16866,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "附近地點 %lld"
+          }
+        }
+      }
+    },
+    "地点区域 %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Location Area %lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "地点区域 %lld"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "地點區域 %lld"
           }
         }
       }

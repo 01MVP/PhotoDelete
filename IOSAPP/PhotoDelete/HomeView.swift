@@ -334,7 +334,7 @@ struct HomeView: View {
             ScanningSwipeGlyph()
 
             VStack(spacing: 8) {
-                Text(L10n.string("正在读取照片"))
+                Text(L10n.string("正在读取照片信息"))
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundColor(PhotoDeleteStyle.primaryText)
 
@@ -439,18 +439,18 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: isCompact ? 16 : 18) {
             HStack(alignment: .top, spacing: 14) {
                 PhotoDeleteIconTile(
-                    icon: "sparkles",
+                    icon: "photo.on.rectangle",
                     size: isCompact ? 42 : 48,
                     cornerRadius: 13,
                     filled: false
                 )
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(L10n.string("遇见从前"))
+                    Text(L10n.string("整理全部照片"))
                         .font(.system(size: isCompact ? 21 : 24, weight: .semibold))
                         .foregroundColor(PhotoDeleteStyle.primaryText)
 
-                    Text(L10n.string("随机翻出未整理的照片，边回忆边整理。"))
+                    Text(L10n.string("从全部照片开始，按你的节奏逐张整理。"))
                         .font(.system(size: 15, weight: .regular))
                         .foregroundColor(PhotoDeleteStyle.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -458,15 +458,26 @@ struct HomeView: View {
             }
 
             Button {
+                navigationPath.append(SwipeViewDestination.category(.all))
+            } label: {
+                HStack(spacing: 9) {
+                    Image(systemName: "photo.on.rectangle")
+                        .font(.system(size: 15, weight: .semibold))
+                    Text(L10n.string("开始整理"))
+                }
+            }
+            .photoDeletePrimaryButton()
+
+            Button {
                 navigationPath.append(SwipeViewDestination.random(.memories))
             } label: {
                 HStack(spacing: 9) {
                     Image(systemName: "sparkles")
-                        .font(.system(size: 15, weight: .semibold))
-                    Text(L10n.string("开始"))
+                        .font(.system(size: 14, weight: .semibold))
+                    Text(L10n.string("遇见从前"))
                 }
             }
-            .photoDeletePrimaryButton()
+            .photoDeleteSecondaryButton()
         }
         .padding(isCompact ? 18 : 20)
         .photoDeleteCard()

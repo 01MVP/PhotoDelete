@@ -17,7 +17,6 @@ struct AdvancedView: View {
     @State private var selectedScope: AdvancedTimeScope = .month
     @State private var selectedPeriodDate = Date()
     @State private var dashboardSnapshot = AdvancedLibrarySnapshot.demo(referenceDate: Date())
-    @State private var periodSummariesByScope: [AdvancedTimeScope: [PhotoPeriodSummary]] = [:]
     @State private var activePeriodRoute: AdvancedPeriodRoute?
     @State private var advancedRefreshWorkItem: DispatchWorkItem?
     @State private var lastDashboardRefreshKey: AdvancedDashboardRefreshKey?
@@ -158,10 +157,14 @@ struct AdvancedView: View {
     }
 
     private var visiblePeriodSummaries: [PhotoPeriodSummary] {
-        if let summaries = periodSummariesByScope[selectedScope] {
+        if isLocked {
+            return demoPeriodSummaries(for: selectedScope).filter { $0.assetCount > 0 }
+        }
+
+        if let summaries = dataManager.periodSummariesByScope[selectedScope] {
             return summaries.filter { $0.assetCount > 0 }
         }
-        return demoPeriodSummaries(for: selectedScope).filter { $0.assetCount > 0 }
+        return []
     }
 
     private var displayedAdvancedPeriodSummaries: [PhotoPeriodSummary] {
@@ -262,11 +265,19 @@ struct AdvancedView: View {
             AdvancedTimeScopePicker(selectedScope: $selectedScope)
 
             if summaries.isEmpty {
-                AdvancedEmptyState(
-                    icon: "calendar",
-                    title: L10n.string("还没有可按时间整理的照片"),
-                    subtitle: L10n.string("当前授权范围内没有带拍摄时间的照片。")
-                )
+                if !isLocked && dataManager.isLoadingPeriodSummaries {
+                    AdvancedEmptyState(
+                        icon: "clock",
+                        title: L10n.string("正在整理时间线"),
+                        subtitle: L10n.string("读取完成后会显示可整理的日期、月份和年份。")
+                    )
+                } else {
+                    AdvancedEmptyState(
+                        icon: "calendar",
+                        title: L10n.string("还没有可按时间整理的照片"),
+                        subtitle: L10n.string("当前授权范围内没有带拍摄时间的照片。")
+                    )
+                }
             } else {
                 VStack(spacing: 0) {
                     ForEach(Array(displayedAdvancedPeriodSummaries.enumerated()), id: \.element.id) { index, summary in
@@ -574,7 +585,6 @@ struct AdvancedView: View {
 
         if isLocked || !dataManager.photoLibraryManager.hasPhotoLibraryAccess {
             dashboardSnapshot = AdvancedLibrarySnapshot.demo(referenceDate: Date())
-            periodSummariesByScope = [:]
             return
         }
 
@@ -584,9 +594,7 @@ struct AdvancedView: View {
             monthSummaries: [],
             cleanupQueues: dataManager.makeAdvancedCleanupQueues()
         )
-        var summaries = periodSummariesByScope
-        summaries[selectedScope] = dataManager.makePhotoPeriodSummaries(for: selectedScope)
-        periodSummariesByScope = summaries
+        dataManager.refreshPhotoPeriodSummaries(for: [selectedScope])
     }
 }
 
@@ -1137,6 +1145,17 @@ private struct AdvancedLibraryPreparingCard: View {
 private struct AdvancedPeriodListView: View {
     @EnvironmentObject var dataManager: DataManager
     let summaries: [PhotoPeriodSummary]
+    @State private var visibleLimit = 60
+
+    private let limitStep = 60
+
+    private var visibleSummaries: [PhotoPeriodSummary] {
+        VisibleListPagination.visibleItems(summaries, limit: visibleLimit)
+    }
+
+    private var hasMore: Bool {
+        VisibleListPagination.hasMore(totalCount: summaries.count, limit: visibleLimit)
+    }
 
     var body: some View {
         ZStack {
@@ -1145,7 +1164,7 @@ private struct AdvancedPeriodListView: View {
             ScrollView {
                 LazyVStack(spacing: 16) {
                     VStack(spacing: 0) {
-                        ForEach(Array(summaries.enumerated()), id: \.element.id) { index, summary in
+                        ForEach(Array(visibleSummaries.enumerated()), id: \.element.id) { index, summary in
                             NavigationLink {
                                 AdvancedPeriodSwipeDestination(
                                     scope: summary.scope,
@@ -1157,7 +1176,7 @@ private struct AdvancedPeriodListView: View {
                             }
                             .buttonStyle(.plain)
 
-                            if index != summaries.count - 1 {
+                            if index != visibleSummaries.count - 1 {
                                 Divider()
                                     .background(PhotoDeleteStyle.hairline)
                                     .padding(.leading, 70)
@@ -1166,6 +1185,18 @@ private struct AdvancedPeriodListView: View {
                     }
                     .photoDeleteCard()
 
+                    if hasMore {
+                        Button(action: showMore) {
+                            Text(L10n.string("显示更多"))
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(PhotoDeleteStyle.accent)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                        }
+                        .buttonStyle(.plain)
+                        .photoDeleteMinimumTapTarget()
+                    }
+
                     Spacer()
                         .frame(height: 72)
                 }
@@ -1173,6 +1204,16 @@ private struct AdvancedPeriodListView: View {
             }
         }
         .advancedDetailNavigation(title: L10n.string("时间进度"))
+    }
+
+    private func showMore() {
+        withAnimation(.easeInOut(duration: 0.18)) {
+            visibleLimit = VisibleListPagination.advancedLimit(
+                totalCount: summaries.count,
+                currentLimit: visibleLimit,
+                step: limitStep
+            )
+        }
     }
 }
 
