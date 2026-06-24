@@ -9,10 +9,8 @@ import SwiftUI
 
 struct LocationOrganizeView: View {
     @EnvironmentObject var dataManager: DataManager
-    @EnvironmentObject var purchaseManager: PurchaseManager
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var selectedFilter: LocationOrganizeFilter = .all
-    @State private var showingSupporter = false
 
     var body: some View {
         ZStack {
@@ -69,34 +67,19 @@ struct LocationOrganizeView: View {
         .onReceive(dataManager.photoLibraryManager.$allPhotos) { _ in
             dataManager.loadLocationGroups()
         }
-        .sheet(isPresented: $showingSupporter) {
-            SupporterView()
-                .environmentObject(purchaseManager)
-        }
     }
 
-    @ViewBuilder
     private var locationFilterSection: some View {
-        if purchaseManager.isSupporter {
-            Picker(L10n.string("地点筛选"), selection: $selectedFilter) {
-                ForEach(LocationOrganizeFilter.allCases) { filter in
-                    Text(filter.title)
-                        .tag(filter)
-                }
-            }
-            .pickerStyle(.segmented)
-        } else {
-            LocationSupporterTeaserCard {
-                showingSupporter = true
+        Picker(L10n.string("地点筛选"), selection: $selectedFilter) {
+            ForEach(LocationOrganizeFilter.allCases) { filter in
+                Text(filter.title)
+                    .tag(filter)
             }
         }
+        .pickerStyle(.segmented)
     }
 
     private var visibleGroups: [PhotoLocationGroupInfo] {
-        guard purchaseManager.isSupporter else {
-            return dataManager.locationGroups
-        }
-
         switch selectedFilter {
         case .all:
             return dataManager.locationGroups
@@ -164,39 +147,6 @@ private enum LocationOrganizeFilter: String, CaseIterable, Identifiable {
         case .noLocation:
             return L10n.string("无地点照片")
         }
-    }
-}
-
-private struct LocationSupporterTeaserCard: View {
-    let onOpenSupporter: () -> Void
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            PhotoDeleteIconTile(icon: "line.3.horizontal.decrease.circle", tint: PhotoDeleteStyle.warning)
-
-            VStack(alignment: .leading, spacing: 7) {
-                Text(L10n.string("支持者地点筛选"))
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.primaryText)
-
-                Text(L10n.string("基础地点整理免费开放。支持者可以优先查看还没整理完的地点。"))
-                    .font(.system(size: 12, weight: .regular))
-                    .foregroundColor(PhotoDeleteStyle.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Button(action: onOpenSupporter) {
-                    Text(L10n.string("查看支持者功能"))
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(PhotoDeleteStyle.accent)
-                }
-                .buttonStyle(.plain)
-                .photoDeleteMinimumTapTarget()
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(14)
-        .photoDeleteCard()
     }
 }
 

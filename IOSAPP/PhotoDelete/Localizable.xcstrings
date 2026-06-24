@@ -17552,50 +17552,6 @@
         }
       }
     },
-    "查看支持者功能": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "View Supporter Features"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "查看支持者功能"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "查看支持者功能"
-          }
-        }
-      }
-    },
-    "基础地点整理免费开放。支持者可以优先查看还没整理完的地点。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Basic place organizing is free. Supporters can prioritize places that still need review."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "基础地点整理免费开放。支持者可以优先查看还没整理完的地点。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "基礎地點整理免費開放。支持者可以優先查看還沒整理完的地點。"
-          }
-        }
-      }
-    },
     "全部地点": {
       "localizations": {
         "en": {
@@ -17680,28 +17636,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "無地點照片"
-          }
-        }
-      }
-    },
-    "支持者地点筛选": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Supporter Place Filters"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "支持者地点筛选"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "支持者地點篩選"
           }
         }
       }
@@ -17970,24 +17904,24 @@
         }
       }
     },
-    "免费版保留随机、滑动、基础时间和地点整理；支持者版额外解锁完整时间列表、地点筛选、视频压缩、大文件清理、相似照片清理和主题切换。": {
+    "免费版保留随机、滑动、基础时间和地点整理；支持者版额外解锁完整时间列表、视频压缩、大文件清理、相似照片清理和主题切换。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Free keeps random review, swiping, and basic time and place organizing. Supporter adds full time lists, place filters, video compression, large-file cleanup, similar-photo cleanup, and themes."
+            "value": "Free keeps random review, swiping, and basic time and place organizing. Supporter adds full time lists, video compression, large-file cleanup, similar-photo cleanup, and themes."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "免费版保留随机、滑动、基础时间和地点整理；支持者版额外解锁完整时间列表、地点筛选、视频压缩、大文件清理、相似照片清理和主题切换。"
+            "value": "免费版保留随机、滑动、基础时间和地点整理；支持者版额外解锁完整时间列表、视频压缩、大文件清理、相似照片清理和主题切换。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "免費版保留隨機、滑動、基礎時間和地點整理；支持者版額外解鎖完整時間列表、地點篩選、影片壓縮、大檔案清理、相似照片清理和主題切換。"
+            "value": "免費版保留隨機、滑動、基礎時間和地點整理；支持者版額外解鎖完整時間列表、影片壓縮、大檔案清理、相似照片清理和主題切換。"
           }
         }
       }

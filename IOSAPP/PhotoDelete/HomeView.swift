@@ -677,7 +677,9 @@ struct HomeEntryRow: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .frame(minHeight: PhotoDeleteStyle.rowMinHeight)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)

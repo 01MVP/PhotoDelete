@@ -271,6 +271,17 @@ struct PhotoDeleteTests {
         #expect(SupporterEntitlementState.verificationStarted(hasCachedEntitlement: false) == .verifying)
     }
 
+    @Test func supporterPlanKeepsLocationOrganizingFree() async throws {
+        let features = SupporterPlanComparisonCard.features
+
+        #expect(features.contains { feature in
+            feature.titleID == .basicLocationOrganizing &&
+                feature.free == .included &&
+                feature.supporter == .included
+        })
+        #expect(!features.contains { $0.titleID.rawValue == "地点筛选" })
+    }
+
     @MainActor
     @Test func supporterTrialDoesNotStartAutomaticallyForNewUsers() async throws {
         let suiteName = "PhotoDeleteSupporterTrial-\(UUID().uuidString)"
