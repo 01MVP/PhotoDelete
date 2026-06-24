@@ -176,7 +176,7 @@ private struct SupporterPaywallContent: View {
             return L10n.string("免费体验 3 天进阶功能，也可以直接一次性解锁。")
         }
 
-        return L10n.string("一次性解锁完整时间列表、大文件清理、视频压缩、相似照片清理和主题切换。")
+        return L10n.string("一次性解锁完整时间列表、大文件清理、图片压缩、视频压缩、相似照片清理和主题切换。")
     }
 }
 
@@ -540,6 +540,7 @@ struct SupporterPlanComparisonCard: View {
         .init(titleID: .basicSpaceSavedStats, free: .included, supporter: .included),
         .init(titleID: .fullTimeList, free: .notIncluded, supporter: .included),
         .init(titleID: .largeFileCleanup, free: .notIncluded, supporter: .included),
+        .init(titleID: .imageCompression, free: .notIncluded, supporter: .included),
         .init(titleID: .videoCompression, free: .notIncluded, supporter: .included),
         .init(titleID: .similarPhotoCleanup, free: .notIncluded, supporter: .included),
         .init(titleID: .themeSwitching, free: .notIncluded, supporter: .included)
@@ -597,6 +598,7 @@ enum SupporterPlanFeatureTitle: String {
     case basicSpaceSavedStats = "基础节省空间统计"
     case fullTimeList = "完整时间列表"
     case largeFileCleanup = "大文件清理"
+    case imageCompression = "图片压缩"
     case videoCompression = "视频压缩"
     case similarPhotoCleanup = "相似照片清理"
     case themeSwitching = "主题切换"
@@ -612,6 +614,7 @@ enum SupporterPlanFeatureTitle: String {
         case .basicSpaceSavedStats: return L10n.string("基础节省空间统计")
         case .fullTimeList: return L10n.string("完整时间列表")
         case .largeFileCleanup: return L10n.string("大文件清理")
+        case .imageCompression: return L10n.string("图片压缩")
         case .videoCompression: return L10n.string("视频压缩")
         case .similarPhotoCleanup: return L10n.string("相似照片清理")
         case .themeSwitching: return L10n.string("主题切换")
@@ -700,7 +703,7 @@ struct SupporterBenefitsSheet: View {
 
                 ScrollView {
                     VStack(spacing: 16) {
-                        Text(L10n.string("免费版保留随机、滑动、基础时间和地点整理；支持者版额外解锁完整时间列表、视频压缩、大文件清理、相似照片清理和主题切换。"))
+                        Text(L10n.string("免费版保留随机、滑动、基础时间和地点整理；支持者版额外解锁完整时间列表、图片压缩、视频压缩、大文件清理、相似照片清理和主题切换。"))
                             .font(.system(size: 14, weight: .regular))
                             .foregroundColor(PhotoDeleteStyle.secondaryText)
                             .frame(maxWidth: .infinity, alignment: .leading)

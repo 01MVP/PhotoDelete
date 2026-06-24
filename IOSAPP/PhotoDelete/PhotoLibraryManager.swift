@@ -1,9 +1,11 @@
 import Foundation
 import AVFoundation
+import ImageIO
 import Photos
 import PhotosUI
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 struct PhotoLibraryImageResult {
     let image: UIImage?
@@ -245,6 +247,209 @@ struct VideoCompressionResult {
 }
 
 private struct VideoCompressionOutput {
+    let url: URL
+    let outputDimensions: CGSize
+}
+
+enum ImageCompressionQuality: String, CaseIterable, Identifiable {
+    case high
+    case balanced
+    case spaceSaving
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .high:
+            return L10n.string("细节优先")
+        case .balanced:
+            return L10n.string("均衡推荐")
+        case .spaceSaving:
+            return L10n.string("节省空间")
+        }
+    }
+
+    var compactTitle: String {
+        switch self {
+        case .high:
+            return L10n.string("细节")
+        case .balanced:
+            return L10n.string("均衡")
+        case .spaceSaving:
+            return L10n.string("省空间")
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .high:
+            return L10n.string("保留更多细节，适合重要照片。")
+        case .balanced:
+            return L10n.string("画质和体积的默认平衡，适合大多数照片。")
+        case .spaceSaving:
+            return L10n.string("更明显压缩体积，适合备份或低重要性图片。")
+        }
+    }
+
+    var jpegQuality: CGFloat {
+        switch self {
+        case .high:
+            return 0.88
+        case .balanced:
+            return 0.76
+        case .spaceSaving:
+            return 0.62
+        }
+    }
+
+    var estimatedSavingsRatio: Double {
+        switch self {
+        case .high:
+            return 0.18
+        case .balanced:
+            return 0.34
+        case .spaceSaving:
+            return 0.48
+        }
+    }
+}
+
+enum ImageCompressionSize: String, CaseIterable, Identifiable {
+    case original
+    case automatic
+    case large
+    case medium
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .original:
+            return L10n.string("原尺寸")
+        case .automatic:
+            return L10n.string("自动")
+        case .large:
+            return L10n.string("2400px")
+        case .medium:
+            return L10n.string("1600px")
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .original:
+            return L10n.string("不改变尺寸，只调整图片编码质量。")
+        case .automatic:
+            return L10n.string("超大图片缩到 2400px，较小图片保持原尺寸。")
+        case .large:
+            return L10n.string("适合日常照片备份，细节和体积更平衡。")
+        case .medium:
+            return L10n.string("适合聊天分享和低重要性图片，空间优先。")
+        }
+    }
+
+    var maxLongEdge: CGFloat? {
+        switch self {
+        case .original:
+            return nil
+        case .automatic, .large:
+            return 2_400
+        case .medium:
+            return 1_600
+        }
+    }
+
+    func targetPixelSize(for originalSize: CGSize) -> CGSize {
+        let width = max(originalSize.width, 1)
+        let height = max(originalSize.height, 1)
+        let longEdge = max(width, height)
+
+        switch self {
+        case .original:
+            return CGSize(width: width.rounded(), height: height.rounded())
+        case .automatic:
+            guard longEdge > 3_000 else {
+                return CGSize(width: width.rounded(), height: height.rounded())
+            }
+        case .large, .medium:
+            guard let maxLongEdge, longEdge > maxLongEdge else {
+                return CGSize(width: width.rounded(), height: height.rounded())
+            }
+        }
+
+        guard let targetLongEdge = maxLongEdge else {
+            return CGSize(width: width.rounded(), height: height.rounded())
+        }
+        let scale = targetLongEdge / longEdge
+        return CGSize(width: (width * scale).rounded(), height: (height * scale).rounded())
+    }
+}
+
+struct ImageCompressionPlan: Equatable {
+    var quality: ImageCompressionQuality
+    var size: ImageCompressionSize
+
+    static let `default` = ImageCompressionPlan(quality: .balanced, size: .automatic)
+
+    var title: String {
+        "\(quality.title) · \(size.title)"
+    }
+}
+
+struct ImageCompressionEstimate: Equatable {
+    let originalSizeMB: Double
+    let estimatedCompressedLowMB: Double
+    let estimatedCompressedHighMB: Double
+
+    var estimatedSavedLowMB: Double {
+        max(originalSizeMB - estimatedCompressedHighMB, 0)
+    }
+
+    var estimatedSavedHighMB: Double {
+        max(originalSizeMB - estimatedCompressedLowMB, 0)
+    }
+
+    var estimatedCompressedMidMB: Double {
+        (estimatedCompressedLowMB + estimatedCompressedHighMB) / 2
+    }
+
+    var estimatedSavedMidMB: Double {
+        max(originalSizeMB - estimatedCompressedMidMB, 0)
+    }
+
+    var formattedOriginalSize: String {
+        CleanupStatsFormatter.space(originalSizeMB)
+    }
+
+    var formattedCompressedRange: String {
+        if abs(estimatedCompressedHighMB - estimatedCompressedLowMB) < 0.5 {
+            return CleanupStatsFormatter.space(estimatedCompressedMidMB)
+        }
+        return "\(CleanupStatsFormatter.space(estimatedCompressedLowMB)) - \(CleanupStatsFormatter.space(estimatedCompressedHighMB))"
+    }
+
+    var formattedSavedRange: String {
+        if abs(estimatedSavedHighMB - estimatedSavedLowMB) < 0.5 {
+            return CleanupStatsFormatter.space(estimatedSavedMidMB)
+        }
+        return "\(CleanupStatsFormatter.space(estimatedSavedLowMB)) - \(CleanupStatsFormatter.space(estimatedSavedHighMB))"
+    }
+}
+
+struct ImageCompressionResult {
+    let originalAssetIdentifier: String
+    let createdAssetIdentifier: String?
+    let originalSizeMB: Double
+    let compressedSizeMB: Double
+    let originalDimensions: CGSize
+    let outputDimensions: CGSize
+
+    var savedSizeMB: Double {
+        max(originalSizeMB - compressedSizeMB, 0)
+    }
+}
+
+private struct ImageCompressionOutput {
     let url: URL
     let outputDimensions: CGSize
 }
@@ -1041,6 +1246,55 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         )
     }
 
+    func compressImage(
+        _ asset: PHAsset,
+        plan: ImageCompressionPlan,
+        progressHandler: (@MainActor @Sendable (Double, String) -> Void)? = nil
+    ) async throws -> ImageCompressionResult {
+        guard hasPhotoLibraryAccess else {
+            throw ImageCompressionError.noLibraryAccess
+        }
+
+        guard asset.mediaType == .image else {
+            throw ImageCompressionError.notImage
+        }
+
+        guard !asset.mediaSubtypes.contains(.photoLive) else {
+            throw ImageCompressionError.livePhotoUnsupported
+        }
+
+        await progressHandler?(0.04, L10n.string("正在读取原图信息"))
+        let imageData = try await requestImageData(for: asset)
+        let originalSizeMB = max(Double(imageData.count) / 1_048_576, 0)
+        await progressHandler?(0.22, L10n.string("正在准备压缩参数"))
+        let output = try await exportCompressedImage(
+            from: imageData,
+            originalAsset: asset,
+            plan: plan,
+            progressHandler: progressHandler
+        )
+        defer {
+            try? FileManager.default.removeItem(at: output.url)
+        }
+
+        let compressedSizeMB = try compressedImageFileSizeMB(at: output.url)
+        guard compressedSizeMB < originalSizeMB else {
+            throw ImageCompressionError.notWorthCompressing
+        }
+
+        await progressHandler?(0.88, L10n.string("正在保存压缩副本"))
+        let createdAssetIdentifier = try await saveCompressedImage(at: output.url, originalAsset: asset)
+        await progressHandler?(1, L10n.string("压缩副本已保存"))
+        return ImageCompressionResult(
+            originalAssetIdentifier: asset.localIdentifier,
+            createdAssetIdentifier: createdAssetIdentifier,
+            originalSizeMB: originalSizeMB,
+            compressedSizeMB: compressedSizeMB,
+            originalDimensions: CGSize(width: asset.pixelWidth, height: asset.pixelHeight),
+            outputDimensions: output.outputDimensions
+        )
+    }
+
     func videoFileSizeEstimate(for asset: PHAsset) async throws -> VideoFileSizeEstimate {
         guard asset.mediaType == .video else {
             throw VideoCompressionError.notVideo
@@ -1776,6 +2030,128 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         }
     }
 
+    private func requestImageData(for asset: PHAsset) async throws -> Data {
+        try await withCheckedThrowingContinuation { continuation in
+            let options = PHImageRequestOptions()
+            options.deliveryMode = .highQualityFormat
+            options.version = .current
+            options.isNetworkAccessAllowed = true
+            options.isSynchronous = false
+
+            imageManager.requestImageDataAndOrientation(for: asset, options: options) { data, _, _, info in
+                let isCancelled = (info?[PHImageCancelledKey] as? Bool) == true
+                guard !isCancelled else {
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
+
+                guard let data, !data.isEmpty else {
+                    continuation.resume(throwing: ImageCompressionError.imageUnavailable)
+                    return
+                }
+
+                continuation.resume(returning: data)
+            }
+        }
+    }
+
+    private func exportCompressedImage(
+        from imageData: Data,
+        originalAsset: PHAsset,
+        plan: ImageCompressionPlan,
+        progressHandler: (@MainActor @Sendable (Double, String) -> Void)?
+    ) async throws -> ImageCompressionOutput {
+        guard let source = CGImageSourceCreateWithData(imageData as CFData, nil) else {
+            throw ImageCompressionError.imageUnavailable
+        }
+
+        let originalSize = imagePixelSize(from: source, fallbackAsset: originalAsset)
+        let targetSize = plan.size.targetPixelSize(for: originalSize)
+        let maxPixelSize = max(Int(max(targetSize.width, targetSize.height).rounded()), 1)
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("PhotoDelete-Image-Compressed-\(UUID().uuidString)")
+            .appendingPathExtension("jpg")
+
+        try? FileManager.default.removeItem(at: outputURL)
+
+        await progressHandler?(0.42, L10n.string("正在压缩图片"))
+        let thumbnailOptions: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: false,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize
+        ]
+
+        guard let outputImage = CGImageSourceCreateThumbnailAtIndex(source, 0, thumbnailOptions as CFDictionary),
+              let destination = CGImageDestinationCreateWithURL(
+                outputURL as CFURL,
+                UTType.jpeg.identifier as CFString,
+                1,
+                nil
+              ) else {
+            throw ImageCompressionError.exportFailed
+        }
+
+        let destinationProperties: [CFString: Any] = [
+            kCGImageDestinationLossyCompressionQuality: plan.quality.jpegQuality
+        ]
+        CGImageDestinationAddImage(destination, outputImage, destinationProperties as CFDictionary)
+        guard CGImageDestinationFinalize(destination) else {
+            throw ImageCompressionError.exportFailed
+        }
+
+        await progressHandler?(0.78, L10n.string("正在确认压缩结果"))
+        return ImageCompressionOutput(
+            url: outputURL,
+            outputDimensions: CGSize(width: outputImage.width, height: outputImage.height)
+        )
+    }
+
+    private func imagePixelSize(from source: CGImageSource, fallbackAsset asset: PHAsset) -> CGSize {
+        guard let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any] else {
+            return CGSize(width: asset.pixelWidth, height: asset.pixelHeight)
+        }
+
+        let width = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.doubleValue ?? Double(asset.pixelWidth)
+        let height = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.doubleValue ?? Double(asset.pixelHeight)
+        return CGSize(width: max(width, 1), height: max(height, 1))
+    }
+
+    private func compressedImageFileSizeMB(at url: URL) throws -> Double {
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        guard let bytes = attributes[.size] as? NSNumber else {
+            throw ImageCompressionError.exportFailed
+        }
+        return max(bytes.doubleValue / 1_048_576, 0)
+    }
+
+    private func saveCompressedImage(at url: URL, originalAsset: PHAsset) async throws -> String? {
+        guard hasPhotoLibraryAccess else {
+            throw ImageCompressionError.noLibraryAccess
+        }
+
+        return try await withCheckedThrowingContinuation { continuation in
+            var createdAssetIdentifier: String?
+            let resourceOptions = PHAssetResourceCreationOptions()
+            resourceOptions.uniformTypeIdentifier = UTType.jpeg.identifier
+
+            expectLocalLibraryChange()
+            PHPhotoLibrary.shared().performChanges({
+                let request = PHAssetCreationRequest.forAsset()
+                request.creationDate = originalAsset.creationDate
+                request.location = originalAsset.location
+                request.addResource(with: .photo, fileURL: url, options: resourceOptions)
+                createdAssetIdentifier = request.placeholderForCreatedAsset?.localIdentifier
+            }) { success, _ in
+                if success {
+                    continuation.resume(returning: createdAssetIdentifier)
+                } else {
+                    continuation.resume(throwing: ImageCompressionError.saveFailed)
+                }
+            }
+        }
+    }
+
     private func expectLocalLibraryChange() {
         let updateCounter = { [weak self] in
             guard let self else { return }
@@ -2172,6 +2548,35 @@ private enum VideoCompressionError: LocalizedError {
             return L10n.string("视频压缩失败，请稍后再试。")
         case .saveFailed:
             return L10n.string("无法保存压缩视频")
+        }
+    }
+}
+
+private enum ImageCompressionError: LocalizedError {
+    case noLibraryAccess
+    case notImage
+    case livePhotoUnsupported
+    case imageUnavailable
+    case exportFailed
+    case notWorthCompressing
+    case saveFailed
+
+    var errorDescription: String? {
+        switch self {
+        case .noLibraryAccess:
+            return L10n.string("当前照片权限不可用")
+        case .notImage:
+            return L10n.string("这个项目不是图片")
+        case .livePhotoUnsupported:
+            return L10n.string("实况照片暂不参与图片压缩")
+        case .imageUnavailable:
+            return L10n.string("无法读取这张图片")
+        case .exportFailed:
+            return L10n.string("图片压缩失败，请稍后再试。")
+        case .notWorthCompressing:
+            return L10n.string("这张图片已经足够小")
+        case .saveFailed:
+            return L10n.string("无法保存压缩图片")
         }
     }
 }

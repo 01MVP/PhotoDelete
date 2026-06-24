@@ -39,11 +39,13 @@ class DataManager: ObservableObject {
     @Published var albumLoadingProgress: Double = 0
     @Published private(set) var cleanupStatsRevision = UUID()
     @Published private(set) var videoCompressionHistoryRevision = UUID()
+    @Published private(set) var imageCompressionHistoryRevision = UUID()
     @Published private(set) var reviewedAssetIDs: Set<String> = []
     @Published private(set) var periodSummariesByScope: [AdvancedTimeScope: [PhotoPeriodSummary]] = [:]
     @Published private(set) var isLoadingPeriodSummaries = false
     let cleanupStatsStore: CleanupStatsStore
     let videoCompressionHistoryStore: VideoCompressionHistoryStore
+    let imageCompressionHistoryStore: ImageCompressionHistoryStore
     private let locationTitleCacheStore: PhotoLocationTitleCacheStore
     private let userDefaults: UserDefaults
     private let albumSnapshotStore = AlbumListSnapshotStore()
@@ -107,11 +109,13 @@ class DataManager: ObservableObject {
     init(
         cleanupStatsStore: CleanupStatsStore = CleanupStatsStore(),
         videoCompressionHistoryStore: VideoCompressionHistoryStore = VideoCompressionHistoryStore(),
+        imageCompressionHistoryStore: ImageCompressionHistoryStore = ImageCompressionHistoryStore(),
         locationTitleCacheStore: PhotoLocationTitleCacheStore = PhotoLocationTitleCacheStore(),
         userDefaults: UserDefaults = .standard
     ) {
         self.cleanupStatsStore = cleanupStatsStore
         self.videoCompressionHistoryStore = videoCompressionHistoryStore
+        self.imageCompressionHistoryStore = imageCompressionHistoryStore
         self.locationTitleCacheStore = locationTitleCacheStore
         self.userDefaults = userDefaults
         loadReviewedAssetIDs()
@@ -470,6 +474,26 @@ class DataManager: ObservableObject {
         videoCompressionHistoryRevision = UUID()
     }
 
+    func recordImageCompressionSession(
+        imageCount: Int,
+        failedCount: Int,
+        originalSizeMB: Double,
+        compressedSizeMB: Double,
+        date: Date = Date(),
+        items: [ImageCompressionSessionItem] = []
+    ) {
+        guard imageCompressionHistoryStore.recordSession(
+            imageCount: imageCount,
+            failedCount: failedCount,
+            originalSizeMB: originalSizeMB,
+            compressedSizeMB: compressedSizeMB,
+            date: date,
+            items: items
+        ) != nil else { return }
+
+        imageCompressionHistoryRevision = UUID()
+    }
+
     private func refreshDerivedLibraryData() {
         pruneReviewedAssetIDs()
         restorePendingCandidatesFromSavedIDs()
@@ -762,6 +786,8 @@ class DataManager: ObservableObject {
             return similarPhotoCandidates(maxCount: 240)
         case .largeFiles:
             return largeFileCandidates(maxCount: 240)
+        case .imageCompression:
+            return imageCompressionCandidates(maxCount: 240)
         case .videoCompression:
             return videoCompressionCandidates(maxCount: 240)
         case .videos:
@@ -922,6 +948,7 @@ class DataManager: ObservableObject {
     func makeAdvancedCleanupQueues() -> [AdvancedCleanupQueue] {
         let similarGroups = makeSimilarPhotoGroups(maxGroups: 120)
         let largeFiles = largeFileCandidates(maxCount: 240)
+        let imageCompressionCandidates = imageCompressionCandidates(maxCount: 240)
         let videoCompressionCandidates = videoCompressionCandidates(maxCount: 240)
         let videos = photoLibraryManager.videos
 
@@ -935,6 +962,11 @@ class DataManager: ObservableObject {
                 kind: .largeFiles,
                 assetCount: largeFiles.count,
                 estimatedSpaceMB: largeFiles.reduce(0) { $0 + estimatedAssetSizeMB($1) }
+            ),
+            AdvancedCleanupQueue(
+                kind: .imageCompression,
+                assetCount: imageCompressionCandidates.count,
+                estimatedSpaceMB: estimatedImageCompressionEstimate(for: imageCompressionCandidates).estimatedSavedMidMB
             ),
             AdvancedCleanupQueue(
                 kind: .videoCompression,
@@ -1020,10 +1052,66 @@ class DataManager: ObservableObject {
         }.prefix(maxCount))
     }
 
+    private func imageCompressionCandidates(maxCount: Int) -> [PHAsset] {
+        let processedIDs = Set(imageCompressionHistoryStore.sessions.flatMap { session in
+            session.items.flatMap { item in
+                [item.originalAssetIdentifier, item.createdAssetIdentifier].compactMap { $0 }
+            }
+        })
+        let candidates = photoLibraryManager.allPhotos.filter { asset in
+            asset.mediaType == .image &&
+                !asset.mediaSubtypes.contains(.photoLive) &&
+                !processedIDs.contains(asset.localIdentifier) &&
+                estimatedAssetSizeMB(asset) >= 2
+        }
+        let source = candidates.isEmpty
+            ? photoLibraryManager.allPhotos.filter {
+                $0.mediaType == .image &&
+                    !$0.mediaSubtypes.contains(.photoLive) &&
+                    !processedIDs.contains($0.localIdentifier)
+            }
+            : candidates
+
+        return Array(source.sorted {
+            estimatedAssetSizeMB($0) > estimatedAssetSizeMB($1)
+        }.prefix(maxCount))
+    }
+
     private func videoCompressionCandidates(maxCount: Int) -> [PHAsset] {
         Array(photoLibraryManager.videos.sorted {
             estimatedAssetSizeMB($0) > estimatedAssetSizeMB($1)
         }.prefix(maxCount))
+    }
+
+    func estimatedImageCompressionSavingsMB(
+        for assets: [PHAsset],
+        plan: ImageCompressionPlan = .default
+    ) -> Double {
+        estimatedImageCompressionEstimate(for: assets, plan: plan).estimatedSavedMidMB
+    }
+
+    func estimatedImageCompressionEstimate(
+        for assets: [PHAsset],
+        plan: ImageCompressionPlan = .default,
+        knownOriginalSizeMBByAssetID: [String: Double] = [:]
+    ) -> ImageCompressionEstimate {
+        let originalSize = assets.reduce(0) { total, asset in
+            total + originalSizeMB(for: asset, knownOriginalSizeMBByAssetID: knownOriginalSizeMBByAssetID)
+        }
+        let estimatedMidCompressedSize = assets.reduce(0) { total, asset in
+            total + estimatedCompressedImageSizeMB(
+                for: asset,
+                plan: plan,
+                knownOriginalSizeMBByAssetID: knownOriginalSizeMBByAssetID
+            )
+        }
+        let lowerBound = max(estimatedMidCompressedSize * 0.84, originalSize * 0.04)
+        let upperBound = min(estimatedMidCompressedSize * 1.18, originalSize * 0.98)
+        return ImageCompressionEstimate(
+            originalSizeMB: originalSize,
+            estimatedCompressedLowMB: min(lowerBound, upperBound),
+            estimatedCompressedHighMB: max(lowerBound, upperBound)
+        )
     }
 
     func estimatedVideoCompressionSavingsMB(
@@ -1115,6 +1203,22 @@ class DataManager: ObservableObject {
             0.96,
             max(0.10, plan.quality.targetVideoBitrateMultiplier * pixelRatio * videoPortion + audioAndContainerPortion)
         )
+        return originalSize * compressedRatio
+    }
+
+    private func estimatedCompressedImageSizeMB(
+        for asset: PHAsset,
+        plan: ImageCompressionPlan,
+        knownOriginalSizeMBByAssetID: [String: Double]
+    ) -> Double {
+        let originalSize = originalSizeMB(for: asset, knownOriginalSizeMBByAssetID: knownOriginalSizeMBByAssetID)
+        let sourceSize = CGSize(width: max(asset.pixelWidth, 1), height: max(asset.pixelHeight, 1))
+        let outputSize = plan.size.targetPixelSize(for: sourceSize)
+        let sourcePixelCount = max(sourceSize.width * sourceSize.height, 1)
+        let outputPixelCount = max(outputSize.width * outputSize.height, 1)
+        let pixelRatio = min(max(outputPixelCount / sourcePixelCount, 0.10), 1)
+        let qualityRatio = max(1 - plan.quality.estimatedSavingsRatio, 0.20)
+        let compressedRatio = min(0.96, max(0.08, qualityRatio * pixelRatio + 0.06))
         return originalSize * compressedRatio
     }
 

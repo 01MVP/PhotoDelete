@@ -284,6 +284,17 @@ struct PhotoDeleteTests {
     }
 
     @MainActor
+    @Test func supporterPlanIncludesImageCompressionAsSupporterFeature() async throws {
+        let features = SupporterPlanComparisonCard.features
+
+        #expect(features.contains { feature in
+            feature.titleID == .imageCompression &&
+                feature.free == .notIncluded &&
+                feature.supporter == .included
+        })
+    }
+
+    @MainActor
     @Test func supporterTrialDoesNotStartAutomaticallyForNewUsers() async throws {
         let suiteName = "PhotoDeleteSupporterTrial-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suiteName))
@@ -677,6 +688,91 @@ struct PhotoDeleteTests {
         #expect(VideoCompressionQuality.balanced.targetVideoBitrateMultiplier > VideoCompressionQuality.spaceSaving.targetVideoBitrateMultiplier)
         #expect(VideoCompressionQuality.high.estimatedSavingsRatio < VideoCompressionQuality.balanced.estimatedSavingsRatio)
         #expect(VideoCompressionQuality.balanced.estimatedSavingsRatio < VideoCompressionQuality.spaceSaving.estimatedSavingsRatio)
+    }
+
+    // MARK: - ImageCompressionHistoryStore tests
+
+    @Test func imageCompressionHistoryStoreRecordsAndPersistsSessions() async throws {
+        let fileURL = temporaryStatsURL()
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+
+        let store = ImageCompressionHistoryStore(fileURL: fileURL)
+        let date = makeDate(year: 2026, month: 6, day: 25, calendar: Calendar(identifier: .gregorian))
+        let item = ImageCompressionSessionItem(
+            originalAssetIdentifier: "original-image",
+            createdAssetIdentifier: "compressed-image",
+            originalSizeMB: 12,
+            compressedSizeMB: 5
+        )
+        store.recordSession(
+            imageCount: 3,
+            failedCount: 1,
+            originalSizeMB: 30,
+            compressedSizeMB: 14,
+            date: date,
+            items: [item]
+        )
+
+        #expect(store.sessions.count == 1)
+        #expect(store.summary.imageCount == 3)
+        #expect(store.summary.failedCount == 1)
+        #expect(store.summary.savedSizeMB == 16)
+        #expect(store.sessions[0].formattedSavedSize == "16.0 MB")
+        #expect(store.sessions[0].items == [item])
+
+        let reloadedStore = ImageCompressionHistoryStore(fileURL: fileURL)
+        #expect(reloadedStore.sessions.count == 1)
+        #expect(reloadedStore.summary.compressedSizeMB == 14)
+        #expect(reloadedStore.sessions[0].items.first?.createdAssetIdentifier == "compressed-image")
+    }
+
+    @Test func dataManagerRecordsImageCompressionHistoryAndUpdatesRevision() async throws {
+        let statsURL = temporaryStatsURL()
+        let videoHistoryURL = temporaryStatsURL()
+        let imageHistoryURL = temporaryStatsURL()
+        defer {
+            try? FileManager.default.removeItem(at: statsURL)
+            try? FileManager.default.removeItem(at: videoHistoryURL)
+            try? FileManager.default.removeItem(at: imageHistoryURL)
+        }
+
+        let historyStore = ImageCompressionHistoryStore(fileURL: imageHistoryURL)
+        let dm = DataManager(
+            cleanupStatsStore: CleanupStatsStore(fileURL: statsURL),
+            videoCompressionHistoryStore: VideoCompressionHistoryStore(fileURL: videoHistoryURL),
+            imageCompressionHistoryStore: historyStore
+        )
+        let initialRevision = dm.imageCompressionHistoryRevision
+
+        dm.recordImageCompressionSession(
+            imageCount: 2,
+            failedCount: 0,
+            originalSizeMB: 18,
+            compressedSizeMB: 9
+        )
+
+        #expect(dm.imageCompressionHistoryRevision != initialRevision)
+        #expect(historyStore.sessions.count == 1)
+        #expect(historyStore.summary.savedSizeMB == 9)
+    }
+
+    @Test func imageCompressionSizeDownscalesWithoutUpscaling() async throws {
+        let large = CGSize(width: 4_032, height: 3_024)
+        let small = CGSize(width: 1_200, height: 900)
+
+        #expect(ImageCompressionSize.original.targetPixelSize(for: large) == large)
+        #expect(ImageCompressionSize.automatic.targetPixelSize(for: large) == CGSize(width: 2_400, height: 1_800))
+        #expect(ImageCompressionSize.large.targetPixelSize(for: large) == CGSize(width: 2_400, height: 1_800))
+        #expect(ImageCompressionSize.medium.targetPixelSize(for: large) == CGSize(width: 1_600, height: 1_200))
+        #expect(ImageCompressionSize.automatic.targetPixelSize(for: small) == small)
+        #expect(ImageCompressionSize.large.targetPixelSize(for: small) == small)
+    }
+
+    @Test func imageCompressionQualityRatiosAreOrdered() async throws {
+        #expect(ImageCompressionQuality.high.jpegQuality > ImageCompressionQuality.balanced.jpegQuality)
+        #expect(ImageCompressionQuality.balanced.jpegQuality > ImageCompressionQuality.spaceSaving.jpegQuality)
+        #expect(ImageCompressionQuality.high.estimatedSavingsRatio < ImageCompressionQuality.balanced.estimatedSavingsRatio)
+        #expect(ImageCompressionQuality.balanced.estimatedSavingsRatio < ImageCompressionQuality.spaceSaving.estimatedSavingsRatio)
     }
 
     // MARK: - Advanced feature models

@@ -402,6 +402,9 @@ struct AdvancedView: View {
         case .similarPhotos:
             AdvancedSimilarPhotoGroupsView()
                 .environmentObject(dataManager)
+        case .imageCompression:
+            AdvancedImageCompressionView()
+                .environmentObject(dataManager)
         case .videoCompression:
             AdvancedVideoCompressionView()
                 .environmentObject(dataManager)
@@ -854,6 +857,8 @@ private struct AdvancedCleanupEntryRow: View {
 
     private var detailText: String {
         switch queue.kind {
+        case .imageCompression:
+            return String(format: L10n.string("%lld 项 · 选择后估算节省空间 · %@"), Int64(queue.assetCount), queue.kind.subtitle)
         case .videoCompression:
             return String(format: L10n.string("%lld 项 · 选择后估算节省空间 · %@"), Int64(queue.assetCount), queue.kind.subtitle)
         case .videos:
@@ -1050,7 +1055,7 @@ private struct AdvancedBottomPaywall: View {
             return L10n.string("免费体验 3 天进阶功能，也可以直接一次性解锁。")
         }
 
-        return L10n.string("一次性解锁完整时间列表、大文件清理、视频压缩、相似照片清理和主题切换。")
+        return L10n.string("一次性解锁完整时间列表、大文件清理、图片压缩、视频压缩、相似照片清理和主题切换。")
     }
 }
 
@@ -1410,6 +1415,8 @@ private struct AdvancedAssetListView: View {
         switch mode {
         case .cleanup(.largeFiles):
             return L10n.string("共 \(filteredAssets.count) 个大文件")
+        case .cleanup(.imageCompression):
+            return L10n.string("共 \(filteredAssets.count) 张可压缩图片")
         case .cleanup(.videoCompression):
             return L10n.string("共 \(filteredAssets.count) 个可压缩视频")
         case .cleanup(.videos):
@@ -1426,6 +1433,8 @@ private struct AdvancedAssetListView: View {
                 return String(format: L10n.string("部分视频大小会在处理时确认，已知约 %@。"), CleanupStatsFormatter.space(filteredTotalSizeMB))
             }
             return L10n.string("按占用空间从大到小排序，合计约 \(CleanupStatsFormatter.space(filteredTotalSizeMB))。")
+        case .cleanup(.imageCompression):
+            return L10n.string("选择要压缩的图片，合计约 \(CleanupStatsFormatter.space(filteredTotalSizeMB))。")
         case .cleanup(.videoCompression):
             return L10n.string("选择要压缩的视频，合计约 \(CleanupStatsFormatter.space(filteredTotalSizeMB))。")
         case .cleanup(.videos):
@@ -1593,6 +1602,1290 @@ private struct AdvancedAssetListView: View {
     private func pruneSelectionToFilteredAssets() {
         let visibleIDs = Set(filteredAssets.map(\.localIdentifier))
         selectedAssetIDs = selectedAssetIDs.filter { visibleIDs.contains($0) }
+    }
+}
+
+private struct AdvancedImageCompressionView: View {
+    @EnvironmentObject var dataManager: DataManager
+    @State private var assets: [PHAsset] = []
+    @State private var selectedAssetIDs: Set<String> = []
+    @State private var compressionPlan: ImageCompressionPlan = .default
+    @State private var isCompressing = false
+    @State private var processedImageCount = 0
+    @State private var compressionTotalCount = 0
+    @State private var currentCompressionProgress: Double = 0
+    @State private var currentCompressionMessage: String?
+    @State private var compressionErrorMessage: String?
+    @State private var compressionResult: AdvancedImageCompressionResult?
+    @State private var showingCompressionComparison = false
+    @State private var dismissCompressionResultAfterBatch = false
+    @State private var previewAsset: AdvancedPreviewAsset?
+    @State private var showBatchConfirm = false
+    @State private var compressionOptionsContext: AdvancedImageCompressionOptionsContext?
+    @State private var compressionTask: Task<Void, Never>?
+
+    private var selectedAssets: [PHAsset] {
+        compressibleAssets.filter { selectedAssetIDs.contains($0.localIdentifier) }
+    }
+
+    private var compressibleAssets: [PHAsset] {
+        assets.filter { !processedImageAssetIDs.contains($0.localIdentifier) }
+    }
+
+    private var isAllSelected: Bool {
+        !compressibleAssets.isEmpty && compressibleAssets.allSatisfy { selectedAssetIDs.contains($0.localIdentifier) }
+    }
+
+    private var processedImageAssetIDs: Set<String> {
+        compressedOriginalAssetIDs.union(compressedImageAssetIDs)
+    }
+
+    private var compressedOriginalAssetIDs: Set<String> {
+        Set(dataManager.imageCompressionHistoryStore.sessions.flatMap { session in
+            session.items.map(\.originalAssetIdentifier)
+        })
+    }
+
+    private var compressedImageAssetIDs: Set<String> {
+        Set(dataManager.imageCompressionHistoryStore.sessions.flatMap { session in
+            session.items.compactMap(\.createdAssetIdentifier)
+        })
+    }
+
+    private var imageListSizeSummary: String {
+        guard !compressibleAssets.isEmpty else { return L10n.string("没有需要压缩的图片") }
+        let totalSize = compressibleAssets.reduce(0) { $0 + dataManager.estimatedSizeMB(for: $1) }
+        return String(format: L10n.string("%lld 张图片 · 合计约 %@"), Int64(compressibleAssets.count), CleanupStatsFormatter.space(totalSize))
+    }
+
+    private var selectedCompressionEstimate: ImageCompressionEstimate? {
+        guard !selectedAssets.isEmpty else { return nil }
+        return dataManager.estimatedImageCompressionEstimate(for: selectedAssets, plan: compressionPlan)
+    }
+
+    private var selectedCompressionEstimateText: String {
+        guard let selectedCompressionEstimate else {
+            return L10n.string("先选择图片")
+        }
+        return String(format: L10n.string("预计压缩后 %@"), selectedCompressionEstimate.formattedCompressedRange)
+    }
+
+    var body: some View {
+        ZStack {
+            PhotoDeleteScreenBackground()
+
+            ScrollView {
+                VStack(spacing: 14) {
+                    if isCompressing {
+                        AdvancedVideoCompressionProgressCard(
+                            processedCount: processedImageCount,
+                            totalCount: compressionTotalCount,
+                            currentProgress: currentCompressionProgress,
+                            message: currentCompressionMessage
+                        )
+                    }
+
+                    if let compressionResult {
+                        AdvancedImageCompressionResultCard(
+                            result: compressionResult,
+                            onCompare: showCompressionComparison,
+                            onDeleteOriginals: queueOriginalImagesForDeletion,
+                            onKeepOriginals: keepOriginalImages
+                        )
+                    }
+
+                    if let compressionErrorMessage {
+                        AdvancedVideoCompressionMessageCard(
+                            icon: "exclamationmark.triangle.fill",
+                            message: compressionErrorMessage,
+                            tint: PhotoDeleteStyle.warning
+                        )
+                    }
+
+                    if assets.isEmpty {
+                        AdvancedEmptyState(
+                            icon: AdvancedCleanupKind.imageCompression.icon,
+                            title: L10n.string("未找到可压缩的图片"),
+                            subtitle: L10n.string("当前照片库里暂时没有适合压缩的普通图片。")
+                        )
+                    } else {
+                        AdvancedImageCompressionListHeader(
+                            sizeSummary: imageListSizeSummary,
+                            isAllSelected: isAllSelected,
+                            isDisabled: isCompressing || compressibleAssets.isEmpty,
+                            action: toggleBulkSelection
+                        )
+
+                        if compressibleAssets.isEmpty {
+                            AdvancedEmptyState(
+                                icon: "checkmark.circle",
+                                title: L10n.string("没有需要压缩的图片"),
+                                subtitle: L10n.string("压缩完成的图片会留在最近压缩记录里。")
+                            )
+                        } else {
+                            LazyVStack(spacing: 9) {
+                                ForEach(compressibleAssets, id: \.localIdentifier) { asset in
+                                    AdvancedAssetRow(
+                                        asset: asset,
+                                        photoLibraryManager: dataManager.photoLibraryManager,
+                                        estimatedSizeMB: dataManager.estimatedSizeMB(for: asset),
+                                        sizeText: CleanupStatsFormatter.space(dataManager.estimatedSizeMB(for: asset)),
+                                        isSelected: selectedAssetIDs.contains(asset.localIdentifier),
+                                        onToggleSelection: { toggleSelection(asset) },
+                                        onPreview: { previewAsset = AdvancedPreviewAsset(asset: asset) }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if !dataManager.imageCompressionHistoryStore.sessions.isEmpty {
+                        AdvancedImageCompressionHistoryCard(
+                            sessions: Array(dataManager.imageCompressionHistoryStore.sessions.prefix(4)),
+                            photoLibraryManager: dataManager.photoLibraryManager
+                        )
+                    }
+
+                    Spacer()
+                        .frame(height: 24)
+                }
+                .padding(PhotoDeleteStyle.screenHorizontalPadding)
+            }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if !selectedAssetIDs.isEmpty {
+                AdvancedImageCompressionActionBar(
+                    count: selectedAssetIDs.count,
+                    estimateText: selectedCompressionEstimateText,
+                    processedCount: processedImageCount,
+                    isCompressing: isCompressing,
+                    onCompress: presentCompressionOptions,
+                    onDelete: deleteSelectedImages
+                )
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .advancedDetailNavigation(title: AdvancedCleanupKind.imageCompression.title)
+        .fullScreenCover(isPresented: $showBatchConfirm, onDismiss: {
+            reloadAssets()
+            if dismissCompressionResultAfterBatch {
+                compressionResult = nil
+                dismissCompressionResultAfterBatch = false
+            }
+        }) {
+            BatchConfirmView()
+                .environmentObject(dataManager)
+        }
+        .sheet(item: $previewAsset) { item in
+            AdvancedAssetPreviewView(
+                asset: item.asset,
+                photoLibraryManager: dataManager.photoLibraryManager
+            )
+        }
+        .sheet(isPresented: $showingCompressionComparison) {
+            if let compressionResult {
+                AdvancedImageCompressionComparisonSheet(
+                    result: compressionResult,
+                    photoLibraryManager: dataManager.photoLibraryManager
+                )
+            }
+        }
+        .sheet(item: $compressionOptionsContext) { context in
+            AdvancedImageCompressionOptionsSheet(
+                context: context,
+                initialPlan: compressionPlan
+            ) { plan, images in
+                compressionPlan = plan
+                compressSelectedImages(images: images, plan: plan)
+            }
+            .environmentObject(dataManager)
+        }
+        .task {
+            reloadAssets()
+        }
+        .onDisappear {
+            compressionTask?.cancel()
+        }
+    }
+
+    private func reloadAssets() {
+        let loadedAssets = dataManager.getPhotosForAdvancedCleanup(.imageCompression)
+        assets = loadedAssets
+        selectedAssetIDs = selectedAssetIDs.filter { selectedID in
+            loadedAssets.contains { $0.localIdentifier == selectedID }
+        }
+        pruneSelectionToCompressibleAssets()
+    }
+
+    private func toggleSelection(_ asset: PHAsset) {
+        guard !isCompressing else { return }
+        HapticManager.impact(.light)
+        let id = asset.localIdentifier
+        if selectedAssetIDs.contains(id) {
+            selectedAssetIDs.remove(id)
+        } else {
+            selectedAssetIDs.insert(id)
+        }
+        compressionErrorMessage = nil
+    }
+
+    private func toggleBulkSelection() {
+        guard !isCompressing else { return }
+        HapticManager.impact(.light)
+        let visibleIDs = Set(compressibleAssets.map(\.localIdentifier))
+        if isAllSelected {
+            selectedAssetIDs.subtract(visibleIDs)
+        } else {
+            selectedAssetIDs.formUnion(visibleIDs)
+        }
+        compressionErrorMessage = nil
+    }
+
+    private func pruneSelectionToCompressibleAssets() {
+        let visibleIDs = Set(compressibleAssets.map(\.localIdentifier))
+        selectedAssetIDs = selectedAssetIDs.filter { visibleIDs.contains($0) }
+    }
+
+    private func presentCompressionOptions() {
+        let images = selectedAssets
+        guard !images.isEmpty, !isCompressing else { return }
+        compressionOptionsContext = AdvancedImageCompressionOptionsContext(assets: images)
+    }
+
+    private func deleteSelectedImages() {
+        let images = selectedAssets
+        guard !images.isEmpty, !isCompressing else { return }
+
+        for asset in images {
+            _ = dataManager.markReviewed(asset)
+            dataManager.addToDeleteCandidates(asset)
+        }
+        HapticManager.notify(.warning)
+        showBatchConfirm = true
+    }
+
+    private func compressSelectedImages(images: [PHAsset], plan: ImageCompressionPlan) {
+        guard !images.isEmpty, !isCompressing else { return }
+        isCompressing = true
+        processedImageCount = 0
+        compressionTotalCount = images.count
+        currentCompressionProgress = 0
+        currentCompressionMessage = L10n.string("正在准备压缩")
+        compressionErrorMessage = nil
+        compressionResult = nil
+        compressionTask?.cancel()
+        compressionTask = Task {
+            let backgroundTaskID = await MainActor.run {
+                beginCompressionBackgroundTask()
+            }
+            var resultItems: [AdvancedImageCompressionResultItem] = []
+            var failedCount = 0
+            var firstErrorMessage: String?
+
+            for (index, asset) in images.enumerated() {
+                if Task.isCancelled {
+                    break
+                }
+
+                await MainActor.run {
+                    processedImageCount = index
+                    currentCompressionProgress = 0
+                    currentCompressionMessage = String(format: L10n.string("正在处理第 %lld 张图片"), Int64(index + 1))
+                }
+
+                do {
+                    let result = try await dataManager.photoLibraryManager.compressImage(
+                        asset,
+                        plan: plan
+                    ) { progress, message in
+                        currentCompressionProgress = progress
+                        currentCompressionMessage = message
+                    }
+                    resultItems.append(AdvancedImageCompressionResultItem(result: result))
+                } catch is CancellationError {
+                    break
+                } catch {
+                    failedCount += 1
+                    if firstErrorMessage == nil {
+                        firstErrorMessage = error.localizedDescription
+                    }
+                }
+
+                await MainActor.run {
+                    processedImageCount = index + 1
+                    currentCompressionProgress = 0
+                }
+            }
+
+            let wasCancelled = Task.isCancelled
+            await MainActor.run {
+                isCompressing = false
+                compressionTask = nil
+                currentCompressionProgress = 0
+                currentCompressionMessage = nil
+
+                if !resultItems.isEmpty {
+                    let completedResult = AdvancedImageCompressionResult(
+                        items: resultItems,
+                        failedCount: failedCount,
+                        completedAt: Date(),
+                        plan: plan
+                    )
+                    compressionResult = completedResult
+                    dataManager.recordImageCompressionSession(
+                        imageCount: completedResult.successCount,
+                        failedCount: failedCount,
+                        originalSizeMB: completedResult.originalSizeMB,
+                        compressedSizeMB: completedResult.compressedSizeMB,
+                        date: completedResult.completedAt,
+                        items: completedResult.historyItems
+                    )
+                    selectedAssetIDs.removeAll()
+                    reloadAssets()
+                    showingCompressionComparison = false
+                    HapticManager.notify(.success)
+                } else if !wasCancelled {
+                    compressionErrorMessage = firstErrorMessage ?? L10n.string("图片压缩失败，请稍后再试。")
+                    HapticManager.notify(.warning)
+                }
+
+                if failedCount > 0 && !resultItems.isEmpty {
+                    compressionErrorMessage = String(format: L10n.string("有 %lld 张图片未完成"), Int64(failedCount))
+                }
+
+                endCompressionBackgroundTask(backgroundTaskID)
+            }
+        }
+    }
+
+    private func beginCompressionBackgroundTask() -> UIBackgroundTaskIdentifier {
+        var taskID: UIBackgroundTaskIdentifier = .invalid
+        taskID = UIApplication.shared.beginBackgroundTask(withName: "PhotoDelete.ImageCompression") {
+            if taskID != .invalid {
+                UIApplication.shared.endBackgroundTask(taskID)
+                taskID = .invalid
+            }
+        }
+        return taskID
+    }
+
+    private func endCompressionBackgroundTask(_ taskID: UIBackgroundTaskIdentifier) {
+        guard taskID != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(taskID)
+    }
+
+    private func showCompressionComparison() {
+        guard compressionResult?.createdAssetIdentifiers.isEmpty == false else {
+            compressionErrorMessage = L10n.string("暂时找不到压缩后图片。")
+            return
+        }
+        showingCompressionComparison = true
+    }
+
+    private func queueOriginalImagesForDeletion() {
+        guard let compressionResult else { return }
+        guard compressionResult.hasMeaningfulSavings else {
+            compressionErrorMessage = L10n.string("这次没有明显减少空间，建议先保留原图。")
+            return
+        }
+
+        let originalIDs = Set(compressionResult.items.map(\.originalAssetIdentifier))
+        let fetchedOriginals = PHAsset.fetchAssets(withLocalIdentifiers: Array(originalIDs), options: nil)
+        var originalAssets: [PHAsset] = []
+        fetchedOriginals.enumerateObjects { asset, _, _ in
+            originalAssets.append(asset)
+        }
+        guard !originalAssets.isEmpty else {
+            compressionErrorMessage = L10n.string("暂时找不到原图。")
+            return
+        }
+
+        for asset in originalAssets {
+            _ = dataManager.markReviewed(asset)
+            dataManager.addToDeleteCandidates(asset)
+        }
+        HapticManager.notify(.warning)
+        dismissCompressionResultAfterBatch = true
+        showBatchConfirm = true
+    }
+
+    private func keepOriginalImages() {
+        compressionResult = nil
+        compressionErrorMessage = nil
+        showingCompressionComparison = false
+    }
+}
+
+private struct AdvancedImageCompressionResultItem: Identifiable, Equatable {
+    let originalAssetIdentifier: String
+    let createdAssetIdentifier: String?
+    let originalSizeMB: Double
+    let compressedSizeMB: Double
+    let originalDimensions: CGSize
+    let outputDimensions: CGSize
+
+    var id: String { originalAssetIdentifier }
+
+    init(result: ImageCompressionResult) {
+        self.originalAssetIdentifier = result.originalAssetIdentifier
+        self.createdAssetIdentifier = result.createdAssetIdentifier
+        self.originalSizeMB = result.originalSizeMB
+        self.compressedSizeMB = result.compressedSizeMB
+        self.originalDimensions = result.originalDimensions
+        self.outputDimensions = result.outputDimensions
+    }
+
+    var savedSizeMB: Double {
+        max(originalSizeMB - compressedSizeMB, 0)
+    }
+
+    var hasMeaningfulSavings: Bool {
+        savedSizeMB >= max(0.5, originalSizeMB * 0.03)
+    }
+}
+
+private struct AdvancedImageCompressionResult: Equatable {
+    let items: [AdvancedImageCompressionResultItem]
+    let failedCount: Int
+    let completedAt: Date
+    let plan: ImageCompressionPlan
+
+    var successCount: Int {
+        items.count
+    }
+
+    var originalSizeMB: Double {
+        items.reduce(0) { $0 + $1.originalSizeMB }
+    }
+
+    var compressedSizeMB: Double {
+        items.reduce(0) { $0 + $1.compressedSizeMB }
+    }
+
+    var savedSizeMB: Double {
+        max(originalSizeMB - compressedSizeMB, 0)
+    }
+
+    var hasMeaningfulSavings: Bool {
+        savedSizeMB >= max(0.5, originalSizeMB * 0.03)
+    }
+
+    var formattedOriginalSize: String {
+        CleanupStatsFormatter.space(originalSizeMB)
+    }
+
+    var formattedCompressedSize: String {
+        CleanupStatsFormatter.space(compressedSizeMB)
+    }
+
+    var formattedSavedSize: String {
+        CleanupStatsFormatter.space(savedSizeMB)
+    }
+
+    var savedRatioText: String {
+        guard originalSizeMB > 0 else { return "0%" }
+        return "\(max(Int((savedSizeMB / originalSizeMB * 100).rounded()), 0))%"
+    }
+
+    var createdCopiesText: String {
+        String(format: L10n.string("%lld 张"), Int64(successCount))
+    }
+
+    var completionTitle: String {
+        failedCount > 0 ? L10n.string("压缩部分完成") : L10n.string("压缩完成")
+    }
+
+    var completionSubtitle: String {
+        if successCount == 1 {
+            return L10n.string("已生成 1 张压缩后图片")
+        }
+        return String(format: L10n.string("已生成 %lld 张压缩后图片"), Int64(successCount))
+    }
+
+    var createdAssetIdentifiers: [String] {
+        items.compactMap(\.createdAssetIdentifier)
+    }
+
+    var historyItems: [ImageCompressionSessionItem] {
+        items.map { item in
+            ImageCompressionSessionItem(
+                originalAssetIdentifier: item.originalAssetIdentifier,
+                createdAssetIdentifier: item.createdAssetIdentifier,
+                originalSizeMB: item.originalSizeMB,
+                compressedSizeMB: item.compressedSizeMB
+            )
+        }
+    }
+
+    var sizeSummaryText: String {
+        guard let firstItem = items.first else { return L10n.string("保持原尺寸") }
+
+        if items.count == 1 {
+            let original = dimensionsText(firstItem.originalDimensions)
+            let output = dimensionsText(firstItem.outputDimensions)
+            if original == output {
+                return String(format: L10n.string("保持 %@"), original)
+            }
+            return String(format: L10n.string("%@ → %@"), original, output)
+        }
+
+        let allKeptOriginalSize = items.allSatisfy { item in
+            dimensionsText(item.originalDimensions) == dimensionsText(item.outputDimensions)
+        }
+        if allKeptOriginalSize {
+            return L10n.string("全部保持原尺寸")
+        }
+
+        let outputDimensions = Set(items.map { dimensionsText($0.outputDimensions) })
+        if outputDimensions.count == 1, let output = outputDimensions.first {
+            return String(format: L10n.string("输出 %@"), output)
+        }
+
+        return L10n.string("多种尺寸")
+    }
+
+    private func dimensionsText(_ size: CGSize) -> String {
+        let width = Int(size.width.rounded())
+        let height = Int(size.height.rounded())
+        guard width > 0, height > 0 else { return L10n.string("未知") }
+        return "\(width)×\(height)"
+    }
+}
+
+private struct AdvancedImageCompressionListHeader: View {
+    let sizeSummary: String
+    let isAllSelected: Bool
+    let isDisabled: Bool
+    let action: () -> Void
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(L10n.string("可压缩图片"))
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.primaryText)
+
+                Text(sizeSummary)
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                    .lineLimit(2)
+            }
+
+            Spacer()
+
+            AdvancedBulkSelectionButton(
+                title: isAllSelected ? L10n.string("取消") : L10n.string("全选"),
+                isDisabled: isDisabled,
+                action: action
+            )
+        }
+        .padding(.top, 2)
+    }
+}
+
+private struct AdvancedImageCompressionOptionsContext: Identifiable {
+    let id = UUID()
+    let assets: [PHAsset]
+
+    var count: Int { assets.count }
+}
+
+private struct AdvancedImageCompressionOptionsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var dataManager: DataManager
+
+    let context: AdvancedImageCompressionOptionsContext
+    let onStart: (ImageCompressionPlan, [PHAsset]) -> Void
+    @State private var plan: ImageCompressionPlan
+
+    init(
+        context: AdvancedImageCompressionOptionsContext,
+        initialPlan: ImageCompressionPlan,
+        onStart: @escaping (ImageCompressionPlan, [PHAsset]) -> Void
+    ) {
+        self.context = context
+        self.onStart = onStart
+        _plan = State(initialValue: initialPlan)
+    }
+
+    private var visibleEstimate: ImageCompressionEstimate {
+        dataManager.estimatedImageCompressionEstimate(for: context.assets, plan: plan)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    AdvancedImageCompressionEstimateCard(
+                        count: context.count,
+                        estimate: visibleEstimate
+                    )
+
+                    AdvancedVideoCompressionOptionSection(
+                        title: L10n.string("质量")
+                    ) {
+                        AdvancedImageCompressionQualityPicker(selection: $plan.quality)
+                    }
+
+                    AdvancedVideoCompressionOptionSection(
+                        title: L10n.string("尺寸")
+                    ) {
+                        AdvancedImageCompressionSizePicker(selection: $plan.size)
+                    }
+
+                    Label(L10n.string("图片压缩会生成新的 JPEG 副本，原图不会自动删除。最终节省空间以完成报告为准。"), systemImage: "info.circle")
+                        .font(.system(size: 12, weight: .regular))
+                        .foregroundColor(PhotoDeleteStyle.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(PhotoDeleteStyle.screenHorizontalPadding)
+                .padding(.top, 12)
+                .padding(.bottom, 24)
+            }
+            .background(PhotoDeleteStyle.background.ignoresSafeArea())
+            .navigationTitle(L10n.string("压缩方案"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(L10n.string("取消")) {
+                        dismiss()
+                    }
+                }
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                Button {
+                    let selectedPlan = plan
+                    let selectedAssets = context.assets
+                    dismiss()
+                    onStart(selectedPlan, selectedAssets)
+                } label: {
+                    VStack(spacing: 3) {
+                        Text(String(format: L10n.string("开始压缩 %lld 张图片"), Int64(context.count)))
+                            .font(.system(size: 15, weight: .semibold))
+                        Text(String(format: L10n.string("预计压缩后 %@"), visibleEstimate.formattedCompressedRange))
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .foregroundColor(PhotoDeleteStyle.primaryButtonText)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(PhotoDeleteStyle.accent)
+                    )
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
+                .padding(.bottom, 14)
+                .padding(.top, 8)
+                .background(PhotoDeleteStyle.background.opacity(0.94))
+            }
+        }
+    }
+}
+
+private struct AdvancedImageCompressionEstimateCard: View {
+    let count: Int
+    let estimate: ImageCompressionEstimate
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Image(systemName: AdvancedCleanupKind.imageCompression.icon)
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.accent)
+                    .frame(width: 34, height: 34)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(String(format: L10n.string("准备压缩 %lld 张图片"), Int64(count)))
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(PhotoDeleteStyle.primaryText)
+
+                    Text(String(format: L10n.string("原文件合计约 %@"), estimate.formattedOriginalSize))
+                        .font(.system(size: 12, weight: .regular))
+                        .foregroundColor(PhotoDeleteStyle.secondaryText)
+                }
+
+                Spacer()
+            }
+
+            HStack(spacing: 10) {
+                AdvancedVideoCompressionMetric(label: L10n.string("预计压缩后"), value: estimate.formattedCompressedRange)
+                AdvancedVideoCompressionMetric(label: L10n.string("预计节省"), value: estimate.formattedSavedRange)
+            }
+        }
+        .padding(14)
+        .photoDeleteCard()
+    }
+}
+
+private struct AdvancedImageCompressionQualityPicker: View {
+    @Binding var selection: ImageCompressionQuality
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(ImageCompressionQuality.allCases) { quality in
+                AdvancedVideoCompressionSegmentButton(
+                    title: quality.compactTitle,
+                    isSelected: selection == quality
+                ) {
+                    selection = quality
+                }
+            }
+        }
+    }
+}
+
+private struct AdvancedImageCompressionSizePicker: View {
+    @Binding var selection: ImageCompressionSize
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(ImageCompressionSize.allCases) { size in
+                AdvancedVideoCompressionSegmentButton(
+                    title: size.title,
+                    isSelected: selection == size
+                ) {
+                    selection = size
+                }
+            }
+        }
+    }
+}
+
+private struct AdvancedImageCompressionResultCard: View {
+    let result: AdvancedImageCompressionResult
+    let onCompare: () -> Void
+    let onDeleteOriginals: () -> Void
+    let onKeepOriginals: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: result.hasMeaningfulSavings ? "checkmark.circle.fill" : "checkmark.circle")
+                    .font(.system(size: 30, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.positive)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(result.completionTitle)
+                        .font(.headline)
+                        .foregroundColor(PhotoDeleteStyle.primaryText)
+
+                    Text(result.completionSubtitle)
+                        .font(.subheadline)
+                        .foregroundColor(PhotoDeleteStyle.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer()
+
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(result.formattedSavedSize)
+                        .font(.title3.weight(.bold))
+                        .foregroundColor(result.hasMeaningfulSavings ? PhotoDeleteStyle.positive : PhotoDeleteStyle.secondaryText)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
+
+                    Text(L10n.string("已节省"))
+                        .font(.caption)
+                        .foregroundColor(PhotoDeleteStyle.secondaryText)
+                }
+                .accessibilityElement(children: .combine)
+            }
+
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                AdvancedVideoCompressionMetric(label: L10n.string("方案"), value: result.plan.title)
+                AdvancedVideoCompressionMetric(label: L10n.string("原图"), value: result.formattedOriginalSize)
+                AdvancedVideoCompressionMetric(label: L10n.string("压缩后"), value: result.formattedCompressedSize)
+                AdvancedVideoCompressionMetric(label: L10n.string("节省比例"), value: result.savedRatioText)
+            }
+
+            VStack(spacing: 0) {
+                AdvancedVideoCompressionResultInfoRow(
+                    systemImage: "photo",
+                    title: L10n.string("压缩后图片"),
+                    value: result.createdCopiesText,
+                    tint: PhotoDeleteStyle.positive
+                )
+
+                Divider()
+                    .padding(.leading, 34)
+
+                AdvancedVideoCompressionResultInfoRow(
+                    systemImage: "arrow.down.right.and.arrow.up.left",
+                    title: L10n.string("尺寸"),
+                    value: result.sizeSummaryText,
+                    tint: PhotoDeleteStyle.accent
+                )
+            }
+
+            Text(result.hasMeaningfulSavings ? L10n.string("已生成压缩后图片，原图尚未删除。请先查看对比，再决定是否删除原图。") : L10n.string("已生成压缩后图片，但空间减少不明显。建议先保留原图。"))
+                .font(.footnote)
+                .foregroundColor(PhotoDeleteStyle.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if result.failedCount > 0 {
+                Label(String(format: L10n.string("%lld 张图片未完成"), Int64(result.failedCount)), systemImage: "exclamationmark.triangle")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.warning)
+            }
+
+            VStack(spacing: 10) {
+                Button(action: onCompare) {
+                    Label(L10n.string("查看对比"), systemImage: "rectangle.split.2x1")
+                        .frame(maxWidth: .infinity)
+                }
+                .photoDeletePrimaryButton()
+                .disabled(result.createdAssetIdentifiers.isEmpty)
+
+                HStack(spacing: 10) {
+                    AdvancedVideoCompressionCompactActionButton(
+                        title: L10n.string("删除原图"),
+                        systemImage: "trash",
+                        tint: PhotoDeleteStyle.destructive,
+                        isEnabled: result.hasMeaningfulSavings,
+                        action: onDeleteOriginals
+                    )
+
+                    AdvancedVideoCompressionCompactActionButton(
+                        title: L10n.string("保留原图"),
+                        systemImage: "checkmark",
+                        tint: PhotoDeleteStyle.accent,
+                        isEnabled: true,
+                        action: onKeepOriginals
+                    )
+                }
+            }
+        }
+        .padding(16)
+        .photoDeleteCard()
+    }
+}
+
+private struct AdvancedImageCompressionComparisonSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let result: AdvancedImageCompressionResult
+    let photoLibraryManager: PhotoLibraryManager
+    @State private var previewAsset: AdvancedPreviewAsset?
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack(spacing: 10) {
+                        AdvancedVideoCompressionMetric(label: L10n.string("原图"), value: result.formattedOriginalSize)
+                        AdvancedVideoCompressionMetric(label: L10n.string("压缩后"), value: result.formattedCompressedSize)
+                        AdvancedVideoCompressionMetric(label: L10n.string("已节省"), value: result.formattedSavedSize)
+                    }
+
+                    ForEach(result.items) { item in
+                        AdvancedImageCompressionComparisonRow(
+                            item: item,
+                            photoLibraryManager: photoLibraryManager
+                        ) { asset in
+                            previewAsset = AdvancedPreviewAsset(asset: asset)
+                        }
+                    }
+                }
+                .padding(PhotoDeleteStyle.screenHorizontalPadding)
+                .padding(.vertical, 16)
+            }
+            .background(PhotoDeleteStyle.background.ignoresSafeArea())
+            .navigationTitle(L10n.string("图片对比"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(L10n.string("完成")) {
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .sheet(item: $previewAsset) { item in
+            AdvancedAssetPreviewView(
+                asset: item.asset,
+                photoLibraryManager: photoLibraryManager
+            )
+        }
+    }
+}
+
+private struct AdvancedImageCompressionComparisonRow: View {
+    let item: AdvancedImageCompressionResultItem
+    let photoLibraryManager: PhotoLibraryManager
+    let onPreview: (PHAsset) -> Void
+
+    private var originalAsset: PHAsset? {
+        PHAsset.fetchAssets(withLocalIdentifiers: [item.originalAssetIdentifier], options: nil).firstObject
+    }
+
+    private var compressedAsset: PHAsset? {
+        guard let createdAssetIdentifier = item.createdAssetIdentifier else { return nil }
+        return PHAsset.fetchAssets(withLocalIdentifiers: [createdAssetIdentifier], options: nil).firstObject
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                comparisonButton(
+                    label: L10n.string("原图"),
+                    size: CleanupStatsFormatter.space(item.originalSizeMB),
+                    asset: originalAsset,
+                    fallbackIcon: "photo"
+                )
+
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+
+                comparisonButton(
+                    label: L10n.string("压缩后"),
+                    size: CleanupStatsFormatter.space(item.compressedSizeMB),
+                    asset: compressedAsset,
+                    fallbackIcon: "photo"
+                )
+            }
+
+            Text(String(format: L10n.string("减少 %@"), CleanupStatsFormatter.space(item.savedSizeMB)))
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(PhotoDeleteStyle.positive)
+        }
+        .padding(12)
+        .photoDeleteCard()
+    }
+
+    private func comparisonButton(
+        label: String,
+        size: String,
+        asset: PHAsset?,
+        fallbackIcon: String
+    ) -> some View {
+        Button {
+            if let asset {
+                onPreview(asset)
+            }
+        } label: {
+            VStack(spacing: 8) {
+                if let asset {
+                    AdvancedAssetThumbnail(
+                        asset: asset,
+                        photoLibraryManager: photoLibraryManager,
+                        size: 82
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                } else {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(PhotoDeleteStyle.elevatedSurface)
+                        .frame(width: 82, height: 82)
+                        .overlay(
+                            Image(systemName: fallbackIcon)
+                                .font(.system(size: 24, weight: .semibold))
+                                .foregroundColor(PhotoDeleteStyle.secondaryText)
+                        )
+                }
+
+                VStack(spacing: 2) {
+                    Text(label)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(PhotoDeleteStyle.primaryText)
+                    Text(size)
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundColor(PhotoDeleteStyle.secondaryText)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(PhotoDeleteStyle.elevatedSurface)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(asset == nil)
+    }
+}
+
+private struct AdvancedImageCompressionHistoryCard: View {
+    let sessions: [ImageCompressionSession]
+    let photoLibraryManager: PhotoLibraryManager
+    @State private var isExpanded = false
+
+    private var summaryText: String {
+        let savedSizeMB = sessions.reduce(0) { $0 + $1.savedSizeMB }
+        return String(
+            format: L10n.string("最近压缩记录 · %lld 次 · 已减少 %@"),
+            Int64(sessions.count),
+            CleanupStatsFormatter.space(savedSizeMB)
+        )
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Button {
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.9)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundColor(PhotoDeleteStyle.accent)
+                        .frame(width: 24)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(L10n.string("最近压缩记录"))
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(PhotoDeleteStyle.primaryText)
+
+                        Text(summaryText)
+                            .font(.system(size: 12, weight: .regular))
+                            .foregroundColor(PhotoDeleteStyle.secondaryText)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.8)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(PhotoDeleteStyle.secondaryText)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityValue(isExpanded ? Text(L10n.string("已展开")) : Text(L10n.string("已折叠")))
+
+            if isExpanded {
+                Divider()
+                    .background(PhotoDeleteStyle.hairline)
+
+                VStack(spacing: 0) {
+                    ForEach(sessions) { session in
+                        HStack(spacing: 12) {
+                            Image(systemName: "photo")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundColor(PhotoDeleteStyle.positive)
+                                .frame(width: 24)
+
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(session.formattedDate)
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundColor(PhotoDeleteStyle.primaryText)
+
+                                Text(String(format: L10n.string("%lld 张图片 · %@ → %@"), Int64(session.imageCount), session.formattedOriginalSize, session.formattedCompressedSize))
+                                    .font(.system(size: 12, weight: .regular))
+                                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                                    .lineLimit(2)
+                                    .minimumScaleFactor(0.8)
+                            }
+
+                            Spacer()
+
+                            Text(session.formattedSavedSize)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(session.savedSizeMB > 0 ? PhotoDeleteStyle.positive : PhotoDeleteStyle.warning)
+                        }
+                        .padding(.vertical, 10)
+
+                        if !session.items.isEmpty {
+                            VStack(spacing: 8) {
+                                ForEach(Array(session.items.prefix(3))) { item in
+                                    AdvancedImageCompressionHistoryItemRow(
+                                        item: item,
+                                        photoLibraryManager: photoLibraryManager
+                                    )
+                                }
+
+                                if session.items.count > 3 {
+                                    Text(String(format: L10n.string("还有 %lld 条压缩明细"), Int64(session.items.count - 3)))
+                                        .font(.system(size: 11, weight: .medium))
+                                        .foregroundColor(PhotoDeleteStyle.secondaryText)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                            }
+                            .padding(.leading, 36)
+                            .padding(.bottom, 8)
+                        }
+
+                        if session.id != sessions.last?.id {
+                            Divider()
+                                .background(PhotoDeleteStyle.hairline)
+                                .padding(.leading, 36)
+                        }
+                    }
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .padding(14)
+        .photoDeleteCard()
+    }
+}
+
+private struct AdvancedImageCompressionHistoryItemRow: View {
+    let item: ImageCompressionSessionItem
+    let photoLibraryManager: PhotoLibraryManager
+
+    private var originalAsset: PHAsset? {
+        PHAsset.fetchAssets(withLocalIdentifiers: [item.originalAssetIdentifier], options: nil).firstObject
+    }
+
+    private var compressedAsset: PHAsset? {
+        guard let createdAssetIdentifier = item.createdAssetIdentifier else { return nil }
+        return PHAsset.fetchAssets(withLocalIdentifiers: [createdAssetIdentifier], options: nil).firstObject
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            VStack(spacing: 6) {
+                thumbnail(for: originalAsset)
+                thumbnail(for: compressedAsset)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                historyLine(
+                    label: L10n.string("原图"),
+                    title: title(for: originalAsset, fallback: L10n.string("原图可能已删除")),
+                    size: item.formattedOriginalSize
+                )
+
+                historyLine(
+                    label: L10n.string("压缩后"),
+                    title: title(for: compressedAsset, fallback: L10n.string("压缩后图片可能已删除")),
+                    size: item.formattedCompressedSize
+                )
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(9)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(PhotoDeleteStyle.elevatedSurface)
+        )
+    }
+
+    @ViewBuilder
+    private func thumbnail(for asset: PHAsset?) -> some View {
+        if let asset {
+            AdvancedAssetThumbnail(
+                asset: asset,
+                photoLibraryManager: photoLibraryManager,
+                size: 34
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        } else {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(PhotoDeleteStyle.elevatedSurface)
+                .frame(width: 34, height: 34)
+                .overlay(
+                    Image(systemName: "questionmark")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(PhotoDeleteStyle.secondaryText)
+                )
+        }
+    }
+
+    private func historyLine(label: String, title: String, size: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 6) {
+                Text(label)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+
+                Text(size)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.positive)
+            }
+
+            Text(title)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(PhotoDeleteStyle.primaryText)
+                .lineLimit(1)
+        }
+    }
+
+    private func title(for asset: PHAsset?, fallback: String) -> String {
+        guard let asset else { return fallback }
+        return AdvancedAssetFormatter.title(for: asset, photoLibraryManager: photoLibraryManager)
+    }
+}
+
+private struct AdvancedImageCompressionActionBar: View {
+    let count: Int
+    let estimateText: String
+    let processedCount: Int
+    let isCompressing: Bool
+    let onCompress: () -> Void
+    let onDelete: () -> Void
+
+    var body: some View {
+        VStack(spacing: 8) {
+            if !isCompressing {
+                Text(String(format: L10n.string("已选择 %lld 张图片 · %@"), Int64(count), estimateText))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            HStack(spacing: 10) {
+                Button(role: .destructive, action: onDelete) {
+                    Label(L10n.string("删除选中"), systemImage: "trash")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(PhotoDeleteStyle.destructive)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(PhotoDeleteStyle.destructive.opacity(0.12))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                        .stroke(PhotoDeleteStyle.destructive.opacity(0.24), lineWidth: 1)
+                                )
+                        )
+                }
+                .buttonStyle(.plain)
+                .disabled(isCompressing)
+
+                Button(action: onCompress) {
+                    HStack(spacing: 8) {
+                        if isCompressing {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: PhotoDeleteStyle.primaryButtonText))
+                                .scaleEffect(0.78)
+                        } else {
+                            Image(systemName: "arrow.down.forward.and.arrow.up.backward")
+                        }
+
+                        Text(buttonTitle)
+                    }
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.primaryButtonText)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(PhotoDeleteStyle.accent)
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(isCompressing)
+            }
+        }
+        .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
+        .padding(.bottom, 24)
+        .padding(.top, 10)
+        .background(
+            PhotoDeleteStyle.background.opacity(0.94)
+                .ignoresSafeArea(edges: .bottom)
+        )
+    }
+
+    private var buttonTitle: String {
+        if isCompressing {
+            return String(format: L10n.string("正在压缩 %lld/%lld"), Int64(processedCount), Int64(count))
+        }
+        return L10n.string("压缩选中")
     }
 }
 
@@ -4069,6 +5362,8 @@ private enum AdvancedCleanupFilter: String, Hashable, Identifiable {
             return [.all, .recommended, .burst, .month]
         case .largeFiles:
             return [.all, .videos, .photos, .month]
+        case .imageCompression:
+            return [.all, .large, .month]
         case .videoCompression:
             return [.all, .large, .long, .month]
         case .videos:
