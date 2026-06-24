@@ -897,6 +897,16 @@ struct PhotoDeleteTests {
         ) == .preparing)
     }
 
+    @Test func homeLibraryStateAllowsOrganizingWhileMetadataFinishesLoading() async throws {
+        #expect(HomeLibraryContentState.resolve(
+            hasPhotoLibraryAccess: true,
+            isPreparingLibrary: true,
+            isLoadingPhotoLibrary: true,
+            hasLoadedPhotoLibrary: true,
+            totalPhotosCount: 12
+        ) == .available)
+    }
+
     @Test func homeLibraryStateOnlyShowsEmptyAfterLoadedEmptyLibrary() async throws {
         #expect(HomeLibraryContentState.resolve(
             hasPhotoLibraryAccess: true,

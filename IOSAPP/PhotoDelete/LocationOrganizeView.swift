@@ -65,7 +65,7 @@ struct LocationOrganizeView: View {
             dataManager.loadLocationGroups()
         }
         .onReceive(dataManager.photoLibraryManager.$allPhotos) { _ in
-            dataManager.loadLocationGroups()
+            dataManager.loadLocationGroups(force: true)
         }
     }
 
@@ -97,12 +97,15 @@ struct LocationOrganizeView: View {
     }
 
     private var shouldShowPreparingState: Bool {
-        dataManager.isPreparingLibrary ||
-            dataManager.photoLibraryManager.isLoading ||
+        visibleGroups.isEmpty &&
             (
-                dataManager.photoLibraryManager.hasPhotoLibraryAccess &&
-                !dataManager.photoLibraryManager.hasLoadedPhotoLibrary &&
-                visibleGroups.isEmpty
+                dataManager.isPreparingLibrary ||
+                dataManager.isLoadingLocationGroups ||
+                (
+                    dataManager.photoLibraryManager.hasPhotoLibraryAccess &&
+                    dataManager.photoLibraryManager.isLoading &&
+                    !dataManager.photoLibraryManager.hasLoadedPhotoLibrary
+                )
             )
     }
 

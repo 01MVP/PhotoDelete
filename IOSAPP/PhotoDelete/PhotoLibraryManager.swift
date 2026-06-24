@@ -725,6 +725,13 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             }
 
             DispatchQueue.main.async {
+                guard self.hasPhotoLibraryAccess else {
+                    self.clearLoadedLibraryData(clearSnapshot: true, finishPendingLoads: true)
+                    self.onLibraryDataChanged?()
+                    return
+                }
+                self.allPhotos = allPhotosArray
+                self.hasLoadedPhotoLibrary = !allPhotosArray.isEmpty
                 self.loadingProgress = 0.6
             }
 

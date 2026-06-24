@@ -88,8 +88,8 @@ enum HomeLibraryContentState: Equatable {
         totalPhotosCount: Int
     ) -> HomeLibraryContentState {
         guard hasPhotoLibraryAccess else { return .needsAuthorization }
-        if isPreparingLibrary { return .preparing }
         if totalPhotosCount > 0 { return .available }
+        if isPreparingLibrary { return .preparing }
         if isLoadingPhotoLibrary || !hasLoadedPhotoLibrary { return .preparing }
         return .empty
     }
@@ -334,7 +334,7 @@ struct HomeView: View {
             ScanningSwipeGlyph()
 
             VStack(spacing: 8) {
-                Text(L10n.string("正在读取照片信息"))
+                Text(L10n.string("正在读取照片"))
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundColor(PhotoDeleteStyle.primaryText)
 

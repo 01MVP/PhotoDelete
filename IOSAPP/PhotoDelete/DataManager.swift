@@ -43,6 +43,11 @@ class DataManager: ObservableObject {
     @Published private(set) var reviewedAssetIDs: Set<String> = []
     @Published private(set) var periodSummariesByScope: [AdvancedTimeScope: [PhotoPeriodSummary]] = [:]
     @Published private(set) var isLoadingPeriodSummaries = false
+    @Published private(set) var locationGroupsRevision = UUID()
+    @Published private(set) var isLoadingLocationGroups = false
+    @Published private(set) var advancedCleanupQueues: [AdvancedCleanupQueue] = []
+    @Published private(set) var advancedCleanupQueuesRevision = UUID()
+    @Published private(set) var isLoadingAdvancedCleanupQueues = false
     let cleanupStatsStore: CleanupStatsStore
     let videoCompressionHistoryStore: VideoCompressionHistoryStore
     let imageCompressionHistoryStore: ImageCompressionHistoryStore
@@ -61,10 +66,17 @@ class DataManager: ObservableObject {
     private var historicalTodayCacheReferenceDay: Date?
     private var locationGroupCache: [String: [PHAsset]] = [:]
     private var locationGroupBuildGeneration = 0
+    private var lastLocationGroupBuildSignature: LocationGroupBuildSignature?
+    private var pendingLocationGroupRefresh = false
+    private var locationProgressRefreshWorkItem: DispatchWorkItem?
+    private var locationProgressRefreshGeneration = 0
     private var locationTitleResolutionTask: Task<Void, Never>?
     private var progressRefreshWorkItem: DispatchWorkItem?
     private var progressRefreshGeneration = 0
     private var periodSummaryRefreshGeneration = 0
+    private var advancedCleanupQueueBuildGeneration = 0
+    private var lastAdvancedCleanupQueueBuildSignature: AdvancedCleanupQueueBuildSignature?
+    private var pendingAdvancedCleanupQueueRefresh = false
     private var libraryDataRefreshWorkItem: DispatchWorkItem?
     private var nextLibraryDataRefreshDelay: TimeInterval?
     private var reviewedAssetIDsSaveWorkItem: DispatchWorkItem?
@@ -83,6 +95,25 @@ class DataManager: ObservableObject {
         let cache: [String: [PHAsset]]
         let locationGroups: [PhotoLocationGroupInfo]
         let representativeCoordinatesByGroupID: [String: CLLocationCoordinate2D]
+    }
+
+    private struct LocationGroupBuildSignature: Equatable {
+        let photoCount: Int
+        let firstPhotoID: String?
+        let lastPhotoID: String?
+        let reviewedCount: Int
+        let deleteCandidateCount: Int
+        let favoriteCandidateCount: Int
+    }
+
+    private struct AdvancedCleanupQueueBuildSignature: Equatable {
+        let photoCount: Int
+        let firstPhotoID: String?
+        let lastPhotoID: String?
+        let videoCount: Int
+        let screenshotCount: Int
+        let imageCompressionSessionCount: Int
+        let imageCompressionItemCount: Int
     }
 
     private struct DaySummaryAccumulator {
@@ -225,7 +256,8 @@ class DataManager: ObservableObject {
             self.restorePendingCandidatesFromSavedIDs()
             self.prunePendingCandidates()
             self.loadTimeGroups()
-            self.loadLocationGroups()
+            self.loadLocationGroups(force: true)
+            self.refreshAdvancedCleanupQueues(force: true)
             self.loadAlbums(showLoading: !self.hasLoadedAlbums)
             self.updateStats()
             self.isPreparingLibrary = false
@@ -251,7 +283,8 @@ class DataManager: ObservableObject {
             self.restorePendingCandidatesFromSavedIDs()
             self.prunePendingCandidates()
             self.loadTimeGroups()
-            self.loadLocationGroups()
+            self.loadLocationGroups(force: true)
+            self.refreshAdvancedCleanupQueues(force: true)
             _ = self.restoreCachedAlbums()
             self.updateStats()
 
@@ -261,7 +294,8 @@ class DataManager: ObservableObject {
                 self.restorePendingCandidatesFromSavedIDs()
                 self.prunePendingCandidates()
                 self.loadTimeGroups()
-                self.loadLocationGroups()
+                self.loadLocationGroups(force: didRefreshLibrary)
+                self.refreshAdvancedCleanupQueues(force: didRefreshLibrary)
                 if didRefreshLibrary {
                     self.hasLoadedAlbums = false
                     self.loadAlbums(showLoading: false)
@@ -279,12 +313,14 @@ class DataManager: ObservableObject {
         favoriteCandidates.remove(asset)
         deleteCandidates.insert(asset)
         savePendingCandidateIDsNow()
+        scheduleLocationGroupsRefreshIfLoaded()
         updateStats()
     }
 
     func removeFromDeleteCandidates(_ asset: PHAsset) {
         deleteCandidates.remove(asset)
         savePendingCandidateIDsNow()
+        scheduleLocationGroupsRefreshIfLoaded()
         updateStats()
     }
 
@@ -292,12 +328,14 @@ class DataManager: ObservableObject {
         deleteCandidates.remove(asset)
         favoriteCandidates.insert(asset)
         savePendingCandidateIDsNow()
+        scheduleLocationGroupsRefreshIfLoaded()
         updateStats()
     }
 
     func removeFromFavoriteCandidates(_ asset: PHAsset) {
         favoriteCandidates.remove(asset)
         savePendingCandidateIDsNow()
+        scheduleLocationGroupsRefreshIfLoaded()
         updateStats()
     }
 
@@ -499,7 +537,8 @@ class DataManager: ObservableObject {
         restorePendingCandidatesFromSavedIDs()
         prunePendingCandidates()
         loadTimeGroups()
-        loadLocationGroups()
+        loadLocationGroups(force: true)
+        refreshAdvancedCleanupQueues(force: true)
         updateStats()
     }
 
@@ -515,10 +554,22 @@ class DataManager: ObservableObject {
         historicalTodayPhotoCount = 0
         locationGroupCache = [:]
         locationGroups = []
+        locationGroupsRevision = UUID()
+        isLoadingLocationGroups = false
+        lastLocationGroupBuildSignature = nil
+        pendingLocationGroupRefresh = false
+        locationProgressRefreshWorkItem?.cancel()
+        locationProgressRefreshWorkItem = nil
+        locationProgressRefreshGeneration = 0
         locationTitleResolutionTask?.cancel()
         locationTitleCacheStore.clear()
         periodSummariesByScope = [:]
         isLoadingPeriodSummaries = false
+        advancedCleanupQueues = []
+        advancedCleanupQueuesRevision = UUID()
+        isLoadingAdvancedCleanupQueues = false
+        lastAdvancedCleanupQueueBuildSignature = nil
+        pendingAdvancedCleanupQueueRefresh = false
         systemAlbums = []
         userAlbums = []
         albumSnapshotStore.clear()
@@ -547,6 +598,7 @@ class DataManager: ObservableObject {
         reviewedAssetIDs.insert(asset.localIdentifier)
         scheduleReviewedAssetIDsSave()
         scheduleProgressRefresh()
+        scheduleLocationGroupsRefreshIfLoaded()
         return wasReviewed
     }
 
@@ -558,6 +610,7 @@ class DataManager: ObservableObject {
         }
         scheduleReviewedAssetIDsSave()
         scheduleProgressRefresh()
+        scheduleLocationGroupsRefreshIfLoaded()
     }
 
     func isReviewed(_ asset: PHAsset) -> Bool {
@@ -578,7 +631,8 @@ class DataManager: ObservableObject {
         PhotoRandomReviewSessionStore.clearAll()
         saveReviewedAssetIDsNow()
         loadTimeGroups()
-        loadLocationGroups()
+        loadLocationGroups(force: true)
+        refreshAdvancedCleanupQueues(force: true)
         updateStats()
     }
 
@@ -610,7 +664,6 @@ class DataManager: ObservableObject {
                     self.historicalTodayCache = result.historicalTodayPhotos
                     self.historicalTodayCacheReferenceDay = result.historicalTodayReferenceDay
                     self.historicalTodayPhotoCount = result.historicalTodayPhotos.count
-                    self.loadLocationGroups()
                     if !self.periodSummariesByScope.isEmpty {
                         self.refreshPhotoPeriodSummaries(for: Array(self.periodSummariesByScope.keys))
                     }
@@ -621,12 +674,28 @@ class DataManager: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
     }
 
+    private func scheduleLocationGroupsRefreshIfLoaded(delay: TimeInterval = 1.2) {
+        guard !locationGroups.isEmpty else { return }
+
+        locationProgressRefreshWorkItem?.cancel()
+        locationProgressRefreshGeneration += 1
+        let generation = locationProgressRefreshGeneration
+
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self, self.locationProgressRefreshGeneration == generation else { return }
+            self.loadLocationGroups(force: true)
+        }
+
+        locationProgressRefreshWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
+    }
+
     // MARK: - 统计更新
     private func updateStats() {
         organizeStats.deletedPhotos = deleteCandidates.count
         organizeStats.totalPhotos = photoLibraryManager.totalPhotosCount
 
-        // 估算节省的空间（每张照片约3MB）
+        // 删除前只能给出大致空间参考。
         organizeStats.spaceSaved = Double(deleteCandidates.count) * 3.0
     }
 
@@ -946,11 +1015,95 @@ class DataManager: ObservableObject {
     }
 
     func makeAdvancedCleanupQueues() -> [AdvancedCleanupQueue] {
-        let similarGroups = makeSimilarPhotoGroups(maxGroups: 120)
-        let largeFiles = largeFileCandidates(maxCount: 240)
-        let imageCompressionCandidates = imageCompressionCandidates(maxCount: 240)
-        let videoCompressionCandidates = videoCompressionCandidates(maxCount: 240)
+        Self.makeAdvancedCleanupQueues(
+            photos: photoLibraryManager.allPhotos,
+            videos: photoLibraryManager.videos,
+            screenshotIDs: Set(photoLibraryManager.screenshots.map(\.localIdentifier)),
+            imageCompressionProcessedIDs: imageCompressionProcessedAssetIDs()
+        )
+    }
+
+    func refreshAdvancedCleanupQueues(force: Bool = false) {
+        guard photoLibraryManager.hasPhotoLibraryAccess else {
+            advancedCleanupQueues = []
+            advancedCleanupQueuesRevision = UUID()
+            isLoadingAdvancedCleanupQueues = false
+            lastAdvancedCleanupQueueBuildSignature = nil
+            pendingAdvancedCleanupQueueRefresh = false
+            return
+        }
+
+        let photos = photoLibraryManager.allPhotos
         let videos = photoLibraryManager.videos
+        let screenshotIDs = Set(photoLibraryManager.screenshots.map(\.localIdentifier))
+        let imageSessions = imageCompressionHistoryStore.sessions
+        let processedIDs = Self.imageCompressionProcessedAssetIDs(from: imageSessions)
+        let signature = AdvancedCleanupQueueBuildSignature(
+            photoCount: photos.count,
+            firstPhotoID: photos.first?.localIdentifier,
+            lastPhotoID: photos.last?.localIdentifier,
+            videoCount: videos.count,
+            screenshotCount: screenshotIDs.count,
+            imageCompressionSessionCount: imageSessions.count,
+            imageCompressionItemCount: imageSessions.reduce(0) { $0 + $1.items.count }
+        )
+
+        if !force,
+           !advancedCleanupQueues.isEmpty,
+           signature == lastAdvancedCleanupQueueBuildSignature {
+            return
+        }
+
+        if isLoadingAdvancedCleanupQueues {
+            pendingAdvancedCleanupQueueRefresh = true
+            return
+        }
+
+        advancedCleanupQueueBuildGeneration += 1
+        let generation = advancedCleanupQueueBuildGeneration
+        isLoadingAdvancedCleanupQueues = true
+
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let queues = Self.makeAdvancedCleanupQueues(
+                photos: photos,
+                videos: videos,
+                screenshotIDs: screenshotIDs,
+                imageCompressionProcessedIDs: processedIDs
+            )
+
+            DispatchQueue.main.async {
+                guard let self, self.advancedCleanupQueueBuildGeneration == generation else { return }
+                self.advancedCleanupQueues = queues
+                self.advancedCleanupQueuesRevision = UUID()
+                self.lastAdvancedCleanupQueueBuildSignature = signature
+                self.isLoadingAdvancedCleanupQueues = false
+
+                if self.pendingAdvancedCleanupQueueRefresh {
+                    self.pendingAdvancedCleanupQueueRefresh = false
+                    self.refreshAdvancedCleanupQueues(force: true)
+                }
+            }
+        }
+    }
+
+    private static func makeAdvancedCleanupQueues(
+        photos: [PHAsset],
+        videos: [PHAsset],
+        screenshotIDs: Set<String>,
+        imageCompressionProcessedIDs: Set<String>
+    ) -> [AdvancedCleanupQueue] {
+        let similarGroups = makeSimilarPhotoGroups(
+            photos: photos,
+            screenshotIDs: screenshotIDs,
+            maxGroups: 120
+        )
+        let largeFiles = largeFileCandidates(from: photos, maxCount: 240)
+        let imageCompressionCandidates = imageCompressionCandidates(
+            from: photos,
+            processedIDs: imageCompressionProcessedIDs,
+            maxCount: 240
+        )
+        let videoCompressionCandidates = videoCompressionCandidates(from: videos, maxCount: 240)
 
         return [
             AdvancedCleanupQueue(
@@ -961,7 +1114,7 @@ class DataManager: ObservableObject {
             AdvancedCleanupQueue(
                 kind: .largeFiles,
                 assetCount: largeFiles.count,
-                estimatedSpaceMB: largeFiles.reduce(0) { $0 + estimatedAssetSizeMB($1) }
+                estimatedSpaceMB: largeFiles.reduce(0) { $0 + estimatedAssetSizeMBForAsset($1) }
             ),
             AdvancedCleanupQueue(
                 kind: .imageCompression,
@@ -976,14 +1129,25 @@ class DataManager: ObservableObject {
             AdvancedCleanupQueue(
                 kind: .videos,
                 assetCount: videos.count,
-                estimatedSpaceMB: videos.reduce(0) { $0 + estimatedAssetSizeMB($1) }
+                estimatedSpaceMB: videos.reduce(0) { $0 + estimatedAssetSizeMBForAsset($1) }
             )
         ]
     }
 
     func makeSimilarPhotoGroups(maxGroups: Int = 80) -> [AdvancedSimilarPhotoGroup] {
-        let screenshotIDs = Set(photoLibraryManager.screenshots.map(\.localIdentifier))
-        let photos = photoLibraryManager.allPhotos
+        Self.makeSimilarPhotoGroups(
+            photos: photoLibraryManager.allPhotos,
+            screenshotIDs: Set(photoLibraryManager.screenshots.map(\.localIdentifier)),
+            maxGroups: maxGroups
+        )
+    }
+
+    private static func makeSimilarPhotoGroups(
+        photos allPhotos: [PHAsset],
+        screenshotIDs: Set<String>,
+        maxGroups: Int
+    ) -> [AdvancedSimilarPhotoGroup] {
+        let photos = allPhotos
             .filter { asset in
                 asset.mediaType == .image &&
                     asset.creationDate != nil &&
@@ -1003,7 +1167,7 @@ class DataManager: ObservableObject {
 
         func flushCluster() {
             guard cluster.count >= 3 else { return }
-            let estimatedSpace = cluster.dropFirst().reduce(0) { $0 + estimatedAssetSizeMB($1) }
+            let estimatedSpace = cluster.dropFirst().reduce(0) { $0 + estimatedAssetSizeMBForAsset($1) }
             groups.append(
                 AdvancedSimilarPhotoGroup(
                     assets: cluster.sorted {
@@ -1038,34 +1202,59 @@ class DataManager: ObservableObject {
     }
 
     private func largeFileCandidates(maxCount: Int) -> [PHAsset] {
-        let candidates = photoLibraryManager.allPhotos.filter { asset in
-            let estimatedSize = estimatedAssetSizeMB(asset)
+        Self.largeFileCandidates(from: photoLibraryManager.allPhotos, maxCount: maxCount)
+    }
+
+    private static func largeFileCandidates(from photos: [PHAsset], maxCount: Int) -> [PHAsset] {
+        let candidates = photos.filter { asset in
+            let estimatedSize = estimatedAssetSizeMBForAsset(asset)
             if asset.mediaType == .video {
                 return estimatedSize >= 80
             }
             return estimatedSize >= 18
         }
-        let source = candidates.isEmpty ? photoLibraryManager.allPhotos : candidates
+        let source = candidates.isEmpty ? photos : candidates
 
         return Array(source.sorted {
-            estimatedAssetSizeMB($0) > estimatedAssetSizeMB($1)
+            estimatedAssetSizeMBForAsset($0) > estimatedAssetSizeMBForAsset($1)
         }.prefix(maxCount))
     }
 
     private func imageCompressionCandidates(maxCount: Int) -> [PHAsset] {
-        let processedIDs = Set(imageCompressionHistoryStore.sessions.flatMap { session in
+        Self.imageCompressionCandidates(
+            from: photoLibraryManager.allPhotos,
+            processedIDs: imageCompressionProcessedAssetIDs(),
+            maxCount: maxCount
+        )
+    }
+
+    private func imageCompressionProcessedAssetIDs() -> Set<String> {
+        Self.imageCompressionProcessedAssetIDs(from: imageCompressionHistoryStore.sessions)
+    }
+
+    private static func imageCompressionProcessedAssetIDs(
+        from sessions: [ImageCompressionSession]
+    ) -> Set<String> {
+        Set(sessions.flatMap { session in
             session.items.flatMap { item in
                 [item.originalAssetIdentifier, item.createdAssetIdentifier].compactMap { $0 }
             }
         })
-        let candidates = photoLibraryManager.allPhotos.filter { asset in
+    }
+
+    private static func imageCompressionCandidates(
+        from photos: [PHAsset],
+        processedIDs: Set<String>,
+        maxCount: Int
+    ) -> [PHAsset] {
+        let candidates = photos.filter { asset in
             asset.mediaType == .image &&
                 !asset.mediaSubtypes.contains(.photoLive) &&
                 !processedIDs.contains(asset.localIdentifier) &&
-                estimatedAssetSizeMB(asset) >= 2
+                estimatedAssetSizeMBForAsset(asset) >= 2
         }
         let source = candidates.isEmpty
-            ? photoLibraryManager.allPhotos.filter {
+            ? photos.filter {
                 $0.mediaType == .image &&
                     !$0.mediaSubtypes.contains(.photoLive) &&
                     !processedIDs.contains($0.localIdentifier)
@@ -1073,13 +1262,17 @@ class DataManager: ObservableObject {
             : candidates
 
         return Array(source.sorted {
-            estimatedAssetSizeMB($0) > estimatedAssetSizeMB($1)
+            estimatedAssetSizeMBForAsset($0) > estimatedAssetSizeMBForAsset($1)
         }.prefix(maxCount))
     }
 
     private func videoCompressionCandidates(maxCount: Int) -> [PHAsset] {
-        Array(photoLibraryManager.videos.sorted {
-            estimatedAssetSizeMB($0) > estimatedAssetSizeMB($1)
+        Self.videoCompressionCandidates(from: photoLibraryManager.videos, maxCount: maxCount)
+    }
+
+    private static func videoCompressionCandidates(from videos: [PHAsset], maxCount: Int) -> [PHAsset] {
+        Array(videos.sorted {
+            estimatedAssetSizeMBForAsset($0) > estimatedAssetSizeMBForAsset($1)
         }.prefix(maxCount))
     }
 
@@ -1087,10 +1280,22 @@ class DataManager: ObservableObject {
         for assets: [PHAsset],
         plan: ImageCompressionPlan = .default
     ) -> Double {
-        estimatedImageCompressionEstimate(for: assets, plan: plan).estimatedSavedMidMB
+        Self.estimatedImageCompressionEstimate(for: assets, plan: plan).estimatedSavedMidMB
     }
 
     func estimatedImageCompressionEstimate(
+        for assets: [PHAsset],
+        plan: ImageCompressionPlan = .default,
+        knownOriginalSizeMBByAssetID: [String: Double] = [:]
+    ) -> ImageCompressionEstimate {
+        Self.estimatedImageCompressionEstimate(
+            for: assets,
+            plan: plan,
+            knownOriginalSizeMBByAssetID: knownOriginalSizeMBByAssetID
+        )
+    }
+
+    private static func estimatedImageCompressionEstimate(
         for assets: [PHAsset],
         plan: ImageCompressionPlan = .default,
         knownOriginalSizeMBByAssetID: [String: Double] = [:]
@@ -1118,10 +1323,22 @@ class DataManager: ObservableObject {
         for assets: [PHAsset],
         plan: VideoCompressionPlan = .default
     ) -> Double {
-        estimatedVideoCompressionEstimate(for: assets, plan: plan).estimatedSavedMidMB
+        Self.estimatedVideoCompressionEstimate(for: assets, plan: plan).estimatedSavedMidMB
     }
 
     func estimatedVideoCompressionEstimate(
+        for assets: [PHAsset],
+        plan: VideoCompressionPlan = .default,
+        knownOriginalSizeMBByAssetID: [String: Double] = [:]
+    ) -> VideoCompressionEstimate {
+        Self.estimatedVideoCompressionEstimate(
+            for: assets,
+            plan: plan,
+            knownOriginalSizeMBByAssetID: knownOriginalSizeMBByAssetID
+        )
+    }
+
+    private static func estimatedVideoCompressionEstimate(
         for assets: [PHAsset],
         plan: VideoCompressionPlan = .default,
         knownOriginalSizeMBByAssetID: [String: Double] = [:]
@@ -1145,7 +1362,7 @@ class DataManager: ObservableObject {
         )
     }
 
-    private func isPotentiallySimilar(_ asset: PHAsset, to previous: PHAsset) -> Bool {
+    private static func isPotentiallySimilar(_ asset: PHAsset, to previous: PHAsset) -> Bool {
         guard let assetDate = asset.creationDate,
               let previousDate = previous.creationDate else { return false }
 
@@ -1157,7 +1374,7 @@ class DataManager: ObservableObject {
         return abs(assetAspect - previousAspect) <= 0.025
     }
 
-    private func aspectRatio(for asset: PHAsset) -> Double {
+    private static func aspectRatio(for asset: PHAsset) -> Double {
         guard asset.pixelHeight > 0 else { return 0 }
         return Double(asset.pixelWidth) / Double(asset.pixelHeight)
     }
@@ -1178,14 +1395,14 @@ class DataManager: ObservableObject {
         return max(megapixels * 0.55, 0.8)
     }
 
-    private func originalSizeMB(
+    private static func originalSizeMB(
         for asset: PHAsset,
         knownOriginalSizeMBByAssetID: [String: Double]
     ) -> Double {
-        knownOriginalSizeMBByAssetID[asset.localIdentifier] ?? estimatedAssetSizeMB(asset)
+        knownOriginalSizeMBByAssetID[asset.localIdentifier] ?? estimatedAssetSizeMBForAsset(asset)
     }
 
-    private func estimatedCompressedSizeMB(
+    private static func estimatedCompressedSizeMB(
         for asset: PHAsset,
         plan: VideoCompressionPlan,
         knownOriginalSizeMBByAssetID: [String: Double]
@@ -1206,7 +1423,7 @@ class DataManager: ObservableObject {
         return originalSize * compressedRatio
     }
 
-    private func estimatedCompressedImageSizeMB(
+    private static func estimatedCompressedImageSizeMB(
         for asset: PHAsset,
         plan: ImageCompressionPlan,
         knownOriginalSizeMBByAssetID: [String: Double]
@@ -1240,16 +1457,44 @@ class DataManager: ObservableObject {
         scheduleProgressRefresh(delay: 0)
     }
 
-    func loadLocationGroups() {
-        guard photoLibraryManager.hasPhotoLibraryAccess else { return }
+    func loadLocationGroups(force: Bool = false) {
+        guard photoLibraryManager.hasPhotoLibraryAccess else {
+            locationGroupCache = [:]
+            locationGroups = []
+            locationGroupsRevision = UUID()
+            isLoadingLocationGroups = false
+            lastLocationGroupBuildSignature = nil
+            pendingLocationGroupRefresh = false
+            return
+        }
 
-        locationGroupBuildGeneration += 1
-        let generation = locationGroupBuildGeneration
         let photos = photoLibraryManager.allPhotos
         let reviewedIDs = reviewedAssetIDs
         let deleteCandidateIDs = Set(deleteCandidates.map(\.localIdentifier))
         let favoriteCandidateIDs = Set(favoriteCandidates.map(\.localIdentifier))
         let titleCache = locationTitleCacheStore.titleCache()
+        let signature = LocationGroupBuildSignature(
+            photoCount: photos.count,
+            firstPhotoID: photos.first?.localIdentifier,
+            lastPhotoID: photos.last?.localIdentifier,
+            reviewedCount: reviewedIDs.count,
+            deleteCandidateCount: deleteCandidateIDs.count,
+            favoriteCandidateCount: favoriteCandidateIDs.count
+        )
+
+        if !force,
+           signature == lastLocationGroupBuildSignature {
+            return
+        }
+
+        if isLoadingLocationGroups {
+            pendingLocationGroupRefresh = true
+            return
+        }
+
+        locationGroupBuildGeneration += 1
+        let generation = locationGroupBuildGeneration
+        isLoadingLocationGroups = true
 
         DispatchQueue.global(qos: .utility).async { [weak self] in
             let result = Self.buildLocationGroupData(
@@ -1264,11 +1509,19 @@ class DataManager: ObservableObject {
                 guard let self, self.locationGroupBuildGeneration == generation else { return }
                 self.locationGroupCache = result.cache
                 self.locationGroups = result.locationGroups
+                self.locationGroupsRevision = UUID()
+                self.lastLocationGroupBuildSignature = signature
+                self.isLoadingLocationGroups = false
                 self.locationTitleCacheStore.prune(keeping: Set(result.cache.keys))
                 self.resolveLocationTitlesIfNeeded(
                     for: result.representativeCoordinatesByGroupID,
                     generation: generation
                 )
+
+                if self.pendingLocationGroupRefresh {
+                    self.pendingLocationGroupRefresh = false
+                    self.loadLocationGroups(force: true)
+                }
             }
         }
     }
@@ -1278,16 +1531,15 @@ class DataManager: ObservableObject {
             return cached
         }
 
-        let records = photoLibraryManager.allPhotos.map { asset in
-            PhotoLocationAssetRecord(
-                identifier: asset.localIdentifier,
-                location: asset.location,
-                isReviewed: isAssetOrganized(asset)
-            )
+        guard !isLoadingLocationGroups else { return [] }
+
+        return photoLibraryManager.allPhotos.filter { asset in
+            let coordinate = asset.location?.coordinate
+            return PhotoLocationGrouping.groupID(
+                latitude: coordinate?.latitude,
+                longitude: coordinate?.longitude
+            ) == groupID
         }
-        let result = PhotoLocationGrouping.buildGroups(from: records)
-        let ids = result.identifiersByGroupID[groupID] ?? []
-        return Self.assets(in: photoLibraryManager.allPhotos, preserving: ids)
     }
 
     private func resolveLocationTitlesIfNeeded(
@@ -1345,6 +1597,7 @@ class DataManager: ObservableObject {
                 )
                 self.locationGroupCache = result.cache
                 self.locationGroups = result.locationGroups
+                self.locationGroupsRevision = UUID()
             }
         }
     }
@@ -1455,9 +1708,10 @@ class DataManager: ObservableObject {
             )
         }
         let result = PhotoLocationGrouping.buildGroups(from: records, titleCache: locationTitleCache)
+        let assetsByID = Dictionary(uniqueKeysWithValues: photos.map { ($0.localIdentifier, $0) })
         var cache: [String: [PHAsset]] = [:]
         for (groupID, identifiers) in result.identifiersByGroupID {
-            cache[groupID] = assets(in: photos, preserving: identifiers)
+            cache[groupID] = identifiers.compactMap { assetsByID[$0] }
         }
 
         return LocationGroupBuildResult(

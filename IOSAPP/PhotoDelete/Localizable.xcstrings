@@ -1752,28 +1752,6 @@
         }
       }
     },
-    "优先检查占用较高的视频": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Check larger videos first"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "优先检查占用较高的视频"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "優先檢查佔用較高的視頻"
-          }
-        }
-      }
-    },
     "优先追踪最接近的目标": {
       "localizations": {
         "en": {
@@ -1792,23 +1770,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "優先追蹤最接近的目標"
-          }
-        }
-      }
-    },
-    "估算节省": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Estimated Saved"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "估算節省"
           }
         }
       }
@@ -4822,28 +4783,6 @@
         }
       }
     },
-    "已整理 %lld/%lld 项，预计占用 %@。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$lld/%2$lld items reviewed, about %3$@."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "已整理 %lld/%lld 项，预计占用 %@。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已整理 %lld/%lld 項，預計佔用 %@。"
-          }
-        }
-      }
-    },
     "已清空本机整理记录": {
       "localizations": {
         "en": {
@@ -6247,28 +6186,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "按%@查看照片清理比例"
-          }
-        }
-      }
-    },
-    "按估算占用空间优先处理": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Prioritize by estimated storage size"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "按估算占用空间优先处理"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "按估算佔用空間優先處理"
           }
         }
       }
@@ -8340,28 +8257,6 @@
         }
       }
     },
-    "正在读取照片信息": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reading Photo Info"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "正在读取照片信息"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在讀取照片資訊"
-          }
-        }
-      }
-    },
     "正在读取当前相册": {
       "localizations": {
         "en": {
@@ -8468,28 +8363,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在載入高畫質預覽"
-          }
-        }
-      }
-    },
-    "正在读取照片信息 %@ · 可先进入整理": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reading photo info %@ · You can start organizing now"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "正在读取照片信息 %@ · 可先进入整理"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在讀取照片信息 %@ · 可先進入整理"
           }
         }
       }
@@ -9286,28 +9159,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "相似照片"
-          }
-        }
-      }
-    },
-    "相似照片会按拍摄时间和画面比例聚组。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Similar photos are grouped by capture time and aspect ratio."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "相似照片会按拍摄时间和画面比例聚组。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "相似照片會按拍攝時間和畫面比例聚組。"
           }
         }
       }
@@ -11608,50 +11459,6 @@
         }
       }
     },
-    "首次初始化会读取照片数量和分类。完成后下次会优先使用本机缓存。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The first scan reads counts and categories. After that, Photo Delete uses the local cache first."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "首次初始化会读取照片数量和分类。完成后下次会优先使用本机缓存。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "首次初始化會讀取照片數量和分類。完成後下次會優先使用本機緩存。"
-          }
-        }
-      }
-    },
-    "首次打开会在本机扫描照片、截图和视频，完成后自动显示真实进阶入口。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "On first open, Photo Delete scans photos, screenshots, and videos on this device. Real entries appear when ready."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "首次打开会在本机扫描照片、截图和视频，完成后自动显示真实进阶入口。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "首次打開會在本機掃描照片、截圖和視頻，完成後自動顯示真實進階入口。"
-          }
-        }
-      }
-    },
     "首次读取完成后会自动显示相册。": {
       "localizations": {
         "en": {
@@ -12504,28 +12311,6 @@
         }
       }
     },
-    "按拍摄时间和画面比例估算的相近照片": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Near-match photos estimated by capture time and image ratio"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "按拍摄时间和画面比例估算的相近照片"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "按拍攝時間和畫面比例估算的相近照片"
-          }
-        }
-      }
-    },
     "视频压缩": {
       "localizations": {
         "en": {
@@ -12544,28 +12329,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "影片壓縮"
-          }
-        }
-      }
-    },
-    "预计可减少空间，原视频保留": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Estimated space reduction, original kept"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "预计可减少空间，原视频保留"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "預計可減少空間，原影片保留"
           }
         }
       }
@@ -12922,28 +12685,6 @@
         }
       }
     },
-    "已生成 %lld 个压缩副本 · 估算节省 %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Created %lld compressed copies · Estimated savings %@"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "已生成 %lld 个压缩副本 · 估算节省 %@"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已生成 %lld 個壓縮副本 · 估算節省 %@"
-          }
-        }
-      }
-    },
     "压缩后的副本已经保存到照片库。确认无误后，可回到大文件清理删除原视频。": {
       "localizations": {
         "en": {
@@ -13182,28 +12923,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在檢查購買狀態..."
-          }
-        }
-      }
-    },
-    "当前使用本机缓存的支持者版状态，联网后会自动校验。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Using the supporter status cached on this device. It will be verified automatically when online."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "当前使用本机缓存的支持者版状态，联网后会自动校验。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "目前使用本機快取的支持者版狀態，連線後會自動驗證。"
           }
         }
       }
@@ -16068,50 +15787,6 @@
         }
       }
     },
-    "%lld 项 · 选择后估算节省空间 · %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld items · Estimate savings after selecting · %@"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "%lld 项 · 选择后估算节省空间 · %@"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld 項 · 選擇後估算節省空間 · %@"
-          }
-        }
-      }
-    },
-    "%lld 项 · 进入后确认大小 · %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld items · Size checked after opening · %@"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "%lld 项 · 进入后确认大小 · %@"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld 項 · 進入後確認大小 · %@"
-          }
-        }
-      }
-    },
     "%lld 个视频 · 合计约 %@": {
       "localizations": {
         "en": {
@@ -17696,50 +17371,6 @@
         }
       }
     },
-    "找出更值得处理的照片和视频。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Find photos and videos worth handling first."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "找出更值得处理的照片和视频。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "找出更值得處理的照片和影片。"
-          }
-        }
-      }
-    },
-    "剩余 %lld 张 · 估算 %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld left · about %@"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "剩余 %lld 张 · 估算 %@"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "剩餘 %lld 張 · 估算 %@"
-          }
-        }
-      }
-    },
     "已获得 %lld/%lld 枚徽章": {
       "localizations": {
         "en": {
@@ -17824,50 +17455,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "隨機整理"
-          }
-        }
-      }
-    },
-    "基础时间整理": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Basic Time Organizing"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "基础时间整理"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "基礎時間整理"
-          }
-        }
-      }
-    },
-    "基础地点整理": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Basic Place Organizing"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "基础地点整理"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "基礎地點整理"
           }
         }
       }
@@ -18396,28 +17983,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "圖片壓縮"
-          }
-        }
-      }
-    },
-    "生成较小副本，原图保留": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Create smaller copies while keeping originals"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "生成较小副本，原图保留"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "產生較小副本，原圖保留"
           }
         }
       }
@@ -19698,24 +19263,222 @@
         }
       }
     },
-    "免费版保留随机、滑动、基础时间和地点整理；支持者版额外解锁完整时间列表、图片压缩、视频压缩、大文件清理、相似照片清理和主题切换。": {
+    "会把拍摄时间接近的照片放在一起，方便逐组确认。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The free version keeps random review, swipe review, basic time organizing, and location organizing. Supporter also unlocks the full time list, image compression, video compression, large file cleanup, similar photo cleanup, and themes."
+            "value": "Photos taken close together are grouped so you can review each group."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "免费版保留随机、滑动、基础时间和地点整理；支持者版额外解锁完整时间列表、图片压缩、视频压缩、大文件清理、相似照片清理和主题切换。"
+            "value": "会把拍摄时间接近的照片放在一起，方便逐组确认。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "免費版保留隨機、滑動、基礎時間和地點整理；支持者版額外解鎖完整時間列表、圖片壓縮、影片壓縮、大檔案清理、相似照片清理和主題切換。"
+            "value": "會把拍攝時間接近的照片放在一起，方便逐組確認。"
+          }
+        }
+      }
+    },
+    "免费版保留随机整理、滑动整理、按时间整理和地点整理；支持者版额外解锁完整时间列表、图片压缩、视频压缩、大文件清理、相似照片清理和主题切换。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The free version keeps random review, swipe review, time organizing, and location organizing. Supporter also unlocks the full time list, image compression, video compression, large file cleanup, similar photo cleanup, and themes."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "免费版保留随机整理、滑动整理、按时间整理和地点整理；支持者版额外解锁完整时间列表、图片压缩、视频压缩、大文件清理、相似照片清理和主题切换。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "免費版保留隨機整理、滑動整理、按時間整理和地點整理；支持者版額外解鎖完整時間列表、圖片壓縮、影片壓縮、大檔案清理、相似照片清理和主題切換。"
+          }
+        }
+      }
+    },
+    "已整理 %lld/%lld 项，合计约 %@。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld/%2$lld items reviewed, about %3$@ in total."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "已整理 %lld/%lld 项，合计约 %@。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已整理 %lld/%lld 項，合計約 %@。"
+          }
+        }
+      }
+    },
+    "正在准备清理入口": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparing cleanup options"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "正在准备清理入口"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在準備清理入口"
+          }
+        }
+      }
+    },
+    "正在读取本机照片、截图和视频，完成后会显示可用入口。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading local photos, screenshots, and videos. Available options will appear when ready."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "正在读取本机照片、截图和视频，完成后会显示可用入口。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在讀取本機照片、截圖和影片，完成後會顯示可用入口。"
+          }
+        }
+      }
+    },
+    "正在读取相册数量和封面，完成后会显示你的相册。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading album counts and covers. Your albums will appear when ready."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "正在读取相册数量和封面，完成后会显示你的相册。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在讀取相簿數量和封面，完成後會顯示你的相簿。"
+          }
+        }
+      }
+    },
+    "稍后会显示可处理的照片和视频。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photos and videos you can review will appear shortly."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "稍后会显示可处理的照片和视频。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "稍後會顯示可處理的照片和影片。"
+          }
+        }
+      }
+    },
+    "剩余 %lld 张 · 合计约 %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld left · about %@ total"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "剩余 %lld 张 · 合计约 %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "剩餘 %lld 張 · 合計約 %@"
+          }
+        }
+      }
+    },
+    "离线时仍可使用已解锁的支持者版，联网后会自动确认状态。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlocked supporter features remain available offline. Status is confirmed automatically when online."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "离线时仍可使用已解锁的支持者版，联网后会自动确认状态。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "離線時仍可使用已解鎖的支持者版，連線後會自動確認狀態。"
+          }
+        }
+      }
+    },
+    "集中处理相似照片、大文件、图片和视频压缩。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Handle similar photos, large files, image compression, and video compression in one place."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "集中处理相似照片、大文件、图片和视频压缩。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "集中處理相似照片、大檔案、圖片和影片壓縮。"
           }
         }
       }

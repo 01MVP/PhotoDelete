@@ -71,6 +71,9 @@ struct AdvancedView: View {
         .onChange(of: dataManager.cleanupStatsRevision) { _ in
             scheduleAdvancedDashboardRefresh()
         }
+        .onChange(of: dataManager.advancedCleanupQueuesRevision) { _ in
+            scheduleAdvancedDashboardRefresh()
+        }
         .onReceive(dataManager.photoLibraryManager.$isLoading) { isLoading in
             if !isLoading {
                 scheduleAdvancedDashboardRefresh()
@@ -216,7 +219,8 @@ struct AdvancedView: View {
             reviewedCount: dataManager.reviewedAssetIDs.count,
             deleteCandidateCount: dataManager.deleteCandidates.count,
             favoriteCandidateCount: dataManager.favoriteCandidates.count,
-            cleanupStatsRevision: dataManager.cleanupStatsRevision
+            cleanupStatsRevision: dataManager.cleanupStatsRevision,
+            advancedCleanupQueuesRevision: dataManager.advancedCleanupQueuesRevision
         )
     }
 
@@ -364,35 +368,43 @@ struct AdvancedView: View {
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundColor(PhotoDeleteStyle.primaryText)
 
-                Text(L10n.string("找出更值得处理的照片和视频。"))
+                Text(L10n.string("集中处理相似照片、大文件、图片和视频压缩。"))
                     .font(.system(size: 12, weight: .regular))
                     .foregroundColor(PhotoDeleteStyle.secondaryText)
             }
 
-            VStack(spacing: 0) {
-                ForEach(Array(queues.enumerated()), id: \.element.id) { index, queue in
-                    if isLocked {
-                        Button(action: openLockedAdvancedFeature) {
-                            AdvancedCleanupEntryRow(queue: queue, isLocked: true)
+            if queues.isEmpty && dataManager.isLoadingAdvancedCleanupQueues {
+                AdvancedEmptyState(
+                    icon: "sparkles",
+                    title: L10n.string("正在准备清理入口"),
+                    subtitle: L10n.string("稍后会显示可处理的照片和视频。")
+                )
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(queues.enumerated()), id: \.element.id) { index, queue in
+                        if isLocked {
+                            Button(action: openLockedAdvancedFeature) {
+                                AdvancedCleanupEntryRow(queue: queue, isLocked: true)
+                            }
+                            .buttonStyle(.plain)
+                        } else {
+                            NavigationLink {
+                                cleanupDestination(for: queue.kind)
+                            } label: {
+                                AdvancedCleanupEntryRow(queue: queue, isLocked: false)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
-                    } else {
-                        NavigationLink {
-                            cleanupDestination(for: queue.kind)
-                        } label: {
-                            AdvancedCleanupEntryRow(queue: queue, isLocked: false)
-                        }
-                        .buttonStyle(.plain)
-                    }
 
-                    if index != queues.count - 1 {
-                        Divider()
-                            .background(PhotoDeleteStyle.hairline)
-                            .padding(.leading, 62)
+                        if index != queues.count - 1 {
+                            Divider()
+                                .background(PhotoDeleteStyle.hairline)
+                                .padding(.leading, 62)
+                        }
                     }
                 }
+                .photoDeleteCard()
             }
-            .photoDeleteCard()
         }
     }
 
@@ -591,8 +603,9 @@ struct AdvancedView: View {
             stats: dataManager.makeSettingsStatsSummary(),
             daySummaries: [],
             monthSummaries: [],
-            cleanupQueues: dataManager.makeAdvancedCleanupQueues()
+            cleanupQueues: dataManager.advancedCleanupQueues
         )
+        dataManager.refreshAdvancedCleanupQueues()
         dataManager.refreshPhotoPeriodSummaries(for: [selectedScope])
     }
 }
@@ -608,6 +621,7 @@ private struct AdvancedDashboardRefreshKey: Equatable {
     let deleteCandidateCount: Int
     let favoriteCandidateCount: Int
     let cleanupStatsRevision: UUID
+    let advancedCleanupQueuesRevision: UUID
 }
 
 private struct AdvancedPeriodRoute: Identifiable, Hashable {
@@ -725,7 +739,12 @@ private struct AdvancedPeriodProgressCard: View {
                         }
                     }
 
-                    Text(L10n.string("已整理 \(summary.reviewedCount)/\(summary.assetCount) 项，预计占用 \(summary.formattedEstimatedSize)。"))
+                    Text(String(
+                        format: L10n.string("已整理 %lld/%lld 项，合计约 %@。"),
+                        Int64(summary.reviewedCount),
+                        Int64(summary.assetCount),
+                        summary.formattedEstimatedSize
+                    ))
                         .font(.system(size: 12, weight: .regular))
                         .foregroundColor(PhotoDeleteStyle.secondaryText)
                         .lineLimit(2)
@@ -857,14 +876,10 @@ private struct AdvancedCleanupEntryRow: View {
 
     private var detailText: String {
         switch queue.kind {
-        case .imageCompression:
-            return String(format: L10n.string("%lld 项 · 选择后估算节省空间 · %@"), Int64(queue.assetCount), queue.kind.subtitle)
-        case .videoCompression:
-            return String(format: L10n.string("%lld 项 · 选择后估算节省空间 · %@"), Int64(queue.assetCount), queue.kind.subtitle)
-        case .videos:
-            return String(format: L10n.string("%lld 项 · 进入后确认大小 · %@"), Int64(queue.assetCount), queue.kind.subtitle)
         case .similarPhotos, .largeFiles:
-            return L10n.string("\(queue.assetCount) 项 · \(queue.formattedSpace) · \(queue.kind.subtitle)")
+            return L10n.string("\(queue.assetCount) 项 · \(queue.formattedSpace)")
+        case .imageCompression, .videoCompression, .videos:
+            return L10n.string("\(queue.assetCount) 项")
         }
     }
 }
@@ -904,7 +919,7 @@ private struct AdvancedTimePeriodRow: View {
 
     private var detailText: String {
         String(
-            format: L10n.string("剩余 %lld 张 · 估算 %@"),
+            format: L10n.string("剩余 %lld 张 · 合计约 %@"),
             Int64(summary.remainingCount),
             summary.formattedEstimatedSize
         )
@@ -1127,7 +1142,7 @@ private struct AdvancedLibraryPreparingCard: View {
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundColor(PhotoDeleteStyle.primaryText)
 
-                    Text(L10n.string("首次打开会在本机扫描照片、截图和视频，完成后自动显示真实进阶入口。"))
+                    Text(L10n.string("正在读取本机照片、截图和视频，完成后会显示可用入口。"))
                         .font(.system(size: 13, weight: .regular))
                         .foregroundColor(PhotoDeleteStyle.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -4714,7 +4729,7 @@ private struct AdvancedSimilarPhotoGroupsView: View {
                         AdvancedEmptyState(
                             icon: AdvancedCleanupKind.similarPhotos.icon,
                             title: L10n.string("暂未发现相似照片"),
-                            subtitle: L10n.string("相似照片会按拍摄时间和画面比例聚组。")
+                            subtitle: L10n.string("会把拍摄时间接近的照片放在一起，方便逐组确认。")
                         )
                     } else if filteredGroups.isEmpty {
                         AdvancedEmptyState(

@@ -575,16 +575,6 @@ enum AdvancedCleanupKind: String, CaseIterable, Identifiable {
         }
     }
 
-    var subtitle: String {
-        switch self {
-        case .similarPhotos: return L10n.string("按拍摄时间和画面比例估算的相近照片")
-        case .largeFiles: return L10n.string("按估算占用空间优先处理")
-        case .imageCompression: return L10n.string("生成较小副本，原图保留")
-        case .videoCompression: return L10n.string("预计可减少空间，原视频保留")
-        case .videos: return L10n.string("优先检查占用较高的视频")
-        }
-    }
-
     var icon: String {
         switch self {
         case .similarPhotos: return "square.stack.3d.down.right"

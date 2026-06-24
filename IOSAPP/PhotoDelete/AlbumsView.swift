@@ -82,13 +82,9 @@ struct AlbumsView: View {
         }
         .onAppear {
             dataManager.loadAlbumsIfNeeded()
-            dataManager.refreshAlbumsFromLibrary(showLoading: false)
             refreshAlbumProgress()
         }
         .onChange(of: albumProgressRefreshToken) { _ in
-            refreshAlbumProgress()
-        }
-        .onChange(of: dataManager.reviewedAssetIDs) { _ in
             refreshAlbumProgress()
         }
     }
@@ -373,7 +369,7 @@ struct AlbumsView: View {
 
     private var albumLoadingMessage: String {
         isLoadingPhotoLibraryForAlbums
-            ? L10n.string("首次初始化会读取照片数量和分类。完成后下次会优先使用本机缓存。")
+            ? L10n.string("正在读取相册数量和封面，完成后会显示你的相册。")
             : L10n.string("正在统计相册数量和封面。")
     }
 
@@ -482,52 +478,8 @@ struct AlbumsView: View {
     }
 
     private func refreshAlbumProgress() {
-        let albums = dataManager.getUserAlbums()
-        let reviewedAssetIDs = dataManager.reviewedAssetIDs
         albumProgressGeneration += 1
-        let generation = albumProgressGeneration
-
-        DispatchQueue.global(qos: .utility).async {
-            var progressByID: [String: AlbumProgressSnapshot] = [:]
-            for album in albums {
-                progressByID[album.id] = Self.albumProgressSnapshot(
-                    for: album,
-                    reviewedAssetIDs: reviewedAssetIDs
-                )
-            }
-
-            DispatchQueue.main.async {
-                guard albumProgressGeneration == generation else { return }
-                albumProgressByID = progressByID
-            }
-        }
-    }
-
-    private static func albumProgressSnapshot(
-        for albumInfo: AlbumInfo,
-        reviewedAssetIDs: Set<String>
-    ) -> AlbumProgressSnapshot {
-        guard albumInfo.photosCount > 0 else {
-            return AlbumProgressSnapshot(totalCount: 0, reviewedCount: 0)
-        }
-
-        guard let assetCollection = albumInfo.assetCollection else {
-            return AlbumProgressSnapshot(totalCount: albumInfo.photosCount, reviewedCount: 0)
-        }
-
-        let fetchOptions = PHFetchOptions()
-        let assets = PHAsset.fetchAssets(in: assetCollection, options: fetchOptions)
-        var reviewedCount = 0
-        assets.enumerateObjects { asset, _, _ in
-            if reviewedAssetIDs.contains(asset.localIdentifier) {
-                reviewedCount += 1
-            }
-        }
-
-        return AlbumProgressSnapshot(
-            totalCount: assets.count,
-            reviewedCount: reviewedCount
-        )
+        albumProgressByID = [:]
     }
 
     private func openAlbum(_ albumInfo: AlbumInfo) {

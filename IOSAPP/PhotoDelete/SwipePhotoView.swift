@@ -298,6 +298,17 @@ struct SwipePhotoView: View {
         .onChange(of: dataManager.isPreparingLibrary) { _ in
             initializeSessionIfNeeded()
         }
+        .onChange(of: dataManager.photoLibraryManager.allPhotos.count) { _ in
+            refreshSessionForSourceChangeIfNeeded()
+        }
+        .onChange(of: dataManager.locationGroupsRevision) { _ in
+            guard selectedLocationGroupID != nil else { return }
+            refreshSessionForSourceChangeIfNeeded(force: true)
+        }
+        .onChange(of: dataManager.advancedCleanupQueuesRevision) { _ in
+            guard selectedAdvancedCleanup != nil else { return }
+            refreshSessionForSourceChangeIfNeeded(force: true)
+        }
         .onChange(of: currentPhotoIndex) { _ in
             stopInlineVideoPlaybackIfNeeded(forNextIndex: currentPhotoIndex)
             expandLoadedSessionPhotosIfNeeded(for: currentPhotoIndex)
@@ -1228,12 +1239,46 @@ struct SwipePhotoView: View {
         guard !didInitializeSession else { return }
 
         let photos = filteredRealPhotos
-        if photos.isEmpty && (dataManager.photoLibraryManager.isLoading || dataManager.isPreparingLibrary) {
+        if photos.isEmpty && isWaitingForSourceData {
             return
         }
 
         refreshSessionPhotos(photos)
         didInitializeSession = true
+    }
+
+    private var isWaitingForSourceData: Bool {
+        dataManager.photoLibraryManager.isLoading ||
+            dataManager.isPreparingLibrary ||
+            dataManager.isLoadingLocationGroups ||
+            dataManager.isLoadingAdvancedCleanupQueues
+    }
+
+    private func refreshSessionForSourceChangeIfNeeded(force: Bool = false) {
+        guard didInitializeSession else {
+            if refreshSelectedAlbumState() {
+                initializeSessionIfNeeded()
+            }
+            return
+        }
+
+        let photos = filteredRealPhotos
+        if photos.isEmpty, isWaitingForSourceData, !allSessionPhotos.isEmpty {
+            return
+        }
+
+        let currentIDs = allSessionPhotos.map(\.localIdentifier)
+        let nextIDs = photos.map(\.localIdentifier)
+        guard force || currentIDs != nextIDs || (allSessionPhotos.isEmpty && !photos.isEmpty) else {
+            return
+        }
+
+        let currentID = currentRealPhoto?.localIdentifier
+        refreshSessionPhotos(photos)
+        if let currentID,
+           let updatedIndex = sessionPhotos.firstIndex(where: { $0.localIdentifier == currentID }) {
+            currentPhotoIndex = updatedIndex
+        }
     }
 
     private func refreshSessionPhotos(_ photos: [PHAsset]? = nil) {
@@ -1245,17 +1290,18 @@ struct SwipePhotoView: View {
         }
 
         sessionReviewedCount = dataManager.reviewedCount(in: fullPhotos)
+        let firstUnreviewedIndex = fullPhotos.firstIndex(where: { !dataManager.isReviewed($0) })
         let targetIndex: Int
         if didInitializeSession {
             targetIndex = min(currentPhotoIndex, max(fullPhotos.count - 1, 0))
         } else if let restoredIndex = restoredSessionProgressIndex(in: fullPhotos) {
             targetIndex = firstLocallyUnreviewedPhotoIndex(in: fullPhotos, startingAt: restoredIndex) ?? restoredIndex
-        } else if let firstUnreviewedIndex = fullPhotos.firstIndex(where: { !dataManager.isReviewed($0) }) {
+        } else if let firstUnreviewedIndex {
             targetIndex = firstUnreviewedIndex
         } else {
             targetIndex = 0
-            showCompletionMessage = !fullPhotos.isEmpty
         }
+        showCompletionMessage = !fullPhotos.isEmpty && firstUnreviewedIndex == nil
 
         let loadedCount = loadedSessionCount(totalCount: fullPhotos.count, targetIndex: targetIndex)
         loadedSessionPhotoCount = loadedCount

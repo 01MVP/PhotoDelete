@@ -18,7 +18,7 @@ struct SupporterView: View {
         case .verifying:
             L10n.string("正在检查购买状态...")
         case .cachedOffline:
-            L10n.string("当前使用本机缓存的支持者版状态，联网后会自动校验。")
+            L10n.string("离线时仍可使用已解锁的支持者版，联网后会自动确认状态。")
         case .unknown, .verified, .locked:
             nil
         }
@@ -592,8 +592,8 @@ enum SupporterPlanFeatureTitle: String {
     case randomReview = "随机整理"
     case basicSwipeReview = "基础滑动整理"
     case confirmedDeleteAndFavorite = "确认后删除和收藏"
-    case basicTimeOrganizing = "基础时间整理"
-    case basicLocationOrganizing = "基础地点整理"
+    case basicTimeOrganizing = "按时间整理"
+    case basicLocationOrganizing = "地点整理"
     case localCleanupHistory = "本机清理历史"
     case basicSpaceSavedStats = "基础节省空间统计"
     case fullTimeList = "完整时间列表"
@@ -608,8 +608,8 @@ enum SupporterPlanFeatureTitle: String {
         case .randomReview: return L10n.string("随机整理")
         case .basicSwipeReview: return L10n.string("基础滑动整理")
         case .confirmedDeleteAndFavorite: return L10n.string("确认后删除和收藏")
-        case .basicTimeOrganizing: return L10n.string("基础时间整理")
-        case .basicLocationOrganizing: return L10n.string("基础地点整理")
+        case .basicTimeOrganizing: return L10n.string("按时间整理")
+        case .basicLocationOrganizing: return L10n.string("地点整理")
         case .localCleanupHistory: return L10n.string("本机清理历史")
         case .basicSpaceSavedStats: return L10n.string("基础节省空间统计")
         case .fullTimeList: return L10n.string("完整时间列表")
@@ -703,7 +703,7 @@ struct SupporterBenefitsSheet: View {
 
                 ScrollView {
                     VStack(spacing: 16) {
-                        Text(L10n.string("免费版保留随机、滑动、基础时间和地点整理；支持者版额外解锁完整时间列表、图片压缩、视频压缩、大文件清理、相似照片清理和主题切换。"))
+                        Text(L10n.string("免费版保留随机整理、滑动整理、按时间整理和地点整理；支持者版额外解锁完整时间列表、图片压缩、视频压缩、大文件清理、相似照片清理和主题切换。"))
                             .font(.system(size: 14, weight: .regular))
                             .foregroundColor(PhotoDeleteStyle.secondaryText)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -747,7 +747,7 @@ struct CleanupHistoryView: View {
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                             SupporterMetricCard(value: "\(summary.organizedPhotos)", label: L10n.string("累计整理"), tint: PhotoDeleteStyle.accent)
                             SupporterMetricCard(value: "\(summary.deletedPhotos)", label: L10n.string("累计删除"), tint: PhotoDeleteStyle.destructive)
-                            SupporterMetricCard(value: summary.formattedSpaceSaved, label: L10n.string("估算节省"), tint: PhotoDeleteStyle.positive)
+                            SupporterMetricCard(value: summary.formattedSpaceSaved, label: L10n.string("节省空间"), tint: PhotoDeleteStyle.positive)
                             SupporterMetricCard(value: "\(summary.sessions)", label: L10n.string("清理次数"), tint: PhotoDeleteStyle.warning)
                         }
 
