@@ -339,8 +339,8 @@ enum PhotoLocationGrouping {
         var cache: [String: [String]] = [:]
         var representativeCoordinates: [String: CLLocationCoordinate2D] = [:]
 
-        for (index, bucket) in sortedLocationBuckets.enumerated() {
-            let fallbackTitle = String(format: L10n.string("地点区域 %lld"), Int64(index + 1))
+        for bucket in sortedLocationBuckets {
+            let fallbackTitle = L10n.string("未知地址")
             groups.append(
                 PhotoLocationGroupInfo(
                     id: bucket.id,

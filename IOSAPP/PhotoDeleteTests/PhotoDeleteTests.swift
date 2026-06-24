@@ -1193,6 +1193,17 @@ struct PhotoDeleteTests {
         #expect(result.representativeCoordinatesByGroupID[locationGroup.id] != nil)
     }
 
+    @Test func locationGroupingFallsBackToUnknownAddressWhenTitleMissing() async throws {
+        let records = [
+            PhotoLocationAssetRecord(identifier: "geo-1", latitude: 31.23, longitude: 121.47, isReviewed: false)
+        ]
+
+        let result = PhotoLocationGrouping.buildGroups(from: records)
+        let locationGroup = try #require(result.groups.first { !$0.isNoLocationGroup })
+
+        #expect(locationGroup.title == L10n.string("未知地址"))
+    }
+
     @Test func locationGroupingTreatsInvalidCoordinatesAsNoLocation() async throws {
         let records = [
             PhotoLocationAssetRecord(identifier: "invalid-lat", latitude: 91, longitude: 121.47, isReviewed: true),

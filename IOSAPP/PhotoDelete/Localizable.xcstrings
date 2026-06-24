@@ -16892,6 +16892,28 @@
         }
       }
     },
+    "未知地址": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unknown Address"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "未知地址"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未知地址"
+          }
+        }
+      }
+    },
     "拍摄时间未知": {
       "localizations": {
         "en": {
