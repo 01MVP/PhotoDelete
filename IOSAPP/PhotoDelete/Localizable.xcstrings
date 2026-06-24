@@ -3377,18 +3377,24 @@
         }
       }
     },
-    "取消操作": {
+    "返回继续整理": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cancel Operations"
+            "value": "Back to Organizing"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "返回继续整理"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "取消操作"
+            "value": "返回繼續整理"
           }
         }
       }
@@ -10457,28 +10463,6 @@
         }
       }
     },
-    "一次解锁，长期可用；试用状态会自动结束。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Unlocked once, available long term; the trial state ends automatically."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "一次解锁，长期可用；试用状态会自动结束。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "一次解鎖，長期可用；試用狀態會自動結束。"
-          }
-        }
-      }
-    },
     "购买与恢复": {
       "localizations": {
         "en": {
@@ -13218,6 +13202,50 @@
         }
       }
     },
+    "支持者版已完整解锁，可长期使用。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supporter is fully unlocked and stays available long term."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "支持者版已完整解锁，可长期使用。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "支持者版已完整解鎖，可長期使用。"
+          }
+        }
+      }
+    },
+    "支持者版已完整解锁，所有进阶功能可长期使用。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supporter is fully unlocked. All advanced features stay available long term."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "支持者版已完整解锁，所有进阶功能可长期使用。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "支持者版已完整解鎖，所有進階功能可長期使用。"
+          }
+        }
+      }
+    },
     "支持者版试用中": {
       "localizations": {
         "en": {
@@ -13328,50 +13356,6 @@
         }
       }
     },
-    "支持者版已解锁。若是恢复购买，联网后会自动同步购买时间。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Supporter is unlocked. If this was restored, the purchase date will sync automatically when online."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "支持者版已解锁。若是恢复购买，联网后会自动同步购买时间。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "支持者版已解鎖。若是恢復購買，連線後會自動同步購買時間。"
-          }
-        }
-      }
-    },
-    "已完成支持者版解锁。若是兑换码或恢复购买，联网后会自动同步购买时间。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Supporter is unlocked. If this came from a code or restore, the purchase date will sync automatically when online."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "已完成支持者版解锁。若是兑换码或恢复购买，联网后会自动同步购买时间。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已完成支持者版解鎖。若是兌換碼或恢復購買，連線後會自動同步購買時間。"
-          }
-        }
-      }
-    },
     "已于 %@ 解锁支持者版。": {
       "localizations": {
         "en": {
@@ -13412,6 +13396,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "已於 %@ 完整解鎖支持者版，一次解鎖長期可用。"
+          }
+        }
+      }
+    },
+    "已于 %@ 完整解锁支持者版，可长期使用。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supporter was fully unlocked on %@ and stays available long term."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "已于 %@ 完整解锁支持者版，可长期使用。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已於 %@ 完整解鎖支持者版，可長期使用。"
           }
         }
       }
@@ -17922,6 +17928,446 @@
           "stringUnit": {
             "state": "translated",
             "value": "免費版保留隨機、滑動、基礎時間和地點整理；支持者版額外解鎖完整時間列表、影片壓縮、大檔案清理、相似照片清理和主題切換。"
+          }
+        }
+      }
+    },
+    "删除数量": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deleted Photos"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "删除数量"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刪除數量"
+          }
+        }
+      }
+    },
+    "大扫除": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deep Cleanup"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "大扫除"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "大掃除"
+          }
+        }
+      }
+    },
+    "完成 5 次整理": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Complete 5 organizing sessions"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "完成 5 次整理"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完成 5 次整理"
+          }
+        }
+      }
+    },
+    "完成 20 次整理": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Complete 20 organizing sessions"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "完成 20 次整理"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完成 20 次整理"
+          }
+        }
+      }
+    },
+    "开始有节奏": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Building Rhythm"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "开始有节奏"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開始有節奏"
+          }
+        }
+      }
+    },
+    "按类型查看每一枚清理里程碑": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Browse each cleanup milestone by type"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "按类型查看每一枚清理里程碑"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按類型查看每一枚清理里程碑"
+          }
+        }
+      }
+    },
+    "整理节奏": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rhythm"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "整理节奏"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "整理節奏"
+          }
+        }
+      }
+    },
+    "总体进度 0/0": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Overall progress 0/0"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "总体进度 0/0"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "總體進度 0/0"
+          }
+        }
+      }
+    },
+    "总体进度 %@/%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Overall progress %@/%@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "总体进度 %@/%@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "總體進度 %@/%@"
+          }
+        }
+      }
+    },
+    "总体进度 %@/%@ · 当前位置 %@/%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Overall progress %@/%@ · Position %@/%@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "总体进度 %@/%@ · 当前位置 %@/%@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "總體進度 %@/%@ · 目前位置 %@/%@"
+          }
+        }
+      }
+    },
+    "累计删除 500 张照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete 500 photos total"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "累计删除 500 张照片"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "累計刪除 500 張照片"
+          }
+        }
+      }
+    },
+    "累计节省 10 GB": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save 10 GB total"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "累计节省 10 GB"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "累計節省 10 GB"
+          }
+        }
+      }
+    },
+    "累计节省 100 GB": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save 100 GB total"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "累计节省 100 GB"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "累計節省 100 GB"
+          }
+        }
+      }
+    },
+    "空间节省": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Space Saved"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "空间节省"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "空間節省"
+          }
+        }
+      }
+    },
+    "释放 10 GB": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Free 10 GB"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "释放 10 GB"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "釋放 10 GB"
+          }
+        }
+      }
+    },
+    "释放 100 GB": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Free 100 GB"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "释放 100 GB"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "釋放 100 GB"
+          }
+        }
+      }
+    },
+    "连续整理": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Streak"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "连续整理"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連續整理"
+          }
+        }
+      }
+    },
+    "连续整理 30 天": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "30-Day Streak"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "连续整理 30 天"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連續整理 30 天"
+          }
+        }
+      }
+    },
+    "连续 30 天都有清理记录": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clean up for 30 days in a row"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "连续 30 天都有清理记录"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連續 30 天都有清理記錄"
+          }
+        }
+      }
+    },
+    "长期整理者": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Long-Term Organizer"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "长期整理者"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "長期整理者"
           }
         }
       }

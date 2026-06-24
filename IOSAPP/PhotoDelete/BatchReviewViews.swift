@@ -194,7 +194,7 @@ struct BatchConfirmView: View {
                 .disabled(isProcessing || !hasSelectedOperations)
 
                 Button(action: cancelOperations) {
-                    Text(L10n.string("取消操作"))
+                    Text(L10n.string("返回继续整理"))
                 }
                 .photoDeleteSecondaryButton()
                 .disabled(isProcessing)
@@ -293,7 +293,6 @@ struct BatchConfirmView: View {
     }
 
     private func cancelOperations() {
-        dataManager.cancelAllOperations()
         dismiss()
     }
 

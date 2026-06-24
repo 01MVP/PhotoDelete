@@ -375,6 +375,8 @@ enum AppConstants {
     static let hasSeenIntroKey = "hasSeenPhotoDeleteIntro"
     static let hasCompletedOnboardingKey = "hasCompletedPhotoDeleteOnboarding"
     static let reviewedAssetIDsKey = "photoDeleteReviewedAssetIDs"
+    static let pendingDeleteCandidateIDsKey = "photoDeletePendingDeleteCandidateIDs"
+    static let pendingFavoriteCandidateIDsKey = "photoDeletePendingFavoriteCandidateIDs"
     static let customAlbumOrderKey = "photoDeleteCustomAlbumOrder"
     static let hasSeenAlbumSwipeHintKey = "photoDeleteHasSeenAlbumSwipeHint"
     static let hasDismissedAlbumSwipeHintKey = "photoDeleteHasDismissedAlbumSwipeHintV3"

@@ -545,11 +545,7 @@ struct AdvancedView: View {
     }
 
     private func openLockedAdvancedFeature() {
-        if purchaseManager.canStartSupporterTrial {
-            startSupporterTrial()
-        } else {
-            purchaseSupporter()
-        }
+        showingSupporterBenefits = true
     }
 
     private func purchaseSupporter() {
@@ -1382,7 +1378,7 @@ private struct AdvancedAssetListView: View {
         }
         .advancedDetailNavigation(title: mode.title)
         .fullScreenCover(isPresented: $showBatchConfirm, onDismiss: {
-            selectedAssetIDs.removeAll()
+            syncSelectionWithPendingDeleteCandidates()
             reloadAssets()
         }) {
             BatchConfirmView()
@@ -1583,6 +1579,11 @@ private struct AdvancedAssetListView: View {
         }
         HapticManager.notify(.success)
         showBatchConfirm = true
+    }
+
+    private func syncSelectionWithPendingDeleteCandidates() {
+        let pendingDeleteIDs = Set(dataManager.deleteCandidates.map(\.localIdentifier))
+        selectedAssetIDs = selectedAssetIDs.filter { pendingDeleteIDs.contains($0) }
     }
 
     private func showICloudVideoInfo() {
@@ -3460,7 +3461,7 @@ private struct AdvancedSimilarPhotoGroupsView: View {
         }
         .advancedDetailNavigation(title: L10n.string("相似照片"))
         .fullScreenCover(isPresented: $showBatchConfirm, onDismiss: {
-            selectedAssetIDs.removeAll()
+            syncSelectionWithPendingDeleteCandidates()
             reloadGroups()
         }) {
             BatchConfirmView()
@@ -3515,6 +3516,11 @@ private struct AdvancedSimilarPhotoGroupsView: View {
         }
         HapticManager.notify(.success)
         showBatchConfirm = true
+    }
+
+    private func syncSelectionWithPendingDeleteCandidates() {
+        let pendingDeleteIDs = Set(dataManager.deleteCandidates.map(\.localIdentifier))
+        selectedAssetIDs = selectedAssetIDs.filter { pendingDeleteIDs.contains($0) }
     }
 
     private func reloadGroups() {

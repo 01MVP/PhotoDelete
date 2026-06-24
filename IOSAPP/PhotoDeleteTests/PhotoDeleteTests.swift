@@ -271,6 +271,7 @@ struct PhotoDeleteTests {
         #expect(SupporterEntitlementState.verificationStarted(hasCachedEntitlement: false) == .verifying)
     }
 
+    @MainActor
     @Test func supporterPlanKeepsLocationOrganizingFree() async throws {
         let features = SupporterPlanComparisonCard.features
 
@@ -554,10 +555,27 @@ struct PhotoDeleteTests {
         let firstCleanup = try #require(progress.first { $0.achievement.id == "first_cleanup" })
         let delete10 = try #require(progress.first { $0.achievement.id == "delete_10" })
 
-        #expect(progress.count == 8)
+        #expect(progress.count == 14)
         #expect(firstCleanup.isUnlocked)
         #expect(delete10.progress == 0.8)
         #expect(delete10.remainingValue == 2)
+    }
+
+    @Test func cleanupAchievementEvaluatorIncludesExpandedSpaceMilestones() async throws {
+        let summary = CleanupStatsSummary(
+            sessions: 1,
+            deletedPhotos: 0,
+            favoritedPhotos: 0,
+            organizedPhotos: 1,
+            estimatedSpaceSavedMB: 100_000
+        )
+
+        let progress = CleanupAchievementEvaluator.allProgress(summary: summary, streakDays: 0)
+        let spaceProgress = progress.filter { $0.achievement.category == .space }
+        let spaceIDs = Set(spaceProgress.map(\.achievement.id))
+
+        #expect(spaceIDs == ["save_100mb", "save_1gb", "save_10gb", "save_100gb"])
+        #expect(spaceProgress.allSatisfy { progress in progress.isUnlocked })
     }
 
     @Test func cleanupAchievementEvaluatorReturnsClosestLockedGoals() async throws {
@@ -951,8 +969,19 @@ struct PhotoDeleteTests {
         return result.firstObject
     }
 
+    private func clearPendingCandidateDefaults() {
+        UserDefaults.standard.removeObject(forKey: AppConstants.pendingDeleteCandidateIDsKey)
+        UserDefaults.standard.removeObject(forKey: AppConstants.pendingFavoriteCandidateIDsKey)
+    }
+
+    private func storedPendingCandidateIDs(for key: String, defaults: UserDefaults = .standard) -> Set<String> {
+        Set(defaults.stringArray(forKey: key) ?? [])
+    }
+
     @Test func addToDeleteCandidatesRemovesFromFavorites() async throws {
         guard let asset = fetchFirstAsset() else { return }
+        clearPendingCandidateDefaults()
+        defer { clearPendingCandidateDefaults() }
         let dm = DataManager()
 
         dm.addToFavoriteCandidates(asset)
@@ -967,6 +996,8 @@ struct PhotoDeleteTests {
 
     @Test func addToFavoriteCandidatesRemovesFromDelete() async throws {
         guard let asset = fetchFirstAsset() else { return }
+        clearPendingCandidateDefaults()
+        defer { clearPendingCandidateDefaults() }
         let dm = DataManager()
 
         dm.addToDeleteCandidates(asset)
@@ -981,6 +1012,8 @@ struct PhotoDeleteTests {
 
     @Test func cancelAllOperationsClearsBothSets() async throws {
         guard let asset = fetchFirstAsset() else { return }
+        clearPendingCandidateDefaults()
+        defer { clearPendingCandidateDefaults() }
         let dm = DataManager()
 
         dm.addToDeleteCandidates(asset)
@@ -990,8 +1023,31 @@ struct PhotoDeleteTests {
         #expect(dm.favoriteCandidates.isEmpty)
     }
 
+    @Test func pendingCandidatesPersistAndClearLocalIdentifiers() async throws {
+        guard let asset = fetchFirstAsset() else { return }
+        let suiteName = "PhotoDeleteTests.pendingCandidates.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let dm = DataManager(userDefaults: defaults)
+
+        dm.addToDeleteCandidates(asset)
+        #expect(storedPendingCandidateIDs(for: AppConstants.pendingDeleteCandidateIDsKey, defaults: defaults) == [asset.localIdentifier])
+        #expect(storedPendingCandidateIDs(for: AppConstants.pendingFavoriteCandidateIDsKey, defaults: defaults).isEmpty)
+
+        dm.addToFavoriteCandidates(asset)
+        #expect(storedPendingCandidateIDs(for: AppConstants.pendingDeleteCandidateIDsKey, defaults: defaults).isEmpty)
+        #expect(storedPendingCandidateIDs(for: AppConstants.pendingFavoriteCandidateIDsKey, defaults: defaults) == [asset.localIdentifier])
+
+        dm.cancelAllOperations()
+        #expect(storedPendingCandidateIDs(for: AppConstants.pendingDeleteCandidateIDsKey, defaults: defaults).isEmpty)
+        #expect(storedPendingCandidateIDs(for: AppConstants.pendingFavoriteCandidateIDsKey, defaults: defaults).isEmpty)
+    }
+
     @Test func candidateMembershipAfterAdding() async throws {
         guard let asset = fetchFirstAsset() else { return }
+        clearPendingCandidateDefaults()
+        defer { clearPendingCandidateDefaults() }
         let dm = DataManager()
 
         // Initially not in any candidate set

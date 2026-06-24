@@ -353,7 +353,7 @@ private struct SupporterBadgeCard: View {
                         .font(.system(size: 22, weight: .semibold))
                         .foregroundColor(PhotoDeleteStyle.primaryText)
 
-                    Text(L10n.string("一次解锁，长期可用；试用状态会自动结束。"))
+                    Text(L10n.string("支持者版已完整解锁，可长期使用。"))
                         .font(.system(size: 15, weight: .regular))
                         .foregroundColor(PhotoDeleteStyle.secondaryText)
                 }
@@ -394,10 +394,10 @@ private struct SupporterPurchaseStatusCard: View {
 
     private var statusText: String {
         guard let purchaseDate else {
-            return L10n.string("已完成支持者版解锁。若是兑换码或恢复购买，联网后会自动同步购买时间。")
+            return L10n.string("支持者版已完整解锁，所有进阶功能可长期使用。")
         }
         return String(
-            format: L10n.string("已于 %@ 完整解锁支持者版，一次解锁长期可用。"),
+            format: L10n.string("已于 %@ 完整解锁支持者版，可长期使用。"),
             CleanupStatsFormatter.sessionDate.string(from: purchaseDate)
         )
     }

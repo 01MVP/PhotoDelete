@@ -257,6 +257,7 @@ struct SwipePhotoView: View {
         .fullScreenCover(isPresented: $showBatchConfirm, onDismiss: {
             didInitializeSession = false
             syncPendingOperationCounts()
+            initializeSessionIfNeeded()
         }) {
             BatchConfirmView(albumInfo: activeAlbumInfo) {
                 if shouldDismissAfterBatch {
@@ -325,9 +326,12 @@ struct SwipePhotoView: View {
                 Spacer()
 
                 VStack(spacing: 2) {
-                    Text(sessionModeTitle)
+                    Text(navigationHeaderTitle)
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(PhotoDeleteStyle.primaryText)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.82)
 
                     Text(headerProgressSubtitle)
                         .font(.system(size: 14, weight: .regular))
@@ -903,11 +907,13 @@ struct SwipePhotoView: View {
             Text(getDisplayTitle())
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundColor(PhotoDeleteStyle.primaryText)
-                .lineLimit(1)
+                .lineLimit(2)
+                .minimumScaleFactor(0.82)
 
             Text(progressSubtitle)
                 .font(.system(size: 14, weight: .regular))
                 .foregroundColor(PhotoDeleteStyle.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
 
             if totalPhotosCount > 0 {
                 ProgressView(value: progressFraction)
@@ -1106,40 +1112,40 @@ struct SwipePhotoView: View {
 
     private var progressSubtitle: String {
         guard totalPhotosCount > 0 else {
-            return L10n.string("\(getDisplayTitle()) · 0 张照片")
+            return L10n.string("总体进度 0/0")
         }
 
-        return L10n.string("\(getDisplayTitle()) · 已整理 \(formattedCount(organizedProgress))/\(formattedCount(totalPhotosCount))")
+        return String(
+            format: L10n.string("总体进度 %@/%@ · 当前位置 %@/%@"),
+            formattedCount(organizedProgress),
+            formattedCount(totalPhotosCount),
+            formattedCount(currentProgress),
+            formattedCount(totalPhotosCount)
+        )
+    }
+
+    private var navigationHeaderTitle: String {
+        if randomReviewScope != nil,
+           let asset = currentRealPhoto {
+            let caption = memoryCaption(for: asset)
+            return [caption.title, caption.subtitle]
+                .compactMap { $0 }
+                .joined(separator: " · ")
+        }
+
+        return getDisplayTitle()
     }
 
     private var headerProgressSubtitle: String {
-        if let memoryHeaderSubtitle {
-            return memoryHeaderSubtitle
-        }
-
         guard totalPhotosCount > 0 else {
-            return L10n.shortPhotoCount(0)
+            return L10n.string("总体进度 0/0")
         }
 
-        return "\(L10n.string("已整理")) \(formattedCount(organizedProgress))/\(formattedCount(totalPhotosCount))"
-    }
-
-    private var memoryHeaderSubtitle: String? {
-        guard randomReviewScope != nil,
-              let asset = currentRealPhoto,
-              totalPhotosCount > 0 else {
-            return nil
-        }
-
-        let caption = memoryCaption(for: asset)
-        let progress = String(
-            format: L10n.string("第 %lld/%lld 张"),
-            Int64(currentProgress),
-            Int64(totalPhotosCount)
+        return String(
+            format: L10n.string("总体进度 %@/%@"),
+            formattedCount(organizedProgress),
+            formattedCount(totalPhotosCount)
         )
-        return [caption.title, caption.subtitle, progress]
-            .compactMap { $0 }
-            .joined(separator: " · ")
     }
 
     private func formattedCount(_ count: Int) -> String {
@@ -2127,28 +2133,6 @@ struct SwipePhotoView: View {
             pendingFavoriteCount > 0 ||
             !dataManager.deleteCandidates.isEmpty ||
             !dataManager.favoriteCandidates.isEmpty
-    }
-
-    private var sessionModeTitle: String {
-        if randomReviewScope != nil {
-            return L10n.string("遇见从前")
-        }
-        if selectedHistoricalToday {
-            return L10n.string("历史上的今天")
-        }
-        if selectedLocationGroupID != nil {
-            return L10n.string("地点整理")
-        }
-        if selectedAlbumInfo != nil {
-            return L10n.string("相册整理")
-        }
-        if selectedDate != nil || selectedAdvancedTimeScope != nil {
-            return L10n.string("日期整理")
-        }
-        if selectedAdvancedCleanup != nil {
-            return L10n.string("智能清理")
-        }
-        return L10n.string("照片整理")
     }
 
     private func getDisplayTitle() -> String {

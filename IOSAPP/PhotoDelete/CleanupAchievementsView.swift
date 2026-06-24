@@ -94,6 +94,13 @@ struct CleanupAchievementsView: View {
         statsStore.closeAchievementProgresses
     }
 
+    private var groupedAllProgress: [CleanupAchievementCategoryProgressGroup] {
+        CleanupAchievementCategory.allCases.compactMap { category in
+            let items = allProgress.filter { $0.achievement.category == category }
+            return items.isEmpty ? nil : CleanupAchievementCategoryProgressGroup(category: category, items: items)
+        }
+    }
+
     var body: some View {
         ZStack {
             PhotoDeleteScreenBackground()
@@ -119,13 +126,7 @@ struct CleanupAchievementsView: View {
                         emptySubtitle: L10n.string("当前所有徽章都已经点亮。")
                     )
 
-                    achievementSection(
-                        title: L10n.string("全部徽章"),
-                        subtitle: L10n.string("按当前进度展示每一枚徽章"),
-                        progressItems: allProgress,
-                        emptyTitle: L10n.string("暂无徽章"),
-                        emptySubtitle: L10n.string("完成清理后会在这里记录。")
-                    )
+                    allAchievementSection
                 }
                 .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
                 .padding(.top, 18)
@@ -209,6 +210,43 @@ struct CleanupAchievementsView: View {
             }
         }
     }
+
+    private var allAchievementSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(L10n.string("全部徽章"))
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.primaryText)
+
+                Text(L10n.string("按类型查看每一枚清理里程碑"))
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+            }
+
+            if groupedAllProgress.isEmpty {
+                CleanupAchievementEmptyCard(
+                    title: L10n.string("暂无徽章"),
+                    subtitle: L10n.string("完成清理后会在这里记录。")
+                )
+            } else {
+                LazyVStack(spacing: 14) {
+                    ForEach(groupedAllProgress) { group in
+                        CleanupAchievementCategoryGroup(
+                            title: group.category.title,
+                            progressItems: group.items
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct CleanupAchievementCategoryProgressGroup: Identifiable {
+    let category: CleanupAchievementCategory
+    let items: [CleanupAchievementProgress]
+
+    var id: String { category.id }
 }
 
 private struct CleanupAchievementOverviewMetric: View {
@@ -236,6 +274,26 @@ private struct CleanupAchievementOverviewMetric: View {
             RoundedRectangle(cornerRadius: 13, style: .continuous)
                 .fill(tint.opacity(0.1))
         )
+    }
+}
+
+private struct CleanupAchievementCategoryGroup: View {
+    let title: String
+    let progressItems: [CleanupAchievementProgress]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Text(title)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(PhotoDeleteStyle.secondaryText)
+                .lineLimit(1)
+
+            LazyVStack(spacing: 9) {
+                ForEach(progressItems) { progress in
+                    CleanupAchievementProgressRow(progress: progress)
+                }
+            }
+        }
     }
 }
 

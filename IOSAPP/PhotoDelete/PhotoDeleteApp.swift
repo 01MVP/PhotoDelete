@@ -77,6 +77,8 @@ private enum PhotoDeleteUITestDefaults {
             AppConstants.appLanguageKey,
             AppConstants.hasCompletedOnboardingKey,
             AppConstants.hasSeenIntroKey,
+            AppConstants.pendingDeleteCandidateIDsKey,
+            AppConstants.pendingFavoriteCandidateIDsKey,
             AppConstants.leftSwipeActionKey,
             AppConstants.rightSwipeActionKey,
             AppConstants.upSwipeActionKey,

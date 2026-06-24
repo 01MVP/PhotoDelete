@@ -45,6 +45,7 @@ class DataManager: ObservableObject {
     let cleanupStatsStore: CleanupStatsStore
     let videoCompressionHistoryStore: VideoCompressionHistoryStore
     private let locationTitleCacheStore: PhotoLocationTitleCacheStore
+    private let userDefaults: UserDefaults
     private let albumSnapshotStore = AlbumListSnapshotStore()
 
     private var isReloadingLibrary = false
@@ -65,6 +66,8 @@ class DataManager: ObservableObject {
     private var libraryDataRefreshWorkItem: DispatchWorkItem?
     private var nextLibraryDataRefreshDelay: TimeInterval?
     private var reviewedAssetIDsSaveWorkItem: DispatchWorkItem?
+    private var pendingDeleteCandidateIDs: Set<String> = []
+    private var pendingFavoriteCandidateIDs: Set<String> = []
     private var cancellables: Set<AnyCancellable> = []
 
     private struct TimeGroupBuildResult {
@@ -104,12 +107,15 @@ class DataManager: ObservableObject {
     init(
         cleanupStatsStore: CleanupStatsStore = CleanupStatsStore(),
         videoCompressionHistoryStore: VideoCompressionHistoryStore = VideoCompressionHistoryStore(),
-        locationTitleCacheStore: PhotoLocationTitleCacheStore = PhotoLocationTitleCacheStore()
+        locationTitleCacheStore: PhotoLocationTitleCacheStore = PhotoLocationTitleCacheStore(),
+        userDefaults: UserDefaults = .standard
     ) {
         self.cleanupStatsStore = cleanupStatsStore
         self.videoCompressionHistoryStore = videoCompressionHistoryStore
         self.locationTitleCacheStore = locationTitleCacheStore
+        self.userDefaults = userDefaults
         loadReviewedAssetIDs()
+        loadPendingCandidateIDs()
         setupPhotoLibraryManager()
     }
 
@@ -212,6 +218,7 @@ class DataManager: ObservableObject {
         photoLibraryManager.loadPhotos(preserveExistingData: !showPreparing) { [weak self] in
             guard let self else { return }
             self.pruneReviewedAssetIDs()
+            self.restorePendingCandidatesFromSavedIDs()
             self.prunePendingCandidates()
             self.loadTimeGroups()
             self.loadLocationGroups()
@@ -237,6 +244,7 @@ class DataManager: ObservableObject {
             }
 
             self.pruneReviewedAssetIDs()
+            self.restorePendingCandidatesFromSavedIDs()
             self.prunePendingCandidates()
             self.loadTimeGroups()
             self.loadLocationGroups()
@@ -246,6 +254,7 @@ class DataManager: ObservableObject {
             self.photoLibraryManager.refreshPhotoLibraryIfNeeded { [weak self] didRefreshLibrary in
                 guard let self else { return }
                 self.pruneReviewedAssetIDs()
+                self.restorePendingCandidatesFromSavedIDs()
                 self.prunePendingCandidates()
                 self.loadTimeGroups()
                 self.loadLocationGroups()
@@ -265,22 +274,26 @@ class DataManager: ObservableObject {
     func addToDeleteCandidates(_ asset: PHAsset) {
         favoriteCandidates.remove(asset)
         deleteCandidates.insert(asset)
+        savePendingCandidateIDsNow()
         updateStats()
     }
 
     func removeFromDeleteCandidates(_ asset: PHAsset) {
         deleteCandidates.remove(asset)
+        savePendingCandidateIDsNow()
         updateStats()
     }
 
     func addToFavoriteCandidates(_ asset: PHAsset) {
         deleteCandidates.remove(asset)
         favoriteCandidates.insert(asset)
+        savePendingCandidateIDsNow()
         updateStats()
     }
 
     func removeFromFavoriteCandidates(_ asset: PHAsset) {
         favoriteCandidates.remove(asset)
+        savePendingCandidateIDsNow()
         updateStats()
     }
 
@@ -371,6 +384,7 @@ class DataManager: ObservableObject {
                 self.nextLibraryDataRefreshDelay = nil
                 self.deleteCandidates = originalDeleteCandidates
                 self.favoriteCandidates = originalFavoriteCandidates
+                self.savePendingCandidateIDsNow()
                 self.updateStats()
                 if let error {
                     dataManagerLogger.error("Batch operation failed: \(error.localizedDescription, privacy: .public)")
@@ -433,6 +447,7 @@ class DataManager: ObservableObject {
         )
         deleteCandidates = Set(deleteCandidates.filter { remainingIDs.deleteIDs.contains($0.localIdentifier) })
         favoriteCandidates = Set(favoriteCandidates.filter { remainingIDs.favoriteIDs.contains($0.localIdentifier) })
+        savePendingCandidateIDsNow()
     }
 
     func recordVideoCompressionSession(
@@ -457,6 +472,7 @@ class DataManager: ObservableObject {
 
     private func refreshDerivedLibraryData() {
         pruneReviewedAssetIDs()
+        restorePendingCandidatesFromSavedIDs()
         prunePendingCandidates()
         loadTimeGroups()
         loadLocationGroups()
@@ -484,6 +500,7 @@ class DataManager: ObservableObject {
         albumSnapshotStore.clear()
         deleteCandidates.removeAll()
         favoriteCandidates.removeAll()
+        clearPendingCandidateIDs()
         reviewedAssetIDs.removeAll()
         PhotoRandomReviewSessionStore.clearAll()
         saveReviewedAssetIDsNow()
@@ -496,6 +513,7 @@ class DataManager: ObservableObject {
     func cancelAllOperations() {
         deleteCandidates.removeAll()
         favoriteCandidates.removeAll()
+        clearPendingCandidateIDs()
         updateStats()
     }
 
@@ -531,6 +549,7 @@ class DataManager: ObservableObject {
     func clearLocalOrganizeData() {
         deleteCandidates.removeAll()
         favoriteCandidates.removeAll()
+        clearPendingCandidateIDs()
         reviewedAssetIDs.removeAll()
         PhotoRandomReviewSessionStore.clearAll()
         saveReviewedAssetIDsNow()
@@ -1355,12 +1374,12 @@ class DataManager: ObservableObject {
     }
 
     private func loadReviewedAssetIDs() {
-        let identifiers = UserDefaults.standard.stringArray(forKey: AppConstants.reviewedAssetIDsKey) ?? []
+        let identifiers = userDefaults.stringArray(forKey: AppConstants.reviewedAssetIDsKey) ?? []
         reviewedAssetIDs = Set(identifiers)
     }
 
     private func saveReviewedAssetIDs() {
-        UserDefaults.standard.set(Array(reviewedAssetIDs), forKey: AppConstants.reviewedAssetIDsKey)
+        userDefaults.set(Array(reviewedAssetIDs), forKey: AppConstants.reviewedAssetIDsKey)
     }
 
     private func scheduleReviewedAssetIDsSave() {
@@ -1376,6 +1395,54 @@ class DataManager: ObservableObject {
         reviewedAssetIDsSaveWorkItem?.cancel()
         reviewedAssetIDsSaveWorkItem = nil
         saveReviewedAssetIDs()
+    }
+
+    private func loadPendingCandidateIDs() {
+        pendingDeleteCandidateIDs = Set(
+            userDefaults.stringArray(forKey: AppConstants.pendingDeleteCandidateIDsKey) ?? []
+        )
+        pendingFavoriteCandidateIDs = Set(
+            userDefaults.stringArray(forKey: AppConstants.pendingFavoriteCandidateIDsKey) ?? []
+        )
+        pendingFavoriteCandidateIDs.subtract(pendingDeleteCandidateIDs)
+    }
+
+    private func savePendingCandidateIDsNow() {
+        pendingDeleteCandidateIDs = Set(deleteCandidates.map(\.localIdentifier))
+        pendingFavoriteCandidateIDs = Set(favoriteCandidates.map(\.localIdentifier))
+            .subtracting(pendingDeleteCandidateIDs)
+        userDefaults.set(Array(pendingDeleteCandidateIDs), forKey: AppConstants.pendingDeleteCandidateIDsKey)
+        userDefaults.set(Array(pendingFavoriteCandidateIDs), forKey: AppConstants.pendingFavoriteCandidateIDsKey)
+    }
+
+    private func clearPendingCandidateIDs() {
+        pendingDeleteCandidateIDs.removeAll()
+        pendingFavoriteCandidateIDs.removeAll()
+        userDefaults.removeObject(forKey: AppConstants.pendingDeleteCandidateIDsKey)
+        userDefaults.removeObject(forKey: AppConstants.pendingFavoriteCandidateIDsKey)
+    }
+
+    private func restorePendingCandidatesFromSavedIDs() {
+        guard !pendingDeleteCandidateIDs.isEmpty || !pendingFavoriteCandidateIDs.isEmpty else { return }
+        let photos = photoLibraryManager.allPhotos
+        guard !photos.isEmpty || photoLibraryManager.hasLoadedPhotoLibrary else { return }
+
+        let assetsByID = Dictionary(uniqueKeysWithValues: photos.map { ($0.localIdentifier, $0) })
+        let deleteIDs = pendingDeleteCandidateIDs
+        let favoriteIDs = pendingFavoriteCandidateIDs.subtracting(deleteIDs)
+
+        deleteCandidates = Set(deleteIDs.compactMap { assetsByID[$0] })
+        favoriteCandidates = Set(favoriteIDs.compactMap { assetsByID[$0] })
+
+        let restoredDeleteIDs = Set(deleteCandidates.map(\.localIdentifier))
+        let restoredFavoriteIDs = Set(favoriteCandidates.map(\.localIdentifier))
+        if restoredDeleteIDs != pendingDeleteCandidateIDs ||
+            restoredFavoriteIDs != pendingFavoriteCandidateIDs {
+            pendingDeleteCandidateIDs = restoredDeleteIDs
+            pendingFavoriteCandidateIDs = restoredFavoriteIDs
+            userDefaults.set(Array(restoredDeleteIDs), forKey: AppConstants.pendingDeleteCandidateIDsKey)
+            userDefaults.set(Array(restoredFavoriteIDs), forKey: AppConstants.pendingFavoriteCandidateIDsKey)
+        }
     }
 
     private func pruneReviewedAssetIDs() {
@@ -1404,6 +1471,7 @@ class DataManager: ObservableObject {
 
         deleteCandidates = Set(deleteCandidates.filter { prunedIDs.deleteIDs.contains($0.localIdentifier) })
         favoriteCandidates = Set(favoriteCandidates.filter { prunedIDs.favoriteIDs.contains($0.localIdentifier) })
+        savePendingCandidateIDsNow()
     }
 
     private func scheduleLibraryDataRefresh() {
