@@ -238,11 +238,12 @@ archive_and_upload() {
 
 attempt=1
 while true; do
-  if archive_and_upload; then
+  status=0
+  archive_and_upload || status=$?
+  if [[ "$status" == "0" ]]; then
     exit 0
   fi
 
-  status=$?
   if [[ "$status" == "86" &&
         "$AUTO_INCREMENT_MARKETING_VERSION" == "1" &&
         -z "$MARKETING_VERSION_WAS_EXPLICIT" &&
