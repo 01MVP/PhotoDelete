@@ -128,9 +128,15 @@ final class PurchaseManager: ObservableObject {
     ) {
         self.userDefaults = userDefaults
         self.nowProvider = nowProvider
-        self.entitlementState = .initial(hasCachedEntitlement: userDefaults.bool(forKey: AppConstants.supporterEntitlementKey))
+        let hasCachedEntitlement = userDefaults.bool(forKey: AppConstants.supporterEntitlementKey)
+        self.entitlementState = .initial(hasCachedEntitlement: hasCachedEntitlement)
         self.supporterPurchaseDate = userDefaults.object(forKey: AppConstants.supporterPurchaseDateKey) as? Date
-        self.supporterTrialStartDate = userDefaults.object(forKey: AppConstants.supporterTrialStartDateKey) as? Date
+        if hasCachedEntitlement {
+            self.supporterTrialStartDate = nil
+            userDefaults.removeObject(forKey: AppConstants.supporterTrialStartDateKey)
+        } else {
+            self.supporterTrialStartDate = userDefaults.object(forKey: AppConstants.supporterTrialStartDateKey) as? Date
+        }
 
         if startsStoreKitTasks {
             updatesTask = Task { [weak self] in
@@ -251,6 +257,14 @@ final class PurchaseManager: ObservableObject {
         await refreshEntitlements(showVerificationState: false, shouldLockWhenMissing: true)
     }
 
+    func refreshEntitlementsAfterPotentialExternalChange() async {
+        await refreshEntitlementsSilently()
+
+        try? await Task.sleep(nanoseconds: 1_500_000_000)
+        guard !Task.isCancelled else { return }
+        await refreshEntitlementsSilently()
+    }
+
     private func refreshEntitlements(
         showVerificationState: Bool,
         shouldLockWhenMissing: Bool
@@ -305,6 +319,9 @@ final class PurchaseManager: ObservableObject {
         userDefaults.set(value, forKey: AppConstants.supporterEntitlementKey)
 
         if value {
+            supporterTrialStartDate = nil
+            userDefaults.removeObject(forKey: AppConstants.supporterTrialStartDateKey)
+
             if let purchaseDate {
                 supporterPurchaseDate = purchaseDate
                 userDefaults.set(purchaseDate, forKey: AppConstants.supporterPurchaseDateKey)

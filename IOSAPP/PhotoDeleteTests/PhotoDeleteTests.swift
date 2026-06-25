@@ -396,6 +396,8 @@ struct PhotoDeleteTests {
         #expect(manager.isSupporter)
         #expect(!manager.isUsingTrialSupporterAccess)
         #expect(!manager.isSupporterTrialActive)
+        #expect(manager.supporterTrialStartDate == nil)
+        #expect(defaults.object(forKey: AppConstants.supporterTrialStartDateKey) == nil)
         #expect(manager.supporterTrialStatusText == nil)
         #expect(!manager.canStartSupporterTrial)
     }
@@ -1447,6 +1449,47 @@ struct PhotoDeleteTests {
         #expect(PhotoReviewSessionPaginator.expandedLoadedCount(totalCount: 120, currentLoadedCount: 80, currentIndex: 75) == 120)
     }
 
+    @Test func reviewSessionInitialTargetPrefersNewUnreviewedBeforeSavedProgress() async throws {
+        let ids = ["new-2", "new-1", "reviewed-0", "saved-70", "unreviewed-71"]
+        let reviewed: Set<String> = ["reviewed-0", "saved-70"]
+
+        let index = PhotoReviewSessionPaginator.initialTargetIndex(
+            assetIdentifiers: ids,
+            reviewedAssetIdentifiers: reviewed,
+            savedAssetIdentifier: "saved-70",
+            prefersFirstUnreviewedBeforeSavedProgress: true
+        )
+
+        #expect(index == 0)
+    }
+
+    @Test func reviewSessionInitialTargetContinuesAfterSavedProgressWhenNoEarlierUnreviewedExists() async throws {
+        let ids = ["reviewed-0", "saved-70", "unreviewed-71", "unreviewed-72"]
+        let reviewed: Set<String> = ["reviewed-0", "saved-70"]
+
+        let index = PhotoReviewSessionPaginator.initialTargetIndex(
+            assetIdentifiers: ids,
+            reviewedAssetIdentifiers: reviewed,
+            savedAssetIdentifier: "saved-70",
+            prefersFirstUnreviewedBeforeSavedProgress: true
+        )
+
+        #expect(index == 2)
+    }
+
+    @Test func reviewSessionInitialTargetKeepsSavedProgressForScopedLists() async throws {
+        let ids = ["new-2", "new-1", "saved-70", "unreviewed-71"]
+        let reviewed: Set<String> = ["saved-70"]
+
+        let index = PhotoReviewSessionPaginator.initialTargetIndex(
+            assetIdentifiers: ids,
+            reviewedAssetIdentifiers: reviewed,
+            savedAssetIdentifier: "saved-70"
+        )
+
+        #expect(index == 3)
+    }
+
     @Test func visibleListPaginationFiltersBeforePagingAndClampsLimit() async throws {
         let summaries = [
             makePeriodSummary(index: 0, assetCount: 0),
@@ -1459,6 +1502,22 @@ struct PhotoDeleteTests {
         #expect(VisibleListPagination.visibleItems(filtered, limit: 1).count == 1)
         #expect(VisibleListPagination.hasMore(totalCount: filtered.count, limit: 1))
         #expect(VisibleListPagination.advancedLimit(totalCount: filtered.count, currentLimit: 1, step: 20) == 2)
+    }
+
+    @Test func visibleListPaginationKeepsTotalSeparateFromVisibleCount() async throws {
+        let items = Array(0..<250)
+        let firstPage = VisibleListPagination.visibleItems(items, limit: 120)
+        let secondLimit = VisibleListPagination.advancedLimit(
+            totalCount: items.count,
+            currentLimit: firstPage.count,
+            step: 120
+        )
+        let secondPage = VisibleListPagination.visibleItems(items, limit: secondLimit)
+
+        #expect(items.count == 250)
+        #expect(firstPage.count == 120)
+        #expect(secondPage.count == 240)
+        #expect(VisibleListPagination.hasMore(totalCount: items.count, limit: secondPage.count))
     }
 
     @Test func memoryCaptionFormatterHandlesUnknownTodayAndPastDates() async throws {

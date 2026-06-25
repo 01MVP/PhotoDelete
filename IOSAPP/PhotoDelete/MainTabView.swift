@@ -36,7 +36,7 @@ struct MainTabView: View {
             configureTabBarAppearance()
             dataManager.syncPhotoLibraryAuthorization()
             Task {
-                await purchaseManager.refreshEntitlementsSilently()
+                await purchaseManager.refreshEntitlementsAfterPotentialExternalChange()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: AppConstants.openAlbumsTabNotificationName)) { _ in

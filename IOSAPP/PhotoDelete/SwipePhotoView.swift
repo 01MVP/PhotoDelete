@@ -1294,12 +1294,13 @@ struct SwipePhotoView: View {
         let targetIndex: Int
         if didInitializeSession {
             targetIndex = min(currentPhotoIndex, max(fullPhotos.count - 1, 0))
-        } else if let restoredIndex = restoredSessionProgressIndex(in: fullPhotos) {
-            targetIndex = firstLocallyUnreviewedPhotoIndex(in: fullPhotos, startingAt: restoredIndex) ?? restoredIndex
-        } else if let firstUnreviewedIndex {
-            targetIndex = firstUnreviewedIndex
         } else {
-            targetIndex = 0
+            targetIndex = PhotoReviewSessionPaginator.initialTargetIndex(
+                assetIdentifiers: fullPhotos.map(\.localIdentifier),
+                reviewedAssetIdentifiers: dataManager.reviewedAssetIDs,
+                savedAssetIdentifier: restoredSessionProgressAssetID,
+                prefersFirstUnreviewedBeforeSavedProgress: shouldPreferFirstUnreviewedBeforeSavedProgress
+            )
         }
         showCompletionMessage = !fullPhotos.isEmpty && firstUnreviewedIndex == nil
 
@@ -1700,16 +1701,12 @@ struct SwipePhotoView: View {
         return sessionPhotos[startIndex...].firstIndex { !isAssetLocallyReviewed($0) }
     }
 
-    private func firstLocallyUnreviewedPhotoIndex(in photos: [PHAsset], startingAt startIndex: Int) -> Int? {
-        guard startIndex < photos.count else { return nil }
-        return photos[startIndex...].firstIndex { !isAssetLocallyReviewed($0) }
+    private var restoredSessionProgressAssetID: String? {
+        persistedProgressMap()[sessionProgressScopeID]
     }
 
-    private func restoredSessionProgressIndex(in photos: [PHAsset]) -> Int? {
-        guard let savedAssetID = persistedProgressMap()[sessionProgressScopeID] else {
-            return nil
-        }
-        return photos.firstIndex { $0.localIdentifier == savedAssetID }
+    private var shouldPreferFirstUnreviewedBeforeSavedProgress: Bool {
+        selectedCategory == .all && randomReviewScope == nil
     }
 
     private func scheduleSessionProgressSave() {

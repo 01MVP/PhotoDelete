@@ -2195,6 +2195,28 @@
         }
       }
     },
+    "全选全部": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select All"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "全选全部"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全選全部"
+          }
+        }
+      }
+    },
     "全部徽章": {
       "localizations": {
         "en": {
@@ -15919,6 +15941,94 @@
         }
       }
     },
+    "已显示 %lld/%lld 个视频 · 合计约 %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld/%lld videos shown · about %@ total"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "已显示 %lld/%lld 个视频 · 合计约 %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已顯示 %lld/%lld 個影片 · 合計約 %@"
+          }
+        }
+      }
+    },
+    "已显示 %lld/%lld 个视频 · 已知约 %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld/%lld videos shown · known about %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "已显示 %lld/%lld 个视频 · 已知约 %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已顯示 %lld/%lld 個影片 · 已知約 %@"
+          }
+        }
+      }
+    },
+    "已显示 %lld/%lld 个视频 · 压缩时确认大小": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld/%lld videos shown · size checked when compressing"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "已显示 %lld/%lld 个视频 · 压缩时确认大小"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已顯示 %lld/%lld 個影片 · 壓縮時確認大小"
+          }
+        }
+      }
+    },
+    "已显示 %lld/%lld 个视频 · 正在计算大小": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld/%lld videos shown · calculating size"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "已显示 %lld/%lld 个视频 · 正在计算大小"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已顯示 %lld/%lld 個影片 · 正在計算大小"
+          }
+        }
+      }
+    },
     "已读取 %lld/%lld 个视频大小 · 合计约 %@": {
       "localizations": {
         "en": {
@@ -17371,6 +17481,28 @@
         }
       }
     },
+    "显示更多（%lld/%lld）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show More (%lld/%lld)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "显示更多（%lld/%lld）"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "顯示更多（%lld/%lld）"
+          }
+        }
+      }
+    },
     "按日、周、月、年继续整理。": {
       "localizations": {
         "en": {
@@ -18643,6 +18775,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld 張圖片 · 合計約 %@"
+          }
+        }
+      }
+    },
+    "已显示 %lld/%lld 张图片 · 合计约 %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld/%lld images shown · about %@ total"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "已显示 %lld/%lld 张图片 · 合计约 %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已顯示 %lld/%lld 張圖片 · 合計約 %@"
           }
         }
       }

@@ -1681,6 +1681,9 @@ private struct AdvancedImageCompressionView: View {
     @State private var showBatchConfirm = false
     @State private var compressionOptionsContext: AdvancedImageCompressionOptionsContext?
     @State private var compressionTask: Task<Void, Never>?
+    @State private var visibleImageLimit = 120
+
+    private let imageLimitStep = 120
 
     private var selectedAssets: [PHAsset] {
         compressibleAssets.filter { selectedAssetIDs.contains($0.localIdentifier) }
@@ -1688,6 +1691,14 @@ private struct AdvancedImageCompressionView: View {
 
     private var compressibleAssets: [PHAsset] {
         assets.filter { !processedImageAssetIDs.contains($0.localIdentifier) }
+    }
+
+    private var visibleCompressibleAssets: [PHAsset] {
+        VisibleListPagination.visibleItems(compressibleAssets, limit: visibleImageLimit)
+    }
+
+    private var hasMoreCompressibleAssets: Bool {
+        VisibleListPagination.hasMore(totalCount: compressibleAssets.count, limit: visibleImageLimit)
     }
 
     private var isAllSelected: Bool {
@@ -1713,7 +1724,12 @@ private struct AdvancedImageCompressionView: View {
     private var imageListSizeSummary: String {
         guard !compressibleAssets.isEmpty else { return L10n.string("没有需要压缩的图片") }
         let totalSize = compressibleAssets.reduce(0) { $0 + dataManager.estimatedSizeMB(for: $1) }
-        return String(format: L10n.string("%lld 张图片 · 合计约 %@"), Int64(compressibleAssets.count), CleanupStatsFormatter.space(totalSize))
+        return String(
+            format: L10n.string("已显示 %lld/%lld 张图片 · 合计约 %@"),
+            Int64(visibleCompressibleAssets.count),
+            Int64(compressibleAssets.count),
+            CleanupStatsFormatter.space(totalSize)
+        )
     }
 
     private var selectedCompressionEstimate: ImageCompressionEstimate? {
@@ -1782,7 +1798,7 @@ private struct AdvancedImageCompressionView: View {
                             )
                         } else {
                             LazyVStack(spacing: 9) {
-                                ForEach(compressibleAssets, id: \.localIdentifier) { asset in
+                                ForEach(visibleCompressibleAssets, id: \.localIdentifier) { asset in
                                     AdvancedAssetRow(
                                         asset: asset,
                                         photoLibraryManager: dataManager.photoLibraryManager,
@@ -1793,6 +1809,18 @@ private struct AdvancedImageCompressionView: View {
                                         onPreview: { previewAsset = AdvancedPreviewAsset(asset: asset) }
                                     )
                                 }
+                            }
+
+                            if hasMoreCompressibleAssets {
+                                Button(action: showMoreCompressibleImages) {
+                                    Text(showMoreCompressionItemsTitle(currentCount: visibleCompressibleAssets.count, totalCount: compressibleAssets.count))
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundColor(PhotoDeleteStyle.accent)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 12)
+                                }
+                                .buttonStyle(.plain)
+                                .photoDeleteMinimumTapTarget()
                             }
                         }
                     }
@@ -1869,10 +1897,21 @@ private struct AdvancedImageCompressionView: View {
     private func reloadAssets() {
         let loadedAssets = dataManager.getPhotosForAdvancedCleanup(.imageCompression)
         assets = loadedAssets
+        visibleImageLimit = 120
         selectedAssetIDs = selectedAssetIDs.filter { selectedID in
             loadedAssets.contains { $0.localIdentifier == selectedID }
         }
         pruneSelectionToCompressibleAssets()
+    }
+
+    private func showMoreCompressibleImages() {
+        withAnimation(.easeInOut(duration: 0.18)) {
+            visibleImageLimit = VisibleListPagination.advancedLimit(
+                totalCount: compressibleAssets.count,
+                currentLimit: visibleImageLimit,
+                step: imageLimitStep
+            )
+        }
     }
 
     private func toggleSelection(_ asset: PHAsset) {
@@ -2232,13 +2271,21 @@ private struct AdvancedImageCompressionListHeader: View {
             Spacer()
 
             AdvancedBulkSelectionButton(
-                title: isAllSelected ? L10n.string("取消") : L10n.string("全选"),
+                title: isAllSelected ? L10n.string("取消") : L10n.string("全选全部"),
                 isDisabled: isDisabled,
                 action: action
             )
         }
         .padding(.top, 2)
     }
+}
+
+private func showMoreCompressionItemsTitle(currentCount: Int, totalCount: Int) -> String {
+    String(
+        format: L10n.string("显示更多（%lld/%lld）"),
+        Int64(currentCount),
+        Int64(totalCount)
+    )
 }
 
 private struct AdvancedImageCompressionOptionsContext: Identifiable {
@@ -3068,23 +3115,36 @@ private struct AdvancedVideoCompressionView: View {
         guard !compressibleAssets.isEmpty else { return L10n.string("没有需要压缩的视频") }
 
         if loadedReliableVideoSizeCount == compressibleAssets.count {
-            return String(format: L10n.string("%lld 个视频 · 合计约 %@"), Int64(compressibleAssets.count), CleanupStatsFormatter.space(compressibleTotalSizeMB))
+            return String(
+                format: L10n.string("已显示 %lld/%lld 个视频 · 合计约 %@"),
+                Int64(visibleCompressibleAssets.count),
+                Int64(compressibleAssets.count),
+                CleanupStatsFormatter.space(compressibleTotalSizeMB)
+            )
         }
 
         if loadedReliableVideoSizeCount > 0 {
             return String(
-                format: L10n.string("已读取 %lld/%lld · 已知约 %@"),
-                Int64(loadedReliableVideoSizeCount),
+                format: L10n.string("已显示 %lld/%lld 个视频 · 已知约 %@"),
+                Int64(visibleCompressibleAssets.count),
                 Int64(compressibleAssets.count),
                 CleanupStatsFormatter.space(compressibleTotalSizeMB)
             )
         }
 
         if loadedVideoSizeCount == compressibleAssets.count {
-            return String(format: L10n.string("%lld 个视频 · 压缩时确认大小"), Int64(compressibleAssets.count))
+            return String(
+                format: L10n.string("已显示 %lld/%lld 个视频 · 压缩时确认大小"),
+                Int64(visibleCompressibleAssets.count),
+                Int64(compressibleAssets.count)
+            )
         }
 
-        return String(format: L10n.string("%lld 个视频 · 正在计算大小"), Int64(compressibleAssets.count))
+        return String(
+            format: L10n.string("已显示 %lld/%lld 个视频 · 正在计算大小"),
+            Int64(visibleCompressibleAssets.count),
+            Int64(compressibleAssets.count)
+        )
     }
 
     private var selectedCompressionEstimate: VideoCompressionEstimate? {
@@ -3275,7 +3335,7 @@ private struct AdvancedVideoCompressionView: View {
 
                 if hasMoreCompressibleAssets {
                     Button(action: showMoreCompressibleVideos) {
-                        Text(L10n.string("显示更多"))
+                        Text(showMoreCompressionItemsTitle(currentCount: visibleCompressibleAssets.count, totalCount: compressibleAssets.count))
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundColor(PhotoDeleteStyle.accent)
                             .frame(maxWidth: .infinity)
@@ -3784,7 +3844,7 @@ private struct AdvancedVideoCompressionListHeader: View {
             Spacer()
 
             AdvancedBulkSelectionButton(
-                title: isAllSelected ? L10n.string("取消") : L10n.string("全选"),
+                title: isAllSelected ? L10n.string("取消") : L10n.string("全选全部"),
                 isDisabled: isDisabled,
                 action: action
             )

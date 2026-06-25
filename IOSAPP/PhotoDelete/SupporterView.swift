@@ -94,7 +94,7 @@ struct SupporterView: View {
             }
         }
         .task {
-            await purchaseManager.refreshEntitlements()
+            await purchaseManager.refreshEntitlementsAfterPotentialExternalChange()
             await purchaseManager.loadProducts()
         }
     }

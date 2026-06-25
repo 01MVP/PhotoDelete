@@ -453,6 +453,36 @@ enum PhotoReviewSessionPaginator {
     static let defaultPageSize = 80
     static let preloadThreshold = 12
 
+    static func initialTargetIndex(
+        assetIdentifiers: [String],
+        reviewedAssetIdentifiers: Set<String>,
+        savedAssetIdentifier: String?,
+        prefersFirstUnreviewedBeforeSavedProgress: Bool = false
+    ) -> Int {
+        guard !assetIdentifiers.isEmpty else { return 0 }
+
+        let firstUnreviewedIndex = assetIdentifiers.firstIndex { assetID in
+            !reviewedAssetIdentifiers.contains(assetID)
+        }
+
+        guard let savedAssetIdentifier,
+              let restoredIndex = assetIdentifiers.firstIndex(of: savedAssetIdentifier) else {
+            return firstUnreviewedIndex ?? 0
+        }
+
+        if prefersFirstUnreviewedBeforeSavedProgress,
+           let firstUnreviewedIndex,
+           firstUnreviewedIndex <= restoredIndex {
+            return firstUnreviewedIndex
+        }
+
+        let trailingUnreviewedIndex = assetIdentifiers[restoredIndex...].firstIndex { assetID in
+            !reviewedAssetIdentifiers.contains(assetID)
+        }
+
+        return trailingUnreviewedIndex ?? firstUnreviewedIndex ?? restoredIndex
+    }
+
     static func initialLoadedCount(totalCount: Int, initialPageSize: Int = defaultInitialPageSize) -> Int {
         min(max(totalCount, 0), max(initialPageSize, 0))
     }
