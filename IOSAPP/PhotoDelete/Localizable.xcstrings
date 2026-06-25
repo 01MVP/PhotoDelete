@@ -12597,6 +12597,28 @@
         }
       }
     },
+    "还没有压缩记录": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No compression history yet"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "还没有压缩记录"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還沒有壓縮記錄"
+          }
+        }
+      }
+    },
     "当前照片库里暂时没有可压缩的视频。": {
       "localizations": {
         "en": {

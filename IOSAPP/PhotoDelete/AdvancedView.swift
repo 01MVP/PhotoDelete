@@ -2947,6 +2947,20 @@ private struct AdvancedImageCompressionActionBar: View {
     }
 }
 
+private enum AdvancedVideoCompressionTab: String, CaseIterable, Identifiable {
+    case pending
+    case processed
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .pending: return L10n.string("未压缩")
+        case .processed: return L10n.string("已压缩")
+        }
+    }
+}
+
 private struct AdvancedVideoCompressionView: View {
     @EnvironmentObject var dataManager: DataManager
     @State private var assets: [PHAsset] = []
@@ -2968,6 +2982,10 @@ private struct AdvancedVideoCompressionView: View {
     @State private var compressionOptionsContext: AdvancedVideoCompressionOptionsContext?
     @State private var compressionTask: Task<Void, Never>?
     @State private var sizeLoadingTask: Task<Void, Never>?
+    @State private var selectedTab: AdvancedVideoCompressionTab = .pending
+    @State private var visibleVideoLimit = 120
+
+    private let videoLimitStep = 120
 
     private var selectedAssets: [PHAsset] {
         compressibleAssets.filter { selectedAssetIDs.contains($0.localIdentifier) }
@@ -2975,6 +2993,14 @@ private struct AdvancedVideoCompressionView: View {
 
     private var compressibleAssets: [PHAsset] {
         assets.filter { !processedVideoAssetIDs.contains($0.localIdentifier) }
+    }
+
+    private var visibleCompressibleAssets: [PHAsset] {
+        VisibleListPagination.visibleItems(compressibleAssets, limit: visibleVideoLimit)
+    }
+
+    private var hasMoreCompressibleAssets: Bool {
+        VisibleListPagination.hasMore(totalCount: compressibleAssets.count, limit: visibleVideoLimit)
     }
 
     private var isAllSelected: Bool {
@@ -3085,6 +3111,8 @@ private struct AdvancedVideoCompressionView: View {
 
             ScrollView {
                 VStack(spacing: 14) {
+                    videoCompressionTabPicker
+
                     if isCompressing {
                         AdvancedVideoCompressionProgressCard(
                             processedCount: processedVideoCount,
@@ -3111,58 +3139,11 @@ private struct AdvancedVideoCompressionView: View {
                         )
                     }
 
-                    if assets.isEmpty {
-                        AdvancedEmptyState(
-                            icon: AdvancedCleanupKind.videoCompression.icon,
-                            title: L10n.string("未找到可压缩的视频"),
-                            subtitle: L10n.string("当前照片库里暂时没有可压缩的视频。")
-                        )
-                    } else {
-                        AdvancedVideoCompressionListHeader(
-                            sizeSummary: videoListSizeSummary,
-                            isAllSelected: isAllSelected,
-                            isDisabled: isCompressing || compressibleAssets.isEmpty,
-                            action: toggleBulkSelection
-                        )
-
-                        if iCloudVideoCount > 0 {
-                            AdvancedVideoCompressionICloudInfoCard(
-                                count: iCloudVideoCount,
-                                subtitle: L10n.string("压缩时会下载原片并确认大小。"),
-                                action: showICloudVideoInfo
-                            )
-                        }
-
-                        if compressibleAssets.isEmpty {
-                            AdvancedEmptyState(
-                                icon: "checkmark.circle",
-                                title: L10n.string("没有需要压缩的视频"),
-                                subtitle: L10n.string("压缩完成的视频会留在最近压缩记录里。")
-                            )
-                        } else {
-                            LazyVStack(spacing: 9) {
-                                ForEach(compressibleAssets, id: \.localIdentifier) { asset in
-                                    AdvancedAssetRow(
-                                        asset: asset,
-                                        photoLibraryManager: dataManager.photoLibraryManager,
-                                        estimatedSizeMB: displaySizeMB(for: asset),
-                                        sizeText: displaySizeText(for: asset),
-                                        sizeSystemImage: sizeStatusSystemImage(for: asset),
-                                        sizeTint: sizeStatusTint(for: asset),
-                                        isSelected: selectedAssetIDs.contains(asset.localIdentifier),
-                                        onToggleSelection: { toggleSelection(asset) },
-                                        onPreview: { previewAsset = AdvancedPreviewAsset(asset: asset) }
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    if !dataManager.videoCompressionHistoryStore.sessions.isEmpty {
-                        AdvancedVideoCompressionHistoryCard(
-                            sessions: Array(dataManager.videoCompressionHistoryStore.sessions.prefix(4)),
-                            photoLibraryManager: dataManager.photoLibraryManager
-                        )
+                    switch selectedTab {
+                    case .pending:
+                        pendingVideoCompressionContent
+                    case .processed:
+                        processedVideoCompressionContent
                     }
 
                     Spacer()
@@ -3172,7 +3153,7 @@ private struct AdvancedVideoCompressionView: View {
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if !selectedAssetIDs.isEmpty {
+            if selectedTab == .pending, !selectedAssetIDs.isEmpty {
                 AdvancedVideoCompressionActionBar(
                     count: selectedAssetIDs.count,
                     estimateText: selectedCompressionEstimateText,
@@ -3234,14 +3215,105 @@ private struct AdvancedVideoCompressionView: View {
         }
     }
 
+    private var videoCompressionTabPicker: some View {
+        Picker(L10n.string("视频压缩"), selection: $selectedTab) {
+            ForEach(AdvancedVideoCompressionTab.allCases) { tab in
+                Text(tab.title)
+                    .tag(tab)
+            }
+        }
+        .pickerStyle(.segmented)
+        .accessibilityLabel(L10n.string("视频压缩"))
+    }
+
+    @ViewBuilder
+    private var pendingVideoCompressionContent: some View {
+        if assets.isEmpty {
+            AdvancedEmptyState(
+                icon: AdvancedCleanupKind.videoCompression.icon,
+                title: L10n.string("未找到可压缩的视频"),
+                subtitle: L10n.string("当前照片库里暂时没有可压缩的视频。")
+            )
+        } else {
+            AdvancedVideoCompressionListHeader(
+                sizeSummary: videoListSizeSummary,
+                isAllSelected: isAllSelected,
+                isDisabled: isCompressing || compressibleAssets.isEmpty,
+                action: toggleBulkSelection
+            )
+
+            if iCloudVideoCount > 0 {
+                AdvancedVideoCompressionICloudInfoCard(
+                    count: iCloudVideoCount,
+                    subtitle: L10n.string("压缩时会下载原片并确认大小。"),
+                    action: showICloudVideoInfo
+                )
+            }
+
+            if compressibleAssets.isEmpty {
+                AdvancedEmptyState(
+                    icon: "checkmark.circle",
+                    title: L10n.string("没有需要压缩的视频"),
+                    subtitle: L10n.string("压缩完成的视频会留在最近压缩记录里。")
+                )
+            } else {
+                LazyVStack(spacing: 9) {
+                    ForEach(visibleCompressibleAssets, id: \.localIdentifier) { asset in
+                        AdvancedAssetRow(
+                            asset: asset,
+                            photoLibraryManager: dataManager.photoLibraryManager,
+                            estimatedSizeMB: displaySizeMB(for: asset),
+                            sizeText: displaySizeText(for: asset),
+                            sizeSystemImage: sizeStatusSystemImage(for: asset),
+                            sizeTint: sizeStatusTint(for: asset),
+                            isSelected: selectedAssetIDs.contains(asset.localIdentifier),
+                            onToggleSelection: { toggleSelection(asset) },
+                            onPreview: { previewAsset = AdvancedPreviewAsset(asset: asset) }
+                        )
+                    }
+                }
+
+                if hasMoreCompressibleAssets {
+                    Button(action: showMoreCompressibleVideos) {
+                        Text(L10n.string("显示更多"))
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(PhotoDeleteStyle.accent)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.plain)
+                    .photoDeleteMinimumTapTarget()
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var processedVideoCompressionContent: some View {
+        if dataManager.videoCompressionHistoryStore.sessions.isEmpty {
+            AdvancedEmptyState(
+                icon: "video.badge.checkmark",
+                title: L10n.string("还没有压缩记录"),
+                subtitle: L10n.string("压缩完成的视频会留在最近压缩记录里。")
+            )
+        } else {
+            AdvancedVideoCompressionHistoryCard(
+                sessions: dataManager.videoCompressionHistoryStore.sessions,
+                photoLibraryManager: dataManager.photoLibraryManager,
+                startsExpanded: true
+            )
+        }
+    }
+
     private func reloadAssets() {
         let loadedAssets = dataManager.getPhotosForAdvancedCleanup(.videoCompression)
         assets = loadedAssets
+        visibleVideoLimit = 120
         selectedAssetIDs = selectedAssetIDs.filter { selectedID in
             loadedAssets.contains { $0.localIdentifier == selectedID }
         }
         pruneSelectionToCompressibleAssets()
-        loadVideoSizes(for: loadedAssets)
+        loadVideoSizes(for: visibleCompressibleAssets)
     }
 
     private func displaySizeMB(for asset: PHAsset) -> Double {
@@ -3312,6 +3384,17 @@ private struct AdvancedVideoCompressionView: View {
                 }
             }
         }
+    }
+
+    private func showMoreCompressibleVideos() {
+        withAnimation(.easeInOut(duration: 0.18)) {
+            visibleVideoLimit = VisibleListPagination.advancedLimit(
+                totalCount: compressibleAssets.count,
+                currentLimit: visibleVideoLimit,
+                step: videoLimitStep
+            )
+        }
+        loadVideoSizes(for: visibleCompressibleAssets)
     }
 
     private func toggleSelection(_ asset: PHAsset) {
@@ -4433,6 +4516,16 @@ private struct AdvancedVideoCompressionHistoryCard: View {
     let sessions: [VideoCompressionSession]
     let photoLibraryManager: PhotoLibraryManager
     @State private var isExpanded = false
+
+    init(
+        sessions: [VideoCompressionSession],
+        photoLibraryManager: PhotoLibraryManager,
+        startsExpanded: Bool = false
+    ) {
+        self.sessions = sessions
+        self.photoLibraryManager = photoLibraryManager
+        _isExpanded = State(initialValue: startsExpanded)
+    }
 
     private var summaryText: String {
         let savedSizeMB = sessions.reduce(0) { $0 + $1.savedSizeMB }
