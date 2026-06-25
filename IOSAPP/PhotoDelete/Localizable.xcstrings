@@ -3366,6 +3366,28 @@
         }
       }
     },
+    "取消所有操作": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel All Actions"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "取消所有操作"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消所有操作"
+          }
+        }
+      }
+    },
     "取消勾选后不会执行这项操作": {
       "localizations": {
         "en": {
@@ -19307,6 +19329,28 @@
         }
       }
     },
+    "免费版保留随机整理、滑动整理和按时间整理；支持者版额外解锁完整时间列表、视频压缩、大文件清理、相似照片清理和主题切换。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The free version keeps random review, swipe review, and time organizing. Supporter also unlocks the full time list, video compression, large file cleanup, similar photo cleanup, and themes."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "免费版保留随机整理、滑动整理和按时间整理；支持者版额外解锁完整时间列表、视频压缩、大文件清理、相似照片清理和主题切换。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "免費版保留隨機整理、滑動整理和按時間整理；支持者版額外解鎖完整時間列表、影片壓縮、大檔案清理、相似照片清理和主題切換。"
+          }
+        }
+      }
+    },
     "已整理 %lld/%lld 项，合计约 %@。": {
       "localizations": {
         "en": {
@@ -19479,6 +19523,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "集中處理相似照片、大檔案、圖片和影片壓縮。"
+          }
+        }
+      }
+    },
+    "集中处理相似照片、大文件和视频压缩。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Handle similar photos, large files, and video compression in one place."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "集中处理相似照片、大文件和视频压缩。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "集中處理相似照片、大檔案和影片壓縮。"
           }
         }
       }

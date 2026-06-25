@@ -176,7 +176,7 @@ private struct SupporterPaywallContent: View {
             return L10n.string("免费体验 3 天进阶功能，也可以直接一次性解锁。")
         }
 
-        return L10n.string("一次性解锁完整时间列表、大文件清理、图片压缩、视频压缩、相似照片清理和主题切换。")
+        return L10n.string("一次性解锁完整时间列表、大文件清理、视频压缩、相似照片清理和主题切换。")
     }
 }
 
@@ -535,12 +535,10 @@ struct SupporterPlanComparisonCard: View {
         .init(titleID: .basicSwipeReview, free: .included, supporter: .included),
         .init(titleID: .confirmedDeleteAndFavorite, free: .included, supporter: .included),
         .init(titleID: .basicTimeOrganizing, free: .included, supporter: .included),
-        .init(titleID: .basicLocationOrganizing, free: .included, supporter: .included),
         .init(titleID: .localCleanupHistory, free: .included, supporter: .included),
         .init(titleID: .basicSpaceSavedStats, free: .included, supporter: .included),
         .init(titleID: .fullTimeList, free: .notIncluded, supporter: .included),
         .init(titleID: .largeFileCleanup, free: .notIncluded, supporter: .included),
-        .init(titleID: .imageCompression, free: .notIncluded, supporter: .included),
         .init(titleID: .videoCompression, free: .notIncluded, supporter: .included),
         .init(titleID: .similarPhotoCleanup, free: .notIncluded, supporter: .included),
         .init(titleID: .themeSwitching, free: .notIncluded, supporter: .included)
@@ -703,7 +701,7 @@ struct SupporterBenefitsSheet: View {
 
                 ScrollView {
                     VStack(spacing: 16) {
-                        Text(L10n.string("免费版保留随机整理、滑动整理、按时间整理和地点整理；支持者版额外解锁完整时间列表、图片压缩、视频压缩、大文件清理、相似照片清理和主题切换。"))
+                        Text(L10n.string("免费版保留随机整理、滑动整理和按时间整理；支持者版额外解锁完整时间列表、视频压缩、大文件清理、相似照片清理和主题切换。"))
                             .font(.system(size: 14, weight: .regular))
                             .foregroundColor(PhotoDeleteStyle.secondaryText)
                             .frame(maxWidth: .infinity, alignment: .leading)

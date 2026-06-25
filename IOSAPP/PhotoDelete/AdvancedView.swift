@@ -252,18 +252,6 @@ struct AdvancedView: View {
                 }
 
                 Spacer()
-
-                if !isLocked, !summaries.isEmpty {
-                    NavigationLink {
-                        AdvancedPeriodListView(summaries: summaries)
-                            .environmentObject(dataManager)
-                    } label: {
-                        Text(L10n.string("全部"))
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(PhotoDeleteStyle.accent)
-                    }
-                    .buttonStyle(.plain)
-                }
             }
 
             AdvancedTimeScopePicker(selectedScope: $selectedScope)
@@ -300,6 +288,18 @@ struct AdvancedView: View {
                     }
                 }
                 .photoDeleteCard()
+
+                if summaries.count > displayedAdvancedPeriodSummaries.count {
+                    Button(action: showMoreAdvancedPeriods) {
+                        Text(L10n.string("显示更多"))
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(PhotoDeleteStyle.accent)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.plain)
+                    .photoDeleteMinimumTapTarget()
+                }
             }
         }
     }
@@ -317,17 +317,7 @@ struct AdvancedView: View {
 
                 Spacer()
 
-                if !isLocked, !summaries.isEmpty {
-                    NavigationLink {
-                        AdvancedPeriodListView(summaries: summaries)
-                            .environmentObject(dataManager)
-                    } label: {
-                        Text(L10n.string("全部"))
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(PhotoDeleteStyle.accent)
-                    }
-                    .buttonStyle(.plain)
-                } else {
+                if isLocked {
                     Text(L10n.string("示例"))
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(PhotoDeleteStyle.tertiaryText)
@@ -368,12 +358,14 @@ struct AdvancedView: View {
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundColor(PhotoDeleteStyle.primaryText)
 
-                Text(L10n.string("集中处理相似照片、大文件、图片和视频压缩。"))
+                Text(L10n.string("集中处理相似照片、大文件和视频压缩。"))
                     .font(.system(size: 12, weight: .regular))
                     .foregroundColor(PhotoDeleteStyle.secondaryText)
             }
 
-            if queues.isEmpty && dataManager.isLoadingAdvancedCleanupQueues {
+            let visibleQueues = queues.filter { AdvancedCleanupKind.visibleCases.contains($0.kind) }
+
+            if visibleQueues.isEmpty && dataManager.isLoadingAdvancedCleanupQueues {
                 AdvancedEmptyState(
                     icon: "sparkles",
                     title: L10n.string("正在准备清理入口"),
@@ -381,7 +373,7 @@ struct AdvancedView: View {
                 )
             } else {
                 VStack(spacing: 0) {
-                    ForEach(Array(queues.enumerated()), id: \.element.id) { index, queue in
+                    ForEach(Array(visibleQueues.enumerated()), id: \.element.id) { index, queue in
                         if isLocked {
                             Button(action: openLockedAdvancedFeature) {
                                 AdvancedCleanupEntryRow(queue: queue, isLocked: true)
@@ -396,7 +388,7 @@ struct AdvancedView: View {
                             .buttonStyle(.plain)
                         }
 
-                        if index != queues.count - 1 {
+                        if index != visibleQueues.count - 1 {
                             Divider()
                                 .background(PhotoDeleteStyle.hairline)
                                 .padding(.leading, 62)
@@ -415,8 +407,12 @@ struct AdvancedView: View {
             AdvancedSimilarPhotoGroupsView()
                 .environmentObject(dataManager)
         case .imageCompression:
-            AdvancedImageCompressionView()
-                .environmentObject(dataManager)
+            if AppConstants.isImageCompressionVisible {
+                AdvancedImageCompressionView()
+                    .environmentObject(dataManager)
+            } else {
+                EmptyView()
+            }
         case .videoCompression:
             AdvancedVideoCompressionView()
                 .environmentObject(dataManager)
@@ -607,6 +603,16 @@ struct AdvancedView: View {
         )
         dataManager.refreshAdvancedCleanupQueues()
         dataManager.refreshPhotoPeriodSummaries(for: [selectedScope])
+    }
+
+    private func showMoreAdvancedPeriods() {
+        withAnimation(.easeInOut(duration: 0.18)) {
+            visibleAdvancedPeriodLimit = VisibleListPagination.advancedLimit(
+                totalCount: visiblePeriodSummaries.count,
+                currentLimit: visibleAdvancedPeriodLimit,
+                step: 20
+            )
+        }
     }
 }
 
@@ -1070,7 +1076,7 @@ private struct AdvancedBottomPaywall: View {
             return L10n.string("免费体验 3 天进阶功能，也可以直接一次性解锁。")
         }
 
-        return L10n.string("一次性解锁完整时间列表、大文件清理、图片压缩、视频压缩、相似照片清理和主题切换。")
+        return L10n.string("一次性解锁完整时间列表、大文件清理、视频压缩、相似照片清理和主题切换。")
     }
 }
 
@@ -1277,6 +1283,9 @@ private struct AdvancedAssetListView: View {
     @State private var showBatchConfirm = false
     @State private var previewAsset: AdvancedPreviewAsset?
     @State private var sizeLoadingTask: Task<Void, Never>?
+    @State private var visibleAssetLimit = 120
+
+    private let assetLimitStep = 120
 
     private var selectedAssets: [PHAsset] {
         filteredAssets.filter { selectedAssetIDs.contains($0.localIdentifier) }
@@ -1284,6 +1293,14 @@ private struct AdvancedAssetListView: View {
 
     private var filteredAssets: [PHAsset] {
         assets.filter { matches(asset: $0, filter: selectedFilter) }
+    }
+
+    private var visibleFilteredAssets: [PHAsset] {
+        VisibleListPagination.visibleItems(filteredAssets, limit: visibleAssetLimit)
+    }
+
+    private var hasMoreFilteredAssets: Bool {
+        VisibleListPagination.hasMore(totalCount: filteredAssets.count, limit: visibleAssetLimit)
     }
 
     private var filteredVideoAssets: [PHAsset] {
@@ -1365,7 +1382,7 @@ private struct AdvancedAssetListView: View {
                         )
                     } else {
                         LazyVStack(spacing: 9) {
-                            ForEach(filteredAssets, id: \.localIdentifier) { asset in
+                            ForEach(visibleFilteredAssets, id: \.localIdentifier) { asset in
                                 AdvancedAssetRow(
                                     asset: asset,
                                     photoLibraryManager: dataManager.photoLibraryManager,
@@ -1378,6 +1395,18 @@ private struct AdvancedAssetListView: View {
                                     onPreview: { previewAsset = AdvancedPreviewAsset(asset: asset) }
                                 )
                             }
+                        }
+
+                        if hasMoreFilteredAssets {
+                            Button(action: showMoreAssets) {
+                                Text(L10n.string("显示更多"))
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(PhotoDeleteStyle.accent)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 12)
+                            }
+                            .buttonStyle(.plain)
+                            .photoDeleteMinimumTapTarget()
                         }
                     }
 
@@ -1419,7 +1448,9 @@ private struct AdvancedAssetListView: View {
             reloadAssets()
         }
         .onChange(of: selectedFilter) { _ in
+            visibleAssetLimit = 120
             pruneSelectionToFilteredAssets()
+            loadVideoSizes(for: visibleFilteredAssets)
         }
         .onDisappear {
             sizeLoadingTask?.cancel()
@@ -1470,9 +1501,10 @@ private struct AdvancedAssetListView: View {
         }
 
         assets = loadedAssets
+        visibleAssetLimit = 120
         pruneVideoSizeEstimates(for: loadedAssets)
         pruneSelectionToFilteredAssets()
-        loadVideoSizes(for: loadedAssets)
+        loadVideoSizes(for: visibleFilteredAssets)
     }
 
     private func matches(asset: PHAsset, filter: AdvancedCleanupFilter) -> Bool {
@@ -1572,6 +1604,17 @@ private struct AdvancedAssetListView: View {
                 }
             }
         }
+    }
+
+    private func showMoreAssets() {
+        withAnimation(.easeInOut(duration: 0.18)) {
+            visibleAssetLimit = VisibleListPagination.advancedLimit(
+                totalCount: filteredAssets.count,
+                currentLimit: visibleAssetLimit,
+                step: assetLimitStep
+            )
+        }
+        loadVideoSizes(for: visibleFilteredAssets)
     }
 
     private func toggleSelection(_ asset: PHAsset) {
@@ -5251,9 +5294,7 @@ private struct AdvancedAssetPreviewView: View {
                             photoLibraryManager: photoLibraryManager
                         )
                     } else if let image {
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFit()
+                        ZoomablePhotoPreview(image: image)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
                         VStack(spacing: 12) {
@@ -5296,12 +5337,13 @@ private struct AdvancedAssetPreviewView: View {
 
     private func loadImage(in size: CGSize) {
         guard requestID == nil, image == nil else { return }
-        let targetSize = CGSize(
-            width: max(size.width * displayScale, 900),
-            height: max(size.height * displayScale, 1_200)
-        )
+        let targetSize = photoPreviewTargetSize(for: asset, viewport: size, displayScale: displayScale)
 
-        requestID = photoLibraryManager.loadHighQualityPreview(for: asset, size: targetSize) { loadedImage in
+        requestID = photoLibraryManager.loadHighQualityPreview(
+            for: asset,
+            size: targetSize,
+            networkAccessAllowed: true
+        ) { loadedImage in
             image = loadedImage
             isLoading = false
             requestID = nil

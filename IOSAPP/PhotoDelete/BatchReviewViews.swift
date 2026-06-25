@@ -198,6 +198,12 @@ struct BatchConfirmView: View {
                 }
                 .photoDeleteSecondaryButton()
                 .disabled(isProcessing)
+
+                Button(role: .destructive, action: cancelAllPendingOperations) {
+                    Text(L10n.string("取消所有操作"))
+                }
+                .photoDeleteDestructiveButton()
+                .disabled(isProcessing || !hasPendingOperations)
             }
         }
         .padding(.horizontal, 24)
@@ -293,6 +299,13 @@ struct BatchConfirmView: View {
     }
 
     private func cancelOperations() {
+        dismiss()
+    }
+
+    private func cancelAllPendingOperations() {
+        selectedDeleteIDs.removeAll()
+        selectedFavoriteIDs.removeAll()
+        dataManager.cancelAllOperations()
         dismiss()
     }
 
@@ -810,6 +823,105 @@ struct CandidatePreviewAsset: Identifiable {
     }
 }
 
+func photoPreviewTargetSize(for asset: PHAsset, viewport: CGSize, displayScale: CGFloat) -> CGSize {
+    let pixelWidth = max(CGFloat(asset.pixelWidth), 1)
+    let pixelHeight = max(CGFloat(asset.pixelHeight), 1)
+    let assetLongEdge = max(pixelWidth, pixelHeight)
+    let viewportLongEdge = max(viewport.width, viewport.height) * displayScale
+    let requestedLongEdge = min(max(viewportLongEdge * 3, 2_400), min(assetLongEdge, 6_000))
+    let ratio = requestedLongEdge / assetLongEdge
+
+    return CGSize(
+        width: max(pixelWidth * ratio, viewport.width * displayScale),
+        height: max(pixelHeight * ratio, viewport.height * displayScale)
+    )
+}
+
+struct ZoomablePhotoPreview: UIViewRepresentable {
+    let image: UIImage
+    var maximumZoomScale: CGFloat = 5
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeUIView(context: Context) -> UIScrollView {
+        let scrollView = UIScrollView()
+        scrollView.backgroundColor = .clear
+        scrollView.minimumZoomScale = 1
+        scrollView.maximumZoomScale = maximumZoomScale
+        scrollView.bouncesZoom = true
+        scrollView.showsHorizontalScrollIndicator = false
+        scrollView.showsVerticalScrollIndicator = false
+        scrollView.delegate = context.coordinator
+
+        let imageView = context.coordinator.imageView
+        imageView.contentMode = .scaleAspectFit
+        imageView.clipsToBounds = true
+        imageView.isUserInteractionEnabled = true
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.addSubview(imageView)
+
+        NSLayoutConstraint.activate([
+            imageView.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor),
+            imageView.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor),
+            imageView.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor),
+            imageView.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor),
+            imageView.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor),
+            imageView.heightAnchor.constraint(equalTo: scrollView.frameLayoutGuide.heightAnchor)
+        ])
+
+        let doubleTap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleDoubleTap(_:)))
+        doubleTap.numberOfTapsRequired = 2
+        scrollView.addGestureRecognizer(doubleTap)
+        context.coordinator.scrollView = scrollView
+
+        return scrollView
+    }
+
+    func updateUIView(_ scrollView: UIScrollView, context: Context) {
+        scrollView.maximumZoomScale = maximumZoomScale
+        if context.coordinator.image !== image {
+            context.coordinator.image = image
+            context.coordinator.imageView.image = image
+            scrollView.setZoomScale(1, animated: false)
+        }
+    }
+
+    final class Coordinator: NSObject, UIScrollViewDelegate {
+        let imageView = UIImageView()
+        weak var scrollView: UIScrollView?
+        weak var image: UIImage?
+
+        func viewForZooming(in scrollView: UIScrollView) -> UIView? {
+            imageView
+        }
+
+        @objc func handleDoubleTap(_ recognizer: UITapGestureRecognizer) {
+            guard let scrollView else { return }
+
+            if scrollView.zoomScale > scrollView.minimumZoomScale {
+                scrollView.setZoomScale(scrollView.minimumZoomScale, animated: true)
+                return
+            }
+
+            let targetScale = min(max(scrollView.minimumZoomScale * 3, 2.5), scrollView.maximumZoomScale)
+            let point = recognizer.location(in: imageView)
+            let size = CGSize(
+                width: scrollView.bounds.width / targetScale,
+                height: scrollView.bounds.height / targetScale
+            )
+            let rect = CGRect(
+                x: point.x - size.width / 2,
+                y: point.y - size.height / 2,
+                width: size.width,
+                height: size.height
+            )
+            scrollView.zoom(to: rect, animated: true)
+        }
+    }
+}
+
 struct PhotoAssetVideoPlayerView: View {
     let asset: PHAsset
     let photoLibraryManager: PhotoLibraryManager
@@ -903,8 +1015,6 @@ struct CandidatePhotoPreviewView: View {
     @State private var isLoading = true
     @State private var requestID: PHImageRequestID?
     @State private var failedToLoadLivePhoto = false
-    @State private var zoomScale: CGFloat = 1
-    @State private var settledZoomScale: CGFloat = 1
 
     var body: some View {
         NavigationStack {
@@ -926,12 +1036,7 @@ struct CandidatePhotoPreviewView: View {
                             loadingContent
                         }
                     } else if let image {
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFit()
-                            .scaleEffect(zoomScale)
-                            .gesture(zoomGesture)
-                            .onTapGesture(count: 2, perform: toggleZoom)
+                        ZoomablePhotoPreview(image: image)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .accessibilityLabel(L10n.string("放大的照片"))
                     } else {
@@ -992,35 +1097,10 @@ struct CandidatePhotoPreviewView: View {
         }
     }
 
-    private var zoomGesture: some Gesture {
-        MagnificationGesture()
-            .onChanged { value in
-                zoomScale = min(max(settledZoomScale * value, 1), 4)
-            }
-            .onEnded { _ in
-                settledZoomScale = zoomScale
-            }
-    }
-
-    private func toggleZoom() {
-        withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-            if zoomScale > 1 {
-                zoomScale = 1
-                settledZoomScale = 1
-            } else {
-                zoomScale = 2
-                settledZoomScale = 2
-            }
-        }
-    }
-
     private func loadLivePhoto(in size: CGSize) {
         guard requestID == nil, livePhoto == nil, !failedToLoadLivePhoto else { return }
         isLoading = true
-        let targetSize = CGSize(
-            width: max(size.width * displayScale, 800),
-            height: max(size.height * displayScale, 1_200)
-        )
+        let targetSize = photoPreviewTargetSize(for: asset, viewport: size, displayScale: displayScale)
 
         requestID = photoLibraryManager.loadLivePhotoResult(for: asset, size: targetSize) { result in
             if let loadedLivePhoto = result.livePhoto {
@@ -1040,12 +1120,13 @@ struct CandidatePhotoPreviewView: View {
     private func loadImage(in size: CGSize) {
         guard requestID == nil, image == nil else { return }
         isLoading = true
-        let targetSize = CGSize(
-            width: max(size.width * displayScale, 800),
-            height: max(size.height * displayScale, 1_200)
-        )
+        let targetSize = photoPreviewTargetSize(for: asset, viewport: size, displayScale: displayScale)
 
-        requestID = photoLibraryManager.loadHighQualityPreview(for: asset, size: targetSize) { loadedImage in
+        requestID = photoLibraryManager.loadHighQualityPreview(
+            for: asset,
+            size: targetSize,
+            networkAccessAllowed: true
+        ) { loadedImage in
             image = loadedImage
             isLoading = false
             requestID = nil

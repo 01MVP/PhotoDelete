@@ -1039,7 +1039,12 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     }
 
     @discardableResult
-    func loadHighQualityPreview(for asset: PHAsset, size: CGSize, completion: @escaping (UIImage?) -> Void) -> PHImageRequestID? {
+    func loadHighQualityPreview(
+        for asset: PHAsset,
+        size: CGSize,
+        networkAccessAllowed: Bool = false,
+        completion: @escaping (UIImage?) -> Void
+    ) -> PHImageRequestID? {
         let cacheKey = imageCacheKey(for: asset, purpose: "hq", size: size)
 
         if let cachedImage = imageCache.object(forKey: cacheKey) {
@@ -1051,7 +1056,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         options.deliveryMode = .highQualityFormat
         options.resizeMode = .exact
         options.version = .current
-        options.isNetworkAccessAllowed = false
+        options.isNetworkAccessAllowed = networkAccessAllowed
         options.isSynchronous = false
 
         return imageManager.requestImage(

@@ -181,16 +181,24 @@ struct HomeView: View {
                     )
                     .environmentObject(dataManager)
                 case .locationBrowser:
-                    LocationOrganizeView()
-                        .environmentObject(dataManager)
+                    if AppConstants.isLocationOrganizingVisible {
+                        LocationOrganizeView()
+                            .environmentObject(dataManager)
+                    } else {
+                        EmptyView()
+                    }
                 case .location(let groupID):
-                    SwipePhotoView(
-                        selectedCategory: nil,
-                        selectedTimeGroup: nil,
-                        selectedAlbumInfo: nil,
-                        selectedLocationGroupID: groupID
-                    )
-                    .environmentObject(dataManager)
+                    if AppConstants.isLocationOrganizingVisible {
+                        SwipePhotoView(
+                            selectedCategory: nil,
+                            selectedTimeGroup: nil,
+                            selectedAlbumInfo: nil,
+                            selectedLocationGroupID: groupID
+                        )
+                        .environmentObject(dataManager)
+                    } else {
+                        EmptyView()
+                    }
                 }
             }
         }
@@ -485,7 +493,7 @@ struct HomeView: View {
 
     @ViewBuilder
     private var browseOrganizeSection: some View {
-        if libraryContentState == .available {
+        if AppConstants.isLocationOrganizingVisible, libraryContentState == .available {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text(L10n.string("地点整理"))

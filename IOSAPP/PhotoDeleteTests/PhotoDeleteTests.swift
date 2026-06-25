@@ -272,26 +272,18 @@ struct PhotoDeleteTests {
     }
 
     @MainActor
-    @Test func supporterPlanKeepsLocationOrganizingFree() async throws {
+    @Test func supporterPlanOmitsHiddenLocationOrganizing() async throws {
         let features = SupporterPlanComparisonCard.features
 
-        #expect(features.contains { feature in
-            feature.titleID == .basicLocationOrganizing &&
-                feature.free == .included &&
-                feature.supporter == .included
-        })
+        #expect(!features.contains { $0.titleID == .basicLocationOrganizing })
         #expect(!features.contains { $0.titleID.rawValue == "地点筛选" })
     }
 
     @MainActor
-    @Test func supporterPlanIncludesImageCompressionAsSupporterFeature() async throws {
+    @Test func supporterPlanOmitsHiddenImageCompression() async throws {
         let features = SupporterPlanComparisonCard.features
 
-        #expect(features.contains { feature in
-            feature.titleID == .imageCompression &&
-                feature.free == .notIncluded &&
-                feature.supporter == .included
-        })
+        #expect(!features.contains { $0.titleID == .imageCompression })
     }
 
     @MainActor
@@ -944,7 +936,7 @@ struct PhotoDeleteTests {
         #expect(snapshot.monthSummaries[0].assetCount > 0)
         #expect(snapshot.monthSummaries[0].progress > 0)
         #expect(snapshot.daySummaries.isEmpty == false)
-        #expect(snapshot.cleanupQueues.map(\.kind) == AdvancedCleanupKind.allCases)
+        #expect(snapshot.cleanupQueues.map(\.kind) == AdvancedCleanupKind.visibleCases)
     }
 
     // MARK: - AlbumInfo tests

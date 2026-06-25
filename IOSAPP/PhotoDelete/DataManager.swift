@@ -256,9 +256,6 @@ class DataManager: ObservableObject {
             self.restorePendingCandidatesFromSavedIDs()
             self.prunePendingCandidates()
             self.loadTimeGroups()
-            self.loadLocationGroups(force: true)
-            self.refreshAdvancedCleanupQueues(force: true)
-            self.loadAlbums(showLoading: !self.hasLoadedAlbums)
             self.updateStats()
             self.isPreparingLibrary = false
             self.isReloadingLibrary = false
@@ -283,8 +280,6 @@ class DataManager: ObservableObject {
             self.restorePendingCandidatesFromSavedIDs()
             self.prunePendingCandidates()
             self.loadTimeGroups()
-            self.loadLocationGroups(force: true)
-            self.refreshAdvancedCleanupQueues(force: true)
             _ = self.restoreCachedAlbums()
             self.updateStats()
 
@@ -294,13 +289,8 @@ class DataManager: ObservableObject {
                 self.restorePendingCandidatesFromSavedIDs()
                 self.prunePendingCandidates()
                 self.loadTimeGroups()
-                self.loadLocationGroups(force: didRefreshLibrary)
-                self.refreshAdvancedCleanupQueues(force: didRefreshLibrary)
                 if didRefreshLibrary {
                     self.hasLoadedAlbums = false
-                    self.loadAlbums(showLoading: false)
-                } else {
-                    self.loadAlbums(showLoading: false)
                 }
                 self.updateStats()
             }
@@ -537,8 +527,6 @@ class DataManager: ObservableObject {
         restorePendingCandidatesFromSavedIDs()
         prunePendingCandidates()
         loadTimeGroups()
-        loadLocationGroups(force: true)
-        refreshAdvancedCleanupQueues(force: true)
         updateStats()
     }
 
@@ -631,8 +619,6 @@ class DataManager: ObservableObject {
         PhotoRandomReviewSessionStore.clearAll()
         saveReviewedAssetIDsNow()
         loadTimeGroups()
-        loadLocationGroups(force: true)
-        refreshAdvancedCleanupQueues(force: true)
         updateStats()
     }
 
@@ -854,11 +840,12 @@ class DataManager: ObservableObject {
         case .similarPhotos:
             return similarPhotoCandidates(maxCount: 240)
         case .largeFiles:
-            return largeFileCandidates(maxCount: 240)
+            return largeFileCandidates()
         case .imageCompression:
-            return imageCompressionCandidates(maxCount: 240)
+            guard AppConstants.isImageCompressionVisible else { return [] }
+            return imageCompressionCandidates()
         case .videoCompression:
-            return videoCompressionCandidates(maxCount: 240)
+            return videoCompressionCandidates()
         case .videos:
             return photoLibraryManager.videos.sorted {
                 estimatedAssetSizeMB($0) > estimatedAssetSizeMB($1)
@@ -1036,7 +1023,7 @@ class DataManager: ObservableObject {
         let photos = photoLibraryManager.allPhotos
         let videos = photoLibraryManager.videos
         let screenshotIDs = Set(photoLibraryManager.screenshots.map(\.localIdentifier))
-        let imageSessions = imageCompressionHistoryStore.sessions
+        let imageSessions = AppConstants.isImageCompressionVisible ? imageCompressionHistoryStore.sessions : []
         let processedIDs = Self.imageCompressionProcessedAssetIDs(from: imageSessions)
         let signature = AdvancedCleanupQueueBuildSignature(
             photoCount: photos.count,
@@ -1097,15 +1084,10 @@ class DataManager: ObservableObject {
             screenshotIDs: screenshotIDs,
             maxGroups: 120
         )
-        let largeFiles = largeFileCandidates(from: photos, maxCount: 240)
-        let imageCompressionCandidates = imageCompressionCandidates(
-            from: photos,
-            processedIDs: imageCompressionProcessedIDs,
-            maxCount: 240
-        )
-        let videoCompressionCandidates = videoCompressionCandidates(from: videos, maxCount: 240)
+        let largeFiles = largeFileCandidates(from: photos)
+        let videoCompressionCandidates = videoCompressionCandidates(from: videos)
 
-        return [
+        var queues = [
             AdvancedCleanupQueue(
                 kind: .similarPhotos,
                 assetCount: similarGroups.reduce(0) { $0 + $1.suggestedDeleteCount },
@@ -1115,11 +1097,6 @@ class DataManager: ObservableObject {
                 kind: .largeFiles,
                 assetCount: largeFiles.count,
                 estimatedSpaceMB: largeFiles.reduce(0) { $0 + estimatedAssetSizeMBForAsset($1) }
-            ),
-            AdvancedCleanupQueue(
-                kind: .imageCompression,
-                assetCount: imageCompressionCandidates.count,
-                estimatedSpaceMB: estimatedImageCompressionEstimate(for: imageCompressionCandidates).estimatedSavedMidMB
             ),
             AdvancedCleanupQueue(
                 kind: .videoCompression,
@@ -1132,6 +1109,23 @@ class DataManager: ObservableObject {
                 estimatedSpaceMB: videos.reduce(0) { $0 + estimatedAssetSizeMBForAsset($1) }
             )
         ]
+
+        if AppConstants.isImageCompressionVisible {
+            let imageCompressionCandidates = imageCompressionCandidates(
+                from: photos,
+                processedIDs: imageCompressionProcessedIDs
+            )
+            queues.insert(
+                AdvancedCleanupQueue(
+                    kind: .imageCompression,
+                    assetCount: imageCompressionCandidates.count,
+                    estimatedSpaceMB: estimatedImageCompressionEstimate(for: imageCompressionCandidates).estimatedSavedMidMB
+                ),
+                at: 2
+            )
+        }
+
+        return queues
     }
 
     func makeSimilarPhotoGroups(maxGroups: Int = 80) -> [AdvancedSimilarPhotoGroup] {
@@ -1201,11 +1195,11 @@ class DataManager: ObservableObject {
             .prefix(maxCount))
     }
 
-    private func largeFileCandidates(maxCount: Int) -> [PHAsset] {
+    private func largeFileCandidates(maxCount: Int? = nil) -> [PHAsset] {
         Self.largeFileCandidates(from: photoLibraryManager.allPhotos, maxCount: maxCount)
     }
 
-    private static func largeFileCandidates(from photos: [PHAsset], maxCount: Int) -> [PHAsset] {
+    private static func largeFileCandidates(from photos: [PHAsset], maxCount: Int? = nil) -> [PHAsset] {
         let candidates = photos.filter { asset in
             let estimatedSize = estimatedAssetSizeMBForAsset(asset)
             if asset.mediaType == .video {
@@ -1215,12 +1209,16 @@ class DataManager: ObservableObject {
         }
         let source = candidates.isEmpty ? photos : candidates
 
-        return Array(source.sorted {
+        let sorted = source.sorted {
             estimatedAssetSizeMBForAsset($0) > estimatedAssetSizeMBForAsset($1)
-        }.prefix(maxCount))
+        }
+        if let maxCount {
+            return Array(sorted.prefix(maxCount))
+        }
+        return sorted
     }
 
-    private func imageCompressionCandidates(maxCount: Int) -> [PHAsset] {
+    private func imageCompressionCandidates(maxCount: Int? = nil) -> [PHAsset] {
         Self.imageCompressionCandidates(
             from: photoLibraryManager.allPhotos,
             processedIDs: imageCompressionProcessedAssetIDs(),
@@ -1245,7 +1243,7 @@ class DataManager: ObservableObject {
     private static func imageCompressionCandidates(
         from photos: [PHAsset],
         processedIDs: Set<String>,
-        maxCount: Int
+        maxCount: Int? = nil
     ) -> [PHAsset] {
         let candidates = photos.filter { asset in
             asset.mediaType == .image &&
@@ -1261,19 +1259,27 @@ class DataManager: ObservableObject {
             }
             : candidates
 
-        return Array(source.sorted {
+        let sorted = source.sorted {
             estimatedAssetSizeMBForAsset($0) > estimatedAssetSizeMBForAsset($1)
-        }.prefix(maxCount))
+        }
+        if let maxCount {
+            return Array(sorted.prefix(maxCount))
+        }
+        return sorted
     }
 
-    private func videoCompressionCandidates(maxCount: Int) -> [PHAsset] {
+    private func videoCompressionCandidates(maxCount: Int? = nil) -> [PHAsset] {
         Self.videoCompressionCandidates(from: photoLibraryManager.videos, maxCount: maxCount)
     }
 
-    private static func videoCompressionCandidates(from videos: [PHAsset], maxCount: Int) -> [PHAsset] {
-        Array(videos.sorted {
+    private static func videoCompressionCandidates(from videos: [PHAsset], maxCount: Int? = nil) -> [PHAsset] {
+        let sorted = videos.sorted {
             estimatedAssetSizeMBForAsset($0) > estimatedAssetSizeMBForAsset($1)
-        }.prefix(maxCount))
+        }
+        if let maxCount {
+            return Array(sorted.prefix(maxCount))
+        }
+        return sorted
     }
 
     func estimatedImageCompressionSavingsMB(
@@ -1839,7 +1845,9 @@ class DataManager: ObservableObject {
         let workItem = DispatchWorkItem { [weak self] in
             guard let self, self.photoLibraryManager.hasPhotoLibraryAccess else { return }
             self.refreshDerivedLibraryData()
-            self.loadAlbums(showLoading: false)
+            if self.hasLoadedAlbums {
+                self.loadAlbums(showLoading: false)
+            }
         }
         libraryDataRefreshWorkItem = workItem
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)

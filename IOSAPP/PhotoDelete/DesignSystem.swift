@@ -322,6 +322,29 @@ struct PhotoDeleteSecondaryButtonStyle: ButtonStyle {
     }
 }
 
+struct PhotoDeleteDestructiveButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.body.weight(.semibold))
+            .foregroundColor(PhotoDeleteStyle.destructive)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 15)
+            .background(
+                RoundedRectangle(cornerRadius: PhotoDeleteStyle.controlRadius, style: .continuous)
+                    .fill(PhotoDeleteStyle.destructive.opacity(configuration.isPressed ? 0.18 : 0.12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: PhotoDeleteStyle.controlRadius, style: .continuous)
+                            .stroke(PhotoDeleteStyle.destructive.opacity(0.28), lineWidth: 1)
+                    )
+            )
+            .opacity(isEnabled ? (configuration.isPressed ? 0.78 : 1) : 0.42)
+            .scaleEffect(configuration.isPressed ? 0.985 : 1)
+            .animation(.easeOut(duration: 0.14), value: configuration.isPressed)
+    }
+}
+
 extension View {
     func photoDeleteMinimumTapTarget(_ size: CGFloat = 44) -> some View {
         frame(minWidth: size, minHeight: size)
@@ -400,6 +423,8 @@ enum AppConstants {
     static let supporterPurchaseDateKey = "photoDeleteSupporterPurchaseDate"
     static let supporterTrialStartDateKey = "photoDeleteSupporterTrialStartDate"
     static let supporterTrialDuration: TimeInterval = 3 * 24 * 60 * 60
+    static let isLocationOrganizingVisible = false
+    static let isImageCompressionVisible = false
     static var privacyShortText: String {
         L10n.string("照片整理只在本机完成。不需要账号，也不会上传你的照片。")
     }
@@ -559,5 +584,9 @@ extension View {
 
     func photoDeleteSecondaryButton() -> some View {
         buttonStyle(PhotoDeleteSecondaryButtonStyle())
+    }
+
+    func photoDeleteDestructiveButton() -> some View {
+        buttonStyle(PhotoDeleteDestructiveButtonStyle())
     }
 }
