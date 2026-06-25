@@ -105,11 +105,19 @@ enum SwipeGestureDirection: String, CaseIterable, Identifiable {
 
 struct SwipeGesturePreset: Identifiable, Equatable {
     let id: String
-    let title: String
-    let subtitle: String
+    let titleKey: String
+    let subtitleKey: String
     let leftAction: SwipeGestureAction
     let rightAction: SwipeGestureAction
     let upAction: SwipeGestureAction
+
+    var title: String {
+        L10n.key(titleKey)
+    }
+
+    var subtitle: String {
+        L10n.key(subtitleKey)
+    }
 
     func action(for direction: SwipeGestureDirection) -> SwipeGestureAction {
         switch direction {
@@ -121,8 +129,8 @@ struct SwipeGesturePreset: Identifiable, Equatable {
 
     static let standard = SwipeGesturePreset(
         id: "standard",
-        title: L10n.string("左删右留"),
-        subtitle: L10n.string("左滑删除，右滑保留，上滑收藏"),
+        titleKey: "左删右留",
+        subtitleKey: "左滑删除，右滑保留，上滑收藏",
         leftAction: .delete,
         rightAction: .keep,
         upAction: .favorite
@@ -130,8 +138,8 @@ struct SwipeGesturePreset: Identifiable, Equatable {
 
     static let reversed = SwipeGesturePreset(
         id: "reversed",
-        title: L10n.string("左留右删"),
-        subtitle: L10n.string("左滑保留，右滑删除，上滑收藏"),
+        titleKey: "左留右删",
+        subtitleKey: "左滑保留，右滑删除，上滑收藏",
         leftAction: .keep,
         rightAction: .delete,
         upAction: .favorite
@@ -139,8 +147,8 @@ struct SwipeGesturePreset: Identifiable, Equatable {
 
     static let verticalDelete = SwipeGesturePreset(
         id: "verticalDelete",
-        title: L10n.string("上滑删除"),
-        subtitle: L10n.string("上滑删除，左滑保留，右滑收藏"),
+        titleKey: "上滑删除",
+        subtitleKey: "上滑删除，左滑保留，右滑收藏",
         leftAction: .keep,
         rightAction: .favorite,
         upAction: .delete

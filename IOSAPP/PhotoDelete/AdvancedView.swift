@@ -242,7 +242,7 @@ struct AdvancedView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(L10n.string("按时间清理"))
+                    Text(L10n.string("按时间整理"))
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundColor(PhotoDeleteStyle.primaryText)
 
@@ -734,7 +734,7 @@ private struct AdvancedPeriodProgressCard: View {
             VStack(alignment: .leading, spacing: 10) {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
-                        Text(L10n.string("\(AdvancedPeriodFormatter.compactTitle(for: summary))清理进度"))
+                        Text(String(format: L10n.string("%@清理进度"), AdvancedPeriodFormatter.compactTitle(for: summary)))
                             .font(.system(size: 20, weight: .semibold))
                             .foregroundColor(PhotoDeleteStyle.primaryText)
                             .lineLimit(1)
@@ -813,7 +813,11 @@ private struct AdvancedPeriodChip: View {
                         .foregroundColor(PhotoDeleteStyle.primaryText)
                         .lineLimit(1)
 
-                    Text(L10n.string("\(summary.assetCount) 项 · \(Int(summary.progress * 100))%"))
+                    Text(String(
+                        format: L10n.string("%lld 项 · %lld%%"),
+                        Int64(summary.assetCount),
+                        Int64(summary.progress * 100)
+                    ))
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(PhotoDeleteStyle.secondaryText)
                         .lineLimit(1)
@@ -883,9 +887,13 @@ private struct AdvancedCleanupEntryRow: View {
     private var detailText: String {
         switch queue.kind {
         case .similarPhotos, .largeFiles:
-            return L10n.string("\(queue.assetCount) 项 · \(queue.formattedSpace)")
+            return String(
+                format: L10n.string("%lld 项 · %@"),
+                Int64(queue.assetCount),
+                queue.formattedSpace
+            )
         case .imageCompression, .videoCompression, .videos:
-            return L10n.string("\(queue.assetCount) 项")
+            return String(format: L10n.string("%lld 项"), Int64(queue.assetCount))
         }
     }
 }
@@ -1253,7 +1261,12 @@ private struct AdvancedPeriodListRow: View {
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(PhotoDeleteStyle.primaryText)
 
-                Text(L10n.string("\(summary.assetCount) 项 · 已整理 \(Int(summary.progress * 100))% · \(summary.formattedEstimatedSize)"))
+                Text(String(
+                    format: L10n.string("%lld 项 · 已整理 %lld%% · %@"),
+                    Int64(summary.assetCount),
+                    Int64(summary.progress * 100),
+                    summary.formattedEstimatedSize
+                ))
                     .font(.system(size: 12, weight: .regular))
                     .foregroundColor(PhotoDeleteStyle.secondaryText)
                     .lineLimit(1)
@@ -1460,15 +1473,15 @@ private struct AdvancedAssetListView: View {
     private var summaryTitle: String {
         switch mode {
         case .cleanup(.largeFiles):
-            return L10n.string("共 \(filteredAssets.count) 个大文件")
+            return String(format: L10n.string("共 %lld 个大文件"), Int64(filteredAssets.count))
         case .cleanup(.imageCompression):
-            return L10n.string("共 \(filteredAssets.count) 张可压缩图片")
+            return String(format: L10n.string("共 %lld 张可压缩图片"), Int64(filteredAssets.count))
         case .cleanup(.videoCompression):
-            return L10n.string("共 \(filteredAssets.count) 个可压缩视频")
+            return String(format: L10n.string("共 %lld 个可压缩视频"), Int64(filteredAssets.count))
         case .cleanup(.videos):
-            return L10n.string("共 \(filteredAssets.count) 个视频")
+            return String(format: L10n.string("共 %lld 个视频"), Int64(filteredAssets.count))
         case .cleanup(.similarPhotos):
-            return L10n.string("共 \(filteredAssets.count) 张相似照片")
+            return String(format: L10n.string("共 %lld 张相似照片"), Int64(filteredAssets.count))
         }
     }
 
@@ -1478,18 +1491,18 @@ private struct AdvancedAssetListView: View {
             if hasUnresolvedVideoSizes {
                 return String(format: L10n.string("部分视频大小会在处理时确认，已知约 %@。"), CleanupStatsFormatter.space(filteredTotalSizeMB))
             }
-            return L10n.string("按占用空间从大到小排序，合计约 \(CleanupStatsFormatter.space(filteredTotalSizeMB))。")
+            return String(format: L10n.string("按占用空间从大到小排序，合计约 %@。"), CleanupStatsFormatter.space(filteredTotalSizeMB))
         case .cleanup(.imageCompression):
-            return L10n.string("选择要压缩的图片，合计约 \(CleanupStatsFormatter.space(filteredTotalSizeMB))。")
+            return String(format: L10n.string("选择要压缩的图片，合计约 %@。"), CleanupStatsFormatter.space(filteredTotalSizeMB))
         case .cleanup(.videoCompression):
-            return L10n.string("选择要压缩的视频，合计约 \(CleanupStatsFormatter.space(filteredTotalSizeMB))。")
+            return String(format: L10n.string("选择要压缩的视频，合计约 %@。"), CleanupStatsFormatter.space(filteredTotalSizeMB))
         case .cleanup(.videos):
             if hasUnresolvedVideoSizes {
                 return String(format: L10n.string("已读取 %lld/%lld 个视频大小，已知约 %@。"), Int64(loadedReliableVideoSizeCount), Int64(filteredVideoAssets.count), CleanupStatsFormatter.space(filteredTotalSizeMB))
             }
-            return L10n.string("按视频占用优先处理，合计约 \(CleanupStatsFormatter.space(filteredTotalSizeMB))。")
+            return String(format: L10n.string("按视频占用优先处理，合计约 %@。"), CleanupStatsFormatter.space(filteredTotalSizeMB))
         case .cleanup(.similarPhotos):
-            return L10n.string("建议优先处理相似组，合计约 \(CleanupStatsFormatter.space(filteredTotalSizeMB))。")
+            return String(format: L10n.string("建议优先处理相似组，合计约 %@。"), CleanupStatsFormatter.space(filteredTotalSizeMB))
         }
     }
 
@@ -4915,8 +4928,11 @@ private struct AdvancedSimilarPhotoGroupsView: View {
                     AdvancedFilterPills(kind: .similarPhotos, selection: $selectedFilter)
 
                     AdvancedAssetListSummaryCard(
-                        title: L10n.string("发现 \(filteredGroups.count) 组相似照片"),
-                        subtitle: L10n.string("预计可减少 \(filteredGroups.reduce(0) { $0 + $1.suggestedDeleteCount }) 张，逐组确认更稳妥。"),
+                        title: String(format: L10n.string("发现 %lld 组相似照片"), Int64(filteredGroups.count)),
+                        subtitle: String(
+                            format: L10n.string("预计可减少 %lld 张，逐组确认更稳妥。"),
+                            Int64(filteredGroups.reduce(0) { $0 + $1.suggestedDeleteCount })
+                        ),
                         buttonTitle: selectedAssetIDs.isEmpty ? L10n.string("建议选择") : L10n.string("取消"),
                         action: toggleRecommendedSelection
                     )
@@ -5512,7 +5528,7 @@ private struct AdvancedSelectionActionBar: View {
         Button(action: action) {
             HStack(spacing: 8) {
                 Image(systemName: "trash")
-                Text(L10n.string("加入待删除 \(count) 项"))
+                Text(String(format: L10n.string("加入待删除 %lld 项"), Int64(count)))
             }
             .font(.system(size: 15, weight: .semibold))
             .foregroundColor(PhotoDeleteStyle.primaryButtonText)
@@ -5760,7 +5776,7 @@ private enum AdvancedAssetFormatter {
         var parts: [String] = []
 
         if asset.mediaType == .video {
-            parts.append(L10n.string("视频 \(formattedDuration(asset.duration))"))
+            parts.append(String(format: L10n.string("视频 %@"), formattedDuration(asset.duration)))
         } else if photoLibraryManager.isScreenshot(asset) {
             parts.append(L10n.string("截图"))
         } else {

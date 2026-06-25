@@ -1814,114 +1814,18 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         progressHandler: (@MainActor @Sendable (Double, String) -> Void)?
     ) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            let stateLock = NSLock()
-            var didComplete = false
-            var videoFinished = false
-            var audioFinished = audioInput == nil || audioOutput == nil
-
-            func complete(_ result: Result<Void, Error>) {
-                stateLock.lock()
-                guard !didComplete else {
-                    stateLock.unlock()
-                    return
-                }
-                didComplete = true
-                stateLock.unlock()
-
-                switch result {
-                case .success:
-                    continuation.resume(returning: ())
-                case .failure(let error):
-                    continuation.resume(throwing: error)
-                }
-            }
-
-            func fail(_ error: Error) {
-                reader.cancelReading()
-                writer.cancelWriting()
-                complete(.failure(error))
-            }
-
-            func finishIfReady() {
-                stateLock.lock()
-                let shouldFinish = videoFinished && audioFinished && !didComplete
-                stateLock.unlock()
-
-                guard shouldFinish else { return }
-                writer.finishWriting {
-                    if writer.status == .completed {
-                        complete(.success(()))
-                    } else if writer.status == .cancelled {
-                        complete(.failure(CancellationError()))
-                    } else {
-                        complete(.failure(writer.error ?? VideoCompressionError.exportFailed))
-                    }
-                }
-            }
-
-            guard writer.startWriting() else {
-                complete(.failure(writer.error ?? VideoCompressionError.exportFailed))
-                return
-            }
-            guard reader.startReading() else {
-                writer.cancelWriting()
-                complete(.failure(reader.error ?? VideoCompressionError.exportFailed))
-                return
-            }
-            writer.startSession(atSourceTime: .zero)
-
-            let durationSeconds = max(CMTimeGetSeconds(duration), 1)
-            let videoQueue = DispatchQueue(label: "PhotoDelete.VideoCompression.video")
-            let audioQueue = DispatchQueue(label: "PhotoDelete.VideoCompression.audio")
-            var lastProgressUpdate = Date.distantPast
-
-            videoInput.requestMediaDataWhenReady(on: videoQueue) {
-                while videoInput.isReadyForMoreMediaData {
-                    if let sampleBuffer = videoOutput.copyNextSampleBuffer() {
-                        guard videoInput.append(sampleBuffer) else {
-                            fail(writer.error ?? VideoCompressionError.exportFailed)
-                            return
-                        }
-
-                        let now = Date()
-                        if now.timeIntervalSince(lastProgressUpdate) >= 0.2 {
-                            lastProgressUpdate = now
-                            let seconds = CMTimeGetSeconds(CMSampleBufferGetPresentationTimeStamp(sampleBuffer))
-                            let exportProgress = min(max(seconds / durationSeconds, 0), 1)
-                            Task { @MainActor in
-                                progressHandler?(0.16 + exportProgress * 0.7, L10n.string("正在压缩视频"))
-                            }
-                        }
-                    } else {
-                        videoInput.markAsFinished()
-                        stateLock.lock()
-                        videoFinished = true
-                        stateLock.unlock()
-                        finishIfReady()
-                        break
-                    }
-                }
-            }
-
-            if let audioInput, let audioOutput {
-                audioInput.requestMediaDataWhenReady(on: audioQueue) {
-                    while audioInput.isReadyForMoreMediaData {
-                        if let sampleBuffer = audioOutput.copyNextSampleBuffer() {
-                            guard audioInput.append(sampleBuffer) else {
-                                fail(writer.error ?? VideoCompressionError.exportFailed)
-                                return
-                            }
-                        } else {
-                            audioInput.markAsFinished()
-                            stateLock.lock()
-                            audioFinished = true
-                            stateLock.unlock()
-                            finishIfReady()
-                            break
-                        }
-                    }
-                }
-            }
+            let session = VideoCompressionExportSession(
+                reader: reader,
+                writer: writer,
+                videoInput: videoInput,
+                videoOutput: videoOutput,
+                audioInput: audioInput,
+                audioOutput: audioOutput,
+                duration: duration,
+                progressHandler: progressHandler,
+                continuation: continuation
+            )
+            session.start()
         }
     }
 
@@ -2510,6 +2414,187 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         }
     }
 
+}
+
+// AVFoundation drives these non-Sendable reader/writer objects through its own serial media queues.
+private final class VideoCompressionExportSession: @unchecked Sendable {
+    private let reader: AVAssetReader
+    private let writer: AVAssetWriter
+    private let videoInput: AVAssetWriterInput
+    private let videoOutput: AVAssetReaderTrackOutput
+    private let audioInput: AVAssetWriterInput?
+    private let audioOutput: AVAssetReaderTrackOutput?
+    private let durationSeconds: Double
+    private let progressHandler: (@MainActor @Sendable (Double, String) -> Void)?
+    private let continuation: CheckedContinuation<Void, Error>
+
+    private let stateLock = NSLock()
+    private var didComplete = false
+    private var isFinishing = false
+    private var videoFinished = false
+    private var audioFinished: Bool
+    private var lastProgressUpdate = Date.distantPast
+
+    init(
+        reader: AVAssetReader,
+        writer: AVAssetWriter,
+        videoInput: AVAssetWriterInput,
+        videoOutput: AVAssetReaderTrackOutput,
+        audioInput: AVAssetWriterInput?,
+        audioOutput: AVAssetReaderTrackOutput?,
+        duration: CMTime,
+        progressHandler: (@MainActor @Sendable (Double, String) -> Void)?,
+        continuation: CheckedContinuation<Void, Error>
+    ) {
+        self.reader = reader
+        self.writer = writer
+        self.videoInput = videoInput
+        self.videoOutput = videoOutput
+        self.audioInput = audioInput
+        self.audioOutput = audioOutput
+        self.durationSeconds = max(CMTimeGetSeconds(duration), 1)
+        self.progressHandler = progressHandler
+        self.continuation = continuation
+        self.audioFinished = audioInput == nil || audioOutput == nil
+    }
+
+    func start() {
+        guard writer.startWriting() else {
+            complete(.failure(writer.error ?? VideoCompressionError.exportFailed))
+            return
+        }
+        guard reader.startReading() else {
+            writer.cancelWriting()
+            complete(.failure(reader.error ?? VideoCompressionError.exportFailed))
+            return
+        }
+        writer.startSession(atSourceTime: .zero)
+
+        let videoQueue = DispatchQueue(label: "PhotoDelete.VideoCompression.video")
+        videoInput.requestMediaDataWhenReady(on: videoQueue) { [self] in
+            drainVideoSamples()
+        }
+
+        guard let audioInput else {
+            return
+        }
+
+        let audioQueue = DispatchQueue(label: "PhotoDelete.VideoCompression.audio")
+        audioInput.requestMediaDataWhenReady(on: audioQueue) { [self] in
+            drainAudioSamples()
+        }
+    }
+
+    private func drainVideoSamples() {
+        while videoInput.isReadyForMoreMediaData {
+            guard let sampleBuffer = videoOutput.copyNextSampleBuffer() else {
+                videoInput.markAsFinished()
+                markVideoFinished()
+                return
+            }
+
+            guard videoInput.append(sampleBuffer) else {
+                fail(writer.error ?? VideoCompressionError.exportFailed)
+                return
+            }
+
+            reportProgressIfNeeded(for: sampleBuffer)
+        }
+    }
+
+    private func drainAudioSamples() {
+        guard let audioInput, let audioOutput else {
+            markAudioFinished()
+            return
+        }
+
+        while audioInput.isReadyForMoreMediaData {
+            guard let sampleBuffer = audioOutput.copyNextSampleBuffer() else {
+                audioInput.markAsFinished()
+                markAudioFinished()
+                return
+            }
+
+            guard audioInput.append(sampleBuffer) else {
+                fail(writer.error ?? VideoCompressionError.exportFailed)
+                return
+            }
+        }
+    }
+
+    private func reportProgressIfNeeded(for sampleBuffer: CMSampleBuffer) {
+        let now = Date.now
+        guard now.timeIntervalSince(lastProgressUpdate) >= 0.2 else {
+            return
+        }
+
+        lastProgressUpdate = now
+        let seconds = CMTimeGetSeconds(CMSampleBufferGetPresentationTimeStamp(sampleBuffer))
+        let exportProgress = min(max(seconds / durationSeconds, 0), 1)
+        let displayedProgress = 0.16 + exportProgress * 0.7
+        let handler = progressHandler
+
+        Task { @MainActor in
+            handler?(displayedProgress, L10n.string("正在压缩视频"))
+        }
+    }
+
+    private func markVideoFinished() {
+        stateLock.lock()
+        videoFinished = true
+        stateLock.unlock()
+        finishIfReady()
+    }
+
+    private func markAudioFinished() {
+        stateLock.lock()
+        audioFinished = true
+        stateLock.unlock()
+        finishIfReady()
+    }
+
+    private func fail(_ error: Error) {
+        reader.cancelReading()
+        writer.cancelWriting()
+        complete(.failure(error))
+    }
+
+    private func finishIfReady() {
+        stateLock.lock()
+        let shouldFinish = videoFinished && audioFinished && !didComplete && !isFinishing
+        if shouldFinish {
+            isFinishing = true
+        }
+        stateLock.unlock()
+
+        guard shouldFinish else { return }
+        writer.finishWriting { [self] in
+            if writer.status == .completed {
+                complete(.success(()))
+            } else if writer.status == .cancelled {
+                complete(.failure(CancellationError()))
+            } else {
+                complete(.failure(writer.error ?? VideoCompressionError.exportFailed))
+            }
+        }
+    }
+
+    private func complete(_ result: Result<Void, Error>) {
+        stateLock.lock()
+        guard !didComplete else {
+            stateLock.unlock()
+            return
+        }
+        didComplete = true
+        stateLock.unlock()
+
+        switch result {
+        case .success:
+            continuation.resume(returning: ())
+        case .failure(let error):
+            continuation.resume(throwing: error)
+        }
+    }
 }
 
 private enum PhotoLibraryWriteError: LocalizedError {

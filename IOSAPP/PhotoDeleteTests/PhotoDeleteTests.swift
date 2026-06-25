@@ -566,6 +566,45 @@ struct PhotoDeleteTests {
         #expect(delete10.remainingValue == 2)
     }
 
+    @Test func cachedModelTitlesFollowCurrentAppLanguage() async throws {
+        let defaults = UserDefaults.standard
+        let previousLanguage = defaults.string(forKey: AppConstants.appLanguageKey)
+        defer {
+            if let previousLanguage {
+                defaults.set(previousLanguage, forKey: AppConstants.appLanguageKey)
+            } else {
+                defaults.removeObject(forKey: AppConstants.appLanguageKey)
+            }
+        }
+
+        let summary = CleanupStatsSummary(
+            sessions: 1,
+            deletedPhotos: 0,
+            favoritedPhotos: 0,
+            organizedPhotos: 1,
+            estimatedSpaceSavedMB: 0
+        )
+
+        let achievement = try #require(
+            CleanupAchievementEvaluator
+                .allProgress(summary: summary, streakDays: 0)
+                .first { $0.achievement.id == "first_cleanup" }?
+                .achievement
+        )
+
+        defaults.set(AppLanguage.zhHans.rawValue, forKey: AppConstants.appLanguageKey)
+        #expect(achievement.title == "第一次清理")
+        #expect(achievement.subtitle == "完成第一轮照片整理")
+        #expect(SwipeGesturePreset.standard.title == "左删右留")
+        #expect(SwipeGesturePreset.standard.subtitle == "左滑删除，右滑保留，上滑收藏")
+
+        defaults.set(AppLanguage.en.rawValue, forKey: AppConstants.appLanguageKey)
+        #expect(achievement.title == "First Cleanup")
+        #expect(achievement.subtitle == "Complete your first photo cleanup")
+        #expect(SwipeGesturePreset.standard.title == "Delete left, keep right")
+        #expect(SwipeGesturePreset.standard.subtitle == "Swipe left to delete, right to keep, up to favorite")
+    }
+
     @Test func cleanupAchievementEvaluatorIncludesExpandedSpaceMilestones() async throws {
         let summary = CleanupStatsSummary(
             sessions: 1,

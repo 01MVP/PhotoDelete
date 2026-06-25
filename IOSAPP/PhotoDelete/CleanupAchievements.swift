@@ -33,10 +33,18 @@ enum CleanupAchievementTint: String, Equatable {
 struct CleanupAchievement: Identifiable, Equatable {
     let id: String
     let category: CleanupAchievementCategory
-    let title: String
-    let subtitle: String
+    let titleKey: String
+    let subtitleKey: String
     let systemImage: String
     let tint: CleanupAchievementTint
+
+    var title: String {
+        L10n.key(titleKey)
+    }
+
+    var subtitle: String {
+        L10n.key(subtitleKey)
+    }
 }
 
 struct CleanupAchievementProgress: Identifiable, Equatable {
@@ -130,8 +138,8 @@ enum CleanupAchievementEvaluator {
             achievement: CleanupAchievement(
                 id: "first_cleanup",
                 category: .rhythm,
-                title: L10n.string("第一次清理"),
-                subtitle: L10n.string("完成第一轮照片整理"),
+                titleKey: "第一次清理",
+                subtitleKey: "完成第一轮照片整理",
                 systemImage: "sparkles",
                 tint: .accent
             ),
@@ -142,8 +150,8 @@ enum CleanupAchievementEvaluator {
             achievement: CleanupAchievement(
                 id: "sessions_5",
                 category: .rhythm,
-                title: L10n.string("开始有节奏"),
-                subtitle: L10n.string("完成 5 次整理"),
+                titleKey: "开始有节奏",
+                subtitleKey: "完成 5 次整理",
                 systemImage: "checklist",
                 tint: .accent
             ),
@@ -154,8 +162,8 @@ enum CleanupAchievementEvaluator {
             achievement: CleanupAchievement(
                 id: "sessions_20",
                 category: .rhythm,
-                title: L10n.string("长期整理者"),
-                subtitle: L10n.string("完成 20 次整理"),
+                titleKey: "长期整理者",
+                subtitleKey: "完成 20 次整理",
                 systemImage: "calendar",
                 tint: .accent
             ),
@@ -166,8 +174,8 @@ enum CleanupAchievementEvaluator {
             achievement: CleanupAchievement(
                 id: "delete_10",
                 category: .deletion,
-                title: L10n.string("轻装上阵"),
-                subtitle: L10n.string("累计删除 10 张照片"),
+                titleKey: "轻装上阵",
+                subtitleKey: "累计删除 10 张照片",
                 systemImage: "trash",
                 tint: .destructive
             ),
@@ -178,8 +186,8 @@ enum CleanupAchievementEvaluator {
             achievement: CleanupAchievement(
                 id: "delete_50",
                 category: .deletion,
-                title: L10n.string("相册减负"),
-                subtitle: L10n.string("累计删除 50 张照片"),
+                titleKey: "相册减负",
+                subtitleKey: "累计删除 50 张照片",
                 systemImage: "photo.stack",
                 tint: .destructive
             ),
@@ -190,8 +198,8 @@ enum CleanupAchievementEvaluator {
             achievement: CleanupAchievement(
                 id: "delete_100",
                 category: .deletion,
-                title: L10n.string("清理达人"),
-                subtitle: L10n.string("累计删除 100 张照片"),
+                titleKey: "清理达人",
+                subtitleKey: "累计删除 100 张照片",
                 systemImage: "checkmark.seal",
                 tint: .accent
             ),
@@ -202,8 +210,8 @@ enum CleanupAchievementEvaluator {
             achievement: CleanupAchievement(
                 id: "delete_500",
                 category: .deletion,
-                title: L10n.string("大扫除"),
-                subtitle: L10n.string("累计删除 500 张照片"),
+                titleKey: "大扫除",
+                subtitleKey: "累计删除 500 张照片",
                 systemImage: "trash.slash",
                 tint: .destructive
             ),
@@ -214,8 +222,8 @@ enum CleanupAchievementEvaluator {
             achievement: CleanupAchievement(
                 id: "save_100mb",
                 category: .space,
-                title: L10n.string("腾出空间"),
-                subtitle: L10n.string("累计节省 100 MB"),
+                titleKey: "腾出空间",
+                subtitleKey: "累计节省 100 MB",
                 systemImage: "internaldrive",
                 tint: .positive
             ),
@@ -226,8 +234,8 @@ enum CleanupAchievementEvaluator {
             achievement: CleanupAchievement(
                 id: "streak_3",
                 category: .streak,
-                title: L10n.string("三天连续整理"),
-                subtitle: L10n.string("连续 3 天都有清理记录"),
+                titleKey: "三天连续整理",
+                subtitleKey: "连续 3 天都有清理记录",
                 systemImage: "flame",
                 tint: .warning
             ),
@@ -238,8 +246,8 @@ enum CleanupAchievementEvaluator {
             achievement: CleanupAchievement(
                 id: "save_1gb",
                 category: .space,
-                title: L10n.string("空间回收者"),
-                subtitle: L10n.string("累计节省 1 GB"),
+                titleKey: "空间回收者",
+                subtitleKey: "累计节省 1 GB",
                 systemImage: "externaldrive.badge.checkmark",
                 tint: .positive
             ),
@@ -250,8 +258,8 @@ enum CleanupAchievementEvaluator {
             achievement: CleanupAchievement(
                 id: "save_10gb",
                 category: .space,
-                title: L10n.string("释放 10 GB"),
-                subtitle: L10n.string("累计节省 10 GB"),
+                titleKey: "释放 10 GB",
+                subtitleKey: "累计节省 10 GB",
                 systemImage: "externaldrive.fill",
                 tint: .positive
             ),
@@ -262,8 +270,8 @@ enum CleanupAchievementEvaluator {
             achievement: CleanupAchievement(
                 id: "save_100gb",
                 category: .space,
-                title: L10n.string("释放 100 GB"),
-                subtitle: L10n.string("累计节省 100 GB"),
+                titleKey: "释放 100 GB",
+                subtitleKey: "累计节省 100 GB",
                 systemImage: "archivebox.fill",
                 tint: .positive
             ),
@@ -274,8 +282,8 @@ enum CleanupAchievementEvaluator {
             achievement: CleanupAchievement(
                 id: "streak_7",
                 category: .streak,
-                title: L10n.string("一周不断档"),
-                subtitle: L10n.string("连续 7 天都有清理记录"),
+                titleKey: "一周不断档",
+                subtitleKey: "连续 7 天都有清理记录",
                 systemImage: "calendar.badge.checkmark",
                 tint: .warning
             ),
@@ -286,8 +294,8 @@ enum CleanupAchievementEvaluator {
             achievement: CleanupAchievement(
                 id: "streak_30",
                 category: .streak,
-                title: L10n.string("连续整理 30 天"),
-                subtitle: L10n.string("连续 30 天都有清理记录"),
+                titleKey: "连续整理 30 天",
+                subtitleKey: "连续 30 天都有清理记录",
                 systemImage: "flame.fill",
                 tint: .warning
             ),
