@@ -28,7 +28,7 @@ final class PhotoDeleteUITests: XCTestCase {
         app.buttons["跳过"].tap()
 
         XCTAssertTrue(
-            app.staticTexts["OnePhoto"].waitForExistence(timeout: 10) ||
+            app.staticTexts["删图"].waitForExistence(timeout: 10) ||
                 app.staticTexts["需要访问照片库"].waitForExistence(timeout: 2) ||
                 app.staticTexts["遇见从前"].waitForExistence(timeout: 2)
         )
@@ -39,7 +39,7 @@ final class PhotoDeleteUITests: XCTestCase {
         let app = makeApp(completedOnboarding: true)
         app.launch()
 
-        XCTAssertTrue(app.staticTexts["OnePhoto"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["删图"].waitForExistence(timeout: 10))
         XCTAssertTrue(
             app.staticTexts["需要访问照片库"].exists ||
                 app.staticTexts["遇见从前"].exists ||
@@ -62,7 +62,7 @@ final class PhotoDeleteUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["关于与支持"].exists)
         XCTAssertTrue(app.staticTexts["照片访问权限"].exists)
         XCTAssertTrue(app.staticTexts["触感反馈"].exists)
-        XCTAssertTrue(app.staticTexts["给 OnePhoto 评分"].exists)
+        XCTAssertTrue(app.staticTexts["给删图评分"].exists)
         XCTAssertTrue(app.staticTexts["邮件反馈"].exists)
         XCTAssertTrue(app.staticTexts["关于创作者"].exists)
         app.swipeUp()
@@ -86,7 +86,7 @@ final class PhotoDeleteUITests: XCTestCase {
         openSettingsTab(in: app)
 
         XCTAssertTrue(app.staticTexts["Preferences"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Rate OnePhoto"].exists)
+        XCTAssertTrue(app.staticTexts["Rate OneClean"].exists)
         XCTAssertTrue(app.staticTexts["Email Feedback"].exists)
         XCTAssertTrue(app.staticTexts["About the Creator"].exists)
         XCTAssertFalse(app.staticTexts["微信反馈"].exists)

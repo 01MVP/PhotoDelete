@@ -331,7 +331,7 @@ struct HomeView: View {
     // MARK: - 权限授权区域
     private var authorizationSection: some View {
         PhotoAuthorizationCard(
-            subtitle: L10n.string("OnePhoto 需要照片库权限来整理相册。\(AppConstants.privacyShortText)"),
+            subtitle: L10n.string("删图需要照片库权限来整理相册。\(AppConstants.privacyShortText)"),
             onRequestAccess: { dataManager.requestPhotoLibraryAccess() }
         )
     }
@@ -410,7 +410,7 @@ struct HomeView: View {
                 ContentUnavailableView(
                     L10n.string("没有可整理的照片"),
                     systemImage: "photo.on.rectangle.angled",
-                    description: Text(L10n.string("当前授权范围内没有照片。您可以在系统设置里调整 OnePhoto 的照片访问范围。"))
+                    description: Text(L10n.string("当前授权范围内没有照片。您可以在系统设置里调整删图的照片访问范围。"))
                 )
                 .foregroundStyle(PhotoDeleteStyle.secondaryText)
             } else {
@@ -423,7 +423,7 @@ struct HomeView: View {
                         .font(.system(size: 22, weight: .semibold))
                         .foregroundColor(PhotoDeleteStyle.primaryText)
 
-                    Text(L10n.string("当前授权范围内没有照片。您可以在系统设置里调整 OnePhoto 的照片访问范围。"))
+                    Text(L10n.string("当前授权范围内没有照片。您可以在系统设置里调整删图的照片访问范围。"))
                         .font(.system(size: 15, weight: .regular))
                         .foregroundColor(PhotoDeleteStyle.secondaryText)
                         .multilineTextAlignment(.center)

@@ -1069,25 +1069,25 @@
         }
       }
     },
-    "OnePhoto 是我用 AI 从 0 到 1 做出来的——发现痛点、写代码、上架，全程记录在 01MVP。不管你是想做自己的小产品，还是单纯好奇 AI 写代码能到什么程度，都可以看看。": {
+    "删图是我用 AI 从 0 到 1 做出来的——发现痛点、写代码、上架，全程记录在 01MVP。不管你是想做自己的小产品，还是单纯好奇 AI 写代码能到什么程度，都可以看看。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "I built OnePhoto from scratch with AI — from finding the pain point to coding and launching. The whole journey is documented in 01MVP. Whether you want to build your own small product or are just curious how far AI coding can go, take a look."
+            "value": "I built OneClean from scratch with AI — from finding the pain point to coding and launching. The whole journey is documented in 01MVP. Whether you want to build your own small product or are just curious how far AI coding can go, take a look."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "OnePhoto 是我用 AI 从 0 到 1 做出来的——发现痛点、写代码、上架，全程记录在 01MVP。不管你是想做自己的小产品，还是单纯好奇 AI 写代码能到什么程度，都可以看看。"
+            "value": "删图是我用 AI 从 0 到 1 做出来的——发现痛点、写代码、上架，全程记录在 01MVP。不管你是想做自己的小产品，还是单纯好奇 AI 写代码能到什么程度，都可以看看。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "OnePhoto 是我用 AI 從 0 到 1 做出來的——發現痛點、寫代碼、上架，全程記錄在 01MVP。不管你是想做自己的小產品，還是單純好奇 AI 寫代碼能到什麼程度，都可以看看。"
+            "value": "刪圖是我用 AI 從 0 到 1 做出來的——發現痛點、寫代碼、上架，全程記錄在 01MVP。不管你是想做自己的小產品，還是單純好奇 AI 寫代碼能到什麼程度，都可以看看。"
           }
         }
       }
@@ -2620,47 +2620,47 @@
         }
       }
     },
-    "OnePhoto": {
+    "删图": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "OnePhoto"
+            "value": "OneClean"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "OnePhoto"
+            "value": "删图"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "OnePhoto"
+            "value": "刪圖"
           }
         }
       }
     },
-    "关于 OnePhoto": {
+    "关于删图": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "About OnePhoto"
+            "value": "About OneClean"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "关于 OnePhoto"
+            "value": "关于删图"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "關於 OnePhoto"
+            "value": "關於刪圖"
           }
         }
       }
@@ -2931,178 +2931,178 @@
         }
       }
     },
-    "OnePhoto App 反馈": {
+    "删图 App 反馈": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "OnePhoto App Feedback"
+            "value": "OneClean App Feedback"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "OnePhoto App 反馈"
+            "value": "删图 App 反馈"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "OnePhoto App 反饋"
+            "value": "刪圖 App 反饋"
           }
         }
       }
     },
-    "OnePhoto v%@": {
+    "删图 v%@": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "OnePhoto v%@"
+            "value": "OneClean v%@"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "OnePhoto v%@"
+            "value": "删图 v%@"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "OnePhoto v%@"
+            "value": "刪圖 v%@"
           }
         }
       }
     },
-    "OnePhoto 不接入自己的云端服务，也不会把照片发到服务器。": {
+    "删图不接入自己的云端服务，也不会把照片发到服务器。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "OnePhoto does not use its own cloud service and never sends photos to a server."
+            "value": "OneClean does not use its own cloud service and never sends photos to a server."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "OnePhoto 不接入自己的云端服务，也不会把照片发到服务器。"
+            "value": "删图不接入自己的云端服务，也不会把照片发到服务器。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "OnePhoto 不接入自己的雲端服務，也不會把照片發到服務器。"
+            "value": "刪圖不接入自己的雲端服務，也不會把照片發到服務器。"
           }
         }
       }
     },
-    "OnePhoto 支持者版": {
+    "删图支持者版": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "OnePhoto Supporter"
+            "value": "OneClean Supporter"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "OnePhoto 支持者版"
+            "value": "删图支持者版"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "OnePhoto 支持者版"
+            "value": "刪圖支持者版"
           }
         }
       }
     },
-    "OnePhoto 是一个免费的相册整理小工具，目标是把删照片、归类照片这件事做得足够直接。": {
+    "删图是一个免费的相册整理小工具，目标是把删照片、归类照片这件事做得足够直接。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "OnePhoto is a free photo cleanup tool built to make deleting and sorting photos feel direct."
+            "value": "OneClean is a free photo cleanup tool built to make deleting and sorting photos feel direct."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "OnePhoto 是一个免费的相册整理小工具，目标是把删照片、归类照片这件事做得足够直接。"
+            "value": "删图是一个免费的相册整理小工具，目标是把删照片、归类照片这件事做得足够直接。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "OnePhoto 是一個免費的相冊整理小工具，目標是把刪照片、歸類照片這件事做得足夠直接。"
+            "value": "刪圖是一個免費的相冊整理小工具，目標是把刪照片、歸類照片這件事做得足夠直接。"
           }
         }
       }
     },
-    "OnePhoto 来自 01MVP 的小产品实践：先把一个真实问题做顺，再逐步补上体验和边界。": {
+    "删图来自 01MVP 的小产品实践：先把一个真实问题做顺，再逐步补上体验和边界。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "OnePhoto follows the 01MVP approach: solve one real workflow first, then improve the experience and edges."
+            "value": "OneClean follows the 01MVP approach: solve one real workflow first, then improve the experience and edges."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "OnePhoto 来自 01MVP 的小产品实践：先把一个真实问题做顺，再逐步补上体验和边界。"
+            "value": "删图来自 01MVP 的小产品实践：先把一个真实问题做顺，再逐步补上体验和边界。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "OnePhoto 來自 01MVP 的小產品實踐：先把一個真實問題做順，再逐步補上體驗和邊界。"
+            "value": "刪圖來自 01MVP 的小產品實踐：先把一個真實問題做順，再逐步補上體驗和邊界。"
           }
         }
       }
     },
-    "OnePhoto 的核心不是替你决定，而是让你更快、更安心地完成判断。": {
+    "删图的核心不是替你决定，而是让你更快、更安心地完成判断。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "OnePhoto is not meant to decide for you. It helps you review faster and confirm with confidence."
+            "value": "OneClean is not meant to decide for you. It helps you review faster and confirm with confidence."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "OnePhoto 的核心不是替你决定，而是让你更快、更安心地完成判断。"
+            "value": "删图的核心不是替你决定，而是让你更快、更安心地完成判断。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "OnePhoto 的核心不是替你決定，而是讓你更快、更安心地完成判斷。"
+            "value": "刪圖的核心不是替你決定，而是讓你更快、更安心地完成判斷。"
           }
         }
       }
     },
-    "OnePhoto 需要照片库权限来整理相册。%@": {
+    "删图需要照片库权限来整理相册。%@": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "OnePhoto needs photo library access to organize your albums. %@"
+            "value": "OneClean needs photo library access to organize your albums. %@"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "OnePhoto 需要照片库权限来整理相册。%@"
+            "value": "删图需要照片库权限来整理相册。%@"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "OnePhoto 需要照片庫權限來整理相冊。%@"
+            "value": "刪圖需要照片庫權限來整理相冊。%@"
           }
         }
       }
@@ -3603,24 +3603,24 @@
         }
       }
     },
-    "只会清空 OnePhoto 的本机统计，不会影响照片。": {
+    "只会清空删图的本机统计，不会影响照片。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "This only clears OnePhoto's local stats. Your photos are not affected."
+            "value": "This only clears OneClean's local stats. Your photos are not affected."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "只会清空 OnePhoto 的本机统计，不会影响照片。"
+            "value": "只会清空删图的本机统计，不会影响照片。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "只會清空 OnePhoto 的本機統計，不會影響照片。"
+            "value": "只會清空刪圖的本機統計，不會影響照片。"
           }
         }
       }
@@ -3909,24 +3909,24 @@
         }
       }
     },
-    "基础清理功能始终免费。支持者版解锁长期统计，并支持 OnePhoto 继续维护。": {
+    "基础清理功能始终免费。支持者版解锁长期统计，并支持删图继续维护。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Core cleanup features are always free. Supporter unlocks long-term stats and helps keep OnePhoto maintained."
+            "value": "Core cleanup features are always free. Supporter unlocks long-term stats and helps keep OneClean maintained."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "基础清理功能始终免费。支持者版解锁长期统计，并支持 OnePhoto 继续维护。"
+            "value": "基础清理功能始终免费。支持者版解锁长期统计，并支持删图继续维护。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "基礎清理功能始終免費。支持者版解鎖長期統計，並支持 OnePhoto 繼續維護。"
+            "value": "基礎清理功能始終免費。支持者版解鎖長期統計，並支持刪圖繼續維護。"
           }
         }
       }
@@ -5522,24 +5522,24 @@
         }
       }
     },
-    "当前授权范围内没有照片。您可以在系统设置里调整 OnePhoto 的照片访问范围。": {
+    "当前授权范围内没有照片。您可以在系统设置里调整删图的照片访问范围。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "There are no photos in the current access scope. You can adjust OnePhoto photo access in System Settings."
+            "value": "There are no photos in the current access scope. You can adjust OneClean photo access in System Settings."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "当前授权范围内没有照片。您可以在系统设置里调整 OnePhoto 的照片访问范围。"
+            "value": "当前授权范围内没有照片。您可以在系统设置里调整删图的照片访问范围。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "當前授權範圍內沒有照片。您可以在系統設置里調整 OnePhoto 的照片訪問範圍。"
+            "value": "當前授權範圍內沒有照片。您可以在系統設置里調整刪圖的照片訪問範圍。"
           }
         }
       }
@@ -9930,24 +9930,24 @@
         }
       }
     },
-    "给 OnePhoto 评分": {
+    "给删图评分": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rate OnePhoto"
+            "value": "Rate OneClean"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "给 OnePhoto 评分"
+            "value": "给删图评分"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "給 OnePhoto 評分"
+            "value": "給刪圖評分"
           }
         }
       }
@@ -11523,7 +11523,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "OnePhoto needs photo library access to manage albums."
+            "value": "OneClean needs photo library access to manage albums."
           }
         },
         "zh-Hans": {
@@ -11545,7 +11545,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "OnePhoto needs photo library access to manage albums. %@"
+            "value": "OneClean needs photo library access to manage albums. %@"
           }
         },
         "zh-Hans": {
@@ -11764,24 +11764,24 @@
         }
       }
     },
-    "默认跟随 iPhone 系统语言。也可以在这里固定 OnePhoto 的显示语言。": {
+    "默认跟随 iPhone 系统语言。也可以在这里固定删图的显示语言。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "By default, OnePhoto follows your iPhone language. You can also pin a display language here."
+            "value": "By default, OneClean follows your iPhone language. You can also pin a display language here."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "默认跟随 iPhone 系统语言。也可以在这里固定 OnePhoto 的显示语言。"
+            "value": "默认跟随 iPhone 系统语言。也可以在这里固定删图的显示语言。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "默認跟隨 iPhone 系統語言。也可以在這裡固定 OnePhoto 的顯示語言。"
+            "value": "默認跟隨 iPhone 系統語言。也可以在這裡固定刪圖的顯示語言。"
           }
         }
       }

@@ -9,22 +9,22 @@
       "localizations": [
         {
           "description": "长期统计和进阶清理工具。基础清理始终免费。",
-          "displayName": "OnePhoto 支持者版",
+          "displayName": "删图支持者版",
           "locale": "zh-Hans"
         },
         {
           "description": "長期統計和進階清理工具。基礎清理始終免費。",
-          "displayName": "OnePhoto 支持者版",
+          "displayName": "刪圖支持者版",
           "locale": "zh-Hant"
         },
         {
           "description": "Long-term stats and advanced cleanup tools.",
-          "displayName": "OnePhoto Supporter",
+          "displayName": "OneClean Supporter",
           "locale": "en-US"
         }
       ],
       "productID": "com.01mvp.photodelete.supporter.stats",
-      "referenceName": "OnePhoto Supporter",
+      "referenceName": "OneClean Supporter",
       "type": "NonConsumable"
     }
   ],
