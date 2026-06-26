@@ -44,6 +44,7 @@ class DataManager: ObservableObject {
     @Published private(set) var periodSummariesByScope: [AdvancedTimeScope: [PhotoPeriodSummary]] = [:]
     @Published private(set) var isLoadingPeriodSummaries = false
     @Published private(set) var locationGroupsRevision = UUID()
+    @Published private(set) var locationGroupCoordinatesByGroupID: [String: CLLocationCoordinate2D] = [:]
     @Published private(set) var isLoadingLocationGroups = false
     @Published private(set) var advancedCleanupQueues: [AdvancedCleanupQueue] = []
     @Published private(set) var advancedCleanupQueuesRevision = UUID()
@@ -542,6 +543,7 @@ class DataManager: ObservableObject {
         historicalTodayPhotoCount = 0
         locationGroupCache = [:]
         locationGroups = []
+        locationGroupCoordinatesByGroupID = [:]
         locationGroupsRevision = UUID()
         isLoadingLocationGroups = false
         lastLocationGroupBuildSignature = nil
@@ -1467,6 +1469,7 @@ class DataManager: ObservableObject {
         guard photoLibraryManager.hasPhotoLibraryAccess else {
             locationGroupCache = [:]
             locationGroups = []
+            locationGroupCoordinatesByGroupID = [:]
             locationGroupsRevision = UUID()
             isLoadingLocationGroups = false
             lastLocationGroupBuildSignature = nil
@@ -1515,6 +1518,7 @@ class DataManager: ObservableObject {
                 guard let self, self.locationGroupBuildGeneration == generation else { return }
                 self.locationGroupCache = result.cache
                 self.locationGroups = result.locationGroups
+                self.locationGroupCoordinatesByGroupID = result.representativeCoordinatesByGroupID
                 self.locationGroupsRevision = UUID()
                 self.lastLocationGroupBuildSignature = signature
                 self.isLoadingLocationGroups = false
@@ -1603,6 +1607,7 @@ class DataManager: ObservableObject {
                 )
                 self.locationGroupCache = result.cache
                 self.locationGroups = result.locationGroups
+                self.locationGroupCoordinatesByGroupID = result.representativeCoordinatesByGroupID
                 self.locationGroupsRevision = UUID()
             }
         }

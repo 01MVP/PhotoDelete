@@ -272,18 +272,19 @@ struct PhotoDeleteTests {
     }
 
     @MainActor
-    @Test func supporterPlanOmitsHiddenLocationOrganizing() async throws {
+    @Test func supporterPlanIncludesLocationOrganizing() async throws {
         let features = SupporterPlanComparisonCard.features
 
-        #expect(!features.contains { $0.titleID == .basicLocationOrganizing })
-        #expect(!features.contains { $0.titleID.rawValue == "地点筛选" })
+        #expect(AppConstants.isLocationOrganizingVisible)
+        #expect(features.contains { $0.titleID == .basicLocationOrganizing && $0.free == .included && $0.supporter == .included })
     }
 
     @MainActor
-    @Test func supporterPlanOmitsHiddenImageCompression() async throws {
+    @Test func supporterPlanIncludesImageCompression() async throws {
         let features = SupporterPlanComparisonCard.features
 
-        #expect(!features.contains { $0.titleID == .imageCompression })
+        #expect(AppConstants.isImageCompressionVisible)
+        #expect(features.contains { $0.titleID == .imageCompression && $0.free == .notIncluded && $0.supporter == .included })
     }
 
     @MainActor
@@ -566,6 +567,7 @@ struct PhotoDeleteTests {
         #expect(delete10.remainingValue == 2)
     }
 
+    @MainActor
     @Test func cachedModelTitlesFollowCurrentAppLanguage() async throws {
         let defaults = UserDefaults.standard
         let previousLanguage = defaults.string(forKey: AppConstants.appLanguageKey)
@@ -1596,7 +1598,19 @@ struct PhotoDeleteTests {
         #expect(VisibleListPagination.hasMore(totalCount: items.count, limit: secondPage.count))
     }
 
+    @MainActor
     @Test func memoryCaptionFormatterHandlesUnknownTodayAndPastDates() async throws {
+        let defaults = UserDefaults.standard
+        let previousLanguage = defaults.string(forKey: AppConstants.appLanguageKey)
+        defer {
+            if let previousLanguage {
+                defaults.set(previousLanguage, forKey: AppConstants.appLanguageKey)
+            } else {
+                defaults.removeObject(forKey: AppConstants.appLanguageKey)
+            }
+        }
+        defaults.set(AppLanguage.zhHans.rawValue, forKey: AppConstants.appLanguageKey)
+
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         let now = makeDate(year: 2026, month: 6, day: 21, calendar: calendar)

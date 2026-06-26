@@ -5,6 +5,7 @@
 //  Created by PhotoDelete Team on 11/7/25.
 //
 
+import StoreKit
 import SwiftUI
 
 struct SupporterView: View {
@@ -12,6 +13,7 @@ struct SupporterView: View {
     @EnvironmentObject var purchaseManager: PurchaseManager
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @State private var showingOfferCodeRedemption = false
 
     private var entitlementStatusMessage: String? {
         switch purchaseManager.entitlementState {
@@ -78,6 +80,9 @@ struct SupporterView: View {
                         },
                         onRestore: {
                             Task { await purchaseManager.restorePurchases() }
+                        },
+                        onRedeemCode: {
+                            showingOfferCodeRedemption = true
                         }
                     )
                 }
@@ -96,6 +101,9 @@ struct SupporterView: View {
         .task {
             await purchaseManager.refreshEntitlementsAfterPotentialExternalChange()
             await purchaseManager.loadProducts()
+        }
+        .offerCodeRedemption(isPresented: $showingOfferCodeRedemption) { result in
+            purchaseManager.handleOfferCodeRedemptionCompletion(result)
         }
     }
 }
@@ -153,7 +161,7 @@ private struct SupporterPaywallContent: View {
                 }
 
                 VStack(spacing: 8) {
-                    Text(L10n.string("删图支持者版"))
+                    Text(L10n.string("OnePhoto 支持者版"))
                         .font(.system(size: 28, weight: .semibold))
                         .foregroundColor(PhotoDeleteStyle.primaryText)
 
@@ -176,7 +184,7 @@ private struct SupporterPaywallContent: View {
             return L10n.string("免费体验 3 天进阶功能，也可以直接一次性解锁。")
         }
 
-        return L10n.string("一次性解锁完整时间列表、大文件清理、视频压缩、相似照片清理和主题切换。")
+        return L10n.string("一次性解锁完整时间列表、大文件清理、图片压缩、视频压缩、相似照片清理和主题切换。")
     }
 }
 
@@ -190,6 +198,7 @@ private struct SupporterBottomActionBar: View {
     let onStartTrial: () -> Void
     let onPurchase: () -> Void
     let onRestore: () -> Void
+    let onRedeemCode: () -> Void
 
     var body: some View {
         VStack(spacing: 11) {
@@ -213,13 +222,11 @@ private struct SupporterBottomActionBar: View {
                 purchaseButton(style: .primary)
             }
 
-            Button(action: onRestore) {
-                Text(L10n.string("恢复购买"))
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.accent)
-            }
-            .buttonStyle(.plain)
-            .disabled(isLoading)
+            SupporterPurchaseAuxiliaryActionsRow(
+                isLoading: isLoading,
+                onRestore: onRestore,
+                onRedeemCode: onRedeemCode
+            )
 
             Text(L10n.string("体验到期不会自动扣费，基础整理始终免费。"))
                 .font(.system(size: 12, weight: .regular))
@@ -273,6 +280,50 @@ private struct SupporterBottomActionBar: View {
             }
         }
         .modifier(PurchaseButtonModifier(style: style))
+        .disabled(isLoading)
+    }
+}
+
+struct SupporterPurchaseAuxiliaryActionsRow: View {
+    let isLoading: Bool
+    let onRestore: () -> Void
+    let onRedeemCode: () -> Void
+
+    var body: some View {
+        HStack(spacing: 14) {
+            auxiliaryButton(
+                title: L10n.string("恢复购买"),
+                systemImage: "arrow.clockwise",
+                action: onRestore
+            )
+
+            if #available(iOS 16.3, *) {
+                Rectangle()
+                    .fill(PhotoDeleteStyle.hairline)
+                    .frame(width: 1, height: 14)
+
+                auxiliaryButton(
+                    title: L10n.string("兑换代码"),
+                    systemImage: "ticket",
+                    action: onRedeemCode
+                )
+            }
+        }
+    }
+
+    private func auxiliaryButton(
+        title: String,
+        systemImage: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(PhotoDeleteStyle.accent)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+        }
+        .buttonStyle(.plain)
         .disabled(isLoading)
     }
 }
@@ -535,10 +586,12 @@ struct SupporterPlanComparisonCard: View {
         .init(titleID: .basicSwipeReview, free: .included, supporter: .included),
         .init(titleID: .confirmedDeleteAndFavorite, free: .included, supporter: .included),
         .init(titleID: .basicTimeOrganizing, free: .included, supporter: .included),
+        .init(titleID: .basicLocationOrganizing, free: .included, supporter: .included),
         .init(titleID: .localCleanupHistory, free: .included, supporter: .included),
         .init(titleID: .basicSpaceSavedStats, free: .included, supporter: .included),
         .init(titleID: .fullTimeList, free: .notIncluded, supporter: .included),
         .init(titleID: .largeFileCleanup, free: .notIncluded, supporter: .included),
+        .init(titleID: .imageCompression, free: .notIncluded, supporter: .included),
         .init(titleID: .videoCompression, free: .notIncluded, supporter: .included),
         .init(titleID: .similarPhotoCleanup, free: .notIncluded, supporter: .included),
         .init(titleID: .themeSwitching, free: .notIncluded, supporter: .included)
@@ -701,7 +754,7 @@ struct SupporterBenefitsSheet: View {
 
                 ScrollView {
                     VStack(spacing: 16) {
-                        Text(L10n.string("免费版保留随机整理、滑动整理和按时间整理；支持者版额外解锁完整时间列表、视频压缩、大文件清理、相似照片清理和主题切换。"))
+                        Text(L10n.string("免费版保留随机整理、滑动整理、按时间整理和地点整理；支持者版额外解锁完整时间列表、图片压缩、视频压缩、大文件清理、相似照片清理和主题切换。"))
                             .font(.system(size: 14, weight: .regular))
                             .foregroundColor(PhotoDeleteStyle.secondaryText)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -783,7 +836,7 @@ struct CleanupHistoryView: View {
             }
             Button(L10n.string("取消"), role: .cancel) {}
         } message: {
-            Text(L10n.string("只会清空删图的本机统计，不会影响照片。"))
+            Text(L10n.string("只会清空 OnePhoto 的本机统计，不会影响照片。"))
         }
     }
 }

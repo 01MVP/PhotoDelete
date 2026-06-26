@@ -8,6 +8,7 @@
 import SwiftUI
 import Photos
 import Combine
+import StoreKit
 import UIKit
 
 struct AdvancedView: View {
@@ -21,6 +22,7 @@ struct AdvancedView: View {
     @State private var advancedRefreshWorkItem: DispatchWorkItem?
     @State private var lastDashboardRefreshKey: AdvancedDashboardRefreshKey?
     @State private var showingSupporterBenefits = false
+    @State private var showingOfferCodeRedemption = false
     @State private var visibleAdvancedPeriodLimit = 5
 
     private var isLocked: Bool {
@@ -37,7 +39,9 @@ struct AdvancedView: View {
         }
 
         switch purchaseManager.entitlementState {
-        case .unknown, .verifying, .verified, .cachedOffline, .locked:
+        case .verifying:
+            return L10n.string("正在检查购买状态...")
+        case .unknown, .verified, .cachedOffline, .locked:
             return nil
         }
     }
@@ -150,12 +154,16 @@ struct AdvancedView: View {
                     onStartTrial: startSupporterTrial,
                     onPurchase: purchaseSupporter,
                     onRestore: restorePurchases,
+                    onRedeemCode: { showingOfferCodeRedemption = true },
                     onShowBenefits: { showingSupporterBenefits = true }
                 )
             }
         }
         .sheet(isPresented: $showingSupporterBenefits) {
             SupporterBenefitsSheet()
+        }
+        .offerCodeRedemption(isPresented: $showingOfferCodeRedemption) { result in
+            purchaseManager.handleOfferCodeRedemptionCompletion(result)
         }
     }
 
@@ -965,6 +973,7 @@ private struct AdvancedBottomPaywall: View {
     let onStartTrial: () -> Void
     let onPurchase: () -> Void
     let onRestore: () -> Void
+    let onRedeemCode: () -> Void
     let onShowBenefits: () -> Void
 
     var body: some View {
@@ -1025,13 +1034,11 @@ private struct AdvancedBottomPaywall: View {
                 .disabled(isLoading)
             }
 
-            Button(action: onRestore) {
-                Text(L10n.string("恢复购买"))
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.accent)
-            }
-            .buttonStyle(.plain)
-            .disabled(isLoading)
+            SupporterPurchaseAuxiliaryActionsRow(
+                isLoading: isLoading,
+                onRestore: onRestore,
+                onRedeemCode: onRedeemCode
+            )
 
             Text(L10n.string("体验到期不会自动扣费，基础整理始终免费。"))
                 .font(.system(size: 12, weight: .regular))

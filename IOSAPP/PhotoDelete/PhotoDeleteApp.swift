@@ -60,6 +60,10 @@ private enum PhotoDeleteUITestDefaults {
             defaults.set(appLanguage, forKey: AppConstants.appLanguageKey)
         }
 
+        if let appAppearance = environment["PHOTO_DELETE_UI_TEST_APP_APPEARANCE"] {
+            defaults.set(appAppearance, forKey: AppConstants.appAppearanceKey)
+        }
+
         setBool(
             environment["PHOTO_DELETE_UI_TEST_HAS_COMPLETED_ONBOARDING"],
             forKey: AppConstants.hasCompletedOnboardingKey,

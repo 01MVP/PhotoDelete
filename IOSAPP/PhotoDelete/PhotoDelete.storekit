@@ -8,23 +8,23 @@
       "internalID": "84162C1D-9E1A-4CF6-9DE3-8EEA70798D2A",
       "localizations": [
         {
-          "description": "永久解锁长期统计和支持者功能。基础清理功能始终免费，无广告，无订阅。",
-          "displayName": "删图支持者版",
+          "description": "长期统计和进阶清理工具。基础清理始终免费。",
+          "displayName": "OnePhoto 支持者版",
           "locale": "zh-Hans"
         },
         {
-          "description": "永久解鎖長期統計和支持者功能。基礎清理功能始終免費，無廣告，無訂閱。",
-          "displayName": "刪圖支持者版",
+          "description": "長期統計和進階清理工具。基礎清理始終免費。",
+          "displayName": "OnePhoto 支持者版",
           "locale": "zh-Hant"
         },
         {
-          "description": "Unlock long-term cleanup stats and supporter features. Core cleanup stays free.",
-          "displayName": "Photo Delete Supporter",
+          "description": "Long-term stats and advanced cleanup tools.",
+          "displayName": "OnePhoto Supporter",
           "locale": "en-US"
         }
       ],
       "productID": "com.01mvp.photodelete.supporter.stats",
-      "referenceName": "Photo Delete Supporter",
+      "referenceName": "OnePhoto Supporter",
       "type": "NonConsumable"
     }
   ],

@@ -249,6 +249,16 @@ final class PurchaseManager: ObservableObject {
         }
     }
 
+    func handleOfferCodeRedemptionCompletion(_ result: Result<Void, Error>) {
+        switch result {
+        case .success:
+            Task { await refreshEntitlementsAfterOfferCodeRedemption() }
+        case .failure(let error):
+            guard !(error is CancellationError) else { return }
+            errorMessage = L10n.string("无法打开兑换页面，请稍后再试。")
+        }
+    }
+
     func refreshEntitlements() async {
         await refreshEntitlements(showVerificationState: true, shouldLockWhenMissing: true)
     }
@@ -271,6 +281,11 @@ final class PurchaseManager: ObservableObject {
             await refreshEntitlementsSilently()
             if hasPaidSupporterAccess { return }
         }
+    }
+
+    private func refreshEntitlementsAfterOfferCodeRedemption() async {
+        errorMessage = nil
+        await refreshEntitlementsAfterPotentialExternalChange(showVerificationState: true)
     }
 
     private func refreshEntitlements(

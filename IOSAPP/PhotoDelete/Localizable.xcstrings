@@ -1069,25 +1069,25 @@
         }
       }
     },
-    "「删图」是我用 AI 从 0 到 1 做出来的——发现痛点、写代码、上架，全程记录在 01MVP。不管你是想做自己的小产品，还是单纯好奇 AI 写代码能到什么程度，都可以看看。": {
+    "OnePhoto 是我用 AI 从 0 到 1 做出来的——发现痛点、写代码、上架，全程记录在 01MVP。不管你是想做自己的小产品，还是单纯好奇 AI 写代码能到什么程度，都可以看看。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "I built 「删图」 from scratch with AI — from finding the pain point to coding and launching. The whole journey is documented in 01MVP. Whether you want to build your own small product or are just curious how far AI coding can go, take a look."
+            "value": "I built OnePhoto from scratch with AI — from finding the pain point to coding and launching. The whole journey is documented in 01MVP. Whether you want to build your own small product or are just curious how far AI coding can go, take a look."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "「删图」是我用 AI 从 0 到 1 做出来的——发现痛点、写代码、上架，全程记录在 01MVP。不管你是想做自己的小产品，还是单纯好奇 AI 写代码能到什么程度，都可以看看。"
+            "value": "OnePhoto 是我用 AI 从 0 到 1 做出来的——发现痛点、写代码、上架，全程记录在 01MVP。不管你是想做自己的小产品，还是单纯好奇 AI 写代码能到什么程度，都可以看看。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "「删图」是我用 AI 從 0 到 1 做出來的——發現痛點、寫代碼、上架，全程記錄在 01MVP。不管你是想做自己的小產品，還是單純好奇 AI 寫代碼能到什麼程度，都可以看看。"
+            "value": "OnePhoto 是我用 AI 從 0 到 1 做出來的——發現痛點、寫代碼、上架，全程記錄在 01MVP。不管你是想做自己的小產品，還是單純好奇 AI 寫代碼能到什麼程度，都可以看看。"
           }
         }
       }
@@ -2576,24 +2576,47 @@
         }
       }
     },
-    "关于删图": {
+    "OnePhoto": {
+      "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "About Photo Delete"
+            "value": "OnePhoto"
           }
         },
         "zh-Hans": {
           "stringUnit": {
-            "state": "new",
-            "value": "关于删图"
+            "state": "translated",
+            "value": "OnePhoto"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "關於刪圖"
+            "value": "OnePhoto"
+          }
+        }
+      }
+    },
+    "关于 OnePhoto": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "About OnePhoto"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "关于 OnePhoto"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "關於 OnePhoto"
           }
         }
       }
@@ -2864,200 +2887,178 @@
         }
       }
     },
-    "删图": {
+    "OnePhoto App 反馈": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Photo Delete"
+            "value": "OnePhoto App Feedback"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "删图"
+            "value": "OnePhoto App 反馈"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "刪圖"
+            "value": "OnePhoto App 反饋"
           }
         }
       }
     },
-    "删图 App 反馈": {
+    "OnePhoto v%@": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Photo Delete App Feedback"
+            "value": "OnePhoto v%@"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "删图 App 反馈"
+            "value": "OnePhoto v%@"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "刪圖 App 反饋"
+            "value": "OnePhoto v%@"
           }
         }
       }
     },
-    "删图 v%@": {
+    "OnePhoto 不接入自己的云端服务，也不会把照片发到服务器。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Photo Delete v%@"
+            "value": "OnePhoto does not use its own cloud service and never sends photos to a server."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "删图 v%@"
+            "value": "OnePhoto 不接入自己的云端服务，也不会把照片发到服务器。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "刪圖 v%@"
+            "value": "OnePhoto 不接入自己的雲端服務，也不會把照片發到服務器。"
           }
         }
       }
     },
-    "删图不接入自己的云端服务，也不会把照片发到服务器。": {
+    "OnePhoto 支持者版": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Photo Delete does not use its own cloud service and never sends photos to a server."
+            "value": "OnePhoto Supporter"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "删图不接入自己的云端服务，也不会把照片发到服务器。"
+            "value": "OnePhoto 支持者版"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "刪圖不接入自己的雲端服務，也不會把照片發到服務器。"
+            "value": "OnePhoto 支持者版"
           }
         }
       }
     },
-    "删图支持者版": {
+    "OnePhoto 是一个免费的相册整理小工具，目标是把删照片、归类照片这件事做得足够直接。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Photo Delete Supporter"
+            "value": "OnePhoto is a free photo cleanup tool built to make deleting and sorting photos feel direct."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "删图支持者版"
+            "value": "OnePhoto 是一个免费的相册整理小工具，目标是把删照片、归类照片这件事做得足够直接。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "刪圖支持者版"
+            "value": "OnePhoto 是一個免費的相冊整理小工具，目標是把刪照片、歸類照片這件事做得足夠直接。"
           }
         }
       }
     },
-    "删图是一个免费的相册整理小工具，目标是把删照片、归类照片这件事做得足够直接。": {
+    "OnePhoto 来自 01MVP 的小产品实践：先把一个真实问题做顺，再逐步补上体验和边界。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Photo Delete is a free photo cleanup tool built to make deleting and sorting photos feel direct."
+            "value": "OnePhoto follows the 01MVP approach: solve one real workflow first, then improve the experience and edges."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "删图是一个免费的相册整理小工具，目标是把删照片、归类照片这件事做得足够直接。"
+            "value": "OnePhoto 来自 01MVP 的小产品实践：先把一个真实问题做顺，再逐步补上体验和边界。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "刪圖是一個免費的相冊整理小工具，目標是把刪照片、歸類照片這件事做得足夠直接。"
+            "value": "OnePhoto 來自 01MVP 的小產品實踐：先把一個真實問題做順，再逐步補上體驗和邊界。"
           }
         }
       }
     },
-    "删图来自 01MVP 的小产品实践：先把一个真实问题做顺，再逐步补上体验和边界。": {
+    "OnePhoto 的核心不是替你决定，而是让你更快、更安心地完成判断。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Photo Delete follows the 01MVP approach: solve one real workflow first, then improve the experience and edges."
+            "value": "OnePhoto is not meant to decide for you. It helps you review faster and confirm with confidence."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "删图来自 01MVP 的小产品实践：先把一个真实问题做顺，再逐步补上体验和边界。"
+            "value": "OnePhoto 的核心不是替你决定，而是让你更快、更安心地完成判断。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "刪圖來自 01MVP 的小產品實踐：先把一個真實問題做順，再逐步補上體驗和邊界。"
+            "value": "OnePhoto 的核心不是替你決定，而是讓你更快、更安心地完成判斷。"
           }
         }
       }
     },
-    "删图的核心不是替你决定，而是让你更快、更安心地完成判断。": {
+    "OnePhoto 需要照片库权限来整理相册。%@": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Photo Delete is not meant to decide for you. It helps you review faster and confirm with confidence."
+            "value": "OnePhoto needs photo library access to organize your albums. %@"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "删图的核心不是替你决定，而是让你更快、更安心地完成判断。"
+            "value": "OnePhoto 需要照片库权限来整理相册。%@"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "刪圖的核心不是替你決定，而是讓你更快、更安心地完成判斷。"
-          }
-        }
-      }
-    },
-    "删图需要照片库权限来整理相册。%@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Photo Delete needs photo library access to organize your albums. %@"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "删图需要照片库权限来整理相册。%@"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "刪圖需要照片庫權限來整理相冊。%@"
+            "value": "OnePhoto 需要照片庫權限來整理相冊。%@"
           }
         }
       }
@@ -3558,24 +3559,24 @@
         }
       }
     },
-    "只会清空删图的本机统计，不会影响照片。": {
+    "只会清空 OnePhoto 的本机统计，不会影响照片。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "This only clears Photo Delete's local stats. Your photos are not affected."
+            "value": "This only clears OnePhoto's local stats. Your photos are not affected."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "只会清空删图的本机统计，不会影响照片。"
+            "value": "只会清空 OnePhoto 的本机统计，不会影响照片。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "只會清空刪圖的本機統計，不會影響照片。"
+            "value": "只會清空 OnePhoto 的本機統計，不會影響照片。"
           }
         }
       }
@@ -3864,24 +3865,24 @@
         }
       }
     },
-    "基础清理功能始终免费。支持者版解锁长期统计，并支持删图继续维护。": {
+    "基础清理功能始终免费。支持者版解锁长期统计，并支持 OnePhoto 继续维护。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Core cleanup features are always free. Supporter unlocks long-term stats and helps keep Photo Delete maintained."
+            "value": "Core cleanup features are always free. Supporter unlocks long-term stats and helps keep OnePhoto maintained."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "基础清理功能始终免费。支持者版解锁长期统计，并支持删图继续维护。"
+            "value": "基础清理功能始终免费。支持者版解锁长期统计，并支持 OnePhoto 继续维护。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "基礎清理功能始終免費。支持者版解鎖長期統計，並支持刪圖繼續維護。"
+            "value": "基礎清理功能始終免費。支持者版解鎖長期統計，並支持 OnePhoto 繼續維護。"
           }
         }
       }
@@ -5477,24 +5478,24 @@
         }
       }
     },
-    "当前授权范围内没有照片。您可以在系统设置里调整删图的照片访问范围。": {
+    "当前授权范围内没有照片。您可以在系统设置里调整 OnePhoto 的照片访问范围。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "There are no photos in the current access scope. You can adjust Photo Delete photo access in System Settings."
+            "value": "There are no photos in the current access scope. You can adjust OnePhoto photo access in System Settings."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "当前授权范围内没有照片。您可以在系统设置里调整删图的照片访问范围。"
+            "value": "当前授权范围内没有照片。您可以在系统设置里调整 OnePhoto 的照片访问范围。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "當前授權範圍內沒有照片。您可以在系統設置里調整刪圖的照片訪問範圍。"
+            "value": "當前授權範圍內沒有照片。您可以在系統設置里調整 OnePhoto 的照片訪問範圍。"
           }
         }
       }
@@ -6009,6 +6010,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "恢復購買失敗，請稍後再試。"
+          }
+        }
+      }
+    },
+    "兑换代码": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Redeem Code"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "兑换代码"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "兌換代碼"
           }
         }
       }
@@ -8656,6 +8680,29 @@
         }
       }
     },
+    "无法打开兑换页面，请稍后再试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not open the redemption page. Try again later."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法打开兑换页面，请稍后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法打開兌換頁面，請稍後再試。"
+          }
+        }
+      }
+    },
     "没有找到相册": {
       "localizations": {
         "en": {
@@ -9839,24 +9886,24 @@
         }
       }
     },
-    "给删图评分": {
+    "给 OnePhoto 评分": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rate Photo Delete"
+            "value": "Rate OnePhoto"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "给删图评分"
+            "value": "给 OnePhoto 评分"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "給刪圖評分"
+            "value": "給 OnePhoto 評分"
           }
         }
       }
@@ -11410,7 +11457,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Photo Delete needs photo library access to manage albums."
+            "value": "OnePhoto needs photo library access to manage albums."
           }
         },
         "zh-Hans": {
@@ -11432,7 +11479,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Photo Delete needs photo library access to manage albums. %@"
+            "value": "OnePhoto needs photo library access to manage albums. %@"
           }
         },
         "zh-Hans": {
@@ -11651,24 +11698,24 @@
         }
       }
     },
-    "默认跟随 iPhone 系统语言。也可以在这里固定删图的显示语言。": {
+    "默认跟随 iPhone 系统语言。也可以在这里固定 OnePhoto 的显示语言。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "By default, Photo Delete follows your iPhone language. You can also pin a display language here."
+            "value": "By default, OnePhoto follows your iPhone language. You can also pin a display language here."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "默认跟随 iPhone 系统语言。也可以在这里固定删图的显示语言。"
+            "value": "默认跟随 iPhone 系统语言。也可以在这里固定 OnePhoto 的显示语言。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "默認跟隨 iPhone 系統語言。也可以在這裡固定刪圖的顯示語言。"
+            "value": "默認跟隨 iPhone 系統語言。也可以在這裡固定 OnePhoto 的顯示語言。"
           }
         }
       }
@@ -14401,6 +14448,50 @@
         }
       }
     },
+    "查看这些照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View these photos"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "查看这些照片"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看這些照片"
+          }
+        }
+      }
+    },
+    "查看这个地点": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View this place"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "查看这个地点"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看這個地點"
+          }
+        }
+      }
+    },
     "保留原视频": {
       "localizations": {
         "en": {
@@ -16645,6 +16736,72 @@
         }
       }
     },
+    "地点照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Place Photos"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "地点照片"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "地點照片"
+          }
+        }
+      }
+    },
+    "地图": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Map"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "地图"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "地圖"
+          }
+        }
+      }
+    },
+    "地图上暂无可显示的地点": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No places to show on the map yet"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "地图上暂无可显示的地点"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "地圖上暫無可顯示的地點"
+          }
+        }
+      }
+    },
     "刚刚": {
       "localizations": {
         "en": {
@@ -17107,6 +17264,28 @@
         }
       }
     },
+    "带地点信息的照片会显示在地图上。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photos with location info will appear on the map."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "带地点信息的照片会显示在地图上。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "帶地點資訊的照片會顯示在地圖上。"
+          }
+        }
+      }
+    },
     "当前授权范围内没有带拍摄时间的照片。": {
       "localizations": {
         "en": {
@@ -17147,6 +17326,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "按拍攝地點查看照片，所有整理都只在本機完成。"
+          }
+        }
+      }
+    },
+    "按地图查看拍摄地点，点选一个地点后继续整理。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View shooting locations on the map, then choose a place to continue."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "按地图查看拍摄地点，点选一个地点后继续整理。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按地圖查看拍攝地點，點選一個地點後繼續整理。"
           }
         }
       }
@@ -17389,6 +17590,50 @@
           "stringUnit": {
             "state": "translated",
             "value": "地點篩選"
+          }
+        }
+      }
+    },
+    "点选地图上的地点": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a place on the map"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "点选地图上的地点"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "點選地圖上的地點"
+          }
+        }
+      }
+    },
+    "点选地图上的地点后继续整理。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a place on the map to continue organizing."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "点选地图上的地点后继续整理。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "點選地圖上的地點後繼續整理。"
           }
         }
       }

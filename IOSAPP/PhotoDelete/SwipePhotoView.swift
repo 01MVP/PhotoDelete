@@ -2208,7 +2208,16 @@ struct SwipePhotoView: View {
     }
 
     private func locationGroupTitle(for groupID: String) -> String {
-        dataManager.locationGroups.first { $0.id == groupID }?.title ?? L10n.string("地点")
+        guard let group = dataManager.locationGroups.first(where: { $0.id == groupID }) else {
+            return L10n.string("地点")
+        }
+        if group.isNoLocationGroup {
+            return group.title
+        }
+        if group.title == L10n.string("未知地址") {
+            return L10n.string("地点照片")
+        }
+        return group.title
     }
 
     private func showFeedback(

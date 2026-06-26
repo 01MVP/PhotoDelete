@@ -388,10 +388,10 @@ enum AppConstants {
     static let websiteURL = "https://01mvp.com"
     static let oneZenAppStoreURL = URL(string: "https://apps.apple.com/cn/app/id6780318004")!
     static let technicalAppName = "PhotoDelete"
-    static let zhHansAppStoreName = "删图 - 相册清理助手"
-    static let enAppStoreName = "Photo Delete: Swipe Cleaner"
+    static let zhHansAppStoreName = "OnePhoto - 删图"
+    static let enAppStoreName = "OnePhoto: Photo Cleaner"
     static var appDisplayName: String {
-        L10n.string("删图")
+        L10n.string("OnePhoto")
     }
     static let landscapeBreakpoint: CGFloat = 700
     static let hapticsEnabledKey = "photoDeleteHapticsEnabled"
@@ -423,8 +423,8 @@ enum AppConstants {
     static let supporterPurchaseDateKey = "photoDeleteSupporterPurchaseDate"
     static let supporterTrialStartDateKey = "photoDeleteSupporterTrialStartDate"
     static let supporterTrialDuration: TimeInterval = 3 * 24 * 60 * 60
-    static let isLocationOrganizingVisible = false
-    static let isImageCompressionVisible = false
+    static let isLocationOrganizingVisible = true
+    static let isImageCompressionVisible = true
     static var privacyShortText: String {
         L10n.string("照片整理只在本机完成。不需要账号，也不会上传你的照片。")
     }

@@ -855,6 +855,7 @@ struct AdvancedLibrarySnapshot: Equatable {
             cleanupQueues: [
                 AdvancedCleanupQueue(kind: .similarPhotos, assetCount: 184, estimatedSpaceMB: 860),
                 AdvancedCleanupQueue(kind: .largeFiles, assetCount: 46, estimatedSpaceMB: 3_240),
+                AdvancedCleanupQueue(kind: .imageCompression, assetCount: 96, estimatedSpaceMB: 720),
                 AdvancedCleanupQueue(kind: .videoCompression, assetCount: 28, estimatedSpaceMB: 2_760),
                 AdvancedCleanupQueue(kind: .videos, assetCount: 62, estimatedSpaceMB: 7_800)
             ].filter { AdvancedCleanupKind.visibleCases.contains($0.kind) }

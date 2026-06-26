@@ -24,6 +24,12 @@ struct MainTabView: View {
         .onAppear {
             configureTabBarAppearance()
             dataManager.syncPhotoLibraryAuthorization()
+            #if DEBUG
+            UITestPhotoLibrarySeeder.seedIfRequested {
+                dataManager.syncPhotoLibraryAuthorization(showPreparing: true)
+                dataManager.refreshAlbumsFromLibrary(showLoading: false)
+            }
+            #endif
         }
         .onChange(of: appAppearanceValue) { _ in
             configureTabBarAppearance()
