@@ -1012,6 +1012,43 @@ struct PhotoDeleteTests {
         #expect(album.thumbnailAsset == nil)
     }
 
+    @Test func albumsSortedByCustomOrderPrioritizesSavedIDs() async throws {
+        let albums = [
+            AlbumInfo(id: "album-a", title: "A", assetCollection: nil, type: .userCreated, photosCount: 1),
+            AlbumInfo(id: "album-b", title: "B", assetCollection: nil, type: .userCreated, photosCount: 1),
+            AlbumInfo(id: "album-c", title: "C", assetCollection: nil, type: .userCreated, photosCount: 1),
+            AlbumInfo(id: "album-d", title: "D", assetCollection: nil, type: .userCreated, photosCount: 1)
+        ]
+
+        let sorted = DataManager.albumsSortedByCustomOrder(
+            albums,
+            customOrder: ["album-c", "album-a"]
+        )
+
+        #expect(sorted.map(\.id) == ["album-c", "album-a", "album-b", "album-d"])
+    }
+
+    @Test func albumsSortedByCustomOrderKeepsOriginalOrderForUnknownIDs() async throws {
+        let albums = [
+            AlbumInfo(id: "album-a", title: "A", assetCollection: nil, type: .userCreated, photosCount: 1),
+            AlbumInfo(id: "album-b", title: "B", assetCollection: nil, type: .userCreated, photosCount: 1),
+            AlbumInfo(id: "album-c", title: "C", assetCollection: nil, type: .userCreated, photosCount: 1)
+        ]
+
+        let sorted = DataManager.albumsSortedByCustomOrder(
+            albums,
+            customOrder: ["missing-album", "album-c"]
+        )
+
+        #expect(sorted.map(\.id) == ["album-c", "album-a", "album-b"])
+    }
+
+    @Test func decodeCustomAlbumOrderFallsBackForInvalidData() async throws {
+        #expect(DataManager.decodeCustomAlbumOrder(nil).isEmpty)
+        #expect(DataManager.decodeCustomAlbumOrder("not-json").isEmpty)
+        #expect(DataManager.decodeCustomAlbumOrder("[\"album-b\",\"album-a\"]") == ["album-b", "album-a"])
+    }
+
     @Test func albumNavigationDestinationUsesStableAlbumIdentifier() async throws {
         let first = AlbumInfo(id: "album-1", title: "旅行", assetCollection: nil, type: .userCreated, photosCount: 8)
         let renamed = AlbumInfo(id: "album-1", title: "旅行精选", assetCollection: nil, type: .userCreated, photosCount: 12)

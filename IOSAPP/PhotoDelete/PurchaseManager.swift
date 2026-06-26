@@ -237,7 +237,7 @@ final class PurchaseManager: ObservableObject {
 
         do {
             try await AppStore.sync()
-            await refreshEntitlements()
+            await refreshEntitlementsAfterPotentialExternalChange(showVerificationState: true)
             if !hasPaidSupporterAccess {
                 errorMessage = L10n.string("没有找到可恢复的支持者版购买。")
             }
@@ -258,11 +258,19 @@ final class PurchaseManager: ObservableObject {
     }
 
     func refreshEntitlementsAfterPotentialExternalChange() async {
-        await refreshEntitlementsSilently()
+        await refreshEntitlementsAfterPotentialExternalChange(showVerificationState: false)
+    }
 
-        try? await Task.sleep(nanoseconds: 1_500_000_000)
-        guard !Task.isCancelled else { return }
-        await refreshEntitlementsSilently()
+    private func refreshEntitlementsAfterPotentialExternalChange(showVerificationState: Bool) async {
+        await refreshEntitlements(showVerificationState: showVerificationState, shouldLockWhenMissing: true)
+        if hasPaidSupporterAccess { return }
+
+        for delay in [1_500_000_000, 4_000_000_000, 8_000_000_000] as [UInt64] {
+            try? await Task.sleep(nanoseconds: delay)
+            guard !Task.isCancelled else { return }
+            await refreshEntitlementsSilently()
+            if hasPaidSupporterAccess { return }
+        }
     }
 
     private func refreshEntitlements(

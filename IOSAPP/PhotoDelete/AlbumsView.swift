@@ -14,7 +14,6 @@ import UIKit
 struct AlbumsView: View {
     @EnvironmentObject var dataManager: DataManager
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @AppStorage(AppConstants.customAlbumOrderKey) private var customAlbumOrderData = "[]"
     @AppStorage(AppConstants.hasDismissedAlbumSwipeHintKey) private var hasDismissedAlbumSwipeHint = false
     @State private var navigationPath = NavigationPath()
     @State private var searchText = ""
@@ -399,40 +398,12 @@ struct AlbumsView: View {
     private func sortedAlbums(_ albums: [AlbumInfo]) -> [AlbumInfo] {
         switch sortMode {
         case .custom:
-            return albumsSortedByCustomOrder(albums)
+            return DataManager.albumsSortedByCustomOrder(albums, customOrder: dataManager.customAlbumOrderForDisplay)
         case .name:
             return albums.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
         case .count:
             return albums.sorted { $0.photosCount > $1.photosCount }
         }
-    }
-
-    private func albumsSortedByCustomOrder(_ albums: [AlbumInfo]) -> [AlbumInfo] {
-        let order = customAlbumOrder
-        guard !order.isEmpty else { return albums }
-
-        let ranks = Dictionary(uniqueKeysWithValues: order.enumerated().map { ($0.element, $0.offset) })
-        return albums.enumerated()
-            .sorted { lhs, rhs in
-                let lhsRank = ranks[lhs.element.id] ?? (order.count + lhs.offset)
-                let rhsRank = ranks[rhs.element.id] ?? (order.count + rhs.offset)
-                return lhsRank < rhsRank
-            }
-            .map(\.element)
-    }
-
-    private var customAlbumOrder: [String] {
-        guard let data = customAlbumOrderData.data(using: .utf8),
-              let order = try? JSONDecoder().decode([String].self, from: data) else {
-            return []
-        }
-        return order
-    }
-
-    private func saveCustomAlbumOrder(_ order: [String]) {
-        guard let data = try? JSONEncoder().encode(order),
-              let value = String(data: data, encoding: .utf8) else { return }
-        customAlbumOrderData = value
     }
 
     private func toggleReordering() {
@@ -473,7 +444,7 @@ struct AlbumsView: View {
 
         var albums = filteredUserAlbums
         albums.move(fromOffsets: source, toOffset: destination)
-        saveCustomAlbumOrder(albums.map(\.id))
+        dataManager.saveCustomAlbumOrder(albums.map(\.id))
         HapticManager.impact(.light)
     }
 

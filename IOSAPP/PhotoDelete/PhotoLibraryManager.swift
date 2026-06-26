@@ -1221,6 +1221,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         plan: VideoCompressionPlan,
         progressHandler: (@MainActor @Sendable (Double, String) -> Void)? = nil
     ) async throws -> VideoCompressionResult {
+        try Task.checkCancellation()
         guard hasPhotoLibraryAccess else {
             throw VideoCompressionError.noLibraryAccess
         }
@@ -1230,23 +1231,31 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         }
 
         await progressHandler?(0.04, L10n.string("正在读取原视频信息"))
+        try Task.checkCancellation()
         let originalSizeMB = try await actualVideoFileSizeMB(for: asset)
+        try Task.checkCancellation()
         let videoAsset = try await requestVideoAsset(for: asset)
+        try Task.checkCancellation()
         await progressHandler?(0.12, L10n.string("正在准备压缩参数"))
         let originalDimensions = try await displayDimensions(for: videoAsset)
+        try Task.checkCancellation()
         let output = try await exportCompressedVideo(
             from: videoAsset,
             originalSizeMB: originalSizeMB,
             plan: plan,
             progressHandler: progressHandler
         )
+        try Task.checkCancellation()
         defer {
             try? FileManager.default.removeItem(at: output.url)
         }
 
         let compressedSizeMB = try compressedFileSizeMB(at: output.url)
+        try Task.checkCancellation()
         await progressHandler?(0.9, L10n.string("正在保存压缩副本"))
+        try Task.checkCancellation()
         let createdAssetIdentifier = try await saveCompressedVideo(at: output.url, originalAsset: asset)
+        try Task.checkCancellation()
         await progressHandler?(1, L10n.string("压缩副本已保存"))
         return VideoCompressionResult(
             originalAssetIdentifier: asset.localIdentifier,
@@ -1393,31 +1402,38 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     private func requestVideoAssetForSizeEstimate(
         for asset: PHAsset
     ) async throws -> (asset: AVAsset?, isInCloud: Bool) {
-        try await withCheckedThrowingContinuation { continuation in
-            let options = PHVideoRequestOptions()
-            options.deliveryMode = .automatic
-            options.isNetworkAccessAllowed = false
+        let cancellation = PhotoLibraryImageRequestCancellation(manager: imageManager)
+        return try await withTaskCancellationHandler {
+            try Task.checkCancellation()
+            return try await withCheckedThrowingContinuation { continuation in
+                let options = PHVideoRequestOptions()
+                options.deliveryMode = .automatic
+                options.isNetworkAccessAllowed = false
 
-            imageManager.requestAVAsset(forVideo: asset, options: options) { videoAsset, _, info in
-                let isCancelled = (info?[PHImageCancelledKey] as? Bool) == true
-                guard !isCancelled else {
-                    continuation.resume(throwing: CancellationError())
-                    return
+                let requestID = imageManager.requestAVAsset(forVideo: asset, options: options) { videoAsset, _, info in
+                    let isCancelled = (info?[PHImageCancelledKey] as? Bool) == true
+                    guard !isCancelled, !cancellation.wasCancelled else {
+                        continuation.resume(throwing: CancellationError())
+                        return
+                    }
+
+                    let isInCloud = (info?[PHImageResultIsInCloudKey] as? Bool) == true
+                    if let videoAsset {
+                        continuation.resume(returning: (videoAsset, isInCloud))
+                        return
+                    }
+
+                    if let error = info?[PHImageErrorKey] as? Error, !isInCloud {
+                        continuation.resume(throwing: error)
+                        return
+                    }
+
+                    continuation.resume(returning: (nil, isInCloud))
                 }
-
-                let isInCloud = (info?[PHImageResultIsInCloudKey] as? Bool) == true
-                if let videoAsset {
-                    continuation.resume(returning: (videoAsset, isInCloud))
-                    return
-                }
-
-                if let error = info?[PHImageErrorKey] as? Error, !isInCloud {
-                    continuation.resume(throwing: error)
-                    return
-                }
-
-                continuation.resume(returning: (nil, isInCloud))
+                cancellation.setRequestID(requestID)
             }
+        } onCancel: {
+            cancellation.cancel()
         }
     }
 
@@ -1577,25 +1593,32 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         for asset: PHAsset,
         networkAccessAllowed: Bool = true
     ) async throws -> AVAsset {
-        try await withCheckedThrowingContinuation { continuation in
-            let options = PHVideoRequestOptions()
-            options.deliveryMode = networkAccessAllowed ? .highQualityFormat : .automatic
-            options.isNetworkAccessAllowed = networkAccessAllowed
+        let cancellation = PhotoLibraryImageRequestCancellation(manager: imageManager)
+        return try await withTaskCancellationHandler {
+            try Task.checkCancellation()
+            return try await withCheckedThrowingContinuation { continuation in
+                let options = PHVideoRequestOptions()
+                options.deliveryMode = networkAccessAllowed ? .highQualityFormat : .automatic
+                options.isNetworkAccessAllowed = networkAccessAllowed
 
-            imageManager.requestAVAsset(forVideo: asset, options: options) { videoAsset, _, info in
-                let isCancelled = (info?[PHImageCancelledKey] as? Bool) == true
-                guard !isCancelled else {
-                    continuation.resume(throwing: CancellationError())
-                    return
+                let requestID = imageManager.requestAVAsset(forVideo: asset, options: options) { videoAsset, _, info in
+                    let isCancelled = (info?[PHImageCancelledKey] as? Bool) == true
+                    guard !isCancelled, !cancellation.wasCancelled else {
+                        continuation.resume(throwing: CancellationError())
+                        return
+                    }
+
+                    guard let videoAsset else {
+                        continuation.resume(throwing: VideoCompressionError.videoUnavailable)
+                        return
+                    }
+
+                    continuation.resume(returning: videoAsset)
                 }
-
-                guard let videoAsset else {
-                    continuation.resume(throwing: VideoCompressionError.videoUnavailable)
-                    return
-                }
-
-                continuation.resume(returning: videoAsset)
+                cancellation.setRequestID(requestID)
             }
+        } onCancel: {
+            cancellation.cancel()
         }
     }
 
@@ -1612,27 +1635,40 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         let counterLock = NSLock()
         var byteCount: Int64 = 0
 
-        return try await withCheckedThrowingContinuation { continuation in
-            PHAssetResourceManager.default().requestData(
-                for: resource,
-                options: options,
-                dataReceivedHandler: { data in
-                    counterLock.lock()
-                    byteCount += Int64(data.count)
-                    counterLock.unlock()
-                },
-                completionHandler: { error in
-                    if let error {
-                        continuation.resume(throwing: error)
-                        return
-                    }
+        let resourceManager = PHAssetResourceManager.default()
+        let cancellation = PhotoLibraryResourceDataRequestCancellation(manager: resourceManager)
+        return try await withTaskCancellationHandler {
+            try Task.checkCancellation()
+            return try await withCheckedThrowingContinuation { continuation in
+                let requestID = resourceManager.requestData(
+                    for: resource,
+                    options: options,
+                    dataReceivedHandler: { data in
+                        counterLock.lock()
+                        byteCount += Int64(data.count)
+                        counterLock.unlock()
+                    },
+                    completionHandler: { error in
+                        if cancellation.wasCancelled {
+                            continuation.resume(throwing: CancellationError())
+                            return
+                        }
 
-                    counterLock.lock()
-                    let totalBytes = byteCount
-                    counterLock.unlock()
-                    continuation.resume(returning: max(Double(totalBytes) / 1_048_576, 0))
-                }
-            )
+                        if let error {
+                            continuation.resume(throwing: error)
+                            return
+                        }
+
+                        counterLock.lock()
+                        let totalBytes = byteCount
+                        counterLock.unlock()
+                        continuation.resume(returning: max(Double(totalBytes) / 1_048_576, 0))
+                    }
+                )
+                cancellation.setRequestID(requestID)
+            }
+        } onCancel: {
+            cancellation.cancel()
         }
     }
 
@@ -1813,19 +1849,27 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         duration: CMTime,
         progressHandler: (@MainActor @Sendable (Double, String) -> Void)?
     ) async throws {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            let session = VideoCompressionExportSession(
-                reader: reader,
-                writer: writer,
-                videoInput: videoInput,
-                videoOutput: videoOutput,
-                audioInput: audioInput,
-                audioOutput: audioOutput,
-                duration: duration,
-                progressHandler: progressHandler,
-                continuation: continuation
-            )
-            session.start()
+        let cancellation = VideoCompressionExportSessionCancellation()
+        try await withTaskCancellationHandler {
+            try Task.checkCancellation()
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                let session = VideoCompressionExportSession(
+                    reader: reader,
+                    writer: writer,
+                    videoInput: videoInput,
+                    videoOutput: videoOutput,
+                    audioInput: audioInput,
+                    audioOutput: audioOutput,
+                    duration: duration,
+                    progressHandler: progressHandler,
+                    continuation: continuation
+                )
+                cancellation.setSession(session)
+                guard !cancellation.wasCancelled else { return }
+                session.start()
+            }
+        } onCancel: {
+            cancellation.cancel()
         }
     }
 
@@ -1923,26 +1967,43 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     }
 
     private func saveCompressedVideo(at url: URL, originalAsset: PHAsset) async throws -> String? {
+        try Task.checkCancellation()
         guard hasPhotoLibraryAccess else {
             throw VideoCompressionError.noLibraryAccess
         }
 
-        return try await withCheckedThrowingContinuation { continuation in
-            var createdAssetIdentifier: String?
-            expectLocalLibraryChange()
-            PHPhotoLibrary.shared().performChanges({
-                let request = PHAssetCreationRequest.forAsset()
-                request.creationDate = originalAsset.creationDate
-                request.location = originalAsset.location
-                request.addResource(with: .video, fileURL: url, options: nil)
-                createdAssetIdentifier = request.placeholderForCreatedAsset?.localIdentifier
-            }) { success, _ in
-                if success {
-                    continuation.resume(returning: createdAssetIdentifier)
-                } else {
-                    continuation.resume(throwing: VideoCompressionError.saveFailed)
+        let cancellation = PhotoLibraryWriteCancellation()
+        return try await withTaskCancellationHandler {
+            try Task.checkCancellation()
+            return try await withCheckedThrowingContinuation { continuation in
+                var createdAssetIdentifier: String?
+                guard !cancellation.wasCancelled else {
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
+
+                expectLocalLibraryChange()
+                PHPhotoLibrary.shared().performChanges({
+                    let request = PHAssetCreationRequest.forAsset()
+                    request.creationDate = originalAsset.creationDate
+                    request.location = originalAsset.location
+                    request.addResource(with: .video, fileURL: url, options: nil)
+                    createdAssetIdentifier = request.placeholderForCreatedAsset?.localIdentifier
+                }) { success, _ in
+                    if cancellation.wasCancelled {
+                        continuation.resume(throwing: CancellationError())
+                        return
+                    }
+
+                    if success {
+                        continuation.resume(returning: createdAssetIdentifier)
+                    } else {
+                        continuation.resume(throwing: VideoCompressionError.saveFailed)
+                    }
                 }
             }
+        } onCancel: {
+            cancellation.cancel()
         }
     }
 
@@ -2416,6 +2477,133 @@ class PhotoLibraryManager: NSObject, ObservableObject {
 
 }
 
+private final class PhotoLibraryImageRequestCancellation: @unchecked Sendable {
+    private let manager: PHImageManager
+    private let lock = NSLock()
+    private var requestID: PHImageRequestID?
+    private var isCancelled = false
+
+    init(manager: PHImageManager) {
+        self.manager = manager
+    }
+
+    var wasCancelled: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return isCancelled
+    }
+
+    func setRequestID(_ requestID: PHImageRequestID) {
+        lock.lock()
+        self.requestID = requestID
+        let shouldCancel = isCancelled
+        lock.unlock()
+
+        if shouldCancel {
+            manager.cancelImageRequest(requestID)
+        }
+    }
+
+    func cancel() {
+        lock.lock()
+        isCancelled = true
+        let requestID = requestID
+        lock.unlock()
+
+        if let requestID {
+            manager.cancelImageRequest(requestID)
+        }
+    }
+}
+
+private final class PhotoLibraryResourceDataRequestCancellation: @unchecked Sendable {
+    private let manager: PHAssetResourceManager
+    private let lock = NSLock()
+    private var requestID: PHAssetResourceDataRequestID?
+    private var isCancelled = false
+
+    init(manager: PHAssetResourceManager) {
+        self.manager = manager
+    }
+
+    var wasCancelled: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return isCancelled
+    }
+
+    func setRequestID(_ requestID: PHAssetResourceDataRequestID) {
+        lock.lock()
+        self.requestID = requestID
+        let shouldCancel = isCancelled
+        lock.unlock()
+
+        if shouldCancel {
+            manager.cancelDataRequest(requestID)
+        }
+    }
+
+    func cancel() {
+        lock.lock()
+        isCancelled = true
+        let requestID = requestID
+        lock.unlock()
+
+        if let requestID {
+            manager.cancelDataRequest(requestID)
+        }
+    }
+}
+
+private final class PhotoLibraryWriteCancellation: @unchecked Sendable {
+    private let lock = NSLock()
+    private var isCancelled = false
+
+    var wasCancelled: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return isCancelled
+    }
+
+    func cancel() {
+        lock.lock()
+        isCancelled = true
+        lock.unlock()
+    }
+}
+
+private final class VideoCompressionExportSessionCancellation: @unchecked Sendable {
+    private let lock = NSLock()
+    private var session: VideoCompressionExportSession?
+    private var isCancelled = false
+
+    var wasCancelled: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return isCancelled
+    }
+
+    func setSession(_ session: VideoCompressionExportSession) {
+        lock.lock()
+        self.session = session
+        let shouldCancel = isCancelled
+        lock.unlock()
+
+        if shouldCancel {
+            session.cancel()
+        }
+    }
+
+    func cancel() {
+        lock.lock()
+        isCancelled = true
+        let session = session
+        lock.unlock()
+
+        session?.cancel()
+    }
+}
+
 // AVFoundation drives these non-Sendable reader/writer objects through its own serial media queues.
 private final class VideoCompressionExportSession: @unchecked Sendable {
     private let reader: AVAssetReader
@@ -2459,6 +2647,7 @@ private final class VideoCompressionExportSession: @unchecked Sendable {
     }
 
     func start() {
+        guard !hasCompleted else { return }
         guard writer.startWriting() else {
             complete(.failure(writer.error ?? VideoCompressionError.exportFailed))
             return
@@ -2485,14 +2674,22 @@ private final class VideoCompressionExportSession: @unchecked Sendable {
         }
     }
 
+    func cancel() {
+        reader.cancelReading()
+        writer.cancelWriting()
+        complete(.failure(CancellationError()))
+    }
+
     private func drainVideoSamples() {
         while videoInput.isReadyForMoreMediaData {
+            guard !hasCompleted else { return }
             guard let sampleBuffer = videoOutput.copyNextSampleBuffer() else {
                 videoInput.markAsFinished()
                 markVideoFinished()
                 return
             }
 
+            guard !hasCompleted else { return }
             guard videoInput.append(sampleBuffer) else {
                 fail(writer.error ?? VideoCompressionError.exportFailed)
                 return
@@ -2503,23 +2700,32 @@ private final class VideoCompressionExportSession: @unchecked Sendable {
     }
 
     private func drainAudioSamples() {
+        guard !hasCompleted else { return }
         guard let audioInput, let audioOutput else {
             markAudioFinished()
             return
         }
 
         while audioInput.isReadyForMoreMediaData {
+            guard !hasCompleted else { return }
             guard let sampleBuffer = audioOutput.copyNextSampleBuffer() else {
                 audioInput.markAsFinished()
                 markAudioFinished()
                 return
             }
 
+            guard !hasCompleted else { return }
             guard audioInput.append(sampleBuffer) else {
                 fail(writer.error ?? VideoCompressionError.exportFailed)
                 return
             }
         }
+    }
+
+    private var hasCompleted: Bool {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return didComplete
     }
 
     private func reportProgressIfNeeded(for sampleBuffer: CMSampleBuffer) {

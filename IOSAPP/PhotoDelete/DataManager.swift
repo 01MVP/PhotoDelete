@@ -2125,6 +2125,54 @@ class DataManager: ObservableObject {
         return userAlbums
     }
 
+    func getUserAlbumsSortedByCustomOrder() -> [AlbumInfo] {
+        Self.albumsSortedByCustomOrder(userAlbums, customOrder: customAlbumOrder)
+    }
+
+    func saveCustomAlbumOrder(_ order: [String]) {
+        guard let value = Self.encodeCustomAlbumOrder(order) else { return }
+        objectWillChange.send()
+        userDefaults.set(value, forKey: AppConstants.customAlbumOrderKey)
+    }
+
+    var customAlbumOrderForDisplay: [String] {
+        customAlbumOrder
+    }
+
+    private var customAlbumOrder: [String] {
+        Self.decodeCustomAlbumOrder(userDefaults.string(forKey: AppConstants.customAlbumOrderKey))
+    }
+
+    static func albumsSortedByCustomOrder(_ albums: [AlbumInfo], customOrder: [String]) -> [AlbumInfo] {
+        guard !customOrder.isEmpty else { return albums }
+
+        var ranks: [String: Int] = [:]
+        for (offset, id) in customOrder.enumerated() where ranks[id] == nil {
+            ranks[id] = offset
+        }
+        return albums.enumerated()
+            .sorted { lhs, rhs in
+                let lhsRank = ranks[lhs.element.id] ?? (customOrder.count + lhs.offset)
+                let rhsRank = ranks[rhs.element.id] ?? (customOrder.count + rhs.offset)
+                return lhsRank < rhsRank
+            }
+            .map(\.element)
+    }
+
+    static func decodeCustomAlbumOrder(_ value: String?) -> [String] {
+        guard let value,
+              let data = value.data(using: .utf8),
+              let order = try? JSONDecoder().decode([String].self, from: data) else {
+            return []
+        }
+        return order
+    }
+
+    private static func encodeCustomAlbumOrder(_ order: [String]) -> String? {
+        guard let data = try? JSONEncoder().encode(order) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
     func currentUserAlbumInfo(for albumInfo: AlbumInfo) -> AlbumInfo? {
         guard albumInfo.type == .userCreated else { return albumInfo }
         return refreshUserAlbumIfAvailable(id: albumInfo.id)

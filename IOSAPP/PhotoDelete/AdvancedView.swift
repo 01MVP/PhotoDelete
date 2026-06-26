@@ -3554,6 +3554,7 @@ private struct AdvancedVideoCompressionView: View {
                         currentCompressionProgress = progress
                         currentCompressionMessage = message
                     }
+                    try Task.checkCancellation()
                     resultItems.append(AdvancedVideoCompressionResultItem(result: result))
                 } catch is CancellationError {
                     break
@@ -3577,7 +3578,7 @@ private struct AdvancedVideoCompressionView: View {
                 currentCompressionProgress = 0
                 currentCompressionMessage = nil
 
-                if !resultItems.isEmpty {
+                if !wasCancelled, !resultItems.isEmpty {
                     let completedResult = AdvancedVideoCompressionResult(
                         items: resultItems,
                         failedCount: failedCount,

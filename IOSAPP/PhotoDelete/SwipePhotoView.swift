@@ -982,7 +982,7 @@ struct SwipePhotoView: View {
 
     @ViewBuilder
     private func albumShortcutStrip(horizontalPadding: CGFloat) -> some View {
-        if !isAlbumMode && canPerformPhotoAction && !dataManager.userAlbums.isEmpty {
+        if !isAlbumMode && canPerformPhotoAction && !albumShortcutAlbums.isEmpty {
             let rows = albumShortcutRows
             let usesTwoRows = albumShortcutUsesTwoRows
 
@@ -1031,7 +1031,7 @@ struct SwipePhotoView: View {
         showAlbumShortcutHint &&
             !isAlbumMode &&
             canPerformPhotoAction &&
-            !dataManager.userAlbums.isEmpty
+            !albumShortcutAlbums.isEmpty
     }
 
     private func albumShortcutRow(albums: [AlbumInfo]) -> some View {
@@ -1050,7 +1050,7 @@ struct SwipePhotoView: View {
     }
 
     private var albumShortcutUsesTwoRows: Bool {
-        dataManager.userAlbums.count > albumShortcutTwoRowThreshold
+        albumShortcutAlbums.count > albumShortcutTwoRowThreshold
     }
 
     private var actionToolbar: some View {
@@ -1165,7 +1165,7 @@ struct SwipePhotoView: View {
 
     private var portraitToastBottomPadding: CGFloat {
         var padding: CGFloat = 100
-        if !isAlbumMode && canPerformPhotoAction && !dataManager.userAlbums.isEmpty {
+        if !isAlbumMode && canPerformPhotoAction && !albumShortcutAlbums.isEmpty {
             padding = albumShortcutUsesTwoRows ? 160 : 128
         }
         if shouldShowAlbumShortcutGuidance {
@@ -1178,13 +1178,14 @@ struct SwipePhotoView: View {
     }
 
     private var albumShortcutRows: (top: [AlbumInfo], bottom: [AlbumInfo]) {
+        let albums = albumShortcutAlbums
         guard albumShortcutUsesTwoRows else {
-            return (dataManager.userAlbums, [])
+            return (albums, [])
         }
 
         var top: [AlbumInfo] = []
         var bottom: [AlbumInfo] = []
-        for (index, album) in dataManager.userAlbums.enumerated() {
+        for (index, album) in albums.enumerated() {
             if index.isMultiple(of: 2) {
                 top.append(album)
             } else {
@@ -1192,6 +1193,10 @@ struct SwipePhotoView: View {
             }
         }
         return (top, bottom)
+    }
+
+    private var albumShortcutAlbums: [AlbumInfo] {
+        dataManager.getUserAlbumsSortedByCustomOrder()
     }
 
     private var hasUnreviewedPhotos: Bool {
@@ -1514,7 +1519,7 @@ struct SwipePhotoView: View {
               !showAlbumShortcutHint,
               !isAlbumMode,
               canPerformPhotoAction,
-              !dataManager.userAlbums.isEmpty else {
+              !albumShortcutAlbums.isEmpty else {
             return
         }
 
