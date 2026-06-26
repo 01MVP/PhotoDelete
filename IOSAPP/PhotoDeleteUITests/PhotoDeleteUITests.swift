@@ -15,22 +15,29 @@ final class PhotoDeleteUITests: XCTestCase {
 
     @MainActor
     func testOnboardingFlowCompletesToHome() throws {
+        installPhotoLibraryInterruptionMonitor()
+
         let app = makeApp(completedOnboarding: false)
         app.launch()
 
-        XCTAssertTrue(app.staticTexts["快速整理相册"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["像系统相册一样浏览"].waitForExistence(timeout: 10))
         app.buttons["继续"].tap()
 
-        XCTAssertTrue(app.staticTexts["手势很简单"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["上滑加入待删除"].waitForExistence(timeout: 3))
         app.buttons["继续"].tap()
 
-        XCTAssertTrue(app.staticTexts["隐私优先"].waitForExistence(timeout: 3))
-        app.buttons["跳过"].tap()
+        XCTAssertTrue(app.staticTexts["找回更多空间"].waitForExistence(timeout: 3))
+        app.buttons["继续"].tap()
+
+        XCTAssertTrue(app.staticTexts["只在本机整理"].waitForExistence(timeout: 3))
+        app.buttons["开始"].tap()
+        _ = allowFullPhotoLibraryAccessIfNeeded(app: app)
 
         XCTAssertTrue(
             app.staticTexts["删图"].waitForExistence(timeout: 10) ||
                 app.staticTexts["需要访问照片库"].waitForExistence(timeout: 2) ||
-                app.staticTexts["遇见从前"].waitForExistence(timeout: 2)
+                app.staticTexts["遇见从前"].waitForExistence(timeout: 2) ||
+                app.staticTexts["没有可整理的照片"].waitForExistence(timeout: 2)
         )
     }
 
@@ -44,7 +51,7 @@ final class PhotoDeleteUITests: XCTestCase {
             app.staticTexts["需要访问照片库"].exists ||
                 app.staticTexts["遇见从前"].exists ||
                 app.staticTexts["没有可整理的照片"].exists ||
-                app.staticTexts["正在读取照片"].exists
+                app.staticTexts["整理全部照片"].exists
         )
     }
 

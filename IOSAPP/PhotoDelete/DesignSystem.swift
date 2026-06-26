@@ -409,6 +409,8 @@ enum AppConstants {
     static let rightSwipeActionKey = "photoDeleteRightSwipeAction"
     static let upSwipeActionKey = "photoDeleteUpSwipeAction"
     static let gestureDefaultMigrationKey = "photoDeleteGestureDefaultMigration"
+    static let reviewMediaAutoPlayKey = "photoDeleteReviewMediaAutoPlay"
+    static let reviewVideoMutedKey = "photoDeleteReviewVideoMuted"
     static let reviewModeKey = "photoDeleteReviewMode"
     static let hasSeenReviewModeHintKey = "photoDeleteHasSeenReviewModeHint"
     static let hasSeenAlbumShortcutHintKey = "photoDeleteHasSeenAlbumShortcutHintV2"

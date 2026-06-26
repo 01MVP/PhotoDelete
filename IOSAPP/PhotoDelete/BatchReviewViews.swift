@@ -5,6 +5,7 @@
 
 import SwiftUI
 import AVKit
+import CoreLocation
 import Photos
 import PhotosUI
 #if canImport(UIKit)
@@ -926,6 +927,8 @@ struct PhotoAssetVideoPlayerView: View {
     let asset: PHAsset
     let photoLibraryManager: PhotoLibraryManager
     var autoPlay = true
+    var isMuted = false
+    var ignoresSafeArea = true
 
     @State private var player: AVPlayer?
     @State private var requestID: PHImageRequestID?
@@ -935,15 +938,17 @@ struct PhotoAssetVideoPlayerView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            Color.black
+                .ignoresSafeArea(edges: ignoresSafeArea ? .all : [])
 
             if let player {
                 VideoPlayer(player: player)
-                    .ignoresSafeArea()
+                    .ignoresSafeArea(edges: ignoresSafeArea ? .all : [])
                     .onAppear {
                         if autoPlay {
-                            player.play()
-                        }
+                            player.isMuted = isMuted
+                player.play()
+            }
                     }
             } else {
                 VStack(spacing: 14) {
@@ -966,6 +971,9 @@ struct PhotoAssetVideoPlayerView: View {
         }
         .accessibilityLabel(didFail ? L10n.string("无法播放这个视频") : L10n.string("视频预览"))
         .onAppear(perform: loadPlayer)
+        .onChange(of: isMuted) { muted in
+            player?.isMuted = muted
+        }
         .onDisappear(perform: cleanup)
     }
 
@@ -988,6 +996,7 @@ struct PhotoAssetVideoPlayerView: View {
             }
 
             let loadedPlayer = AVPlayer(playerItem: playerItem)
+            loadedPlayer.isMuted = isMuted
             player = loadedPlayer
             if autoPlay {
                 loadedPlayer.play()
@@ -1019,30 +1028,23 @@ struct CandidatePhotoPreviewView: View {
     var body: some View {
         NavigationStack {
             GeometryReader { geometry in
-                ZStack {
-                    PhotoDeleteStyle.background.ignoresSafeArea()
+                ScrollView(.vertical) {
+                    VStack(spacing: 0) {
+                        previewMedia(in: geometry.size)
+                            .frame(height: previewMediaHeight(in: geometry.size))
 
-                    if asset.mediaType == .video {
-                        PhotoAssetVideoPlayerView(
+                        PhotoAssetDetailsPanel(
                             asset: asset,
                             photoLibraryManager: photoLibraryManager
                         )
-                    } else if isLivePhotoAsset {
-                        if let livePhoto {
-                            LivePhotoPreviewRepresentable(livePhoto: livePhoto)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                .accessibilityLabel(L10n.string("实况照片"))
-                        } else {
-                            loadingContent
-                        }
-                    } else if let image {
-                        ZoomablePhotoPreview(image: image)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .accessibilityLabel(L10n.string("放大的照片"))
-                    } else {
-                        loadingContent
+                        .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
+                        .padding(.top, 18)
+                        .padding(.bottom, 32)
                     }
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: geometry.size.height, alignment: .top)
                 }
+                .background(PhotoDeleteStyle.background.ignoresSafeArea())
                 .onAppear {
                     if isLivePhotoAsset {
                         loadLivePhoto(in: geometry.size)
@@ -1064,6 +1066,41 @@ struct CandidatePhotoPreviewView: View {
         .onDisappear {
             photoLibraryManager.cancelImageRequest(requestID)
         }
+    }
+
+    @ViewBuilder
+    private func previewMedia(in size: CGSize) -> some View {
+        ZStack {
+            PhotoDeleteStyle.background
+
+            if asset.mediaType == .video {
+                PhotoAssetVideoPlayerView(
+                    asset: asset,
+                    photoLibraryManager: photoLibraryManager,
+                    ignoresSafeArea: false
+                )
+            } else if isLivePhotoAsset {
+                if let livePhoto {
+                    LivePhotoPreviewRepresentable(livePhoto: livePhoto)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .accessibilityLabel(L10n.string("实况照片"))
+                } else {
+                    loadingContent
+                }
+            } else if let image {
+                ZoomablePhotoPreview(image: image)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .accessibilityLabel(L10n.string("放大的照片"))
+            } else {
+                loadingContent
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .background(Color.black.opacity(asset.mediaType == .video ? 1 : 0.08))
+    }
+
+    private func previewMediaHeight(in size: CGSize) -> CGFloat {
+        max(size.height * 0.74, min(size.height, 360))
     }
 
     private var isLivePhotoAsset: Bool {
@@ -1131,6 +1168,123 @@ struct CandidatePhotoPreviewView: View {
             isLoading = false
             requestID = nil
         }
+    }
+}
+
+private struct PhotoAssetDetailsPanel: View {
+    let asset: PHAsset
+    let photoLibraryManager: PhotoLibraryManager
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 8) {
+                Image(systemName: "info.circle")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.accent)
+
+                Text(L10n.string("照片信息"))
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.primaryText)
+            }
+
+            VStack(spacing: 0) {
+                detailRow(label: L10n.string("拍摄时间"), value: captureDateText, icon: "calendar")
+                Divider().background(PhotoDeleteStyle.hairline).padding(.leading, 44)
+                detailRow(label: L10n.string("地点"), value: locationText, icon: "location")
+                Divider().background(PhotoDeleteStyle.hairline).padding(.leading, 44)
+                detailRow(label: L10n.string("类型"), value: mediaTypeText, icon: mediaTypeIcon)
+                Divider().background(PhotoDeleteStyle.hairline).padding(.leading, 44)
+                detailRow(label: L10n.string("尺寸"), value: pixelSizeText, icon: "aspectratio")
+
+                if asset.mediaType == .video {
+                    Divider().background(PhotoDeleteStyle.hairline).padding(.leading, 44)
+                    detailRow(label: L10n.string("时长"), value: durationText, icon: "clock")
+                }
+
+                if asset.isFavorite {
+                    Divider().background(PhotoDeleteStyle.hairline).padding(.leading, 44)
+                    detailRow(label: L10n.string("状态"), value: L10n.string("已收藏"), icon: "heart.fill")
+                }
+            }
+            .photoDeleteCard()
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private func detailRow(label: String, value: String, icon: String) -> some View {
+        HStack(spacing: 12) {
+            PhotoDeleteIconTile(icon: icon, tint: PhotoDeleteStyle.accent, size: 32, cornerRadius: 10)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(label)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(PhotoDeleteStyle.tertiaryText)
+
+                Text(value)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.primaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 8)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var captureDateText: String {
+        guard let creationDate = asset.creationDate else {
+            return L10n.string("未保存拍摄时间")
+        }
+        return AppDateFormatter.string(from: creationDate, dateStyle: .medium, timeStyle: .short)
+    }
+
+    private var locationText: String {
+        guard let coordinate = asset.location?.coordinate else {
+            return L10n.string("无地点信息")
+        }
+        let latitude = coordinate.latitude.formatted(.number.precision(.fractionLength(4)))
+        let longitude = coordinate.longitude.formatted(.number.precision(.fractionLength(4)))
+        return "\(latitude), \(longitude)"
+    }
+
+    private var mediaTypeText: String {
+        if asset.mediaType == .video {
+            return L10n.string("视频")
+        }
+        if photoLibraryManager.isLivePhoto(asset) {
+            return L10n.string("实况照片")
+        }
+        if photoLibraryManager.isScreenshot(asset) {
+            return L10n.string("截图")
+        }
+        return L10n.string("照片")
+    }
+
+    private var mediaTypeIcon: String {
+        if asset.mediaType == .video { return "video" }
+        if photoLibraryManager.isLivePhoto(asset) { return "livephoto" }
+        if photoLibraryManager.isScreenshot(asset) { return "camera.viewfinder" }
+        return "photo"
+    }
+
+    private var pixelSizeText: String {
+        guard asset.pixelWidth > 0, asset.pixelHeight > 0 else {
+            return L10n.string("未知")
+        }
+        return "\(asset.pixelWidth) × \(asset.pixelHeight)"
+    }
+
+    private var durationText: String {
+        let totalSeconds = max(Int(asset.duration.rounded()), 0)
+        let hours = totalSeconds / 3600
+        let minutes = (totalSeconds % 3600) / 60
+        let seconds = totalSeconds % 60
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        }
+        return String(format: "%d:%02d", minutes, seconds)
     }
 }
 

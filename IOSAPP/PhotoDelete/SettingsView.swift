@@ -27,6 +27,7 @@ struct SettingsView: View {
     @AppStorage(AppConstants.leftSwipeActionKey) private var leftSwipeActionValue = SwipeGesturePreset.standard.leftAction.rawValue
     @AppStorage(AppConstants.rightSwipeActionKey) private var rightSwipeActionValue = SwipeGesturePreset.standard.rightAction.rawValue
     @AppStorage(AppConstants.upSwipeActionKey) private var upSwipeActionValue = SwipeGesturePreset.standard.upAction.rawValue
+    @AppStorage(AppConstants.reviewMediaAutoPlayKey) private var reviewMediaAutoPlay = true
     @AppStorage(AppConstants.appAppearanceKey) private var appAppearanceValue = AppAppearance.system.rawValue
     @AppStorage(AppConstants.appThemeKey) private var appThemeValue = PhotoDeleteTheme.defaultTheme.rawValue
     @State private var activeSheet: SettingsSheet?
@@ -386,7 +387,7 @@ struct SettingsView: View {
             VStack(spacing: 0) {
                 SettingRow(
                     icon: "hand.draw",
-                    title: L10n.string("手势控制"),
+                    title: L10n.string("手势与播放"),
                     subtitle: gestureSettingsSubtitle,
                     action: {
                         activeSheet = .gestureSettings
@@ -561,7 +562,8 @@ struct SettingsView: View {
         let left = "\(shortDirectionTitle(.left))\(shortActionTitle(currentGestureAction(for: .left)))"
         let right = "\(shortDirectionTitle(.right))\(shortActionTitle(currentGestureAction(for: .right)))"
         let up = "\(shortDirectionTitle(.up))\(shortActionTitle(currentGestureAction(for: .up)))"
-        return "\(left) · \(right) · \(up)"
+        let playback = reviewMediaAutoPlay ? L10n.string("自动播放") : L10n.string("手动播放")
+        return "\(left) · \(right) · \(up) · \(playback)"
     }
 
     private var usesChineseCompactText: Bool {
@@ -611,6 +613,12 @@ struct SettingsView: View {
     private func shortActionTitle(_ action: SwipeGestureAction) -> String {
         if usesChineseCompactText {
             switch action {
+            case .previous:
+                return L10n.string("上张")
+            case .next:
+                return L10n.string("下张")
+            case .close:
+                return L10n.string("返回")
             case .delete:
                 return L10n.string("删")
             case .keep:
@@ -621,6 +629,12 @@ struct SettingsView: View {
         }
 
         switch action {
+        case .previous:
+            return "Prev"
+        case .next:
+            return "Next"
+        case .close:
+            return "Back"
         case .delete:
             return "Delete"
         case .keep:
@@ -990,6 +1004,8 @@ struct GestureSettingsView: View {
     @AppStorage(AppConstants.leftSwipeActionKey) private var leftSwipeActionValue = SwipeGesturePreset.standard.leftAction.rawValue
     @AppStorage(AppConstants.rightSwipeActionKey) private var rightSwipeActionValue = SwipeGesturePreset.standard.rightAction.rawValue
     @AppStorage(AppConstants.upSwipeActionKey) private var upSwipeActionValue = SwipeGesturePreset.standard.upAction.rawValue
+    @AppStorage(AppConstants.reviewMediaAutoPlayKey) private var reviewMediaAutoPlay = true
+    @AppStorage(AppConstants.reviewVideoMutedKey) private var reviewVideoMuted = true
 
     var body: some View {
         NavigationStack {
@@ -998,6 +1014,7 @@ struct GestureSettingsView: View {
 
                 ScrollView {
                     VStack(spacing: PhotoDeleteStyle.sectionSpacing) {
+                        mediaPlaybackSection
                         currentGesturePreview
                         presetSection
                         customGestureSection
@@ -1010,7 +1027,7 @@ struct GestureSettingsView: View {
                     .frame(maxWidth: .infinity)
                 }
             }
-            .navigationTitle(L10n.string("手势控制"))
+            .navigationTitle(L10n.string("手势与播放"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -1020,6 +1037,35 @@ struct GestureSettingsView: View {
                     .foregroundColor(PhotoDeleteStyle.accent)
                 }
             }
+        }
+    }
+
+    private var mediaPlaybackSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(L10n.string("播放"))
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(PhotoDeleteStyle.primaryText)
+
+            VStack(spacing: 0) {
+                SettingToggleRow(
+                    icon: "play.circle",
+                    title: L10n.string("视频和实况照片自动播放"),
+                    subtitle: L10n.string("只播放当前照片，切换后会自动停止"),
+                    isOn: $reviewMediaAutoPlay
+                )
+
+                Divider()
+                    .background(PhotoDeleteStyle.hairline)
+                    .padding(.horizontal, 16)
+
+                SettingToggleRow(
+                    icon: reviewVideoMuted ? "speaker.slash" : "speaker.wave.2",
+                    title: L10n.string("视频静音播放"),
+                    subtitle: L10n.string("关闭后，整理页自动播放视频会带声音"),
+                    isOn: $reviewVideoMuted
+                )
+            }
+            .photoDeleteCard()
         }
     }
 
@@ -1223,7 +1269,7 @@ private struct GestureActionPickerRow: View {
             Spacer()
 
             Menu {
-                ForEach(SwipeGestureAction.allCases) { action in
+                ForEach(SwipeGestureAction.configurableCases) { action in
                     Button {
                         onSelect(action)
                     } label: {

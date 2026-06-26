@@ -21,6 +21,8 @@ struct SwipePhotoView: View {
     @AppStorage(AppConstants.leftSwipeActionKey) private var leftSwipeActionValue = SwipeGesturePreset.standard.leftAction.rawValue
     @AppStorage(AppConstants.rightSwipeActionKey) private var rightSwipeActionValue = SwipeGesturePreset.standard.rightAction.rawValue
     @AppStorage(AppConstants.upSwipeActionKey) private var upSwipeActionValue = SwipeGesturePreset.standard.upAction.rawValue
+    @AppStorage(AppConstants.reviewMediaAutoPlayKey) private var reviewMediaAutoPlay = true
+    @AppStorage(AppConstants.reviewVideoMutedKey) private var reviewVideoMuted = true
     @AppStorage(AppConstants.reviewModeKey) private var reviewModeValue = PhotoReviewMode.card.rawValue
     @AppStorage(AppConstants.hasSeenReviewModeHintKey) private var hasSeenReviewModeHint = false
     @AppStorage(AppConstants.hasSeenAlbumShortcutHintKey) private var hasSeenAlbumShortcutHint = false
@@ -37,8 +39,8 @@ struct SwipePhotoView: View {
     let selectedHistoricalToday: Bool
 
     @State private var dragOffset = CGSize.zero
-    @State private var rotationAngle: Double = 0
     @State private var showBatchConfirm = false
+    @State private var showReviewSettings = false
     @State private var currentPhotoIndex = 0
     @State private var showCompletionMessage = false
     @State private var actionHistory: [SwipeAction] = []
@@ -196,6 +198,18 @@ struct SwipePhotoView: View {
         return isAssetBeingFiledToAlbum(asset)
     }
 
+    private func shouldPlayVideo(for asset: PHAsset) -> Bool {
+        guard asset.mediaType == .video else { return false }
+        if inlinePlayingVideoAssetID == asset.localIdentifier {
+            return true
+        }
+        return reviewMediaAutoPlay &&
+            !isAssetQueuedForDelete(asset) &&
+            !isAssetQueuedForFavorite(asset) &&
+            !isAssetBeingFiledToAlbum(asset) &&
+            !isAssetFiledToAlbum(asset)
+    }
+
     private var canPerformPhotoAction: Bool {
         currentRealPhoto != nil && !showCompletionMessage && !isCurrentPhotoBeingFiled
     }
@@ -254,6 +268,9 @@ struct SwipePhotoView: View {
                 asset: previewAsset.asset,
                 photoLibraryManager: dataManager.photoLibraryManager
             )
+        }
+        .sheet(isPresented: $showReviewSettings) {
+            GestureSettingsView()
         }
         .fullScreenCover(isPresented: $showBatchConfirm, onDismiss: {
             didInitializeSession = false
@@ -499,7 +516,9 @@ struct SwipePhotoView: View {
                 isInFavoriteCandidates: isAssetQueuedForFavorite(asset),
                 isBeingFiledToAlbum: isAssetBeingFiledToAlbum(asset),
                 isFiledToAlbum: isAssetFiledToAlbum(asset),
-                isVideoPlaying: inlinePlayingVideoAssetID == asset.localIdentifier,
+                isVideoPlaying: shouldPlayVideo(for: asset),
+                allowsLivePhotoPlayback: reviewMediaAutoPlay,
+                videoMuted: reviewVideoMuted,
                 memoryCaption: memoryCaption(for: asset),
                 displaySize: cardSize,
                 targetSize: imageTargetSize(for: cardSize),
@@ -513,8 +532,6 @@ struct SwipePhotoView: View {
                 }
             }
             .offset(dragOffset)
-            .rotationEffect(.degrees(rotationAngle))
-            .scaleEffect(1.0 - abs(dragOffset.width) / 1000)
             .gesture(createDragGesture())
             .photoDeleteSimultaneousTapGesture(enabled: inlinePlayingVideoAssetID != asset.localIdentifier) {
                 openAssetPreview(asset)
@@ -554,7 +571,6 @@ struct SwipePhotoView: View {
         guard let direction = dominantSwipeDirection(for: translation, threshold: previewStart) else {
             return nil
         }
-        guard direction != .down else { return nil }
 
         let distance: CGFloat
         switch direction {
@@ -873,11 +889,11 @@ struct SwipePhotoView: View {
                 }
 
                 SidebarActionButton(
-                    icon: "arrow.right",
-                    title: L10n.string("跳过"),
+                    icon: "gearshape",
+                    title: L10n.string("设置"),
                     color: PhotoDeleteStyle.accent
                 ) {
-                    handleSkipAction()
+                    openReviewSettings()
                     resetCardPosition()
                 }
 
@@ -975,6 +991,12 @@ struct SwipePhotoView: View {
                         color: action.tint
                     )
                 }
+                GestureGuideRow(
+                    icon: "arrow.down",
+                    title: L10n.string("下滑"),
+                    detail: L10n.string("返回列表"),
+                    color: PhotoDeleteStyle.accent
+                )
             }
         }
         .padding(16)
@@ -1076,8 +1098,8 @@ struct SwipePhotoView: View {
                 resetCardPosition()
             }
             Spacer(minLength: 0)
-            ActionButton(icon: "arrow.right", title: "跳过", color: PhotoDeleteStyle.accent) {
-                handleSkipAction()
+            ActionButton(icon: "gearshape", title: "设置", color: PhotoDeleteStyle.accent) {
+                openReviewSettings()
                 resetCardPosition()
             }
             Spacer(minLength: 0)
@@ -1549,11 +1571,17 @@ struct SwipePhotoView: View {
         NotificationCenter.default.post(name: AppConstants.openAlbumsTabNotificationName, object: nil)
     }
 
+    private func openReviewSettings() {
+        HapticManager.impact(.light)
+        dismissAlbumShortcutHint(markSeen: true)
+        dismissReviewModeHint(markSeen: true)
+        showReviewSettings = true
+    }
+
     private func createDragGesture() -> some Gesture {
         DragGesture()
             .onChanged { value in
                 dragOffset = value.translation
-                rotationAngle = Double(value.translation.width / 20)
             }
             .onEnded { value in
                 handleSwipeGesture(translation: value.translation)
@@ -1587,8 +1615,7 @@ struct SwipePhotoView: View {
         }
 
         if let direction = dominantSwipeDirection(for: translation, threshold: threshold) {
-            performGestureAction(configuredAction(for: direction), asset: asset)
-            moveToNextPhoto()
+            performConfiguredSwipeAction(configuredAction(for: direction), asset: asset)
         }
 
         resetCardPosition()
@@ -1618,7 +1645,7 @@ struct SwipePhotoView: View {
         case .up:
             return configuredAction(for: SwipeGestureDirection.up)
         case .down:
-            return .keep
+            return .close
         }
     }
 
@@ -1633,15 +1660,56 @@ struct SwipePhotoView: View {
         }
     }
 
-    private func performGestureAction(_ action: SwipeGestureAction, asset: PHAsset) {
+    private func performConfiguredSwipeAction(_ action: SwipeGestureAction, asset: PHAsset) {
         switch action {
+        case .previous:
+            browseToPreviousPhoto()
+        case .next:
+            browseToNextPhoto()
+        case .close:
+            handleFinishAction()
         case .delete:
             markDeleteCandidate(asset)
+            moveToNextPhoto()
         case .keep:
             markSkip(asset)
+            moveToNextPhoto()
         case .favorite:
             markFavoriteCandidate(asset)
+            moveToNextPhoto()
         }
+    }
+
+    private func browseToPreviousPhoto() {
+        guard currentPhotoIndex > 0 else {
+            showFeedback(L10n.string("已经是第一张"), icon: "chevron.left", style: .neutral, duration: 1.2)
+            return
+        }
+
+        stopInlineVideoPlayback()
+        currentPhotoIndex -= 1
+        preloadUpcomingImages(from: currentPhotoIndex)
+        persistSessionProgressIfPossible()
+        HapticManager.impact(.light)
+    }
+
+    private func browseToNextPhoto() {
+        guard !sessionPhotos.isEmpty else { return }
+
+        let nextIndex = currentPhotoIndex + 1
+        while nextIndex >= sessionPhotos.count,
+              expandLoadedSessionPhotosIfNeeded(for: sessionPhotos.count, force: true) { }
+
+        guard isValidPhotoIndex(nextIndex) else {
+            showFeedback(L10n.string("已经是最后一张"), icon: "chevron.right", style: .neutral, duration: 1.2)
+            return
+        }
+
+        stopInlineVideoPlayback()
+        currentPhotoIndex = nextIndex
+        preloadUpcomingImages(from: currentPhotoIndex)
+        persistSessionProgressIfPossible()
+        HapticManager.impact(.light)
     }
 
     private func moveToNextPhoto() {
@@ -1800,7 +1868,7 @@ struct SwipePhotoView: View {
             switch mutation.action {
             case .delete:
                 ids.insert(id)
-            case .favorite, .keep:
+            case .favorite, .keep, .previous, .next, .close:
                 ids.remove(id)
             }
         }
@@ -1814,7 +1882,7 @@ struct SwipePhotoView: View {
             switch mutation.action {
             case .favorite:
                 ids.insert(id)
-            case .delete, .keep:
+            case .delete, .keep, .previous, .next, .close:
                 ids.remove(id)
             }
         }
@@ -2061,7 +2129,6 @@ struct SwipePhotoView: View {
     private func resetCardPosition() {
         withAnimation(.interactiveSpring(response: 0.28, dampingFraction: 0.86)) {
             dragOffset = .zero
-            rotationAngle = 0
         }
     }
 
@@ -2155,7 +2222,7 @@ struct SwipePhotoView: View {
             dataManager.addToDeleteCandidates(mutation.asset)
         case .favorite:
             dataManager.addToFavoriteCandidates(mutation.asset)
-        case .keep:
+        case .keep, .previous, .next, .close:
             break
         }
     }
@@ -2282,6 +2349,8 @@ private struct SwipePhotoCardFrame: View {
     let isBeingFiledToAlbum: Bool
     let isFiledToAlbum: Bool
     let isVideoPlaying: Bool
+    let allowsLivePhotoPlayback: Bool
+    let videoMuted: Bool
     let memoryCaption: PhotoMemoryCaption
     let displaySize: CGSize
     let targetSize: CGSize
@@ -2296,6 +2365,8 @@ private struct SwipePhotoCardFrame: View {
             isBeingFiledToAlbum: isBeingFiledToAlbum,
             isFiledToAlbum: isFiledToAlbum,
             isVideoPlaying: isVideoPlaying,
+            allowsLivePhotoPlayback: allowsLivePhotoPlayback,
+            videoMuted: videoMuted,
             memoryCaption: memoryCaption,
             displaySize: displaySize,
             targetSize: targetSize,
@@ -2411,7 +2482,16 @@ private struct PhotoSwipeDragFeedbackView: View {
                 Spacer(minLength: 0)
             }
         case .down:
-            EmptyView()
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
+
+                LinearGradient(
+                    colors: glowColors.reversed(),
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 72 + feedback.progress * 34)
+            }
         }
     }
 
@@ -2461,7 +2541,16 @@ private struct PhotoSwipeDragFeedbackView: View {
                 Spacer()
             }
         case .down:
-            EmptyView()
+            VStack {
+                Spacer()
+                SwipeEdgeHint(
+                    icon: "arrow.down",
+                    title: L10n.string("下滑返回列表"),
+                    color: feedback.action.tint
+                )
+                .padding(.bottom, 16)
+                .offset(y: 10 - feedback.progress * 10)
+            }
         }
     }
 
@@ -2508,7 +2597,14 @@ private struct PhotoSwipeDragFeedbackView: View {
                 Spacer()
             }
         case .down:
-            EmptyView()
+            VStack {
+                Spacer()
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(feedback.action.tint)
+                    .frame(height: 5 + feedback.progress * 5)
+                    .padding(.horizontal, 26)
+                    .padding(.bottom, 7)
+            }
         }
     }
 
@@ -2606,6 +2702,8 @@ struct RealPhotoCard: View {
     let isBeingFiledToAlbum: Bool
     let isFiledToAlbum: Bool
     let isVideoPlaying: Bool
+    let allowsLivePhotoPlayback: Bool
+    let videoMuted: Bool
     let memoryCaption: PhotoMemoryCaption
     let displaySize: CGSize
     let targetSize: CGSize
@@ -2629,7 +2727,8 @@ struct RealPhotoCard: View {
             if isVideoPlaying {
                 PhotoAssetVideoPlayerView(
                     asset: asset,
-                    photoLibraryManager: photoLibraryManager
+                    photoLibraryManager: photoLibraryManager,
+                    isMuted: videoMuted
                 )
                 .frame(width: displaySize.width, height: displaySize.height)
                 .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
@@ -2649,6 +2748,7 @@ struct RealPhotoCard: View {
 
                     LivePhotoPreviewRepresentable(
                         livePhoto: livePhoto,
+                        autoPlay: allowsLivePhotoPlayback,
                         contentMode: .scaleAspectFit
                     )
                     .frame(width: displaySize.width, height: displaySize.height)
@@ -2752,7 +2852,8 @@ struct RealPhotoCard: View {
     }
 
     private var shouldShowLivePhotoPlayback: Bool {
-        photoLibraryManager.isLivePhoto(asset) &&
+        allowsLivePhotoPlayback &&
+            photoLibraryManager.isLivePhoto(asset) &&
             !isInDeleteCandidates &&
             !isInFavoriteCandidates &&
             !isBeingFiledToAlbum &&

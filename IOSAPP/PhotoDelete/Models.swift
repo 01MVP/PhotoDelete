@@ -40,14 +40,24 @@ enum PhotoCategory: String, CaseIterable {
 
 // MARK: - 手势控制
 enum SwipeGestureAction: String, CaseIterable, Identifiable {
+    case previous
+    case next
+    case close
     case delete
     case keep
     case favorite
 
     var id: String { rawValue }
 
+    static var configurableCases: [SwipeGestureAction] {
+        [.previous, .next, .delete, .keep, .favorite]
+    }
+
     var title: String {
         switch self {
+        case .previous: return L10n.string("上一张")
+        case .next: return L10n.string("下一张")
+        case .close: return L10n.string("返回")
         case .delete: return L10n.string("删除")
         case .keep: return L10n.string("保留")
         case .favorite: return L10n.string("收藏")
@@ -56,6 +66,9 @@ enum SwipeGestureAction: String, CaseIterable, Identifiable {
 
     var detailTitle: String {
         switch self {
+        case .previous: return L10n.string("浏览上一张")
+        case .next: return L10n.string("浏览下一张")
+        case .close: return L10n.string("返回列表")
         case .delete: return L10n.string("加入待删除")
         case .keep: return L10n.string("跳过")
         case .favorite: return L10n.string("加入收藏")
@@ -64,6 +77,9 @@ enum SwipeGestureAction: String, CaseIterable, Identifiable {
 
     var icon: String {
         switch self {
+        case .previous: return "chevron.left"
+        case .next: return "chevron.right"
+        case .close: return "chevron.down"
         case .delete: return "trash"
         case .keep: return "checkmark"
         case .favorite: return "heart"
@@ -72,6 +88,7 @@ enum SwipeGestureAction: String, CaseIterable, Identifiable {
 
     var tint: Color {
         switch self {
+        case .previous, .next, .close: return PhotoDeleteStyle.accent
         case .delete: return PhotoDeleteStyle.destructive
         case .keep: return PhotoDeleteStyle.positive
         case .favorite: return PhotoDeleteStyle.iconTint(for: "favorite")
@@ -129,29 +146,29 @@ struct SwipeGesturePreset: Identifiable, Equatable {
 
     static let standard = SwipeGesturePreset(
         id: "standard",
+        titleKey: "系统相册风格",
+        subtitleKey: "左滑上一张，右滑下一张，上滑删除",
+        leftAction: .previous,
+        rightAction: .next,
+        upAction: .delete
+    )
+
+    static let reversed = SwipeGesturePreset(
+        id: "leftDelete",
+        titleKey: "左滑删除",
+        subtitleKey: "左滑删除，右滑下一张，上滑收藏",
+        leftAction: .delete,
+        rightAction: .next,
+        upAction: .favorite
+    )
+
+    static let verticalDelete = SwipeGesturePreset(
+        id: "classic",
         titleKey: "左删右留",
         subtitleKey: "左滑删除，右滑保留，上滑收藏",
         leftAction: .delete,
         rightAction: .keep,
         upAction: .favorite
-    )
-
-    static let reversed = SwipeGesturePreset(
-        id: "reversed",
-        titleKey: "左留右删",
-        subtitleKey: "左滑保留，右滑删除，上滑收藏",
-        leftAction: .keep,
-        rightAction: .delete,
-        upAction: .favorite
-    )
-
-    static let verticalDelete = SwipeGesturePreset(
-        id: "verticalDelete",
-        titleKey: "上滑删除",
-        subtitleKey: "上滑删除，左滑保留，右滑收藏",
-        leftAction: .keep,
-        rightAction: .favorite,
-        upAction: .delete
     )
 
     static let presets: [SwipeGesturePreset] = [
@@ -162,7 +179,7 @@ struct SwipeGesturePreset: Identifiable, Equatable {
 }
 
 enum SwipeGesturePreferences {
-    private static let gestureMigrationVersion = "left-delete-right-keep-v1"
+    private static let gestureMigrationVersion = "system-album-style-v1"
 
     static func defaultAction(for direction: SwipeGestureDirection) -> SwipeGestureAction {
         SwipeGesturePreset.standard.action(for: direction)
@@ -181,14 +198,18 @@ enum SwipeGesturePreferences {
         let rightValue = defaults.string(forKey: AppConstants.rightSwipeActionKey)
         let upValue = defaults.string(forKey: AppConstants.upSwipeActionKey)
 
-        let matchesPreviousDefault = leftValue == SwipeGestureAction.keep.rawValue &&
+        let matchesLeftDeleteDefault = leftValue == SwipeGestureAction.delete.rawValue &&
+            rightValue == SwipeGestureAction.keep.rawValue &&
+            (upValue == nil || upValue == SwipeGestureAction.favorite.rawValue)
+
+        let matchesOlderRightDeleteDefault = leftValue == SwipeGestureAction.keep.rawValue &&
             rightValue == SwipeGestureAction.delete.rawValue &&
             (upValue == nil || upValue == SwipeGestureAction.favorite.rawValue)
 
-        if matchesPreviousDefault {
-            defaults.set(SwipeGestureAction.delete.rawValue, forKey: AppConstants.leftSwipeActionKey)
-            defaults.set(SwipeGestureAction.keep.rawValue, forKey: AppConstants.rightSwipeActionKey)
-            defaults.set(SwipeGestureAction.favorite.rawValue, forKey: AppConstants.upSwipeActionKey)
+        if matchesLeftDeleteDefault || matchesOlderRightDeleteDefault {
+            defaults.set(SwipeGesturePreset.standard.leftAction.rawValue, forKey: AppConstants.leftSwipeActionKey)
+            defaults.set(SwipeGesturePreset.standard.rightAction.rawValue, forKey: AppConstants.rightSwipeActionKey)
+            defaults.set(SwipeGesturePreset.standard.upAction.rawValue, forKey: AppConstants.upSwipeActionKey)
         }
 
         defaults.set(gestureMigrationVersion, forKey: AppConstants.gestureDefaultMigrationKey)

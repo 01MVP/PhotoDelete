@@ -89,8 +89,7 @@ enum HomeLibraryContentState: Equatable {
     ) -> HomeLibraryContentState {
         guard hasPhotoLibraryAccess else { return .needsAuthorization }
         if totalPhotosCount > 0 { return .available }
-        if isPreparingLibrary { return .preparing }
-        if isLoadingPhotoLibrary || !hasLoadedPhotoLibrary { return .preparing }
+        if isPreparingLibrary || isLoadingPhotoLibrary || !hasLoadedPhotoLibrary { return .available }
         return .empty
     }
 }
@@ -255,7 +254,7 @@ struct HomeView: View {
                             .font(.system(size: 17, weight: .semibold))
                             .foregroundColor(PhotoDeleteStyle.primaryText)
 
-                        Text(L10n.string("左滑删除，右滑保留，上滑收藏。点完成后再统一确认。"))
+                        Text(L10n.string("左右滑动浏览照片，上滑加入待删除；想换手势，可以在整理页底部打开设置。"))
                             .font(.system(size: 14, weight: .regular))
                             .foregroundColor(PhotoDeleteStyle.secondaryText)
                             .fixedSize(horizontal: false, vertical: true)

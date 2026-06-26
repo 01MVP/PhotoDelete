@@ -27,6 +27,9 @@ struct ContentView: View {
                 onComplete: {
                     hasSeenHomeIntro = true
                     hasCompletedOnboarding = true
+                    DispatchQueue.main.async {
+                        dataManager.requestPhotoLibraryAccess()
+                    }
                 }
             )
         }
@@ -44,20 +47,26 @@ private struct OnboardingFlowView: View {
     private let pages: [OnboardingPage] = [
         OnboardingPage(
             icon: "photo.on.rectangle.angled",
-            title: L10n.string("快速整理相册"),
-            message: L10n.string("用滑动快速判断照片去留。想删除的照片会先进入待确认列表，完成前不会真正删除。"),
+            title: L10n.string("像系统相册一样浏览"),
+            message: L10n.string("左右滑动切换照片，不会打乱整理进度。需要清理时，再用明确的动作加入待确认列表。"),
             visual: .organize
         ),
         OnboardingPage(
             icon: "hand.draw",
-            title: L10n.string("手势很简单"),
-            message: L10n.string("左滑删除，右滑保留，上滑收藏。所有删除都会在最后统一确认。"),
+            title: L10n.string("上滑加入待删除"),
+            message: L10n.string("默认上滑只是先放进待删除，最后统一确认。手势和视频播放方式都可以在整理页快速调整。"),
             visual: .swipe
         ),
         OnboardingPage(
+            icon: "externaldrive",
+            title: L10n.string("找回更多空间"),
+            message: L10n.string("相似照片、大文件、视频压缩和图片压缩集中在高级清理里，适合处理真正占空间的内容。"),
+            visual: .advanced
+        ),
+        OnboardingPage(
             icon: "lock.shield",
-            title: L10n.string("隐私优先"),
-            message: AppConstants.privacyShortText,
+            title: L10n.string("只在本机整理"),
+            message: L10n.string("不需要账号，也不会上传照片。点开始后才会请求访问照片库。"),
             visual: .privacy
         )
     ]
@@ -101,9 +110,9 @@ private struct OnboardingFlowView: View {
                         }
                     }
 
-                    Button(action: advance) {
+	                    Button(action: advance) {
                         HStack(spacing: 8) {
-                            Text(selectedPage == pages.count - 1 ? L10n.string("开始整理") : L10n.string("继续"))
+                            Text(selectedPage == pages.count - 1 ? L10n.string("开始") : L10n.string("继续"))
 
                             Image(systemName: selectedPage == pages.count - 1 ? "checkmark" : "arrow.right")
                                 .font(.system(size: 15, weight: .semibold))
@@ -159,6 +168,7 @@ private struct OnboardingPage {
 private enum OnboardingVisual {
     case organize
     case swipe
+    case advanced
     case privacy
 }
 
@@ -221,6 +231,8 @@ private struct OnboardingVisualView: View {
             OrganizeIntroVisual(animate: animate)
         case .swipe:
             SwipeIntroVisual(animate: animate)
+        case .advanced:
+            AdvancedCleanupIntroVisual(animate: animate)
         case .privacy:
             PrivacyIntroVisual(animate: animate)
         }
@@ -316,24 +328,24 @@ private struct SwipeIntroVisual: View {
             swipeDestination(
                 symbol: "arrow.left",
                 direction: L10n.string("左滑"),
-                action: L10n.string("删除"),
-                color: PhotoDeleteStyle.destructive,
+                action: L10n.string("上一张"),
+                color: PhotoDeleteStyle.accent,
                 x: -118,
                 y: 12
             )
             swipeDestination(
                 symbol: "arrow.right",
                 direction: L10n.string("右滑"),
-                action: L10n.string("保留"),
-                color: PhotoDeleteStyle.positive,
+                action: L10n.string("下一张"),
+                color: PhotoDeleteStyle.accent,
                 x: 118,
                 y: 12
             )
             swipeDestination(
                 symbol: "arrow.up",
                 direction: L10n.string("上滑"),
-                action: L10n.string("收藏"),
-                color: PhotoDeleteStyle.iconTint(for: "favorite"),
+                action: L10n.string("删除"),
+                color: PhotoDeleteStyle.destructive,
                 x: 0,
                 y: -106
             )
@@ -372,6 +384,76 @@ private struct SwipeIntroVisual: View {
         .opacity(animate ? 1 : 0.52)
         .offset(x: x, y: y)
         .animation(.spring(response: 0.72, dampingFraction: 0.86), value: animate)
+    }
+}
+
+private struct AdvancedCleanupIntroVisual: View {
+    let animate: Bool
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(PhotoDeleteStyle.surface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 30, style: .continuous)
+                        .stroke(PhotoDeleteStyle.hairline, lineWidth: 1)
+                )
+                .frame(width: 262, height: 236)
+
+            VStack(spacing: 10) {
+                advancedToolRow(
+                    icon: "square.stack.3d.down.right",
+                    title: L10n.string("相似照片"),
+                    tint: PhotoDeleteStyle.accent,
+                    delayIndex: 0
+                )
+
+                advancedToolRow(
+                    icon: "externaldrive",
+                    title: L10n.string("大文件"),
+                    tint: PhotoDeleteStyle.warning,
+                    delayIndex: 1
+                )
+
+                advancedToolRow(
+                    icon: "video.badge.checkmark",
+                    title: L10n.string("视频压缩"),
+                    tint: PhotoDeleteStyle.positive,
+                    delayIndex: 2
+                )
+            }
+            .padding(.horizontal, 28)
+        }
+        .animation(.spring(response: 0.72, dampingFraction: 0.86), value: animate)
+    }
+
+    private func advancedToolRow(icon: String, title: String, tint: Color, delayIndex: Int) -> some View {
+        HStack(spacing: 12) {
+            PhotoDeleteIconTile(icon: icon, tint: tint, size: 34, cornerRadius: 10)
+
+            Text(title)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(PhotoDeleteStyle.primaryText)
+
+            Spacer()
+
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(tint)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(PhotoDeleteStyle.elevatedSurface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(PhotoDeleteStyle.hairline, lineWidth: 1)
+                )
+        )
+        .offset(y: animate ? 0 : 16)
+        .opacity(animate ? 1 : 0.35)
+        .animation(.spring(response: 0.62, dampingFraction: 0.84).delay(Double(delayIndex) * 0.06), value: animate)
     }
 }
 
