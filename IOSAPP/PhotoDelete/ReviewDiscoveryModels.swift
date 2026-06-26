@@ -301,7 +301,7 @@ struct PhotoLocationResolvedTitle: Codable, Equatable, Hashable, Sendable {
 enum PhotoLocationGrouping {
     static let noLocationID = "location:none"
     static let defaultMaximumGroups = 120
-    private static let coordinateBucketSize = 0.25
+    private static let coordinateBucketSize = 0.05
 
     struct Result {
         let groups: [PhotoLocationGroupInfo]

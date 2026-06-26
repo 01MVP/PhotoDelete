@@ -1404,7 +1404,7 @@ struct PhotoDeleteTests {
     @Test func locationGroupingSeparatesNoLocationAndCountsReviewed() async throws {
         let records = [
             PhotoLocationAssetRecord(identifier: "sh-1", latitude: 31.23, longitude: 121.47, isReviewed: true),
-            PhotoLocationAssetRecord(identifier: "sh-2", latitude: 31.24, longitude: 121.48, isReviewed: false),
+            PhotoLocationAssetRecord(identifier: "sh-2", latitude: 31.231, longitude: 121.471, isReviewed: false),
             PhotoLocationAssetRecord(identifier: "unknown", latitude: nil, longitude: nil, isReviewed: false)
         ]
 
@@ -1422,7 +1422,7 @@ struct PhotoDeleteTests {
     @Test func locationGroupingUsesCachedHumanTitle() async throws {
         let records = [
             PhotoLocationAssetRecord(identifier: "sh-1", latitude: 31.23, longitude: 121.47, isReviewed: false),
-            PhotoLocationAssetRecord(identifier: "sh-2", latitude: 31.24, longitude: 121.48, isReviewed: false)
+            PhotoLocationAssetRecord(identifier: "sh-2", latitude: 31.231, longitude: 121.471, isReviewed: false)
         ]
         let groupID = PhotoLocationGrouping.groupID(latitude: 31.23, longitude: 121.47)
 

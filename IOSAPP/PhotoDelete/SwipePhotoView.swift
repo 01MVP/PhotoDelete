@@ -8,6 +8,7 @@
 import SwiftUI
 import AVKit
 import Photos
+import PhotosUI
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -2615,6 +2616,9 @@ struct RealPhotoCard: View {
     @State private var thumbnailRequestID: PHImageRequestID?
     @State private var previewRequestID: PHImageRequestID?
     @State private var fallbackRequestID: PHImageRequestID?
+    @State private var livePhotoRequestID: PHImageRequestID?
+    @State private var livePhoto: PHLivePhoto?
+    @State private var failedToLoadLivePhoto = false
     @State private var loadingAssetIdentifier: String?
     @State private var isShowingDegradedPreview = false
     @State private var isDownloadingFromCloud = false
@@ -2637,6 +2641,28 @@ struct RealPhotoCard: View {
                 .overlay(
                     candidateOverlay,
                     alignment: .center
+                )
+            } else if shouldShowLivePhotoPlayback, let livePhoto {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .fill(Color.black.opacity(0.22))
+
+                    LivePhotoPreviewRepresentable(
+                        livePhoto: livePhoto,
+                        contentMode: .scaleAspectFit
+                    )
+                    .frame(width: displaySize.width, height: displaySize.height)
+                }
+                .frame(width: displaySize.width, height: displaySize.height)
+                .clipped()
+                .cornerRadius(20)
+                .overlay(
+                    overlayContent,
+                    alignment: .topTrailing
+                )
+                .overlay(
+                    previewStatusOverlay,
+                    alignment: .bottom
                 )
             } else if let image = image {
                 ZStack {
@@ -2717,9 +2743,20 @@ struct RealPhotoCard: View {
             photoLibraryManager.cancelImageRequest(thumbnailRequestID)
             photoLibraryManager.cancelImageRequest(previewRequestID)
             photoLibraryManager.cancelImageRequest(fallbackRequestID)
+            photoLibraryManager.cancelImageRequest(livePhotoRequestID)
             loadingAssetIdentifier = nil
+            livePhoto = nil
+            livePhotoRequestID = nil
             resetPreviewLoadingState()
         }
+    }
+
+    private var shouldShowLivePhotoPlayback: Bool {
+        photoLibraryManager.isLivePhoto(asset) &&
+            !isInDeleteCandidates &&
+            !isInFavoriteCandidates &&
+            !isBeingFiledToAlbum &&
+            !isFiledToAlbum
     }
 
     @ViewBuilder
@@ -2850,9 +2887,13 @@ struct RealPhotoCard: View {
         photoLibraryManager.cancelImageRequest(thumbnailRequestID)
         photoLibraryManager.cancelImageRequest(previewRequestID)
         photoLibraryManager.cancelImageRequest(fallbackRequestID)
+        photoLibraryManager.cancelImageRequest(livePhotoRequestID)
         isLoading = true
         image = nil
         fallbackRequestID = nil
+        livePhoto = nil
+        livePhotoRequestID = nil
+        failedToLoadLivePhoto = false
         resetPreviewLoadingState()
         let requestedAssetID = asset.localIdentifier
         loadingAssetIdentifier = requestedAssetID
@@ -2906,6 +2947,10 @@ struct RealPhotoCard: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) {
             guard loadingAssetIdentifier == requestedAssetID, image == nil else { return }
             loadFallbackImage(for: requestedAssetID)
+        }
+
+        if photoLibraryManager.isLivePhoto(asset) {
+            loadLivePhoto(for: requestedAssetID)
         }
     }
 
@@ -2973,6 +3018,32 @@ struct RealPhotoCard: View {
             }
             self.resetPreviewLoadingState()
             self.fallbackRequestID = nil
+        }
+    }
+
+    private func loadLivePhoto(for requestedAssetID: String) {
+        guard livePhotoRequestID == nil, !failedToLoadLivePhoto else { return }
+        let livePhotoSize = CGSize(
+            width: min(max(targetSize.width, displaySize.width * 2), 1_600),
+            height: min(max(targetSize.height, displaySize.height * 2), 1_600)
+        )
+
+        livePhotoRequestID = photoLibraryManager.loadLivePhotoResult(
+            for: asset,
+            size: livePhotoSize
+        ) { result in
+            guard loadingAssetIdentifier == requestedAssetID else { return }
+
+            if let loadedLivePhoto = result.livePhoto {
+                livePhoto = loadedLivePhoto
+                isLoading = false
+            } else if result.isFinal, livePhoto == nil {
+                failedToLoadLivePhoto = true
+            }
+
+            if result.isFinal {
+                livePhotoRequestID = nil
+            }
         }
     }
 }

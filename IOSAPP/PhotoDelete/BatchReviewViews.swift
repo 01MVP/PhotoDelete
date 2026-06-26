@@ -1134,33 +1134,79 @@ struct CandidatePhotoPreviewView: View {
     }
 }
 
-private struct LivePhotoPreviewRepresentable: UIViewRepresentable {
+struct LivePhotoPreviewRepresentable: UIViewRepresentable {
     let livePhoto: PHLivePhoto
+    var autoPlay = true
+    var playbackStyle: PHLivePhotoViewPlaybackStyle = .full
+    var contentMode: UIView.ContentMode = .scaleAspectFit
 
     func makeCoordinator() -> Coordinator {
-        Coordinator()
+        Coordinator(autoPlay: autoPlay, playbackStyle: playbackStyle)
     }
 
     func makeUIView(context: Context) -> PHLivePhotoView {
         let view = PHLivePhotoView()
-        view.contentMode = .scaleAspectFit
+        view.contentMode = contentMode
+        view.delegate = context.coordinator
         return view
     }
 
     func updateUIView(_ uiView: PHLivePhotoView, context: Context) {
-        guard context.coordinator.displayedLivePhoto !== livePhoto else { return }
-        context.coordinator.displayedLivePhoto = livePhoto
-        uiView.livePhoto = livePhoto
-        uiView.startPlayback(with: .hint)
+        context.coordinator.autoPlay = autoPlay
+        context.coordinator.playbackStyle = playbackStyle
+        context.coordinator.isDismantled = false
+        uiView.contentMode = contentMode
+
+        if context.coordinator.displayedLivePhoto !== livePhoto {
+            context.coordinator.displayedLivePhoto = livePhoto
+            uiView.livePhoto = livePhoto
+            context.coordinator.startPlayback(in: uiView, delay: 0.12)
+        } else if autoPlay, !context.coordinator.isPlaying {
+            context.coordinator.startPlayback(in: uiView, delay: 0.12)
+        }
     }
 
     static func dismantleUIView(_ uiView: PHLivePhotoView, coordinator: Coordinator) {
+        coordinator.isDismantled = true
+        uiView.delegate = nil
         uiView.stopPlayback()
         uiView.livePhoto = nil
         coordinator.displayedLivePhoto = nil
     }
 
-    final class Coordinator {
+    final class Coordinator: NSObject, PHLivePhotoViewDelegate {
         weak var displayedLivePhoto: PHLivePhoto?
+        var autoPlay: Bool
+        var playbackStyle: PHLivePhotoViewPlaybackStyle
+        var isPlaying = false
+        var isDismantled = false
+
+        init(autoPlay: Bool, playbackStyle: PHLivePhotoViewPlaybackStyle) {
+            self.autoPlay = autoPlay
+            self.playbackStyle = playbackStyle
+        }
+
+        func startPlayback(in view: PHLivePhotoView, delay: TimeInterval) {
+            guard autoPlay else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self, weak view] in
+                guard let self,
+                      let view,
+                      self.autoPlay,
+                      !self.isDismantled,
+                      view.livePhoto != nil else { return }
+                view.stopPlayback()
+                view.startPlayback(with: self.playbackStyle)
+                self.isPlaying = true
+            }
+        }
+
+        func livePhotoView(_ livePhotoView: PHLivePhotoView, willBeginPlaybackWith playbackStyle: PHLivePhotoViewPlaybackStyle) {
+            isPlaying = true
+        }
+
+        func livePhotoView(_ livePhotoView: PHLivePhotoView, didEndPlaybackWith playbackStyle: PHLivePhotoViewPlaybackStyle) {
+            isPlaying = false
+            startPlayback(in: livePhotoView, delay: 0.75)
+        }
     }
 }

@@ -2283,6 +2283,50 @@
         }
       }
     },
+    "选择已显示": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select Shown"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "选择已显示"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇已顯示"
+          }
+        }
+      }
+    },
+    "取消选择已显示": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deselect Shown"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "取消选择已显示"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消選擇已顯示"
+          }
+        }
+      }
+    },
     "全部徽章": {
       "localizations": {
         "en": {
@@ -10717,6 +10761,28 @@
         }
       }
     },
+    "回到全部地点": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recenter all places"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "回到全部地点"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回到全部地點"
+          }
+        }
+      }
+    },
     "返回主页": {
       "localizations": {
         "en": {
@@ -14668,6 +14734,28 @@
         }
       }
     },
+    "可减少": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can Save"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "可减少"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可減少"
+          }
+        }
+      }
+    },
     "最近压缩记录 · %lld 次 · 已减少 %@": {
       "localizations": {
         "en": {
@@ -14686,6 +14774,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "最近壓縮記錄 · %lld 次 · 已減少 %@"
+          }
+        }
+      }
+    },
+    "最近压缩记录 · %lld 次 · 可减少 %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recent compressions · %lld sessions · can save %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "最近压缩记录 · %lld 次 · 可减少 %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近壓縮記錄 · %lld 次 · 可減少 %@"
           }
         }
       }
@@ -16318,6 +16428,28 @@
         }
       }
     },
+    "原视频已删除": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Original video deleted"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "原视频已删除"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原影片已刪除"
+          }
+        }
+      }
+    },
     "压缩副本可能已删除": {
       "localizations": {
         "en": {
@@ -16358,6 +16490,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "壓縮後影片可能已刪除"
+          }
+        }
+      }
+    },
+    "压缩后视频已删除": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compressed video deleted"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "压缩后视频已删除"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "壓縮後影片已刪除"
           }
         }
       }
@@ -19134,6 +19288,28 @@
         }
       }
     },
+    "已显示 %lld/%lld 张图片 · 当前约 %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld/%lld images shown · shown items about %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "已显示 %lld/%lld 张图片 · 当前约 %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已顯示 %lld/%lld 張圖片 · 目前約 %@"
+          }
+        }
+      }
+    },
     "正在处理第 %lld 张图片": {
       "localizations": {
         "en": {
@@ -19728,6 +19904,28 @@
         }
       }
     },
+    "原图已删除": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Original image deleted"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "原图已删除"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原圖已刪除"
+          }
+        }
+      }
+    },
     "压缩后图片可能已删除": {
       "localizations": {
         "en": {
@@ -19746,6 +19944,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "壓縮後圖片可能已刪除"
+          }
+        }
+      }
+    },
+    "压缩后图片已删除": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compressed image deleted"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "压缩后图片已删除"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "壓縮後圖片已刪除"
           }
         }
       }
