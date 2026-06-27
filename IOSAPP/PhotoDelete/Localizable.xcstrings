@@ -20388,50 +20388,6 @@
         }
       }
     },
-    "系统相册风格": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Photos-style browsing"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "系统相册风格"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "系統相簿風格"
-          }
-        }
-      }
-    },
-    "左滑上一张，右滑下一张，上滑删除": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Swipe left for previous, right for next, up to delete"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "new",
-            "value": "左滑上一张，右滑下一张，上滑删除"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "左滑上一張，右滑下一張，上滑刪除"
-          }
-        }
-      }
-    },
     "左滑删除": {
       "localizations": {
         "en": {
@@ -21132,6 +21088,138 @@
           "stringUnit": {
             "state": "translated",
             "value": "左右滑動瀏覽照片，上滑加入待刪除；想換手勢，可以在整理頁底部打開設定。"
+          }
+        }
+      }
+    },
+    "左右浏览，上滑删除": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Browse left and right, swipe up to delete"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "左右浏览，上滑删除"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "左右瀏覽，上滑刪除"
+          }
+        }
+      }
+    },
+    "左滑下一张，右滑上一张，上滑删除": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swipe left for next, right for previous, up to delete"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "左滑下一张，右滑上一张，上滑删除"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "左滑下一張，右滑上一張，上滑刪除"
+          }
+        }
+      }
+    },
+    "继续向下滚动加载更多": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scroll down to load more"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "继续向下滚动加载更多"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "繼續向下捲動載入更多"
+          }
+        }
+      }
+    },
+    "原图仍保留": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Original still kept"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原图仍保留"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原圖仍保留"
+          }
+        }
+      }
+    },
+    "原视频仍保留": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Original video still kept"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原视频仍保留"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原影片仍保留"
+          }
+        }
+      }
+    },
+    "删除原文件释放空间": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete originals to free space"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除原文件释放空间"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刪除原始檔釋放空間"
           }
         }
       }

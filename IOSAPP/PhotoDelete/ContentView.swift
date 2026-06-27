@@ -328,7 +328,7 @@ private struct SwipeIntroVisual: View {
             swipeDestination(
                 symbol: "arrow.left",
                 direction: L10n.string("左滑"),
-                action: L10n.string("上一张"),
+                action: L10n.string("下一张"),
                 color: PhotoDeleteStyle.accent,
                 x: -118,
                 y: 12
@@ -336,7 +336,7 @@ private struct SwipeIntroVisual: View {
             swipeDestination(
                 symbol: "arrow.right",
                 direction: L10n.string("右滑"),
-                action: L10n.string("下一张"),
+                action: L10n.string("上一张"),
                 color: PhotoDeleteStyle.accent,
                 x: 118,
                 y: 12

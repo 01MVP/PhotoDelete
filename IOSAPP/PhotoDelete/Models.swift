@@ -146,10 +146,10 @@ struct SwipeGesturePreset: Identifiable, Equatable {
 
     static let standard = SwipeGesturePreset(
         id: "standard",
-        titleKey: "系统相册风格",
-        subtitleKey: "左滑上一张，右滑下一张，上滑删除",
-        leftAction: .previous,
-        rightAction: .next,
+        titleKey: "左右浏览，上滑删除",
+        subtitleKey: "左滑下一张，右滑上一张，上滑删除",
+        leftAction: .next,
+        rightAction: .previous,
         upAction: .delete
     )
 
@@ -179,7 +179,7 @@ struct SwipeGesturePreset: Identifiable, Equatable {
 }
 
 enum SwipeGesturePreferences {
-    private static let gestureMigrationVersion = "system-album-style-v1"
+    private static let gestureMigrationVersion = "browse-left-next-v1"
 
     static func defaultAction(for direction: SwipeGestureDirection) -> SwipeGestureAction {
         SwipeGesturePreset.standard.action(for: direction)
@@ -206,7 +206,11 @@ enum SwipeGesturePreferences {
             rightValue == SwipeGestureAction.delete.rawValue &&
             (upValue == nil || upValue == SwipeGestureAction.favorite.rawValue)
 
-        if matchesLeftDeleteDefault || matchesOlderRightDeleteDefault {
+        let matchesPreviousBrowseDefault = leftValue == SwipeGestureAction.previous.rawValue &&
+            rightValue == SwipeGestureAction.next.rawValue &&
+            upValue == SwipeGestureAction.delete.rawValue
+
+        if matchesLeftDeleteDefault || matchesOlderRightDeleteDefault || matchesPreviousBrowseDefault {
             defaults.set(SwipeGesturePreset.standard.leftAction.rawValue, forKey: AppConstants.leftSwipeActionKey)
             defaults.set(SwipeGesturePreset.standard.rightAction.rawValue, forKey: AppConstants.rightSwipeActionKey)
             defaults.set(SwipeGesturePreset.standard.upAction.rawValue, forKey: AppConstants.upSwipeActionKey)

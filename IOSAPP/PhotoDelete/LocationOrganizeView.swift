@@ -20,11 +20,10 @@ struct LocationOrganizeView: View {
 
     var body: some View {
         ZStack {
-            Map(coordinateRegion: $mapRegion, annotationItems: locationAnnotations) { annotation in
+            Map(coordinateRegion: $mapRegion, interactionModes: .all, annotationItems: locationAnnotations) { annotation in
                 MapAnnotation(coordinate: annotation.coordinate, anchorPoint: CGPoint(x: 0.5, y: 1)) {
                     LocationMapPhotoMarkerView(
                         annotation: annotation,
-                        photoLibraryManager: dataManager.photoLibraryManager,
                         isSelected: annotation.id == selectedGroupID
                     ) {
                         withAnimation(.spring(response: 0.24, dampingFraction: 0.88)) {
@@ -73,6 +72,7 @@ struct LocationOrganizeView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
+        .toolbar(.hidden, for: .tabBar)
         .onAppear {
             dataManager.loadLocationGroups()
             refreshMapStateIfNeeded()
@@ -93,6 +93,7 @@ struct LocationOrganizeView: View {
                     NavigationLink(value: SwipeViewDestination.location(selectedAnnotation.group.id)) {
                         LocationMapSelectedGroupPanel(
                             annotation: selectedAnnotation,
+                            thumbnailAsset: selectedThumbnailAsset,
                             photoLibraryManager: dataManager.photoLibraryManager
                         )
                     }
@@ -154,11 +155,9 @@ struct LocationOrganizeView: View {
             guard let coordinate = dataManager.locationGroupCoordinatesByGroupID[group.id] else {
                 return nil
             }
-            let thumbnailAsset = dataManager.getPhotosForLocationGroup(group.id).first
             return LocationMapAnnotation(
                 group: group,
                 coordinate: coordinate,
-                thumbnailAsset: thumbnailAsset,
                 displayIndex: index + 1
             )
         }
@@ -178,7 +177,12 @@ struct LocationOrganizeView: View {
     }
 
     private var mapPhotoCount: Int {
-        locationAnnotations.reduce(0) { $0 + $1.group.assetCount }
+        mapGroups.reduce(0) { $0 + $1.assetCount }
+    }
+
+    private var selectedThumbnailAsset: PHAsset? {
+        guard let selectedGroupID else { return nil }
+        return dataManager.getPhotosForLocationGroup(selectedGroupID).first
     }
 
     private var bottomPanelHorizontalPadding: CGFloat {
@@ -234,7 +238,6 @@ struct LocationOrganizeView: View {
 private struct LocationMapAnnotation: Identifiable {
     let group: PhotoLocationGroupInfo
     let coordinate: CLLocationCoordinate2D
-    let thumbnailAsset: PHAsset?
     let displayIndex: Int
 
     var id: String { group.id }
@@ -356,47 +359,39 @@ private struct LocationMapOverlayCard<Content: View>: View {
 
 private struct LocationMapPhotoMarkerView: View {
     let annotation: LocationMapAnnotation
-    let photoLibraryManager: PhotoLibraryManager
     let isSelected: Bool
     let onSelect: () -> Void
 
     var body: some View {
         Button(action: onSelect) {
             VStack(spacing: 0) {
-                ZStack(alignment: .bottomLeading) {
-                    LocationMapThumbnailView(
-                        asset: annotation.thumbnailAsset,
-                        photoLibraryManager: photoLibraryManager,
-                        size: markerSize
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                ZStack {
+                    Circle()
+                        .fill(isSelected ? PhotoDeleteStyle.accent : PhotoDeleteStyle.surface)
 
-                    LinearGradient(
-                        colors: [.clear, .black.opacity(0.62)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    VStack(spacing: 2) {
+                        Image(systemName: "mappin.circle.fill")
+                            .font(.system(size: isSelected ? 20 : 17, weight: .semibold))
+                            .foregroundColor(isSelected ? .white : PhotoDeleteStyle.accent)
 
-                    Text(L10n.shortPhotoCount(annotation.group.assetCount))
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(.white)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.75)
-                        .padding(.horizontal, 8)
-                        .padding(.bottom, 6)
+                        Text(L10n.shortPhotoCount(annotation.group.assetCount))
+                            .font(.system(size: isSelected ? 12 : 11, weight: .bold))
+                            .foregroundColor(isSelected ? .white : PhotoDeleteStyle.primaryText)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.72)
+                    }
+                    .padding(.horizontal, 5)
                 }
                 .frame(width: markerSize, height: markerSize)
-                .background(PhotoDeleteStyle.elevatedSurface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    Circle()
                         .stroke(.white, lineWidth: isSelected ? 4 : 3)
                 )
-                .shadow(color: .black.opacity(isSelected ? 0.24 : 0.16), radius: isSelected ? 14 : 9, x: 0, y: 6)
+                .shadow(color: .black.opacity(isSelected ? 0.22 : 0.12), radius: isSelected ? 12 : 7, x: 0, y: 5)
 
                 Triangle()
-                    .fill(.white)
-                    .frame(width: 16, height: 9)
+                    .fill(isSelected ? PhotoDeleteStyle.accent : PhotoDeleteStyle.surface)
+                    .frame(width: 14, height: 8)
                     .shadow(color: .black.opacity(0.10), radius: 2, x: 0, y: 1)
             }
         }
@@ -407,7 +402,7 @@ private struct LocationMapPhotoMarkerView: View {
     }
 
     private var markerSize: CGFloat {
-        isSelected ? 86 : 74
+        isSelected ? 62 : 52
     }
 }
 
@@ -464,12 +459,13 @@ private struct LocationMapThumbnailView: View {
 
 private struct LocationMapSelectedGroupPanel: View {
     let annotation: LocationMapAnnotation
+    let thumbnailAsset: PHAsset?
     let photoLibraryManager: PhotoLibraryManager
 
     var body: some View {
         HStack(spacing: 12) {
             LocationMapThumbnailView(
-                asset: annotation.thumbnailAsset,
+                asset: thumbnailAsset,
                 photoLibraryManager: photoLibraryManager,
                 size: 58
             )

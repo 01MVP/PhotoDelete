@@ -1715,10 +1715,10 @@ private struct AdvancedImageCompressionView: View {
     @State private var showBatchConfirm = false
     @State private var compressionOptionsContext: AdvancedImageCompressionOptionsContext?
     @State private var compressionTask: Task<Void, Never>?
-    @State private var visibleImageLimit = 36
+    @State private var visibleImageLimit = 24
     @State private var selectedTab: AdvancedImageCompressionTab = .pending
 
-    private let imageLimitStep = 36
+    private let imageLimitStep = 24
 
     private var selectedAssets: [PHAsset] {
         compressibleAssets.filter { selectedAssetIDs.contains($0.localIdentifier) }
@@ -1927,19 +1927,18 @@ private struct AdvancedImageCompressionView: View {
                             onToggleSelection: { toggleSelection(asset) },
                             onPreview: { previewAsset = AdvancedPreviewAsset(asset: asset) }
                         )
+                        .onAppear {
+                            showMoreCompressibleImagesIfNeeded(currentAsset: asset)
+                        }
                     }
                 }
 
                 if hasMoreCompressibleAssets {
-                    Button(action: showMoreCompressibleImages) {
-                        Text(showMoreCompressionItemsTitle(currentCount: visibleCompressibleAssets.count, totalCount: compressibleAssets.count))
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(PhotoDeleteStyle.accent)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                    }
-                    .buttonStyle(.plain)
-                    .photoDeleteMinimumTapTarget()
+                    Text(L10n.string("继续向下滚动加载更多"))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(PhotoDeleteStyle.secondaryText)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
                 }
             }
         }
@@ -1957,7 +1956,8 @@ private struct AdvancedImageCompressionView: View {
             AdvancedImageCompressionHistoryCard(
                 sessions: dataManager.imageCompressionHistoryStore.sessions,
                 photoLibraryManager: dataManager.photoLibraryManager,
-                startsExpanded: true
+                startsExpanded: true,
+                onDeleteOriginals: queueCompressedHistoryOriginalImagesForDeletion
             )
         }
     }
@@ -1965,7 +1965,7 @@ private struct AdvancedImageCompressionView: View {
     private func reloadAssets() {
         let loadedAssets = dataManager.getPhotosForAdvancedCleanup(.imageCompression)
         assets = loadedAssets
-        visibleImageLimit = 36
+        visibleImageLimit = 24
         selectedAssetIDs = selectedAssetIDs.filter { selectedID in
             loadedAssets.contains { $0.localIdentifier == selectedID }
         }
@@ -1980,6 +1980,15 @@ private struct AdvancedImageCompressionView: View {
                 step: imageLimitStep
             )
         }
+    }
+
+    private func showMoreCompressibleImagesIfNeeded(currentAsset asset: PHAsset) {
+        guard hasMoreCompressibleAssets,
+              let index = visibleCompressibleAssets.firstIndex(where: { $0.localIdentifier == asset.localIdentifier }),
+              index >= max(visibleCompressibleAssets.count - 6, 0) else {
+            return
+        }
+        showMoreCompressibleImages()
     }
 
     private func toggleSelection(_ asset: PHAsset) {
@@ -2174,6 +2183,29 @@ private struct AdvancedImageCompressionView: View {
         showBatchConfirm = true
     }
 
+    private func queueCompressedHistoryOriginalImagesForDeletion() {
+        let originalIDs = Set(dataManager.imageCompressionHistoryStore.sessions.flatMap { session in
+            session.items.map(\.originalAssetIdentifier)
+        })
+        let fetchedOriginals = PHAsset.fetchAssets(withLocalIdentifiers: Array(originalIDs), options: nil)
+        var originalAssets: [PHAsset] = []
+        fetchedOriginals.enumerateObjects { asset, _, _ in
+            originalAssets.append(asset)
+        }
+        guard !originalAssets.isEmpty else {
+            compressionErrorMessage = L10n.string("暂时找不到原图。")
+            return
+        }
+
+        for asset in originalAssets {
+            _ = dataManager.markReviewed(asset)
+            dataManager.addToDeleteCandidates(asset)
+        }
+        HapticManager.notify(.warning)
+        dismissCompressionResultAfterBatch = false
+        showBatchConfirm = true
+    }
+
     private func keepOriginalImages() {
         compressionResult = nil
         compressionErrorMessage = nil
@@ -2346,14 +2378,6 @@ private struct AdvancedImageCompressionListHeader: View {
         }
         .padding(.top, 2)
     }
-}
-
-private func showMoreCompressionItemsTitle(currentCount: Int, totalCount: Int) -> String {
-    String(
-        format: L10n.string("显示更多（%lld/%lld）"),
-        Int64(currentCount),
-        Int64(totalCount)
-    )
 }
 
 private struct AdvancedImageCompressionOptionsContext: Identifiable {
@@ -2780,15 +2804,18 @@ private struct AdvancedImageCompressionComparisonRow: View {
 private struct AdvancedImageCompressionHistoryCard: View {
     let sessions: [ImageCompressionSession]
     let photoLibraryManager: PhotoLibraryManager
+    let onDeleteOriginals: (() -> Void)?
     @State private var isExpanded = false
 
     init(
         sessions: [ImageCompressionSession],
         photoLibraryManager: PhotoLibraryManager,
-        startsExpanded: Bool = false
+        startsExpanded: Bool = false,
+        onDeleteOriginals: (() -> Void)? = nil
     ) {
         self.sessions = sessions
         self.photoLibraryManager = photoLibraryManager
+        self.onDeleteOriginals = onDeleteOriginals
         _isExpanded = State(initialValue: startsExpanded)
     }
 
@@ -2836,6 +2863,21 @@ private struct AdvancedImageCompressionHistoryCard: View {
             }
             .buttonStyle(.plain)
             .accessibilityValue(isExpanded ? Text(L10n.string("已展开")) : Text(L10n.string("已折叠")))
+
+            if let onDeleteOriginals {
+                Button(action: onDeleteOriginals) {
+                    Label(L10n.string("删除原文件释放空间"), systemImage: "trash")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(PhotoDeleteStyle.destructive)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(PhotoDeleteStyle.destructive.opacity(0.10))
+                        )
+                }
+                .buttonStyle(.plain)
+            }
 
             if isExpanded {
                 Divider()
@@ -2918,27 +2960,31 @@ private struct AdvancedImageCompressionHistoryItemRow: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            VStack(spacing: 6) {
-                thumbnail(for: originalAsset)
-                thumbnail(for: compressedAsset)
-            }
+        HStack(alignment: .center, spacing: 10) {
+            thumbnail(for: compressedAsset)
 
-            VStack(alignment: .leading, spacing: 6) {
-                historyLine(
-                    label: L10n.string("原图"),
-                    title: title(for: originalAsset, fallback: L10n.string("原图已删除")),
-                    size: item.formattedOriginalSize
-                )
+            VStack(alignment: .leading, spacing: 5) {
+                Text(title(for: compressedAsset, fallback: L10n.string("压缩后图片已删除")))
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.primaryText)
+                    .lineLimit(1)
 
-                historyLine(
-                    label: L10n.string("压缩后"),
-                    title: title(for: compressedAsset, fallback: L10n.string("压缩后图片已删除")),
-                    size: item.formattedCompressedSize
-                )
+                Text("\(item.formattedOriginalSize) → \(item.formattedCompressedSize)")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                    .lineLimit(1)
+
+                Label(originalStatusText, systemImage: originalStatusIcon)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(originalAsset == nil ? PhotoDeleteStyle.positive : PhotoDeleteStyle.warning)
+                    .lineLimit(1)
             }
 
             Spacer(minLength: 0)
+
+            Text(item.formattedSavedSize)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(item.savedSizeMB > 0 ? PhotoDeleteStyle.positive : PhotoDeleteStyle.warning)
         }
         .padding(9)
         .background(
@@ -2953,13 +2999,13 @@ private struct AdvancedImageCompressionHistoryItemRow: View {
             AdvancedAssetThumbnail(
                 asset: asset,
                 photoLibraryManager: photoLibraryManager,
-                size: 34
+                size: 44
             )
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         } else {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(PhotoDeleteStyle.elevatedSurface)
-                .frame(width: 34, height: 34)
+                .frame(width: 44, height: 44)
                 .overlay(
                     Image(systemName: "questionmark")
                         .font(.system(size: 12, weight: .semibold))
@@ -2968,23 +3014,12 @@ private struct AdvancedImageCompressionHistoryItemRow: View {
         }
     }
 
-    private func historyLine(label: String, title: String, size: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 6) {
-                Text(label)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+    private var originalStatusText: String {
+        originalAsset == nil ? L10n.string("原图已删除") : L10n.string("原图仍保留")
+    }
 
-                Text(size)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.positive)
-            }
-
-            Text(title)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(PhotoDeleteStyle.primaryText)
-                .lineLimit(1)
-        }
+    private var originalStatusIcon: String {
+        originalAsset == nil ? "checkmark.circle.fill" : "exclamationmark.circle"
     }
 
     private func title(for asset: PHAsset?, fallback: String) -> String {
@@ -3108,9 +3143,9 @@ private struct AdvancedVideoCompressionView: View {
     @State private var compressionTask: Task<Void, Never>?
     @State private var sizeLoadingTask: Task<Void, Never>?
     @State private var selectedTab: AdvancedVideoCompressionTab = .pending
-    @State private var visibleVideoLimit = 120
+    @State private var visibleVideoLimit = 40
 
-    private let videoLimitStep = 120
+    private let videoLimitStep = 40
 
     private var selectedAssets: [PHAsset] {
         compressibleAssets.filter { selectedAssetIDs.contains($0.localIdentifier) }
@@ -3129,7 +3164,7 @@ private struct AdvancedVideoCompressionView: View {
     }
 
     private var isAllSelected: Bool {
-        !compressibleAssets.isEmpty && compressibleAssets.allSatisfy { selectedAssetIDs.contains($0.localIdentifier) }
+        !visibleCompressibleAssets.isEmpty && visibleCompressibleAssets.allSatisfy { selectedAssetIDs.contains($0.localIdentifier) }
     }
 
     private var processedVideoAssetIDs: Set<String> {
@@ -3155,20 +3190,8 @@ private struct AdvancedVideoCompressionView: View {
         }
     }
 
-    private var loadedReliableVideoSizeCount: Int {
-        loadedReliableVideoSizeCount(in: compressibleAssets)
-    }
-
-    private var loadedVideoSizeCount: Int {
-        loadedVideoSizeCount(in: compressibleAssets)
-    }
-
     private var iCloudVideoCount: Int {
         iCloudVideoCount(in: compressibleAssets)
-    }
-
-    private var compressibleTotalSizeMB: Double {
-        compressibleAssets.reduce(0) { $0 + (reliableSizeMB(for: $1) ?? 0) }
     }
 
     private func loadedReliableVideoSizeCount(in assets: [PHAsset]) -> Int {
@@ -3192,25 +3215,29 @@ private struct AdvancedVideoCompressionView: View {
     private var videoListSizeSummary: String {
         guard !compressibleAssets.isEmpty else { return L10n.string("没有需要压缩的视频") }
 
-        if loadedReliableVideoSizeCount == compressibleAssets.count {
+        let visibleReliableSizeCount = loadedReliableVideoSizeCount(in: visibleCompressibleAssets)
+        let visibleLoadedSizeCount = loadedVideoSizeCount(in: visibleCompressibleAssets)
+        let visibleTotalSizeMB = visibleCompressibleAssets.reduce(0) { $0 + (reliableSizeMB(for: $1) ?? 0) }
+
+        if visibleReliableSizeCount == visibleCompressibleAssets.count {
             return String(
                 format: L10n.string("已显示 %lld/%lld 个视频 · 合计约 %@"),
                 Int64(visibleCompressibleAssets.count),
                 Int64(compressibleAssets.count),
-                CleanupStatsFormatter.space(compressibleTotalSizeMB)
+                CleanupStatsFormatter.space(visibleTotalSizeMB)
             )
         }
 
-        if loadedReliableVideoSizeCount > 0 {
+        if visibleReliableSizeCount > 0 {
             return String(
                 format: L10n.string("已显示 %lld/%lld 个视频 · 已知约 %@"),
                 Int64(visibleCompressibleAssets.count),
                 Int64(compressibleAssets.count),
-                CleanupStatsFormatter.space(compressibleTotalSizeMB)
+                CleanupStatsFormatter.space(visibleTotalSizeMB)
             )
         }
 
-        if loadedVideoSizeCount == compressibleAssets.count {
+        if visibleLoadedSizeCount == visibleCompressibleAssets.count {
             return String(
                 format: L10n.string("已显示 %lld/%lld 个视频 · 压缩时确认大小"),
                 Int64(visibleCompressibleAssets.count),
@@ -3408,19 +3435,18 @@ private struct AdvancedVideoCompressionView: View {
                             onToggleSelection: { toggleSelection(asset) },
                             onPreview: { previewAsset = AdvancedPreviewAsset(asset: asset) }
                         )
+                        .onAppear {
+                            showMoreCompressibleVideosIfNeeded(currentAsset: asset)
+                        }
                     }
                 }
 
                 if hasMoreCompressibleAssets {
-                    Button(action: showMoreCompressibleVideos) {
-                        Text(showMoreCompressionItemsTitle(currentCount: visibleCompressibleAssets.count, totalCount: compressibleAssets.count))
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(PhotoDeleteStyle.accent)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                    }
-                    .buttonStyle(.plain)
-                    .photoDeleteMinimumTapTarget()
+                    Text(L10n.string("继续向下滚动加载更多"))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(PhotoDeleteStyle.secondaryText)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
                 }
             }
         }
@@ -3438,7 +3464,8 @@ private struct AdvancedVideoCompressionView: View {
             AdvancedVideoCompressionHistoryCard(
                 sessions: dataManager.videoCompressionHistoryStore.sessions,
                 photoLibraryManager: dataManager.photoLibraryManager,
-                startsExpanded: true
+                startsExpanded: true,
+                onDeleteOriginals: queueCompressedHistoryOriginalVideosForDeletion
             )
         }
     }
@@ -3446,7 +3473,7 @@ private struct AdvancedVideoCompressionView: View {
     private func reloadAssets() {
         let loadedAssets = dataManager.getPhotosForAdvancedCleanup(.videoCompression)
         assets = loadedAssets
-        visibleVideoLimit = 120
+        visibleVideoLimit = 40
         selectedAssetIDs = selectedAssetIDs.filter { selectedID in
             loadedAssets.contains { $0.localIdentifier == selectedID }
         }
@@ -3535,6 +3562,15 @@ private struct AdvancedVideoCompressionView: View {
         loadVideoSizes(for: visibleCompressibleAssets)
     }
 
+    private func showMoreCompressibleVideosIfNeeded(currentAsset asset: PHAsset) {
+        guard hasMoreCompressibleAssets,
+              let index = visibleCompressibleAssets.firstIndex(where: { $0.localIdentifier == asset.localIdentifier }),
+              index >= max(visibleCompressibleAssets.count - 6, 0) else {
+            return
+        }
+        showMoreCompressibleVideos()
+    }
+
     private func toggleSelection(_ asset: PHAsset) {
         guard !isCompressing else { return }
         HapticManager.impact(.light)
@@ -3550,7 +3586,7 @@ private struct AdvancedVideoCompressionView: View {
     private func toggleBulkSelection() {
         guard !isCompressing else { return }
         HapticManager.impact(.light)
-        let visibleIDs = Set(compressibleAssets.map(\.localIdentifier))
+        let visibleIDs = Set(visibleCompressibleAssets.map(\.localIdentifier))
         if isAllSelected {
             selectedAssetIDs.subtract(visibleIDs)
         } else {
@@ -3741,6 +3777,29 @@ private struct AdvancedVideoCompressionView: View {
         }
         HapticManager.notify(.warning)
         dismissCompressionResultAfterBatch = true
+        showBatchConfirm = true
+    }
+
+    private func queueCompressedHistoryOriginalVideosForDeletion() {
+        let originalIDs = Set(dataManager.videoCompressionHistoryStore.sessions.flatMap { session in
+            session.items.map(\.originalAssetIdentifier)
+        })
+        let fetchedOriginals = PHAsset.fetchAssets(withLocalIdentifiers: Array(originalIDs), options: nil)
+        var originalAssets: [PHAsset] = []
+        fetchedOriginals.enumerateObjects { asset, _, _ in
+            originalAssets.append(asset)
+        }
+        guard !originalAssets.isEmpty else {
+            compressionErrorMessage = L10n.string("暂时找不到原视频。")
+            return
+        }
+
+        for asset in originalAssets {
+            _ = dataManager.markReviewed(asset)
+            dataManager.addToDeleteCandidates(asset)
+        }
+        HapticManager.notify(.warning)
+        dismissCompressionResultAfterBatch = false
         showBatchConfirm = true
     }
 
@@ -4654,15 +4713,18 @@ private struct AdvancedVideoCompressionMetric: View {
 private struct AdvancedVideoCompressionHistoryCard: View {
     let sessions: [VideoCompressionSession]
     let photoLibraryManager: PhotoLibraryManager
+    let onDeleteOriginals: (() -> Void)?
     @State private var isExpanded = false
 
     init(
         sessions: [VideoCompressionSession],
         photoLibraryManager: PhotoLibraryManager,
-        startsExpanded: Bool = false
+        startsExpanded: Bool = false,
+        onDeleteOriginals: (() -> Void)? = nil
     ) {
         self.sessions = sessions
         self.photoLibraryManager = photoLibraryManager
+        self.onDeleteOriginals = onDeleteOriginals
         _isExpanded = State(initialValue: startsExpanded)
     }
 
@@ -4710,6 +4772,21 @@ private struct AdvancedVideoCompressionHistoryCard: View {
             }
             .buttonStyle(.plain)
             .accessibilityValue(isExpanded ? Text(L10n.string("已展开")) : Text(L10n.string("已折叠")))
+
+            if let onDeleteOriginals {
+                Button(action: onDeleteOriginals) {
+                    Label(L10n.string("删除原文件释放空间"), systemImage: "trash")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(PhotoDeleteStyle.destructive)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(PhotoDeleteStyle.destructive.opacity(0.10))
+                        )
+                }
+                .buttonStyle(.plain)
+            }
 
             if isExpanded {
                 Divider()
@@ -4792,27 +4869,31 @@ private struct AdvancedVideoCompressionHistoryItemRow: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            VStack(spacing: 6) {
-                thumbnail(for: originalAsset)
-                thumbnail(for: compressedAsset)
-            }
+        HStack(alignment: .center, spacing: 10) {
+            thumbnail(for: compressedAsset)
 
-            VStack(alignment: .leading, spacing: 6) {
-                historyLine(
-                    label: L10n.string("原视频"),
-                    title: title(for: originalAsset, fallback: L10n.string("原视频已删除")),
-                    size: item.formattedOriginalSize
-                )
+            VStack(alignment: .leading, spacing: 5) {
+                Text(title(for: compressedAsset, fallback: L10n.string("压缩后视频已删除")))
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.primaryText)
+                    .lineLimit(1)
 
-                historyLine(
-                    label: L10n.string("压缩后"),
-                    title: title(for: compressedAsset, fallback: L10n.string("压缩后视频已删除")),
-                    size: item.formattedCompressedSize
-                )
+                Text("\(item.formattedOriginalSize) → \(item.formattedCompressedSize)")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                    .lineLimit(1)
+
+                Label(originalStatusText, systemImage: originalStatusIcon)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(originalAsset == nil ? PhotoDeleteStyle.positive : PhotoDeleteStyle.warning)
+                    .lineLimit(1)
             }
 
             Spacer(minLength: 0)
+
+            Text(item.formattedSavedSize)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(item.savedSizeMB > 0 ? PhotoDeleteStyle.positive : PhotoDeleteStyle.warning)
         }
         .padding(9)
         .background(
@@ -4827,13 +4908,13 @@ private struct AdvancedVideoCompressionHistoryItemRow: View {
             AdvancedAssetThumbnail(
                 asset: asset,
                 photoLibraryManager: photoLibraryManager,
-                size: 34
+                size: 44
             )
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         } else {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(PhotoDeleteStyle.elevatedSurface)
-                .frame(width: 34, height: 34)
+                .frame(width: 44, height: 44)
                 .overlay(
                     Image(systemName: "questionmark")
                         .font(.system(size: 12, weight: .semibold))
@@ -4842,23 +4923,12 @@ private struct AdvancedVideoCompressionHistoryItemRow: View {
         }
     }
 
-    private func historyLine(label: String, title: String, size: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 6) {
-                Text(label)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+    private var originalStatusText: String {
+        originalAsset == nil ? L10n.string("原视频已删除") : L10n.string("原视频仍保留")
+    }
 
-                Text(size)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.positive)
-            }
-
-            Text(title)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(PhotoDeleteStyle.primaryText)
-                .lineLimit(1)
-        }
+    private var originalStatusIcon: String {
+        originalAsset == nil ? "checkmark.circle.fill" : "exclamationmark.circle"
     }
 
     private func title(for asset: PHAsset?, fallback: String) -> String {

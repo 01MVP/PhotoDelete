@@ -548,13 +548,6 @@ struct SwipePhotoView: View {
                 handleSkipAction()
                 resetCardPosition()
             }
-
-            if let previewDirection = dominantSwipeDirection(for: dragOffset, threshold: 50) {
-                SwipeIndicator(
-                    direction: previewDirection,
-                    action: configuredAction(for: previewDirection)
-                )
-            }
         }
     }
 
@@ -2438,7 +2431,6 @@ private struct PhotoSwipeDragFeedbackView: View {
         ZStack {
             feedbackGlow
             directionStripe
-            directionStroke
             hint
         }
         .opacity(0.28 + feedback.progress * 0.72)
@@ -2608,10 +2600,6 @@ private struct PhotoSwipeDragFeedbackView: View {
         }
     }
 
-    private var directionStroke: some View {
-        RoundedRectangle(cornerRadius: 20, style: .continuous)
-            .stroke(feedback.action.tint.opacity(0.24 + feedback.progress * 0.34), lineWidth: 1 + feedback.progress * 1.4)
-    }
 }
 
 private struct SwipeEdgeHint: View {
@@ -3303,65 +3291,6 @@ private struct PhotoDeletePressScaleButtonStyle: ButtonStyle {
             .scaleEffect(configuration.isPressed ? 0.94 : 1)
             .opacity(configuration.isPressed ? 0.78 : 1)
             .animation(.interactiveSpring(response: 0.2, dampingFraction: 0.82), value: configuration.isPressed)
-    }
-}
-
-// MARK: - 滑动指示器
-struct SwipeIndicator: View {
-    let direction: SwipePhotoView.SwipeDirection
-    let action: SwipeGestureAction
-
-    var body: some View {
-        HStack(spacing: 7) {
-            Image(systemName: directionIcon)
-                .font(.system(size: 14, weight: .bold))
-                .foregroundColor(action.tint)
-
-            Image(systemName: action.icon)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(action.tint)
-
-            Text(action.detailTitle.appLocalized)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(PhotoDeleteStyle.primaryText)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(
-            Capsule(style: .continuous)
-                .fill(PhotoDeleteStyle.background.opacity(0.82))
-                .overlay(
-                    Capsule(style: .continuous)
-                        .stroke(action.tint.opacity(0.38), lineWidth: 1)
-                )
-        )
-        .offset(indicatorOffset)
-    }
-
-    private var directionIcon: String {
-        switch direction {
-        case .left:
-            return "arrow.left"
-        case .right:
-            return "arrow.right"
-        case .up:
-            return "arrow.up"
-        case .down:
-            return "arrow.down"
-        }
-    }
-
-    private var indicatorOffset: CGSize {
-        switch direction {
-        case .left:
-            return CGSize(width: -100, height: 0)
-        case .right:
-            return CGSize(width: 100, height: 0)
-        case .up:
-            return CGSize(width: 0, height: -100)
-        case .down:
-            return CGSize(width: 0, height: 100)
-        }
     }
 }
 

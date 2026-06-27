@@ -169,14 +169,14 @@ struct PhotoDeleteTests {
     // MARK: - Gesture settings tests
 
     @Test func swipeGestureStandardPresetMatchesDefaultActions() async throws {
-        #expect(SwipeGesturePreferences.defaultAction(for: .left) == .previous)
-        #expect(SwipeGesturePreferences.defaultAction(for: .right) == .next)
+        #expect(SwipeGesturePreferences.defaultAction(for: .left) == .next)
+        #expect(SwipeGesturePreferences.defaultAction(for: .right) == .previous)
         #expect(SwipeGesturePreferences.defaultAction(for: .up) == .delete)
     }
 
     @Test func swipeGesturePresetsCoverRequestedLayouts() async throws {
-        #expect(SwipeGesturePreset.standard.leftAction == .previous)
-        #expect(SwipeGesturePreset.standard.rightAction == .next)
+        #expect(SwipeGesturePreset.standard.leftAction == .next)
+        #expect(SwipeGesturePreset.standard.rightAction == .previous)
         #expect(SwipeGesturePreset.standard.upAction == .delete)
 
         #expect(SwipeGesturePreset.reversed.leftAction == .delete)
@@ -191,7 +191,7 @@ struct PhotoDeleteTests {
         #expect(SwipeGesturePreferences.normalizedAction("unknown", fallback: .keep) == .keep)
     }
 
-    @Test func swipeGestureMigrationMovesPreviousDefaultToSystemBrowsing() async throws {
+    @Test func swipeGestureMigrationMovesLegacyDefaultToLeftNextBrowsing() async throws {
         let suiteName = "PhotoDeleteGestureMigration-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
@@ -202,8 +202,24 @@ struct PhotoDeleteTests {
 
         SwipeGesturePreferences.migrateStoredDefaultsIfNeeded(defaults: defaults)
 
-        #expect(defaults.string(forKey: AppConstants.leftSwipeActionKey) == SwipeGestureAction.previous.rawValue)
-        #expect(defaults.string(forKey: AppConstants.rightSwipeActionKey) == SwipeGestureAction.next.rawValue)
+        #expect(defaults.string(forKey: AppConstants.leftSwipeActionKey) == SwipeGestureAction.next.rawValue)
+        #expect(defaults.string(forKey: AppConstants.rightSwipeActionKey) == SwipeGestureAction.previous.rawValue)
+        #expect(defaults.string(forKey: AppConstants.upSwipeActionKey) == SwipeGestureAction.delete.rawValue)
+    }
+
+    @Test func swipeGestureMigrationMovesPreviousBrowseDefaultToLeftNextBrowsing() async throws {
+        let suiteName = "PhotoDeleteGestureMigrationPreviousBrowse-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        defaults.set(SwipeGestureAction.previous.rawValue, forKey: AppConstants.leftSwipeActionKey)
+        defaults.set(SwipeGestureAction.next.rawValue, forKey: AppConstants.rightSwipeActionKey)
+        defaults.set(SwipeGestureAction.delete.rawValue, forKey: AppConstants.upSwipeActionKey)
+
+        SwipeGesturePreferences.migrateStoredDefaultsIfNeeded(defaults: defaults)
+
+        #expect(defaults.string(forKey: AppConstants.leftSwipeActionKey) == SwipeGestureAction.next.rawValue)
+        #expect(defaults.string(forKey: AppConstants.rightSwipeActionKey) == SwipeGestureAction.previous.rawValue)
         #expect(defaults.string(forKey: AppConstants.upSwipeActionKey) == SwipeGestureAction.delete.rawValue)
     }
 
@@ -598,14 +614,14 @@ struct PhotoDeleteTests {
         defaults.set(AppLanguage.zhHans.rawValue, forKey: AppConstants.appLanguageKey)
         #expect(achievement.title == "第一次清理")
         #expect(achievement.subtitle == "完成第一轮照片整理")
-        #expect(SwipeGesturePreset.standard.title == "系统相册风格")
-        #expect(SwipeGesturePreset.standard.subtitle == "左滑上一张，右滑下一张，上滑删除")
+        #expect(SwipeGesturePreset.standard.title == "左右浏览，上滑删除")
+        #expect(SwipeGesturePreset.standard.subtitle == "左滑下一张，右滑上一张，上滑删除")
 
         defaults.set(AppLanguage.en.rawValue, forKey: AppConstants.appLanguageKey)
         #expect(achievement.title == "First Cleanup")
         #expect(achievement.subtitle == "Complete your first photo cleanup")
-        #expect(SwipeGesturePreset.standard.title == "Photos-style browsing")
-        #expect(SwipeGesturePreset.standard.subtitle == "Swipe left for previous, right for next, up to delete")
+        #expect(SwipeGesturePreset.standard.title == "Browse left and right, swipe up to delete")
+        #expect(SwipeGesturePreset.standard.subtitle == "Swipe left for next, right for previous, up to delete")
     }
 
     @Test func cleanupAchievementEvaluatorIncludesExpandedSpaceMilestones() async throws {
