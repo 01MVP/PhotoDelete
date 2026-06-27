@@ -17264,6 +17264,28 @@
         }
       }
     },
+    "随机浏览未整理的旧照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Randomly browse unreviewed older photos"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "随机浏览未整理的旧照片"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隨機瀏覽未整理的舊照片"
+          }
+        }
+      }
+    },
     "随机翻出未整理的照片，边回忆边整理。": {
       "localizations": {
         "en": {
@@ -17660,6 +17682,28 @@
         }
       }
     },
+    "随机浏览": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Random Browse"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "随机浏览"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隨機瀏覽"
+          }
+        }
+      }
+    },
     "再遇见一组": {
       "localizations": {
         "en": {
@@ -17678,6 +17722,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "再遇見一組"
+          }
+        }
+      }
+    },
+    "再随机一组": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Another Random Set"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再随机一组"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再隨機一組"
           }
         }
       }
@@ -21268,6 +21334,28 @@
         }
       }
     },
+    "开启后每次进入整理页默认静音；整理页可临时打开声音": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When on, each review session starts muted. You can turn sound on temporarily in the review screen."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开启后每次进入整理页默认静音；整理页可临时打开声音"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開啟後每次進入整理頁預設靜音；整理頁可暫時打開聲音"
+          }
+        }
+      }
+    },
     "视频和实况照片静音播放": {
       "localizations": {
         "en": {
@@ -21286,6 +21374,116 @@
           "stringUnit": {
             "state": "translated",
             "value": "影片和原況照片靜音播放"
+          }
+        }
+      }
+    },
+    "打开声音": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn Sound On"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开声音"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打開聲音"
+          }
+        }
+      }
+    },
+    "静音": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mute"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "静音"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "靜音"
+          }
+        }
+      }
+    },
+    "已打开声音": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sound On"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已打开声音"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已打開聲音"
+          }
+        }
+      }
+    },
+    "已静音": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Muted"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已静音"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已靜音"
+          }
+        }
+      }
+    },
+    "只影响当前整理页面": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only affects the current review screen."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只影响当前整理页面"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只影響目前整理頁面"
           }
         }
       }

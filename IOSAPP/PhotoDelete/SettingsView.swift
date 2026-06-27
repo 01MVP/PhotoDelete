@@ -1061,7 +1061,7 @@ struct GestureSettingsView: View {
                 SettingToggleRow(
                     icon: reviewVideoMuted ? "speaker.slash" : "speaker.wave.2",
                     title: L10n.string("视频和实况照片静音播放"),
-                    subtitle: L10n.string("每次打开默认静音，可临时关闭听声音"),
+                    subtitle: L10n.string("开启后每次进入整理页默认静音；整理页可临时打开声音"),
                     isOn: $reviewVideoMuted
                 )
             }

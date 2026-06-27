@@ -222,6 +222,7 @@ enum SwipeGesturePreferences {
 
 enum ReviewPlaybackPreferences {
     static func applyLaunchDefaults(defaults: UserDefaults = .standard) {
+        guard defaults.object(forKey: AppConstants.reviewVideoMutedKey) == nil else { return }
         defaults.set(true, forKey: AppConstants.reviewVideoMutedKey)
     }
 }

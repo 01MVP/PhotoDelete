@@ -745,7 +745,8 @@ class DataManager: ObservableObject {
             validIdentifiers: validIDs,
             excludedIdentifiers: randomReviewExcludedIdentifiers(),
             seed: UUID().uuidString,
-            limit: limit
+            limit: limit,
+            preservesExistingSessionIdentifiers: !existingIDs.isEmpty
         )
 
         guard !resolvedIDs.isEmpty else {

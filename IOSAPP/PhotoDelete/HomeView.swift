@@ -481,7 +481,7 @@ struct HomeView: View {
                 HStack(spacing: 9) {
                     Image(systemName: "sparkles")
                         .font(.system(size: 14, weight: .semibold))
-                    Text(L10n.string("遇见从前"))
+                    Text(L10n.string("随机浏览"))
                 }
             }
             .photoDeleteSecondaryButton()

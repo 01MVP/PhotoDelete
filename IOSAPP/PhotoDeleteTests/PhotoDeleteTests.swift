@@ -240,15 +240,18 @@ struct PhotoDeleteTests {
         #expect(defaults.string(forKey: AppConstants.upSwipeActionKey) == SwipeGestureAction.keep.rawValue)
     }
 
-    @Test func reviewPlaybackLaunchDefaultsResetVideoMute() async throws {
+    @Test func reviewPlaybackLaunchDefaultsInitializeButDoNotOverrideVideoMute() async throws {
         let suiteName = "PhotoDeletePlaybackDefaults-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
+        ReviewPlaybackPreferences.applyLaunchDefaults(defaults: defaults)
+        #expect(defaults.bool(forKey: AppConstants.reviewVideoMutedKey))
+
         defaults.set(false, forKey: AppConstants.reviewVideoMutedKey)
         ReviewPlaybackPreferences.applyLaunchDefaults(defaults: defaults)
 
-        #expect(defaults.bool(forKey: AppConstants.reviewVideoMutedKey))
+        #expect(!defaults.bool(forKey: AppConstants.reviewVideoMutedKey))
     }
 
     @Test func photoAssetMetadataFormatterUsesReadableFallbacks() async throws {
@@ -1410,6 +1413,22 @@ struct PhotoDeleteTests {
         #expect(Set(resolved).count == resolved.count)
         #expect(!resolved.contains("reviewed"))
         #expect(!resolved.contains("missing"))
+    }
+
+    @Test func randomReviewPlannerCanPreserveExistingReviewedSessionItems() async throws {
+        let resolved = PhotoRandomReviewPlanner.resolvedSessionIdentifiers(
+            existingSessionIDs: ["a", "reviewed", "b"],
+            candidateIdentifiers: ["a", "b", "c", "d", "reviewed"],
+            validIdentifiers: ["a", "b", "c", "d", "reviewed"],
+            excludedIdentifiers: ["reviewed"],
+            seed: "preserve",
+            limit: 4,
+            preservesExistingSessionIdentifiers: true
+        )
+
+        #expect(Array(resolved.prefix(3)) == ["a", "reviewed", "b"])
+        #expect(resolved.count == 4)
+        #expect(Set(resolved).count == resolved.count)
     }
 
     @Test func randomReviewPlannerRefillsLegacyTenItemSessionToDefaultBatchSize() async throws {

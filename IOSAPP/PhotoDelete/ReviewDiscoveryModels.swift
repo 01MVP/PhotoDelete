@@ -21,7 +21,7 @@ enum PhotoRandomReviewScope: String, CaseIterable, Identifiable, Codable, Hashab
     var title: String {
         switch self {
         case .memories:
-            return L10n.string("遇见从前")
+            return L10n.string("随机浏览")
         case .all:
             return L10n.string("全部照片")
         case .screenshots:
@@ -38,7 +38,7 @@ enum PhotoRandomReviewScope: String, CaseIterable, Identifiable, Codable, Hashab
     var subtitle: String {
         switch self {
         case .memories:
-            return L10n.string("随机翻出未整理的旧照片")
+            return L10n.string("随机浏览未整理的旧照片")
         case .all:
             return L10n.string("从全部未整理照片里随机")
         case .screenshots:
@@ -136,14 +136,15 @@ enum PhotoRandomReviewPlanner {
         validIdentifiers: Set<String>,
         excludedIdentifiers: Set<String>,
         seed: String,
-        limit: Int
+        limit: Int,
+        preservesExistingSessionIdentifiers: Bool = false
     ) -> [String] {
         guard limit > 0 else { return [] }
 
         var resolved = existingSessionIdentifiers(
             existingSessionIDs,
             keepingValid: validIdentifiers,
-            excluding: excludedIdentifiers,
+            excluding: preservesExistingSessionIdentifiers ? [] : excludedIdentifiers,
             limit: limit
         )
         guard resolved.count < limit else { return resolved }

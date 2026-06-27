@@ -22,7 +22,7 @@ struct SwipePhotoView: View {
     @AppStorage(AppConstants.rightSwipeActionKey) private var rightSwipeActionValue = SwipeGesturePreset.standard.rightAction.rawValue
     @AppStorage(AppConstants.upSwipeActionKey) private var upSwipeActionValue = SwipeGesturePreset.standard.upAction.rawValue
     @AppStorage(AppConstants.reviewMediaAutoPlayKey) private var reviewMediaAutoPlay = true
-    @AppStorage(AppConstants.reviewVideoMutedKey) private var reviewVideoMuted = true
+    @AppStorage(AppConstants.reviewVideoMutedKey) private var defaultReviewVideoMuted = true
     @AppStorage(AppConstants.reviewModeKey) private var reviewModeValue = PhotoReviewMode.card.rawValue
     @AppStorage(AppConstants.hasSeenReviewModeHintKey) private var hasSeenReviewModeHint = false
     @AppStorage(AppConstants.hasSeenAlbumShortcutHintKey) private var hasSeenAlbumShortcutHint = false
@@ -66,6 +66,8 @@ struct SwipePhotoView: View {
     @State private var albumFilingAssetIDs: Set<String> = []
     @State private var recentlyFiledAlbumAssetIDs: Set<String> = []
     @State private var currentAlbumInfo: AlbumInfo?
+    @State private var sessionVideoMuted = true
+    @State private var didApplySessionPlaybackPreference = false
 
     private let reviewModeHintThreshold = 5
     private let deleteButtonTipThreshold = 3
@@ -198,6 +200,19 @@ struct SwipePhotoView: View {
         return isAssetBeingFiledToAlbum(asset)
     }
 
+    private var reviewVideoMuted: Bool {
+        didApplySessionPlaybackPreference ? sessionVideoMuted : defaultReviewVideoMuted
+    }
+
+    private var shouldShowSessionMuteButton: Bool {
+        guard let asset = currentRealPhoto else { return false }
+        return asset.mediaType == .video || dataManager.photoLibraryManager.isLivePhoto(asset)
+    }
+
+    private var navigationHeaderSideWidth: CGFloat {
+        shouldShowSessionMuteButton ? 154 : 116
+    }
+
     private func shouldPlayVideo(for asset: PHAsset) -> Bool {
         guard asset.mediaType == .video else { return false }
         if inlinePlayingVideoAssetID == asset.localIdentifier {
@@ -303,6 +318,7 @@ struct SwipePhotoView: View {
             flushSessionProgressSave()
         }
         .onAppear {
+            applySessionPlaybackPreferenceIfNeeded()
             syncPendingOperationCounts()
             if refreshSelectedAlbumState() {
                 initializeSessionIfNeeded()
@@ -333,6 +349,10 @@ struct SwipePhotoView: View {
             expandLoadedSessionPhotosIfNeeded(for: currentPhotoIndex)
             scheduleSessionProgressSave()
         }
+        .onChange(of: defaultReviewVideoMuted) { muted in
+            sessionVideoMuted = muted
+            didApplySessionPlaybackPreference = true
+        }
     }
 
     // MARK: - 导航栏
@@ -351,7 +371,7 @@ struct SwipePhotoView: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .frame(width: 116, alignment: .leading)
+                .frame(width: navigationHeaderSideWidth, alignment: .leading)
 
                 Spacer()
 
@@ -377,6 +397,9 @@ struct SwipePhotoView: View {
 
                 ZStack(alignment: .topTrailing) {
                     HStack(spacing: 8) {
+                        if shouldShowSessionMuteButton {
+                            SessionMuteToggleButton(isMuted: reviewVideoMuted, action: toggleSessionVideoMuted)
+                        }
                         ReviewModeToggleButton(mode: reviewMode, action: toggleReviewMode)
                         PendingDeleteCounter(count: pendingDeleteCount)
                     }
@@ -388,7 +411,7 @@ struct SwipePhotoView: View {
                             .zIndex(1)
                     }
                 }
-                .frame(width: 116, alignment: .trailing)
+                .frame(width: navigationHeaderSideWidth, alignment: .trailing)
             }
 
             if totalPhotosCount > 0 {
@@ -761,7 +784,7 @@ struct SwipePhotoView: View {
                     .photoDeletePrimaryButton()
 
                     if randomReviewScope != nil {
-                        Button(L10n.string("再遇见一组")) {
+                        Button(L10n.string("再随机一组")) {
                             startNextRandomReviewSession()
                         }
                         .photoDeleteSecondaryButton()
@@ -1580,6 +1603,24 @@ struct SwipePhotoView: View {
         showReviewSettings = true
     }
 
+    private func applySessionPlaybackPreferenceIfNeeded() {
+        guard !didApplySessionPlaybackPreference else { return }
+        sessionVideoMuted = defaultReviewVideoMuted
+        didApplySessionPlaybackPreference = true
+    }
+
+    private func toggleSessionVideoMuted() {
+        sessionVideoMuted.toggle()
+        didApplySessionPlaybackPreference = true
+        HapticManager.impact(.light)
+        showFeedback(
+            sessionVideoMuted ? L10n.string("已静音") : L10n.string("已打开声音"),
+            icon: sessionVideoMuted ? "speaker.slash.fill" : "speaker.wave.2.fill",
+            style: .neutral,
+            duration: 1.1
+        )
+    }
+
     private func createDragGesture() -> some Gesture {
         DragGesture()
             .onChanged { value in
@@ -1683,6 +1724,11 @@ struct SwipePhotoView: View {
     }
 
     private func browseToPreviousPhoto(reviewing asset: PHAsset) {
+        if randomReviewScope != nil {
+            browseToPreviousRandomReviewPhoto(reviewing: asset)
+            return
+        }
+
         guard currentPhotoIndex > 0 else {
             showFeedback(L10n.string("已经是第一张"), icon: "chevron.left", style: .neutral, duration: 1.2)
             return
@@ -1699,6 +1745,11 @@ struct SwipePhotoView: View {
     private func browseToNextPhoto(reviewing asset: PHAsset) {
         guard !sessionPhotos.isEmpty else { return }
 
+        if randomReviewScope != nil {
+            browseToNextRandomReviewPhoto(reviewing: asset)
+            return
+        }
+
         let nextIndex = currentPhotoIndex + 1
         while nextIndex >= sessionPhotos.count,
               expandLoadedSessionPhotosIfNeeded(for: sessionPhotos.count, force: true) { }
@@ -1714,6 +1765,29 @@ struct SwipePhotoView: View {
         markBrowsedAsKept(asset)
         stopInlineVideoPlayback()
         currentPhotoIndex = nextIndex
+        preloadUpcomingImages(from: currentPhotoIndex)
+        persistSessionProgressIfPossible()
+        HapticManager.impact(.light)
+    }
+
+    private func browseToPreviousRandomReviewPhoto(reviewing asset: PHAsset) {
+        guard !sessionPhotos.isEmpty else { return }
+
+        markBrowsedAsKept(asset)
+        stopInlineVideoPlayback()
+        currentPhotoIndex = currentPhotoIndex > 0 ? currentPhotoIndex - 1 : sessionPhotos.count - 1
+        preloadUpcomingImages(from: currentPhotoIndex)
+        persistSessionProgressIfPossible()
+        HapticManager.impact(.light)
+    }
+
+    private func browseToNextRandomReviewPhoto(reviewing asset: PHAsset) {
+        guard !sessionPhotos.isEmpty else { return }
+
+        markBrowsedAsKept(asset)
+        stopInlineVideoPlayback()
+        let nextIndex = currentPhotoIndex + 1
+        currentPhotoIndex = nextIndex < sessionPhotos.count ? nextIndex : 0
         preloadUpcomingImages(from: currentPhotoIndex)
         persistSessionProgressIfPossible()
         HapticManager.impact(.light)
@@ -2066,9 +2140,14 @@ struct SwipePhotoView: View {
     }
 
     private func markBrowsedAsKept(_ asset: PHAsset) {
+        guard !isAssetLocallyReviewed(asset) else {
+            recordReviewModeHintOpportunity()
+            return
+        }
+
         let originalIndex = currentPhotoIndex
         let wasReviewed = dataManager.isReviewed(asset)
-        recordSessionReviewedChange(wasReviewed: isAssetLocallyReviewed(asset))
+        recordSessionReviewedChange(wasReviewed: false)
         scheduleSwipeMutation(asset, action: .keep)
         actionHistory.append(.skip(asset, originalIndex: originalIndex, wasReviewed: wasReviewed))
         recordReviewModeHintOpportunity()
@@ -3475,6 +3554,40 @@ private struct ReviewModeToggleButton: View {
         .buttonStyle(PhotoDeletePressScaleButtonStyle())
         .accessibilityValue(mode.accessibilityTitle)
         .accessibilityHint(mode.toggleAccessibilityHint)
+    }
+}
+
+private struct SessionMuteToggleButton: View {
+    let isMuted: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(
+                isMuted ? L10n.string("打开声音") : L10n.string("静音"),
+                systemImage: isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill"
+            )
+            .labelStyle(.iconOnly)
+            .symbolRenderingMode(.monochrome)
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundColor(isMuted ? PhotoDeleteStyle.secondaryText : PhotoDeleteStyle.accent)
+            .frame(width: 38, height: 38)
+            .background(
+                Circle()
+                    .fill(PhotoDeleteStyle.surface)
+                    .overlay(
+                        Circle()
+                            .stroke(
+                                isMuted ? PhotoDeleteStyle.cardStroke : PhotoDeleteStyle.accent.opacity(0.28),
+                                lineWidth: 1
+                            )
+                    )
+            )
+            .photoDeleteMinimumTapTarget()
+        }
+        .buttonStyle(PhotoDeletePressScaleButtonStyle())
+        .accessibilityLabel(isMuted ? L10n.string("打开声音") : L10n.string("静音"))
+        .accessibilityHint(L10n.string("只影响当前整理页面"))
     }
 }
 

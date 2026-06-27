@@ -36,7 +36,7 @@ final class PhotoDeleteUITests: XCTestCase {
         XCTAssertTrue(
             app.staticTexts["删图"].waitForExistence(timeout: 10) ||
                 app.staticTexts["需要访问照片库"].waitForExistence(timeout: 2) ||
-                app.staticTexts["遇见从前"].waitForExistence(timeout: 2) ||
+                app.staticTexts["随机浏览"].waitForExistence(timeout: 2) ||
                 app.staticTexts["没有可整理的照片"].waitForExistence(timeout: 2)
         )
     }
@@ -49,7 +49,7 @@ final class PhotoDeleteUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["删图"].waitForExistence(timeout: 10))
         XCTAssertTrue(
             app.staticTexts["需要访问照片库"].exists ||
-                app.staticTexts["遇见从前"].exists ||
+                app.staticTexts["随机浏览"].exists ||
                 app.staticTexts["没有可整理的照片"].exists ||
                 app.staticTexts["整理全部照片"].exists
         )

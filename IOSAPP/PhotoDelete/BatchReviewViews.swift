@@ -947,8 +947,8 @@ struct PhotoAssetVideoPlayerView: View {
                     .onAppear {
                         if autoPlay {
                             player.isMuted = isMuted
-                player.play()
-            }
+                            player.play()
+                        }
                     }
             } else {
                 VStack(spacing: 14) {
