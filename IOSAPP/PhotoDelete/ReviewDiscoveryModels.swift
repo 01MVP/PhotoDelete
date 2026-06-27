@@ -579,3 +579,42 @@ struct PhotoMemoryCaption: Equatable {
     let title: String
     let subtitle: String?
 }
+
+struct PhotoAssetMetadataSummary: Equatable {
+    let captureDateText: String
+    let locationText: String
+}
+
+enum PhotoAssetMetadataFormatter {
+    static func shortCaptureDate(for date: Date?) -> String {
+        guard let date else {
+            return L10n.string("拍摄时间未知")
+        }
+        return AppDateFormatter.string(from: date, template: "MMMd HH:mm")
+    }
+
+    static func detailCaptureDate(for date: Date?) -> String {
+        guard let date else {
+            return L10n.string("未保存拍摄时间")
+        }
+        return AppDateFormatter.string(from: date, dateStyle: .medium, timeStyle: .short)
+    }
+
+    static func locationText(locationTitle: String?, coordinate: CLLocationCoordinate2D?) -> String {
+        if let locationTitle = locationTitle?.nilIfBlank {
+            return locationTitle
+        }
+
+        guard let coordinate else {
+            return L10n.string("无地点信息")
+        }
+
+        return coordinateText(latitude: coordinate.latitude, longitude: coordinate.longitude)
+    }
+
+    static func coordinateText(latitude: Double, longitude: Double) -> String {
+        let latitudeText = latitude.formatted(.number.precision(.fractionLength(4)))
+        let longitudeText = longitude.formatted(.number.precision(.fractionLength(4)))
+        return "\(latitudeText), \(longitudeText)"
+    }
+}

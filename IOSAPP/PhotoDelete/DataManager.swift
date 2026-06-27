@@ -1552,6 +1552,35 @@ class DataManager: ObservableObject {
         }
     }
 
+    func locationDisplayText(for asset: PHAsset) -> String {
+        guard let coordinate = asset.location?.coordinate else {
+            return L10n.string("无地点信息")
+        }
+
+        let groupID = PhotoLocationGrouping.groupID(
+            latitude: coordinate.latitude,
+            longitude: coordinate.longitude
+        )
+
+        if let cachedTitle = locationTitleCacheStore.titleCache()[groupID]?.title {
+            let trimmedTitle = cachedTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedTitle.isEmpty {
+                return trimmedTitle
+            }
+        }
+
+        if let group = locationGroups.first(where: { $0.id == groupID }),
+           !group.isNoLocationGroup,
+           group.title != L10n.string("未知地址") {
+            return group.title
+        }
+
+        return PhotoAssetMetadataFormatter.coordinateText(
+            latitude: coordinate.latitude,
+            longitude: coordinate.longitude
+        )
+    }
+
     private func resolveLocationTitlesIfNeeded(
         for coordinatesByGroupID: [String: CLLocationCoordinate2D],
         generation: Int

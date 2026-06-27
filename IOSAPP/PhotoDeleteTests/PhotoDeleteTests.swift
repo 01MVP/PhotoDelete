@@ -7,6 +7,7 @@
 
 import Testing
 import Foundation
+import CoreLocation
 import Photos
 @testable import PhotoDelete
 
@@ -237,6 +238,33 @@ struct PhotoDeleteTests {
         #expect(defaults.string(forKey: AppConstants.leftSwipeActionKey) == SwipeGestureAction.favorite.rawValue)
         #expect(defaults.string(forKey: AppConstants.rightSwipeActionKey) == SwipeGestureAction.delete.rawValue)
         #expect(defaults.string(forKey: AppConstants.upSwipeActionKey) == SwipeGestureAction.keep.rawValue)
+    }
+
+    @Test func reviewPlaybackLaunchDefaultsResetVideoMute() async throws {
+        let suiteName = "PhotoDeletePlaybackDefaults-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        defaults.set(false, forKey: AppConstants.reviewVideoMutedKey)
+        ReviewPlaybackPreferences.applyLaunchDefaults(defaults: defaults)
+
+        #expect(defaults.bool(forKey: AppConstants.reviewVideoMutedKey))
+    }
+
+    @Test func photoAssetMetadataFormatterUsesReadableFallbacks() async throws {
+        #expect(PhotoAssetMetadataFormatter.shortCaptureDate(for: nil) == L10n.string("拍摄时间未知"))
+        #expect(PhotoAssetMetadataFormatter.detailCaptureDate(for: nil) == L10n.string("未保存拍摄时间"))
+        #expect(PhotoAssetMetadataFormatter.locationText(locationTitle: nil, coordinate: nil) == L10n.string("无地点信息"))
+        #expect(
+            PhotoAssetMetadataFormatter.locationText(
+                locationTitle: "上海 · 徐汇",
+                coordinate: CLLocationCoordinate2D(latitude: 31.2304, longitude: 121.4737)
+            ) == "上海 · 徐汇"
+        )
+
+        let coordinateText = PhotoAssetMetadataFormatter.coordinateText(latitude: 31.2304, longitude: 121.4737)
+        #expect(coordinateText.contains("31.2304"))
+        #expect(coordinateText.contains("121.4737"))
     }
 
     @Test func photoReviewModeNormalizesStoredValues() async throws {

@@ -19,6 +19,7 @@ struct PhotoDeleteApp: App {
         PhotoDeleteUITestDefaults.applyIfNeeded()
         #endif
         SwipeGesturePreferences.migrateStoredDefaultsIfNeeded()
+        ReviewPlaybackPreferences.applyLaunchDefaults()
     }
 
     var body: some Scene {

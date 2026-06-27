@@ -927,7 +927,7 @@ struct PhotoAssetVideoPlayerView: View {
     let asset: PHAsset
     let photoLibraryManager: PhotoLibraryManager
     var autoPlay = true
-    var isMuted = false
+    var isMuted = true
     var ignoresSafeArea = true
 
     @State private var player: AVPlayer?
@@ -1018,6 +1018,7 @@ struct CandidatePhotoPreviewView: View {
     @Environment(\.displayScale) private var displayScale
     let asset: PHAsset
     let photoLibraryManager: PhotoLibraryManager
+    var locationTitle: String? = nil
 
     @State private var image: UIImage?
     @State private var livePhoto: PHLivePhoto?
@@ -1035,7 +1036,8 @@ struct CandidatePhotoPreviewView: View {
 
                         PhotoAssetDetailsPanel(
                             asset: asset,
-                            photoLibraryManager: photoLibraryManager
+                            photoLibraryManager: photoLibraryManager,
+                            locationTitle: locationTitle
                         )
                         .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
                         .padding(.top, 18)
@@ -1100,7 +1102,7 @@ struct CandidatePhotoPreviewView: View {
     }
 
     private func previewMediaHeight(in size: CGSize) -> CGFloat {
-        max(size.height * 0.74, min(size.height, 360))
+        min(max(size.height * 0.58, 320), size.height * 0.68)
     }
 
     private var isLivePhotoAsset: Bool {
@@ -1174,6 +1176,7 @@ struct CandidatePhotoPreviewView: View {
 private struct PhotoAssetDetailsPanel: View {
     let asset: PHAsset
     let photoLibraryManager: PhotoLibraryManager
+    var locationTitle: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -1234,19 +1237,14 @@ private struct PhotoAssetDetailsPanel: View {
     }
 
     private var captureDateText: String {
-        guard let creationDate = asset.creationDate else {
-            return L10n.string("未保存拍摄时间")
-        }
-        return AppDateFormatter.string(from: creationDate, dateStyle: .medium, timeStyle: .short)
+        PhotoAssetMetadataFormatter.detailCaptureDate(for: asset.creationDate)
     }
 
     private var locationText: String {
-        guard let coordinate = asset.location?.coordinate else {
-            return L10n.string("无地点信息")
-        }
-        let latitude = coordinate.latitude.formatted(.number.precision(.fractionLength(4)))
-        let longitude = coordinate.longitude.formatted(.number.precision(.fractionLength(4)))
-        return "\(latitude), \(longitude)"
+        PhotoAssetMetadataFormatter.locationText(
+            locationTitle: locationTitle,
+            coordinate: asset.location?.coordinate
+        )
     }
 
     private var mediaTypeText: String {
@@ -1291,6 +1289,7 @@ private struct PhotoAssetDetailsPanel: View {
 struct LivePhotoPreviewRepresentable: UIViewRepresentable {
     let livePhoto: PHLivePhoto
     var autoPlay = true
+    var isMuted = true
     var playbackStyle: PHLivePhotoViewPlaybackStyle = .full
     var contentMode: UIView.ContentMode = .scaleAspectFit
 
@@ -1301,6 +1300,7 @@ struct LivePhotoPreviewRepresentable: UIViewRepresentable {
     func makeUIView(context: Context) -> PHLivePhotoView {
         let view = PHLivePhotoView()
         view.contentMode = contentMode
+        view.isMuted = isMuted
         view.delegate = context.coordinator
         return view
     }
@@ -1310,6 +1310,7 @@ struct LivePhotoPreviewRepresentable: UIViewRepresentable {
         context.coordinator.playbackStyle = playbackStyle
         context.coordinator.isDismantled = false
         uiView.contentMode = contentMode
+        uiView.isMuted = isMuted
 
         if context.coordinator.displayedLivePhoto !== livePhoto {
             context.coordinator.displayedLivePhoto = livePhoto

@@ -220,6 +220,12 @@ enum SwipeGesturePreferences {
     }
 }
 
+enum ReviewPlaybackPreferences {
+    static func applyLaunchDefaults(defaults: UserDefaults = .standard) {
+        defaults.set(true, forKey: AppConstants.reviewVideoMutedKey)
+    }
+}
+
 enum PhotoReviewMode: String, CaseIterable, Identifiable {
     case card
     case browser

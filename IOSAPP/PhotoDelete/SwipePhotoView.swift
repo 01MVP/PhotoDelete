@@ -266,7 +266,8 @@ struct SwipePhotoView: View {
         .sheet(item: $previewAsset) { previewAsset in
             CandidatePhotoPreviewView(
                 asset: previewAsset.asset,
-                photoLibraryManager: dataManager.photoLibraryManager
+                photoLibraryManager: dataManager.photoLibraryManager,
+                locationTitle: dataManager.locationDisplayText(for: previewAsset.asset)
             )
         }
         .sheet(isPresented: $showReviewSettings) {
@@ -520,6 +521,7 @@ struct SwipePhotoView: View {
                 allowsLivePhotoPlayback: reviewMediaAutoPlay,
                 videoMuted: reviewVideoMuted,
                 memoryCaption: memoryCaption(for: asset),
+                metadataSummary: metadataSummary(for: asset),
                 displaySize: cardSize,
                 targetSize: imageTargetSize(for: cardSize),
                 onStopVideoPlayback: stopInlineVideoPlayback
@@ -555,6 +557,13 @@ struct SwipePhotoView: View {
         PhotoMemoryCaption(
             title: PhotoMemoryCaptionFormatter.relativeTitle(for: asset.creationDate),
             subtitle: PhotoMemoryCaptionFormatter.dateSubtitle(for: asset.creationDate)
+        )
+    }
+
+    private func metadataSummary(for asset: PHAsset) -> PhotoAssetMetadataSummary {
+        PhotoAssetMetadataSummary(
+            captureDateText: PhotoAssetMetadataFormatter.shortCaptureDate(for: asset.creationDate),
+            locationText: dataManager.locationDisplayText(for: asset)
         )
     }
 
@@ -1656,9 +1665,9 @@ struct SwipePhotoView: View {
     private func performConfiguredSwipeAction(_ action: SwipeGestureAction, asset: PHAsset) {
         switch action {
         case .previous:
-            browseToPreviousPhoto()
+            browseToPreviousPhoto(reviewing: asset)
         case .next:
-            browseToNextPhoto()
+            browseToNextPhoto(reviewing: asset)
         case .close:
             handleFinishAction()
         case .delete:
@@ -1673,12 +1682,13 @@ struct SwipePhotoView: View {
         }
     }
 
-    private func browseToPreviousPhoto() {
+    private func browseToPreviousPhoto(reviewing asset: PHAsset) {
         guard currentPhotoIndex > 0 else {
             showFeedback(L10n.string("已经是第一张"), icon: "chevron.left", style: .neutral, duration: 1.2)
             return
         }
 
+        markBrowsedAsKept(asset)
         stopInlineVideoPlayback()
         currentPhotoIndex -= 1
         preloadUpcomingImages(from: currentPhotoIndex)
@@ -1686,7 +1696,7 @@ struct SwipePhotoView: View {
         HapticManager.impact(.light)
     }
 
-    private func browseToNextPhoto() {
+    private func browseToNextPhoto(reviewing asset: PHAsset) {
         guard !sessionPhotos.isEmpty else { return }
 
         let nextIndex = currentPhotoIndex + 1
@@ -1694,10 +1704,14 @@ struct SwipePhotoView: View {
               expandLoadedSessionPhotosIfNeeded(for: sessionPhotos.count, force: true) { }
 
         guard isValidPhotoIndex(nextIndex) else {
-            showFeedback(L10n.string("已经是最后一张"), icon: "chevron.right", style: .neutral, duration: 1.2)
+            markBrowsedAsKept(asset)
+            showCompletionMessage = true
+            persistSessionProgressIfPossible()
+            HapticManager.impact(.light)
             return
         }
 
+        markBrowsedAsKept(asset)
         stopInlineVideoPlayback()
         currentPhotoIndex = nextIndex
         preloadUpcomingImages(from: currentPhotoIndex)
@@ -2024,7 +2038,7 @@ struct SwipePhotoView: View {
     private func markDeleteCandidate(_ asset: PHAsset) {
         let originalIndex = currentPhotoIndex
         let wasReviewed = dataManager.isReviewed(asset)
-        recordSessionReviewedChange(wasReviewed: wasReviewed)
+        recordSessionReviewedChange(wasReviewed: isAssetLocallyReviewed(asset))
         updateLocalPendingCountsForDelete(asset)
         scheduleSwipeMutation(asset, action: .delete)
         actionHistory.append(.delete(asset, originalIndex: originalIndex, wasReviewed: wasReviewed))
@@ -2042,7 +2056,7 @@ struct SwipePhotoView: View {
 
         let originalIndex = currentPhotoIndex
         let wasReviewed = dataManager.isReviewed(asset)
-        recordSessionReviewedChange(wasReviewed: wasReviewed)
+        recordSessionReviewedChange(wasReviewed: isAssetLocallyReviewed(asset))
         updateLocalPendingCountsForFavorite(asset)
         scheduleSwipeMutation(asset, action: .favorite)
         actionHistory.append(.favorite(asset, originalIndex: originalIndex, wasReviewed: wasReviewed))
@@ -2051,14 +2065,23 @@ struct SwipePhotoView: View {
         recordReviewModeHintOpportunity()
     }
 
+    private func markBrowsedAsKept(_ asset: PHAsset) {
+        let originalIndex = currentPhotoIndex
+        let wasReviewed = dataManager.isReviewed(asset)
+        recordSessionReviewedChange(wasReviewed: isAssetLocallyReviewed(asset))
+        scheduleSwipeMutation(asset, action: .keep)
+        actionHistory.append(.skip(asset, originalIndex: originalIndex, wasReviewed: wasReviewed))
+        recordReviewModeHintOpportunity()
+    }
+
     private func markSkip(_ asset: PHAsset, message: String? = nil) {
         let originalIndex = currentPhotoIndex
         let wasReviewed = dataManager.isReviewed(asset)
-        recordSessionReviewedChange(wasReviewed: wasReviewed)
+        recordSessionReviewedChange(wasReviewed: isAssetLocallyReviewed(asset))
         scheduleSwipeMutation(asset, action: .keep)
         actionHistory.append(.skip(asset, originalIndex: originalIndex, wasReviewed: wasReviewed))
         HapticManager.impact(.light)
-        showFeedback(message ?? L10n.string("已跳过"), icon: "arrow.right", style: .neutral)
+        showFeedback(message ?? L10n.string("已保留"), icon: "checkmark", style: .neutral)
         recordReviewModeHintOpportunity()
     }
 
@@ -2345,6 +2368,7 @@ private struct SwipePhotoCardFrame: View {
     let allowsLivePhotoPlayback: Bool
     let videoMuted: Bool
     let memoryCaption: PhotoMemoryCaption
+    let metadataSummary: PhotoAssetMetadataSummary
     let displaySize: CGSize
     let targetSize: CGSize
     let onStopVideoPlayback: () -> Void
@@ -2361,6 +2385,7 @@ private struct SwipePhotoCardFrame: View {
             allowsLivePhotoPlayback: allowsLivePhotoPlayback,
             videoMuted: videoMuted,
             memoryCaption: memoryCaption,
+            metadataSummary: metadataSummary,
             displaySize: displaySize,
             targetSize: targetSize,
             onStopVideoPlayback: onStopVideoPlayback
@@ -2442,17 +2467,6 @@ private struct PhotoSwipeDragFeedbackView: View {
         switch feedback.direction {
         case .left:
             HStack(spacing: 0) {
-                LinearGradient(
-                    colors: glowColors,
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-                .frame(width: glowWidth)
-
-                Spacer(minLength: 0)
-            }
-        case .right:
-            HStack(spacing: 0) {
                 Spacer(minLength: 0)
 
                 LinearGradient(
@@ -2461,6 +2475,17 @@ private struct PhotoSwipeDragFeedbackView: View {
                     endPoint: .trailing
                 )
                 .frame(width: glowWidth)
+            }
+        case .right:
+            HStack(spacing: 0) {
+                LinearGradient(
+                    colors: glowColors,
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+                .frame(width: glowWidth)
+
+                Spacer(minLength: 0)
             }
         case .up:
             VStack(spacing: 0) {
@@ -2494,31 +2519,30 @@ private struct PhotoSwipeDragFeedbackView: View {
             VStack {
                 Spacer()
                 HStack {
+                    Spacer()
                     SwipeEdgeHint(
                         icon: SwipeGestureDirection.left.icon,
                         title: "\(SwipeGestureDirection.left.title)\(feedback.action.title)",
                         color: feedback.action.tint
                     )
-                    .padding(.leading, 14)
+                    .padding(.trailing, 14)
                     .padding(.bottom, 16)
-                    .offset(x: -10 + feedback.progress * 10)
-                    Spacer()
+                    .offset(x: 10 - feedback.progress * 10)
                 }
             }
         case .right:
             VStack {
                 Spacer()
                 HStack {
-                    Spacer()
                     SwipeEdgeHint(
                         icon: SwipeGestureDirection.right.icon,
                         title: "\(SwipeGestureDirection.right.title)\(feedback.action.title)",
-                        color: feedback.action.tint,
-                        iconPlacement: .trailing
+                        color: feedback.action.tint
                     )
-                    .padding(.trailing, 14)
+                    .padding(.leading, 14)
                     .padding(.bottom, 16)
-                    .offset(x: 10 - feedback.progress * 10)
+                    .offset(x: -10 + feedback.progress * 10)
+                    Spacer()
                 }
             }
         case .up:
@@ -2563,21 +2587,21 @@ private struct PhotoSwipeDragFeedbackView: View {
         switch feedback.direction {
         case .left:
             HStack {
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .fill(feedback.action.tint)
-                    .frame(width: 5 + feedback.progress * 5)
-                    .padding(.vertical, 18)
-                    .padding(.leading, 7)
-                Spacer()
-            }
-        case .right:
-            HStack {
                 Spacer()
                 RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .fill(feedback.action.tint)
                     .frame(width: 5 + feedback.progress * 5)
                     .padding(.vertical, 18)
                     .padding(.trailing, 7)
+            }
+        case .right:
+            HStack {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(feedback.action.tint)
+                    .frame(width: 5 + feedback.progress * 5)
+                    .padding(.vertical, 18)
+                    .padding(.leading, 7)
+                Spacer()
             }
         case .up:
             VStack {
@@ -2633,13 +2657,13 @@ private struct SwipeEdgeHint: View {
         .padding(.vertical, 8)
         .background(
             Capsule(style: .continuous)
-                .fill(color.opacity(0.16 + 0.1))
+                .fill(PhotoDeleteStyle.background.opacity(0.74))
                 .overlay(
                     Capsule(style: .continuous)
-                        .stroke(color.opacity(0.46), lineWidth: 1)
+                        .stroke(color.opacity(0.62), lineWidth: 1.2)
                 )
         )
-        .shadow(color: PhotoDeleteStyle.floatingShadow, radius: 8, x: 0, y: 4)
+        .shadow(color: PhotoDeleteStyle.floatingShadow, radius: 10, x: 0, y: 4)
     }
 
     private var iconView: some View {
@@ -2681,6 +2705,40 @@ private enum AdvancedSwipeDateFormatter {
     }
 }
 
+private struct PhotoAssetQuickInfoOverlay: View {
+    let summary: PhotoAssetMetadataSummary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            quickInfoRow(icon: "calendar", text: summary.captureDateText)
+            quickInfoRow(icon: "location", text: summary.locationText)
+        }
+        .font(.system(size: 12, weight: .semibold))
+        .foregroundColor(.white)
+        .lineLimit(1)
+        .minimumScaleFactor(0.78)
+        .padding(.horizontal, 11)
+        .padding(.vertical, 8)
+        .background(.black.opacity(0.44), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 13, style: .continuous)
+                .stroke(.white.opacity(0.18), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.18), radius: 8, x: 0, y: 4)
+        .accessibilityElement(children: .combine)
+    }
+
+    private func quickInfoRow(icon: String, text: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .bold))
+                .frame(width: 13)
+
+            Text(text)
+        }
+    }
+}
+
 // MARK: - 真实照片卡片
 struct RealPhotoCard: View {
     let asset: PHAsset
@@ -2693,6 +2751,7 @@ struct RealPhotoCard: View {
     let allowsLivePhotoPlayback: Bool
     let videoMuted: Bool
     let memoryCaption: PhotoMemoryCaption
+    let metadataSummary: PhotoAssetMetadataSummary
     let displaySize: CGSize
     let targetSize: CGSize
     let onStopVideoPlayback: () -> Void
@@ -2737,6 +2796,7 @@ struct RealPhotoCard: View {
                     LivePhotoPreviewRepresentable(
                         livePhoto: livePhoto,
                         autoPlay: allowsLivePhotoPlayback,
+                        isMuted: videoMuted,
                         contentMode: .scaleAspectFit
                     )
                     .frame(width: displaySize.width, height: displaySize.height)
@@ -2814,6 +2874,14 @@ struct RealPhotoCard: View {
             }
         }
         .frame(width: displaySize.width, height: displaySize.height)
+        .overlay(alignment: .bottomLeading) {
+            if shouldShowMetadataOverlay {
+                PhotoAssetQuickInfoOverlay(summary: metadataSummary)
+                    .frame(maxWidth: displaySize.width - 24, alignment: .leading)
+                    .padding(12)
+                    .allowsHitTesting(false)
+            }
+        }
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .stroke(PhotoDeleteStyle.hairline, lineWidth: 1)
@@ -2843,6 +2911,13 @@ struct RealPhotoCard: View {
         allowsLivePhotoPlayback &&
             photoLibraryManager.isLivePhoto(asset) &&
             !isInDeleteCandidates &&
+            !isInFavoriteCandidates &&
+            !isBeingFiledToAlbum &&
+            !isFiledToAlbum
+    }
+
+    private var shouldShowMetadataOverlay: Bool {
+        !isInDeleteCandidates &&
             !isInFavoriteCandidates &&
             !isBeingFiledToAlbum &&
             !isFiledToAlbum
@@ -3064,6 +3139,8 @@ struct RealPhotoCard: View {
         if let subtitle = memoryCaption.subtitle {
             values.append(subtitle)
         }
+        values.append(metadataSummary.captureDateText)
+        values.append(metadataSummary.locationText)
 
         if photoLibraryManager.isScreenshot(asset) {
             values.append(L10n.string("截图"))

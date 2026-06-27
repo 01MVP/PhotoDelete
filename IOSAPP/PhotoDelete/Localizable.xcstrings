@@ -21223,6 +21223,72 @@
           }
         }
       }
+    },
+    "已保留": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kept"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已保留"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已保留"
+          }
+        }
+      }
+    },
+    "每次打开默认静音，可临时关闭听声音": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Muted by default each time you open the app. Turn it off temporarily to hear sound."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每次打开默认静音，可临时关闭听声音"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每次打開預設靜音，可暫時關閉聽聲音"
+          }
+        }
+      }
+    },
+    "视频和实况照片静音播放": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Play videos and Live Photos muted"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "视频和实况照片静音播放"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "影片和原況照片靜音播放"
+          }
+        }
+      }
     }
   },
   "version": "1.2"
