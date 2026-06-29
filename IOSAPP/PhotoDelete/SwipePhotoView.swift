@@ -27,6 +27,7 @@ struct SwipePhotoView: View {
     @AppStorage(AppConstants.hasSeenReviewModeHintKey) private var hasSeenReviewModeHint = false
     @AppStorage(AppConstants.hasSeenAlbumShortcutHintKey) private var hasSeenAlbumShortcutHint = false
     @AppStorage(AppConstants.hasSeenDeleteButtonTipKey) private var hasSeenDeleteButtonTip = false
+    @AppStorage(AppConstants.gestureUpdateNoticePendingKey) private var gestureUpdateNoticePending = false
 
     let selectedCategory: PhotoCategory?
     let selectedTimeGroup: String?
@@ -34,7 +35,6 @@ struct SwipePhotoView: View {
     let selectedDate: Date?
     let selectedAdvancedTimeScope: AdvancedTimeScope?
     let selectedAdvancedCleanup: AdvancedCleanupKind?
-    let selectedLocationGroupID: String?
     let randomReviewScope: PhotoRandomReviewScope?
     let selectedHistoricalToday: Bool
 
@@ -68,6 +68,7 @@ struct SwipePhotoView: View {
     @State private var currentAlbumInfo: AlbumInfo?
     @State private var sessionVideoMuted = true
     @State private var didApplySessionPlaybackPreference = false
+    @State private var cardTransitionDirection = CardBrowseTransitionDirection.none
 
     private let reviewModeHintThreshold = 5
     private let deleteButtonTipThreshold = 3
@@ -85,7 +86,6 @@ struct SwipePhotoView: View {
         selectedDate: Date? = nil,
         selectedAdvancedTimeScope: AdvancedTimeScope? = nil,
         selectedAdvancedCleanup: AdvancedCleanupKind? = nil,
-        selectedLocationGroupID: String? = nil,
         randomReviewScope: PhotoRandomReviewScope? = nil,
         selectedHistoricalToday: Bool = false
     ) {
@@ -95,7 +95,6 @@ struct SwipePhotoView: View {
         self.selectedDate = selectedDate
         self.selectedAdvancedTimeScope = selectedAdvancedTimeScope
         self.selectedAdvancedCleanup = selectedAdvancedCleanup
-        self.selectedLocationGroupID = selectedLocationGroupID
         self.randomReviewScope = randomReviewScope
         self.selectedHistoricalToday = selectedHistoricalToday
     }
@@ -114,6 +113,12 @@ struct SwipePhotoView: View {
         let asset: PHAsset
         let action: SwipeGestureAction
         let token: UUID
+    }
+
+    private enum CardBrowseTransitionDirection: Equatable {
+        case none
+        case previous
+        case next
     }
 
     private var currentRealPhoto: PHAsset? {
@@ -135,8 +140,6 @@ struct SwipePhotoView: View {
             )
         } else if selectedHistoricalToday {
             return dataManager.getPhotosForHistoricalToday()
-        } else if let selectedLocationGroupID {
-            return dataManager.getPhotosForLocationGroup(selectedLocationGroupID)
         } else if let albumInfo = activeAlbumInfo {
             return dataManager.getPhotosForAlbum(albumInfo)
         } else if let selectedDate, let selectedAdvancedTimeScope {
@@ -210,7 +213,7 @@ struct SwipePhotoView: View {
     }
 
     private var navigationHeaderSideWidth: CGFloat {
-        shouldShowSessionMuteButton ? 154 : 116
+        116
     }
 
     private func shouldPlayVideo(for asset: PHAsset) -> Bool {
@@ -282,7 +285,7 @@ struct SwipePhotoView: View {
             CandidatePhotoPreviewView(
                 asset: previewAsset.asset,
                 photoLibraryManager: dataManager.photoLibraryManager,
-                locationTitle: dataManager.locationDisplayText(for: previewAsset.asset)
+                locationTitle: dataManager.locationDisplayTextIfAvailable(for: previewAsset.asset)
             )
         }
         .sheet(isPresented: $showReviewSettings) {
@@ -335,10 +338,6 @@ struct SwipePhotoView: View {
         }
         .onChange(of: dataManager.photoLibraryManager.allPhotos.count) { _ in
             refreshSessionForSourceChangeIfNeeded()
-        }
-        .onChange(of: dataManager.locationGroupsRevision) { _ in
-            guard selectedLocationGroupID != nil else { return }
-            refreshSessionForSourceChangeIfNeeded(force: true)
         }
         .onChange(of: dataManager.advancedCleanupQueuesRevision) { _ in
             guard selectedAdvancedCleanup != nil else { return }
@@ -397,9 +396,6 @@ struct SwipePhotoView: View {
 
                 ZStack(alignment: .topTrailing) {
                     HStack(spacing: 8) {
-                        if shouldShowSessionMuteButton {
-                            SessionMuteToggleButton(isMuted: reviewVideoMuted, action: toggleSessionVideoMuted)
-                        }
                         ReviewModeToggleButton(mode: reviewMode, action: toggleReviewMode)
                         PendingDeleteCounter(count: pendingDeleteCount)
                     }
@@ -550,10 +546,18 @@ struct SwipePhotoView: View {
                 onStopVideoPlayback: stopInlineVideoPlayback
             )
             .id(asset.localIdentifier)
+            .transition(cardBrowseTransition)
             .overlay {
                 if let feedback = dragFeedback(for: dragOffset) {
                     PhotoSwipeDragFeedbackView(feedback: feedback)
                         .allowsHitTesting(false)
+                }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if shouldShowSessionMuteButton {
+                    SessionMuteToggleButton(isMuted: reviewVideoMuted, action: toggleSessionVideoMuted)
+                        .padding(12)
+                        .transition(.opacity)
                 }
             }
             .offset(dragOffset)
@@ -576,6 +580,23 @@ struct SwipePhotoView: View {
         }
     }
 
+    private var cardBrowseTransition: AnyTransition {
+        switch cardTransitionDirection {
+        case .previous:
+            return .asymmetric(
+                insertion: .move(edge: .leading).combined(with: .opacity),
+                removal: .move(edge: .trailing).combined(with: .opacity)
+            )
+        case .next:
+            return .asymmetric(
+                insertion: .move(edge: .trailing).combined(with: .opacity),
+                removal: .move(edge: .leading).combined(with: .opacity)
+            )
+        case .none:
+            return .identity
+        }
+    }
+
     private func memoryCaption(for asset: PHAsset) -> PhotoMemoryCaption {
         PhotoMemoryCaption(
             title: PhotoMemoryCaptionFormatter.relativeTitle(for: asset.creationDate),
@@ -586,7 +607,7 @@ struct SwipePhotoView: View {
     private func metadataSummary(for asset: PHAsset) -> PhotoAssetMetadataSummary {
         PhotoAssetMetadataSummary(
             captureDateText: PhotoAssetMetadataFormatter.shortCaptureDate(for: asset.creationDate),
-            locationText: dataManager.locationDisplayText(for: asset)
+            locationText: dataManager.locationDisplayTextIfAvailable(for: asset)
         )
     }
 
@@ -608,11 +629,23 @@ struct SwipePhotoView: View {
         let progress = min(max((distance - previewStart) / (commitDistance - previewStart), 0), 1)
         guard progress > 0 else { return nil }
 
+        let action = configuredAction(for: direction)
+        guard shouldShowDragFeedback(for: action) else { return nil }
+
         return PhotoSwipeDragFeedbackState(
             direction: direction,
-            action: configuredAction(for: direction),
+            action: action,
             progress: progress
         )
+    }
+
+    private func shouldShowDragFeedback(for action: SwipeGestureAction) -> Bool {
+        switch action {
+        case .previous, .next, .close:
+            return false
+        case .delete, .keep, .favorite:
+            return true
+        }
     }
 
     private func browserPhotoArea(in containerSize: CGSize) -> some View {
@@ -842,6 +875,15 @@ struct SwipePhotoView: View {
     // MARK: - 底部控制区域
     private var bottomControls: some View {
         VStack(spacing: 10) {
+            if shouldShowGestureUpdateNotice {
+                GestureUpdateNoticeBanner(
+                    onAdjust: openGestureSettingsFromNotice,
+                    onDismiss: acknowledgeGestureUpdateNotice
+                )
+                .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+
             if shouldShowAlbumShortcutGuidance {
                 AlbumShortcutHintBubble(onDismiss: acknowledgeAlbumShortcutHint)
                     .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
@@ -878,6 +920,13 @@ struct SwipePhotoView: View {
         VStack(alignment: .leading, spacing: 16) {
             sessionSummaryPanel
             gestureGuidePanel
+            if shouldShowGestureUpdateNotice {
+                GestureUpdateNoticeBanner(
+                    onAdjust: openGestureSettingsFromNotice,
+                    onDismiss: acknowledgeGestureUpdateNotice
+                )
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
             if shouldShowAlbumShortcutGuidance {
                 AlbumShortcutHintBubble(onDismiss: acknowledgeAlbumShortcutHint)
                     .transition(.move(edge: .top).combined(with: .opacity))
@@ -1165,6 +1214,12 @@ struct SwipePhotoView: View {
             !dataManager.photoLibraryManager.hasLoadedPhotoLibrary
     }
 
+    private var shouldShowGestureUpdateNotice: Bool {
+        gestureUpdateNoticePending &&
+            currentRealPhoto != nil &&
+            !showCompletionMessage
+    }
+
     private var activeLibraryLoadingProgress: Double {
         min(max(dataManager.photoLibraryManager.loadingProgress, 0), 1)
     }
@@ -1303,7 +1358,6 @@ struct SwipePhotoView: View {
     private var isWaitingForSourceData: Bool {
         dataManager.photoLibraryManager.isLoading ||
             dataManager.isPreparingLibrary ||
-            dataManager.isLoadingLocationGroups ||
             dataManager.isLoadingAdvancedCleanupQueues
     }
 
@@ -1624,11 +1678,30 @@ struct SwipePhotoView: View {
     private func createDragGesture() -> some Gesture {
         DragGesture()
             .onChanged { value in
-                dragOffset = value.translation
+                dragOffset = visualDragOffset(for: value.translation)
             }
             .onEnded { value in
                 handleSwipeGesture(translation: value.translation)
             }
+    }
+
+    private func visualDragOffset(for translation: CGSize) -> CGSize {
+        guard let direction = dominantSwipeDirection(for: translation, threshold: 12) else {
+            return translation
+        }
+
+        let action = configuredAction(for: direction)
+        switch action {
+        case .previous, .next:
+            return CGSize(
+                width: min(max(translation.width, -72), 72),
+                height: 0
+            )
+        case .close:
+            return CGSize(width: 0, height: min(max(translation.height, -56), 56))
+        case .delete, .keep, .favorite:
+            return translation
+        }
     }
 
     private func handleSwipeGesture(translation: CGSize) {
@@ -1658,10 +1731,21 @@ struct SwipePhotoView: View {
         }
 
         if let direction = dominantSwipeDirection(for: translation, threshold: threshold) {
-            performConfiguredSwipeAction(configuredAction(for: direction), asset: asset)
+            let action = configuredAction(for: direction)
+            clearDragOffsetWithoutAnimation()
+            performConfiguredSwipeAction(action, asset: asset)
+            return
         }
 
         resetCardPosition()
+    }
+
+    private func clearDragOffsetWithoutAnimation() {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            dragOffset = .zero
+        }
     }
 
     private func dominantSwipeDirection(for translation: CGSize, threshold: CGFloat) -> SwipeDirection? {
@@ -1736,8 +1820,9 @@ struct SwipePhotoView: View {
 
         markBrowsedAsKept(asset)
         stopInlineVideoPlayback()
-        currentPhotoIndex -= 1
-        preloadUpcomingImages(from: currentPhotoIndex)
+        let previousIndex = currentPhotoIndex - 1
+        setCurrentPhotoIndex(previousIndex, transition: .previous)
+        preloadUpcomingImages(from: previousIndex)
         persistSessionProgressIfPossible()
         HapticManager.impact(.light)
     }
@@ -1764,8 +1849,8 @@ struct SwipePhotoView: View {
 
         markBrowsedAsKept(asset)
         stopInlineVideoPlayback()
-        currentPhotoIndex = nextIndex
-        preloadUpcomingImages(from: currentPhotoIndex)
+        setCurrentPhotoIndex(nextIndex, transition: .next)
+        preloadUpcomingImages(from: nextIndex)
         persistSessionProgressIfPossible()
         HapticManager.impact(.light)
     }
@@ -1775,8 +1860,9 @@ struct SwipePhotoView: View {
 
         markBrowsedAsKept(asset)
         stopInlineVideoPlayback()
-        currentPhotoIndex = currentPhotoIndex > 0 ? currentPhotoIndex - 1 : sessionPhotos.count - 1
-        preloadUpcomingImages(from: currentPhotoIndex)
+        let targetIndex = currentPhotoIndex > 0 ? currentPhotoIndex - 1 : sessionPhotos.count - 1
+        setCurrentPhotoIndex(targetIndex, transition: .previous)
+        preloadUpcomingImages(from: targetIndex)
         persistSessionProgressIfPossible()
         HapticManager.impact(.light)
     }
@@ -1787,10 +1873,23 @@ struct SwipePhotoView: View {
         markBrowsedAsKept(asset)
         stopInlineVideoPlayback()
         let nextIndex = currentPhotoIndex + 1
-        currentPhotoIndex = nextIndex < sessionPhotos.count ? nextIndex : 0
-        preloadUpcomingImages(from: currentPhotoIndex)
+        let targetIndex = nextIndex < sessionPhotos.count ? nextIndex : 0
+        setCurrentPhotoIndex(targetIndex, transition: .next)
+        preloadUpcomingImages(from: targetIndex)
         persistSessionProgressIfPossible()
         HapticManager.impact(.light)
+    }
+
+    private func setCurrentPhotoIndex(_ index: Int, transition: CardBrowseTransitionDirection) {
+        guard isValidPhotoIndex(index), index != currentPhotoIndex else { return }
+        cardTransitionDirection = transition
+        withAnimation(.easeOut(duration: 0.18)) {
+            currentPhotoIndex = index
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+            guard cardTransitionDirection == transition else { return }
+            cardTransitionDirection = .none
+        }
     }
 
     private func moveToNextPhoto() {
@@ -1894,10 +1993,6 @@ struct SwipePhotoView: View {
     private var sessionProgressScopeID: String {
         if let randomReviewScope {
             return "random:\(randomReviewScope.rawValue)"
-        }
-
-        if let selectedLocationGroupID {
-            return "location:\(selectedLocationGroupID)"
         }
 
         if let albumInfo = selectedAlbumInfo {
@@ -2351,8 +2446,6 @@ struct SwipePhotoView: View {
             return randomReviewScope.title
         } else if selectedHistoricalToday {
             return L10n.string("历史上的今天")
-        } else if let selectedLocationGroupID {
-            return locationGroupTitle(for: selectedLocationGroupID)
         } else if let albumInfo = activeAlbumInfo {
             return albumInfo.title
         } else if let selectedDate, let selectedAdvancedTimeScope {
@@ -2368,19 +2461,6 @@ struct SwipePhotoView: View {
         } else {
             return PhotoCategory.all.title
         }
-    }
-
-    private func locationGroupTitle(for groupID: String) -> String {
-        guard let group = dataManager.locationGroups.first(where: { $0.id == groupID }) else {
-            return L10n.string("地点")
-        }
-        if group.isNoLocationGroup {
-            return group.title
-        }
-        if group.title == L10n.string("未知地址") {
-            return L10n.string("地点照片")
-        }
-        return group.title
     }
 
     private func showFeedback(
@@ -2402,6 +2482,15 @@ struct SwipePhotoView: View {
                 feedbackToast = nil
             }
         }
+    }
+
+    private func acknowledgeGestureUpdateNotice() {
+        gestureUpdateNoticePending = false
+    }
+
+    private func openGestureSettingsFromNotice() {
+        gestureUpdateNoticePending = false
+        openReviewSettings()
     }
 }
 
@@ -2790,7 +2879,9 @@ private struct PhotoAssetQuickInfoOverlay: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             quickInfoRow(icon: "calendar", text: summary.captureDateText)
-            quickInfoRow(icon: "location", text: summary.locationText)
+            if let locationText = summary.locationText {
+                quickInfoRow(icon: "location", text: locationText)
+            }
         }
         .font(.system(size: 12, weight: .semibold))
         .foregroundColor(.white)
@@ -3219,7 +3310,9 @@ struct RealPhotoCard: View {
             values.append(subtitle)
         }
         values.append(metadataSummary.captureDateText)
-        values.append(metadataSummary.locationText)
+        if let locationText = metadataSummary.locationText {
+            values.append(locationText)
+        }
 
         if photoLibraryManager.isScreenshot(asset) {
             values.append(L10n.string("截图"))
@@ -3336,6 +3429,8 @@ private struct PhotoSelectionLoadingCard: View {
 private struct ReviewTipBanner: View {
     let icon: String
     let message: String
+    var actionTitle: String? = nil
+    var onAction: (() -> Void)? = nil
     let onDismiss: () -> Void
 
     var body: some View {
@@ -3352,6 +3447,16 @@ private struct ReviewTipBanner: View {
                 .minimumScaleFactor(0.88)
 
             Spacer(minLength: 6)
+
+            if let actionTitle, let onAction {
+                Button(action: onAction) {
+                    Text(actionTitle)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(PhotoDeleteStyle.primaryText)
+                        .frame(minWidth: 44, minHeight: 44)
+                }
+                .buttonStyle(.plain)
+            }
 
             Button(action: onDismiss) {
                 Text(L10n.string("知道了"))
@@ -3372,6 +3477,21 @@ private struct ReviewTipBanner: View {
                 )
         )
         .shadow(color: PhotoDeleteStyle.floatingShadow.opacity(0.72), radius: 7, x: 0, y: 3)
+    }
+}
+
+private struct GestureUpdateNoticeBanner: View {
+    let onAdjust: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        ReviewTipBanner(
+            icon: "hand.draw",
+            message: L10n.string("手势已更新：左滑删除，右滑保留，上滑收藏。"),
+            actionTitle: L10n.string("调整"),
+            onAction: onAdjust,
+            onDismiss: onDismiss
+        )
     }
 }
 

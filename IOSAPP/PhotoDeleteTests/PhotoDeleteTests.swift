@@ -11,6 +11,7 @@ import CoreLocation
 import Photos
 @testable import PhotoDelete
 
+@Suite(.serialized)
 struct PhotoDeleteTests {
 
     @Test func timeGroupResolverClassifiesRelativeDates() async throws {
@@ -170,21 +171,22 @@ struct PhotoDeleteTests {
     // MARK: - Gesture settings tests
 
     @Test func swipeGestureStandardPresetMatchesDefaultActions() async throws {
-        #expect(SwipeGesturePreferences.defaultAction(for: .left) == .next)
-        #expect(SwipeGesturePreferences.defaultAction(for: .right) == .previous)
-        #expect(SwipeGesturePreferences.defaultAction(for: .up) == .delete)
+        #expect(SwipeGesturePreferences.defaultAction(for: .left) == .delete)
+        #expect(SwipeGesturePreferences.defaultAction(for: .right) == .keep)
+        #expect(SwipeGesturePreferences.defaultAction(for: .up) == .favorite)
     }
 
     @Test func swipeGesturePresetsCoverRequestedLayouts() async throws {
-        #expect(SwipeGesturePreset.standard.leftAction == .next)
-        #expect(SwipeGesturePreset.standard.rightAction == .previous)
-        #expect(SwipeGesturePreset.standard.upAction == .delete)
+        #expect(SwipeGesturePreset.standard.leftAction == .delete)
+        #expect(SwipeGesturePreset.standard.rightAction == .keep)
+        #expect(SwipeGesturePreset.standard.upAction == .favorite)
 
-        #expect(SwipeGesturePreset.reversed.leftAction == .delete)
-        #expect(SwipeGesturePreset.reversed.rightAction == .next)
+        #expect(SwipeGesturePreset.browse.leftAction == .next)
+        #expect(SwipeGesturePreset.browse.rightAction == .previous)
+        #expect(SwipeGesturePreset.browse.upAction == .delete)
 
-        #expect(SwipeGesturePreset.verticalDelete.leftAction == .delete)
-        #expect(SwipeGesturePreset.verticalDelete.rightAction == .keep)
+        #expect(SwipeGesturePreset.leftDeleteNext.leftAction == .delete)
+        #expect(SwipeGesturePreset.leftDeleteNext.rightAction == .next)
     }
 
     @Test func swipeGestureActionNormalizationFallsBackForUnknownValues() async throws {
@@ -192,7 +194,7 @@ struct PhotoDeleteTests {
         #expect(SwipeGesturePreferences.normalizedAction("unknown", fallback: .keep) == .keep)
     }
 
-    @Test func swipeGestureMigrationMovesLegacyDefaultToLeftNextBrowsing() async throws {
+    @Test func swipeGestureMigrationMovesLegacyDefaultToLeftDelete() async throws {
         let suiteName = "PhotoDeleteGestureMigration-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
@@ -203,25 +205,27 @@ struct PhotoDeleteTests {
 
         SwipeGesturePreferences.migrateStoredDefaultsIfNeeded(defaults: defaults)
 
-        #expect(defaults.string(forKey: AppConstants.leftSwipeActionKey) == SwipeGestureAction.next.rawValue)
-        #expect(defaults.string(forKey: AppConstants.rightSwipeActionKey) == SwipeGestureAction.previous.rawValue)
-        #expect(defaults.string(forKey: AppConstants.upSwipeActionKey) == SwipeGestureAction.delete.rawValue)
+        #expect(defaults.string(forKey: AppConstants.leftSwipeActionKey) == SwipeGestureAction.delete.rawValue)
+        #expect(defaults.string(forKey: AppConstants.rightSwipeActionKey) == SwipeGestureAction.keep.rawValue)
+        #expect(defaults.string(forKey: AppConstants.upSwipeActionKey) == SwipeGestureAction.favorite.rawValue)
+        #expect(defaults.bool(forKey: AppConstants.gestureUpdateNoticePendingKey))
     }
 
-    @Test func swipeGestureMigrationMovesPreviousBrowseDefaultToLeftNextBrowsing() async throws {
+    @Test func swipeGestureMigrationMovesPreviousBrowseDefaultToLeftDelete() async throws {
         let suiteName = "PhotoDeleteGestureMigrationPreviousBrowse-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
-        defaults.set(SwipeGestureAction.previous.rawValue, forKey: AppConstants.leftSwipeActionKey)
-        defaults.set(SwipeGestureAction.next.rawValue, forKey: AppConstants.rightSwipeActionKey)
+        defaults.set(SwipeGestureAction.next.rawValue, forKey: AppConstants.leftSwipeActionKey)
+        defaults.set(SwipeGestureAction.previous.rawValue, forKey: AppConstants.rightSwipeActionKey)
         defaults.set(SwipeGestureAction.delete.rawValue, forKey: AppConstants.upSwipeActionKey)
 
         SwipeGesturePreferences.migrateStoredDefaultsIfNeeded(defaults: defaults)
 
-        #expect(defaults.string(forKey: AppConstants.leftSwipeActionKey) == SwipeGestureAction.next.rawValue)
-        #expect(defaults.string(forKey: AppConstants.rightSwipeActionKey) == SwipeGestureAction.previous.rawValue)
-        #expect(defaults.string(forKey: AppConstants.upSwipeActionKey) == SwipeGestureAction.delete.rawValue)
+        #expect(defaults.string(forKey: AppConstants.leftSwipeActionKey) == SwipeGestureAction.delete.rawValue)
+        #expect(defaults.string(forKey: AppConstants.rightSwipeActionKey) == SwipeGestureAction.keep.rawValue)
+        #expect(defaults.string(forKey: AppConstants.upSwipeActionKey) == SwipeGestureAction.favorite.rawValue)
+        #expect(defaults.bool(forKey: AppConstants.gestureUpdateNoticePendingKey))
     }
 
     @Test func swipeGestureMigrationDoesNotOverwriteCustomLayout() async throws {
@@ -238,6 +242,35 @@ struct PhotoDeleteTests {
         #expect(defaults.string(forKey: AppConstants.leftSwipeActionKey) == SwipeGestureAction.favorite.rawValue)
         #expect(defaults.string(forKey: AppConstants.rightSwipeActionKey) == SwipeGestureAction.delete.rawValue)
         #expect(defaults.string(forKey: AppConstants.upSwipeActionKey) == SwipeGestureAction.keep.rawValue)
+        #expect(defaults.bool(forKey: AppConstants.gestureUpdateNoticePendingKey) == false)
+    }
+
+    @Test func swipeGestureMigrationShowsNoticeForExistingImplicitLegacyDefault() async throws {
+        let suiteName = "PhotoDeleteGestureMigrationImplicit-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        defaults.set(true, forKey: AppConstants.hasCompletedOnboardingKey)
+
+        SwipeGesturePreferences.migrateStoredDefaultsIfNeeded(defaults: defaults)
+
+        #expect(defaults.string(forKey: AppConstants.leftSwipeActionKey) == SwipeGestureAction.delete.rawValue)
+        #expect(defaults.string(forKey: AppConstants.rightSwipeActionKey) == SwipeGestureAction.keep.rawValue)
+        #expect(defaults.string(forKey: AppConstants.upSwipeActionKey) == SwipeGestureAction.favorite.rawValue)
+        #expect(defaults.bool(forKey: AppConstants.gestureUpdateNoticePendingKey))
+    }
+
+    @Test func swipeGestureMigrationDoesNotShowNoticeForFreshInstall() async throws {
+        let suiteName = "PhotoDeleteGestureMigrationFresh-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        SwipeGesturePreferences.migrateStoredDefaultsIfNeeded(defaults: defaults)
+
+        #expect(defaults.string(forKey: AppConstants.leftSwipeActionKey) == nil)
+        #expect(defaults.string(forKey: AppConstants.rightSwipeActionKey) == nil)
+        #expect(defaults.string(forKey: AppConstants.upSwipeActionKey) == nil)
+        #expect(defaults.bool(forKey: AppConstants.gestureUpdateNoticePendingKey) == false)
     }
 
     @Test func reviewPlaybackLaunchDefaultsInitializeButDoNotOverrideVideoMute() async throws {
@@ -258,6 +291,7 @@ struct PhotoDeleteTests {
         #expect(PhotoAssetMetadataFormatter.shortCaptureDate(for: nil) == L10n.string("拍摄时间未知"))
         #expect(PhotoAssetMetadataFormatter.detailCaptureDate(for: nil) == L10n.string("未保存拍摄时间"))
         #expect(PhotoAssetMetadataFormatter.locationText(locationTitle: nil, coordinate: nil) == L10n.string("无地点信息"))
+        #expect(PhotoAssetMetadataFormatter.optionalLocationText(locationTitle: nil, coordinate: nil) == nil)
         #expect(
             PhotoAssetMetadataFormatter.locationText(
                 locationTitle: "上海 · 徐汇",
@@ -317,14 +351,6 @@ struct PhotoDeleteTests {
     @Test func supporterEntitlementVerificationStateKeepsCacheExplicit() async throws {
         #expect(SupporterEntitlementState.verificationStarted(hasCachedEntitlement: true) == .cachedOffline)
         #expect(SupporterEntitlementState.verificationStarted(hasCachedEntitlement: false) == .verifying)
-    }
-
-    @MainActor
-    @Test func supporterPlanIncludesLocationOrganizing() async throws {
-        let features = SupporterPlanComparisonCard.features
-
-        #expect(AppConstants.isLocationOrganizingVisible)
-        #expect(features.contains { $0.titleID == .basicLocationOrganizing && $0.free == .included && $0.supporter == .included })
     }
 
     @MainActor
@@ -645,14 +671,14 @@ struct PhotoDeleteTests {
         defaults.set(AppLanguage.zhHans.rawValue, forKey: AppConstants.appLanguageKey)
         #expect(achievement.title == "第一次清理")
         #expect(achievement.subtitle == "完成第一轮照片整理")
-        #expect(SwipeGesturePreset.standard.title == "左右浏览，上滑删除")
-        #expect(SwipeGesturePreset.standard.subtitle == "左滑下一张，右滑上一张，上滑删除")
+        #expect(SwipeGesturePreset.standard.title == "左删右留")
+        #expect(SwipeGesturePreset.standard.subtitle == "左滑删除，右滑保留，上滑收藏")
 
         defaults.set(AppLanguage.en.rawValue, forKey: AppConstants.appLanguageKey)
         #expect(achievement.title == "First Cleanup")
         #expect(achievement.subtitle == "Complete your first photo cleanup")
-        #expect(SwipeGesturePreset.standard.title == "Browse left and right, swipe up to delete")
-        #expect(SwipeGesturePreset.standard.subtitle == "Swipe left for next, right for previous, up to delete")
+        #expect(SwipeGesturePreset.standard.title == "Delete left, keep right")
+        #expect(SwipeGesturePreset.standard.subtitle == "Swipe left to delete, right to keep, up to favorite")
     }
 
     @Test func cleanupAchievementEvaluatorIncludesExpandedSpaceMilestones() async throws {
@@ -1463,137 +1489,6 @@ struct PhotoDeleteTests {
 
         PhotoRandomReviewSessionStore.clear(scopeID: "random:memories", defaults: defaults)
         #expect(PhotoRandomReviewSessionStore.load(scopeID: "random:memories", defaults: defaults).isEmpty)
-    }
-
-    @Test func locationGroupingSeparatesNoLocationAndCountsReviewed() async throws {
-        let records = [
-            PhotoLocationAssetRecord(identifier: "sh-1", latitude: 31.23, longitude: 121.47, isReviewed: true),
-            PhotoLocationAssetRecord(identifier: "sh-2", latitude: 31.231, longitude: 121.471, isReviewed: false),
-            PhotoLocationAssetRecord(identifier: "unknown", latitude: nil, longitude: nil, isReviewed: false)
-        ]
-
-        let result = PhotoLocationGrouping.buildGroups(from: records)
-        let noLocation = try #require(result.groups.first { $0.id == PhotoLocationGrouping.noLocationID })
-        let locationGroup = try #require(result.groups.first { !$0.isNoLocationGroup })
-
-        #expect(noLocation.assetCount == 1)
-        #expect(noLocation.reviewedCount == 0)
-        #expect(locationGroup.assetCount == 2)
-        #expect(locationGroup.reviewedCount == 1)
-        #expect(Set(result.identifiersByGroupID[locationGroup.id] ?? []) == ["sh-1", "sh-2"])
-    }
-
-    @Test func locationGroupingUsesCachedHumanTitle() async throws {
-        let records = [
-            PhotoLocationAssetRecord(identifier: "sh-1", latitude: 31.23, longitude: 121.47, isReviewed: false),
-            PhotoLocationAssetRecord(identifier: "sh-2", latitude: 31.231, longitude: 121.471, isReviewed: false)
-        ]
-        let groupID = PhotoLocationGrouping.groupID(latitude: 31.23, longitude: 121.47)
-
-        let result = PhotoLocationGrouping.buildGroups(
-            from: records,
-            titleCache: [
-                groupID: PhotoLocationResolvedTitle(title: "上海 · 黄浦", resolvedAt: makeDate(year: 2026, month: 6, day: 24, calendar: Calendar(identifier: .gregorian)))
-            ]
-        )
-        let locationGroup = try #require(result.groups.first { !$0.isNoLocationGroup })
-
-        #expect(locationGroup.title == "上海 · 黄浦")
-        #expect(result.representativeCoordinatesByGroupID[locationGroup.id] != nil)
-    }
-
-    @MainActor
-    @Test func locationGroupingFallsBackToUnknownAddressWhenTitleMissing() async throws {
-        let defaults = UserDefaults.standard
-        let previousLanguage = defaults.string(forKey: AppConstants.appLanguageKey)
-        defer {
-            if let previousLanguage {
-                defaults.set(previousLanguage, forKey: AppConstants.appLanguageKey)
-            } else {
-                defaults.removeObject(forKey: AppConstants.appLanguageKey)
-            }
-        }
-        defaults.set(AppLanguage.zhHans.rawValue, forKey: AppConstants.appLanguageKey)
-
-        let records = [
-            PhotoLocationAssetRecord(identifier: "geo-1", latitude: 31.23, longitude: 121.47, isReviewed: false)
-        ]
-
-        let result = PhotoLocationGrouping.buildGroups(from: records)
-        let locationGroup = try #require(result.groups.first { !$0.isNoLocationGroup })
-
-        #expect(locationGroup.title == L10n.string("未知地址"))
-    }
-
-    @Test func locationGroupingTreatsInvalidCoordinatesAsNoLocation() async throws {
-        let records = [
-            PhotoLocationAssetRecord(identifier: "invalid-lat", latitude: 91, longitude: 121.47, isReviewed: true),
-            PhotoLocationAssetRecord(identifier: "invalid-lon", latitude: 31.23, longitude: 181, isReviewed: false),
-            PhotoLocationAssetRecord(identifier: "missing", latitude: nil, longitude: nil, isReviewed: false)
-        ]
-
-        let result = PhotoLocationGrouping.buildGroups(from: records)
-        let noLocation = try #require(result.groups.first { $0.id == PhotoLocationGrouping.noLocationID })
-
-        #expect(result.groups.count == 1)
-        #expect(noLocation.title == L10n.string("无地点信息"))
-        #expect(noLocation.assetCount == 3)
-        #expect(noLocation.reviewedCount == 1)
-    }
-
-    @Test func locationGroupingLimitsVisibleLocationBuckets() async throws {
-        let records = (0..<8).map { index in
-            PhotoLocationAssetRecord(
-                identifier: "asset-\(index)",
-                latitude: Double(index),
-                longitude: Double(index),
-                isReviewed: false
-            )
-        }
-
-        let result = PhotoLocationGrouping.buildGroups(from: records, maximumGroups: 3)
-        #expect(result.groups.count == 3)
-        #expect(result.groups.allSatisfy { !$0.isNoLocationGroup })
-    }
-
-    @Test func locationDisplayTitlePrefersLocalityAndArea() async throws {
-        let cityArea = PhotoLocationGrouping.displayTitle(
-            name: "China",
-            locality: "上海",
-            subLocality: "徐汇",
-            administrativeArea: "上海市",
-            country: "中国"
-        )
-        let regionOnly = PhotoLocationGrouping.displayTitle(
-            locality: nil,
-            subLocality: nil,
-            administrativeArea: "Île-de-France",
-            country: "France"
-        )
-
-        #expect(cityArea == "上海 · 徐汇")
-        #expect(regionOnly == "Île-de-France")
-    }
-
-    @Test func locationTitleCacheStorePersistsAndPrunes() async throws {
-        let fileURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("PhotoDeleteLocationTitleCache-\(UUID().uuidString).json")
-        defer { try? FileManager.default.removeItem(at: fileURL) }
-
-        let store = PhotoLocationTitleCacheStore(fileURL: fileURL)
-        store.merge([
-            "location:1:1": PhotoLocationResolvedTitle(title: "上海", resolvedAt: makeDate(year: 2026, month: 6, day: 24, calendar: Calendar(identifier: .gregorian))),
-            "location:2:2": PhotoLocationResolvedTitle(title: "杭州", resolvedAt: makeDate(year: 2026, month: 6, day: 24, calendar: Calendar(identifier: .gregorian)))
-        ])
-
-        let reloaded = PhotoLocationTitleCacheStore(fileURL: fileURL)
-        #expect(reloaded.titlesByGroupID["location:1:1"]?.title == "上海")
-        #expect(reloaded.titlesByGroupID["location:2:2"]?.title == "杭州")
-
-        reloaded.prune(keeping: ["location:2:2"])
-        let pruned = PhotoLocationTitleCacheStore(fileURL: fileURL)
-        #expect(pruned.titlesByGroupID["location:1:1"] == nil)
-        #expect(pruned.titlesByGroupID["location:2:2"]?.title == "杭州")
     }
 
     @Test func reviewSessionPaginatorExpandsNearEndAndClampsAtTotal() async throws {

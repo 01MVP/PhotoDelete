@@ -146,6 +146,15 @@ struct SwipeGesturePreset: Identifiable, Equatable {
 
     static let standard = SwipeGesturePreset(
         id: "standard",
+        titleKey: "左删右留",
+        subtitleKey: "左滑删除，右滑保留，上滑收藏",
+        leftAction: .delete,
+        rightAction: .keep,
+        upAction: .favorite
+    )
+
+    static let browse = SwipeGesturePreset(
+        id: "browse",
         titleKey: "左右浏览，上滑删除",
         subtitleKey: "左滑下一张，右滑上一张，上滑删除",
         leftAction: .next,
@@ -153,7 +162,7 @@ struct SwipeGesturePreset: Identifiable, Equatable {
         upAction: .delete
     )
 
-    static let reversed = SwipeGesturePreset(
+    static let leftDeleteNext = SwipeGesturePreset(
         id: "leftDelete",
         titleKey: "左滑删除",
         subtitleKey: "左滑删除，右滑下一张，上滑收藏",
@@ -162,24 +171,15 @@ struct SwipeGesturePreset: Identifiable, Equatable {
         upAction: .favorite
     )
 
-    static let verticalDelete = SwipeGesturePreset(
-        id: "classic",
-        titleKey: "左删右留",
-        subtitleKey: "左滑删除，右滑保留，上滑收藏",
-        leftAction: .delete,
-        rightAction: .keep,
-        upAction: .favorite
-    )
-
     static let presets: [SwipeGesturePreset] = [
         .standard,
-        .reversed,
-        .verticalDelete
+        .browse,
+        .leftDeleteNext
     ]
 }
 
 enum SwipeGesturePreferences {
-    private static let gestureMigrationVersion = "browse-left-next-v1"
+    private static let gestureMigrationVersion = "left-delete-v2"
 
     static func defaultAction(for direction: SwipeGestureDirection) -> SwipeGestureAction {
         SwipeGesturePreset.standard.action(for: direction)
@@ -198,22 +198,32 @@ enum SwipeGesturePreferences {
         let rightValue = defaults.string(forKey: AppConstants.rightSwipeActionKey)
         let upValue = defaults.string(forKey: AppConstants.upSwipeActionKey)
 
-        let matchesLeftDeleteDefault = leftValue == SwipeGestureAction.delete.rawValue &&
-            rightValue == SwipeGestureAction.keep.rawValue &&
-            (upValue == nil || upValue == SwipeGestureAction.favorite.rawValue)
+        let hasStoredGestureValues = leftValue != nil || rightValue != nil || upValue != nil
+        let hasExistingReviewState = !(defaults.stringArray(forKey: AppConstants.reviewedAssetIDsKey) ?? []).isEmpty
+        let hasCompletedFirstRun = defaults.bool(forKey: AppConstants.hasCompletedOnboardingKey) ||
+            defaults.bool(forKey: AppConstants.hasSeenIntroKey)
+        let matchesImplicitLegacyDefault = !hasStoredGestureValues &&
+            (hasExistingReviewState || hasCompletedFirstRun)
 
         let matchesOlderRightDeleteDefault = leftValue == SwipeGestureAction.keep.rawValue &&
             rightValue == SwipeGestureAction.delete.rawValue &&
             (upValue == nil || upValue == SwipeGestureAction.favorite.rawValue)
 
-        let matchesPreviousBrowseDefault = leftValue == SwipeGestureAction.previous.rawValue &&
-            rightValue == SwipeGestureAction.next.rawValue &&
+        let matchesPreviousBrowseDefault = leftValue == SwipeGestureAction.next.rawValue &&
+            rightValue == SwipeGestureAction.previous.rawValue &&
             upValue == SwipeGestureAction.delete.rawValue
 
-        if matchesLeftDeleteDefault || matchesOlderRightDeleteDefault || matchesPreviousBrowseDefault {
+        let shouldMigrateToLeftDeleteDefault = matchesOlderRightDeleteDefault ||
+            matchesPreviousBrowseDefault ||
+            matchesImplicitLegacyDefault
+
+        if shouldMigrateToLeftDeleteDefault {
             defaults.set(SwipeGesturePreset.standard.leftAction.rawValue, forKey: AppConstants.leftSwipeActionKey)
             defaults.set(SwipeGesturePreset.standard.rightAction.rawValue, forKey: AppConstants.rightSwipeActionKey)
             defaults.set(SwipeGesturePreset.standard.upAction.rawValue, forKey: AppConstants.upSwipeActionKey)
+            defaults.set(true, forKey: AppConstants.gestureUpdateNoticePendingKey)
+        } else if defaults.object(forKey: AppConstants.gestureUpdateNoticePendingKey) == nil {
+            defaults.set(false, forKey: AppConstants.gestureUpdateNoticePendingKey)
         }
 
         defaults.set(gestureMigrationVersion, forKey: AppConstants.gestureDefaultMigrationKey)

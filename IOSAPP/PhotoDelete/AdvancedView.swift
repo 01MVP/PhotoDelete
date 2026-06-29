@@ -1304,8 +1304,13 @@ private struct AdvancedAssetListView: View {
     @State private var previewAsset: AdvancedPreviewAsset?
     @State private var sizeLoadingTask: Task<Void, Never>?
     @State private var visibleAssetLimit = 120
+    @State private var isLoadingAssets = false
+    @State private var isLoadingVideoSizes = false
+    @State private var assetLoadGeneration = 0
+    @State private var sizeLoadGeneration = 0
 
     private let assetLimitStep = 120
+    private let videoSizeUpdateBatchSize = 8
 
     private var selectedAssets: [PHAsset] {
         filteredAssets.filter { selectedAssetIDs.contains($0.localIdentifier) }
@@ -1380,7 +1385,7 @@ private struct AdvancedAssetListView: View {
                         action: toggleBulkSelection
                     )
 
-                    if iCloudVideoCount > 0 {
+                    if !isLoadingAssets, !isLoadingVideoSizes, iCloudVideoCount > 0 {
                         AdvancedVideoCompressionICloudInfoCard(
                             count: iCloudVideoCount,
                             subtitle: L10n.string("预览或处理时会下载原片。"),
@@ -1388,7 +1393,12 @@ private struct AdvancedAssetListView: View {
                         )
                     }
 
-                    if assets.isEmpty {
+                    if isLoadingAssets && assets.isEmpty {
+                        AdvancedLoadingState(
+                            title: L10n.string("正在准备清理入口"),
+                            subtitle: L10n.string("稍后会显示可处理的照片和视频。")
+                        )
+                    } else if assets.isEmpty {
                         AdvancedEmptyState(
                             icon: mode.icon,
                             title: L10n.string("没有可整理的内容"),
@@ -1514,16 +1524,25 @@ private struct AdvancedAssetListView: View {
     }
 
     private func reloadAssets() {
-        let loadedAssets: [PHAsset]
+        assetLoadGeneration += 1
+        let generation = assetLoadGeneration
+        isLoadingAssets = true
         switch mode {
         case .cleanup(let kind):
-            loadedAssets = dataManager.getPhotosForAdvancedCleanup(kind)
+            dataManager.loadPhotosForAdvancedCleanup(kind) { loadedAssets in
+                guard generation == assetLoadGeneration else { return }
+                applyLoadedAssets(loadedAssets)
+            }
         }
+    }
 
+    private func applyLoadedAssets(_ loadedAssets: [PHAsset]) {
         assets = loadedAssets
         visibleAssetLimit = 120
         pruneVideoSizeEstimates(for: loadedAssets)
         pruneSelectionToFilteredAssets()
+        seedCachedVideoSizeEstimates(for: loadedAssets)
+        isLoadingAssets = false
         loadVideoSizes(for: visibleFilteredAssets)
     }
 
@@ -1565,7 +1584,7 @@ private struct AdvancedAssetListView: View {
             return L10n.string("计算中")
         }
         switch estimate.source {
-        case .localFile, .bitrate:
+        case .assetResource:
             return CleanupStatsFormatter.space(estimate.sizeMB)
         case .iCloud:
             return L10n.string("待下载")
@@ -1601,27 +1620,72 @@ private struct AdvancedAssetListView: View {
         videoSizeEstimatesByAssetID = videoSizeEstimatesByAssetID.filter { loadedIDs.contains($0.key) }
     }
 
+    private func seedCachedVideoSizeEstimates(for loadedAssets: [PHAsset]) {
+        for asset in loadedAssets where asset.mediaType == .video {
+            guard let cached = dataManager.cachedVideoFileSizeEstimate(for: asset) else { continue }
+            videoSizeEstimatesByAssetID[asset.localIdentifier] = cached
+        }
+    }
+
+    private func applyVideoSizeEstimates(
+        _ estimatesByAssetID: [String: VideoFileSizeEstimate],
+        generation: Int
+    ) {
+        guard generation == sizeLoadGeneration, !estimatesByAssetID.isEmpty else { return }
+        for (assetID, estimate) in estimatesByAssetID {
+            dataManager.cacheVideoFileSizeEstimate(estimate, forAssetIdentifier: assetID)
+            videoSizeEstimatesByAssetID[assetID] = estimate
+        }
+    }
+
     private func loadVideoSizes(for loadedAssets: [PHAsset]) {
         sizeLoadingTask?.cancel()
+        sizeLoadGeneration += 1
+        let generation = sizeLoadGeneration
         let videos = loadedAssets.filter { $0.mediaType == .video }
-        guard !videos.isEmpty else { return }
+        guard !videos.isEmpty else {
+            isLoadingVideoSizes = false
+            return
+        }
 
+        isLoadingVideoSizes = true
         sizeLoadingTask = Task {
+            var pendingEstimates: [String: VideoFileSizeEstimate] = [:]
             for asset in videos {
                 if Task.isCancelled { break }
                 let alreadyLoaded = await MainActor.run {
-                    videoSizeEstimatesByAssetID[asset.localIdentifier]?.isReliable == true
+                    guard generation == sizeLoadGeneration else { return true }
+                    if let cached = dataManager.cachedVideoFileSizeEstimate(for: asset) {
+                        videoSizeEstimatesByAssetID[asset.localIdentifier] = cached
+                        return true
+                    }
+                    return videoSizeEstimatesByAssetID[asset.localIdentifier] != nil
                 }
                 if alreadyLoaded { continue }
 
                 do {
                     let estimate = try await dataManager.photoLibraryManager.videoFileSizeEstimate(for: asset)
-                    await MainActor.run {
-                        videoSizeEstimatesByAssetID[asset.localIdentifier] = estimate
+                    pendingEstimates[asset.localIdentifier] = estimate
+                    if pendingEstimates.count >= videoSizeUpdateBatchSize {
+                        let estimatesToApply = pendingEstimates
+                        pendingEstimates.removeAll()
+                        await MainActor.run {
+                            applyVideoSizeEstimates(estimatesToApply, generation: generation)
+                        }
                     }
                 } catch {
                     continue
                 }
+            }
+            if !pendingEstimates.isEmpty {
+                let estimatesToApply = pendingEstimates
+                await MainActor.run {
+                    applyVideoSizeEstimates(estimatesToApply, generation: generation)
+                }
+            }
+            await MainActor.run {
+                guard generation == sizeLoadGeneration else { return }
+                isLoadingVideoSizes = false
             }
         }
     }
@@ -1717,6 +1781,8 @@ private struct AdvancedImageCompressionView: View {
     @State private var compressionTask: Task<Void, Never>?
     @State private var visibleImageLimit = 24
     @State private var selectedTab: AdvancedImageCompressionTab = .pending
+    @State private var isLoadingAssets = false
+    @State private var assetLoadGeneration = 0
 
     private let imageLimitStep = 24
 
@@ -1725,7 +1791,7 @@ private struct AdvancedImageCompressionView: View {
     }
 
     private var compressibleAssets: [PHAsset] {
-        assets.filter { !processedImageAssetIDs.contains($0.localIdentifier) }
+        assets
     }
 
     private var visibleCompressibleAssets: [PHAsset] {
@@ -1738,22 +1804,6 @@ private struct AdvancedImageCompressionView: View {
 
     private var isAllSelected: Bool {
         !visibleCompressibleAssets.isEmpty && visibleCompressibleAssets.allSatisfy { selectedAssetIDs.contains($0.localIdentifier) }
-    }
-
-    private var processedImageAssetIDs: Set<String> {
-        compressedOriginalAssetIDs.union(compressedImageAssetIDs)
-    }
-
-    private var compressedOriginalAssetIDs: Set<String> {
-        Set(dataManager.imageCompressionHistoryStore.sessions.flatMap { session in
-            session.items.map(\.originalAssetIdentifier)
-        })
-    }
-
-    private var compressedImageAssetIDs: Set<String> {
-        Set(dataManager.imageCompressionHistoryStore.sessions.flatMap { session in
-            session.items.compactMap(\.createdAssetIdentifier)
-        })
     }
 
     private var imageListSizeSummary: String {
@@ -1895,7 +1945,12 @@ private struct AdvancedImageCompressionView: View {
 
     @ViewBuilder
     private var pendingImageCompressionContent: some View {
-        if assets.isEmpty {
+        if isLoadingAssets && assets.isEmpty {
+            AdvancedLoadingState(
+                title: L10n.string("正在准备清理入口"),
+                subtitle: L10n.string("稍后会显示可处理的照片和视频。")
+            )
+        } else if assets.isEmpty {
             AdvancedEmptyState(
                 icon: AdvancedCleanupKind.imageCompression.icon,
                 title: L10n.string("未找到可压缩的图片"),
@@ -1963,13 +2018,24 @@ private struct AdvancedImageCompressionView: View {
     }
 
     private func reloadAssets() {
-        let loadedAssets = dataManager.getPhotosForAdvancedCleanup(.imageCompression)
+        assetLoadGeneration += 1
+        let generation = assetLoadGeneration
+        isLoadingAssets = true
+        dataManager.loadPhotosForAdvancedCleanup(.imageCompression) { loadedAssets in
+            guard generation == assetLoadGeneration else { return }
+            applyLoadedAssets(loadedAssets)
+        }
+    }
+
+    private func applyLoadedAssets(_ loadedAssets: [PHAsset]) {
         assets = loadedAssets
         visibleImageLimit = 24
+        let loadedIDs = Set(loadedAssets.map(\.localIdentifier))
         selectedAssetIDs = selectedAssetIDs.filter { selectedID in
-            loadedAssets.contains { $0.localIdentifier == selectedID }
+            loadedIDs.contains(selectedID)
         }
         pruneSelectionToCompressibleAssets()
+        isLoadingAssets = false
     }
 
     private func showMoreCompressibleImages() {
@@ -3144,8 +3210,14 @@ private struct AdvancedVideoCompressionView: View {
     @State private var sizeLoadingTask: Task<Void, Never>?
     @State private var selectedTab: AdvancedVideoCompressionTab = .pending
     @State private var visibleVideoLimit = 40
+    @State private var isLoadingAssets = false
+    @State private var isLoadingVideoSizes = false
+    @State private var assetLoadGeneration = 0
+    @State private var sizeLoadGeneration = 0
+    @State private var processedVideoAssetIDs: Set<String> = []
 
     private let videoLimitStep = 40
+    private let videoSizeUpdateBatchSize = 8
 
     private var selectedAssets: [PHAsset] {
         compressibleAssets.filter { selectedAssetIDs.contains($0.localIdentifier) }
@@ -3165,22 +3237,6 @@ private struct AdvancedVideoCompressionView: View {
 
     private var isAllSelected: Bool {
         !visibleCompressibleAssets.isEmpty && visibleCompressibleAssets.allSatisfy { selectedAssetIDs.contains($0.localIdentifier) }
-    }
-
-    private var processedVideoAssetIDs: Set<String> {
-        compressedOriginalAssetIDs.union(compressedVideoAssetIDs)
-    }
-
-    private var compressedOriginalAssetIDs: Set<String> {
-        Set(dataManager.videoCompressionHistoryStore.sessions.flatMap { session in
-            session.items.map(\.originalAssetIdentifier)
-        })
-    }
-
-    private var compressedVideoAssetIDs: Set<String> {
-        Set(dataManager.videoCompressionHistoryStore.sessions.flatMap { session in
-            session.items.compactMap(\.createdAssetIdentifier)
-        })
     }
 
     private var reliableVideoSizeMBByAssetID: [String: Double] {
@@ -3393,7 +3449,12 @@ private struct AdvancedVideoCompressionView: View {
 
     @ViewBuilder
     private var pendingVideoCompressionContent: some View {
-        if assets.isEmpty {
+        if isLoadingAssets && assets.isEmpty {
+            AdvancedLoadingState(
+                title: L10n.string("正在准备清理入口"),
+                subtitle: L10n.string("稍后会显示可处理的照片和视频。")
+            )
+        } else if assets.isEmpty {
             AdvancedEmptyState(
                 icon: AdvancedCleanupKind.videoCompression.icon,
                 title: L10n.string("未找到可压缩的视频"),
@@ -3407,7 +3468,7 @@ private struct AdvancedVideoCompressionView: View {
                 action: toggleBulkSelection
             )
 
-            if iCloudVideoCount > 0 {
+            if !isLoadingAssets, !isLoadingVideoSizes, iCloudVideoCount > 0 {
                 AdvancedVideoCompressionICloudInfoCard(
                     count: iCloudVideoCount,
                     subtitle: L10n.string("压缩时会下载原片并确认大小。"),
@@ -3471,14 +3532,48 @@ private struct AdvancedVideoCompressionView: View {
     }
 
     private func reloadAssets() {
-        let loadedAssets = dataManager.getPhotosForAdvancedCleanup(.videoCompression)
+        assetLoadGeneration += 1
+        let generation = assetLoadGeneration
+        isLoadingAssets = true
+        refreshProcessedVideoAssetIDs()
+        dataManager.loadPhotosForAdvancedCleanup(.videoCompression) { loadedAssets in
+            guard generation == assetLoadGeneration else { return }
+            applyLoadedAssets(loadedAssets)
+        }
+    }
+
+    private func applyLoadedAssets(_ loadedAssets: [PHAsset]) {
         assets = loadedAssets
         visibleVideoLimit = 40
+        let loadedIDs = Set(loadedAssets.map(\.localIdentifier))
         selectedAssetIDs = selectedAssetIDs.filter { selectedID in
-            loadedAssets.contains { $0.localIdentifier == selectedID }
+            loadedIDs.contains(selectedID)
         }
         pruneSelectionToCompressibleAssets()
+        seedCachedVideoSizeEstimates(for: loadedAssets)
+        isLoadingAssets = false
         loadVideoSizes(for: visibleCompressibleAssets)
+    }
+
+    private func refreshProcessedVideoAssetIDs() {
+        processedVideoAssetIDs = Self.makeProcessedVideoAssetIDs(
+            from: dataManager.videoCompressionHistoryStore.sessions
+        )
+    }
+
+    private static func makeProcessedVideoAssetIDs(
+        from sessions: [VideoCompressionSession]
+    ) -> Set<String> {
+        var ids: Set<String> = []
+        for session in sessions {
+            for item in session.items {
+                ids.insert(item.originalAssetIdentifier)
+                if let createdAssetIdentifier = item.createdAssetIdentifier {
+                    ids.insert(createdAssetIdentifier)
+                }
+            }
+        }
+        return ids
     }
 
     private func displaySizeMB(for asset: PHAsset) -> Double {
@@ -3490,7 +3585,7 @@ private struct AdvancedVideoCompressionView: View {
             return L10n.string("计算中")
         }
         switch estimate.source {
-        case .localFile, .bitrate:
+        case .assetResource:
             return CleanupStatsFormatter.space(estimate.sizeMB)
         case .iCloud:
             return L10n.string("待下载")
@@ -3529,24 +3624,70 @@ private struct AdvancedVideoCompressionView: View {
         selectedAssets.contains { videoSizeEstimatesByAssetID[$0.localIdentifier] == nil }
     }
 
+    private func seedCachedVideoSizeEstimates(for loadedAssets: [PHAsset]) {
+        for asset in loadedAssets {
+            guard let cached = dataManager.cachedVideoFileSizeEstimate(for: asset) else { continue }
+            videoSizeEstimatesByAssetID[asset.localIdentifier] = cached
+        }
+    }
+
+    private func applyVideoSizeEstimates(
+        _ estimatesByAssetID: [String: VideoFileSizeEstimate],
+        generation: Int
+    ) {
+        guard generation == sizeLoadGeneration, !estimatesByAssetID.isEmpty else { return }
+        for (assetID, estimate) in estimatesByAssetID {
+            dataManager.cacheVideoFileSizeEstimate(estimate, forAssetIdentifier: assetID)
+            videoSizeEstimatesByAssetID[assetID] = estimate
+        }
+    }
+
     private func loadVideoSizes(for loadedAssets: [PHAsset]) {
         sizeLoadingTask?.cancel()
+        sizeLoadGeneration += 1
+        let generation = sizeLoadGeneration
+        guard !loadedAssets.isEmpty else {
+            isLoadingVideoSizes = false
+            return
+        }
+        isLoadingVideoSizes = true
         sizeLoadingTask = Task {
+            var pendingEstimates: [String: VideoFileSizeEstimate] = [:]
             for asset in loadedAssets {
                 if Task.isCancelled { break }
                 let alreadyLoaded = await MainActor.run {
-                    videoSizeEstimatesByAssetID[asset.localIdentifier]?.isReliable == true
+                    guard generation == sizeLoadGeneration else { return true }
+                    if let cached = dataManager.cachedVideoFileSizeEstimate(for: asset) {
+                        videoSizeEstimatesByAssetID[asset.localIdentifier] = cached
+                        return true
+                    }
+                    return videoSizeEstimatesByAssetID[asset.localIdentifier] != nil
                 }
                 if alreadyLoaded { continue }
 
                 do {
                     let estimate = try await dataManager.photoLibraryManager.videoFileSizeEstimate(for: asset)
-                    await MainActor.run {
-                        videoSizeEstimatesByAssetID[asset.localIdentifier] = estimate
+                    pendingEstimates[asset.localIdentifier] = estimate
+                    if pendingEstimates.count >= videoSizeUpdateBatchSize {
+                        let estimatesToApply = pendingEstimates
+                        pendingEstimates.removeAll()
+                        await MainActor.run {
+                            applyVideoSizeEstimates(estimatesToApply, generation: generation)
+                        }
                     }
                 } catch {
                     continue
                 }
+            }
+            if !pendingEstimates.isEmpty {
+                let estimatesToApply = pendingEstimates
+                await MainActor.run {
+                    applyVideoSizeEstimates(estimatesToApply, generation: generation)
+                }
+            }
+            await MainActor.run {
+                guard generation == sizeLoadGeneration else { return }
+                isLoadingVideoSizes = false
             }
         }
     }
@@ -3696,15 +3837,19 @@ private struct AdvancedVideoCompressionView: View {
                         items: completedResult.historyItems
                     )
                     for item in resultItems {
-                        videoSizeEstimatesByAssetID[item.originalAssetIdentifier] = VideoFileSizeEstimate(
+                        let originalEstimate = VideoFileSizeEstimate(
                             sizeMB: item.originalSizeMB,
-                            source: .localFile
+                            source: .assetResource
                         )
+                        videoSizeEstimatesByAssetID[item.originalAssetIdentifier] = originalEstimate
+                        dataManager.cacheVideoFileSizeEstimate(originalEstimate, forAssetIdentifier: item.originalAssetIdentifier)
                         if let createdAssetIdentifier = item.createdAssetIdentifier {
-                            videoSizeEstimatesByAssetID[createdAssetIdentifier] = VideoFileSizeEstimate(
+                            let compressedEstimate = VideoFileSizeEstimate(
                                 sizeMB: item.compressedSizeMB,
-                                source: .localFile
+                                source: .assetResource
                             )
+                            videoSizeEstimatesByAssetID[createdAssetIdentifier] = compressedEstimate
+                            dataManager.cacheVideoFileSizeEstimate(compressedEstimate, forAssetIdentifier: createdAssetIdentifier)
                         }
                     }
                     selectedAssetIDs.removeAll()
@@ -5861,6 +6006,33 @@ private struct AdvancedEmptyState: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 42)
         .photoDeleteCard()
+    }
+}
+
+private struct AdvancedLoadingState: View {
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        VStack(spacing: 14) {
+            ProgressView()
+                .progressViewStyle(CircularProgressViewStyle(tint: PhotoDeleteStyle.accent))
+
+            VStack(spacing: 5) {
+                Text(title)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.primaryText)
+
+                Text(subtitle)
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 42)
+        .photoDeleteCard()
+        .accessibilityElement(children: .combine)
     }
 }
 

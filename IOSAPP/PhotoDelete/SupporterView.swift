@@ -586,7 +586,6 @@ struct SupporterPlanComparisonCard: View {
         .init(titleID: .basicSwipeReview, free: .included, supporter: .included),
         .init(titleID: .confirmedDeleteAndFavorite, free: .included, supporter: .included),
         .init(titleID: .basicTimeOrganizing, free: .included, supporter: .included),
-        .init(titleID: .basicLocationOrganizing, free: .included, supporter: .included),
         .init(titleID: .localCleanupHistory, free: .included, supporter: .included),
         .init(titleID: .basicSpaceSavedStats, free: .included, supporter: .included),
         .init(titleID: .fullTimeList, free: .notIncluded, supporter: .included),
@@ -644,7 +643,6 @@ enum SupporterPlanFeatureTitle: String {
     case basicSwipeReview = "基础滑动整理"
     case confirmedDeleteAndFavorite = "确认后删除和收藏"
     case basicTimeOrganizing = "按时间整理"
-    case basicLocationOrganizing = "地点整理"
     case localCleanupHistory = "本机清理历史"
     case basicSpaceSavedStats = "基础节省空间统计"
     case fullTimeList = "完整时间列表"
@@ -660,7 +658,6 @@ enum SupporterPlanFeatureTitle: String {
         case .basicSwipeReview: return L10n.string("基础滑动整理")
         case .confirmedDeleteAndFavorite: return L10n.string("确认后删除和收藏")
         case .basicTimeOrganizing: return L10n.string("按时间整理")
-        case .basicLocationOrganizing: return L10n.string("地点整理")
         case .localCleanupHistory: return L10n.string("本机清理历史")
         case .basicSpaceSavedStats: return L10n.string("基础节省空间统计")
         case .fullTimeList: return L10n.string("完整时间列表")
@@ -754,7 +751,7 @@ struct SupporterBenefitsSheet: View {
 
                 ScrollView {
                     VStack(spacing: 16) {
-                        Text(L10n.string("免费版保留随机整理、滑动整理、按时间整理和地点整理；支持者版额外解锁完整时间列表、图片压缩、视频压缩、大文件清理、相似照片清理和主题切换。"))
+                        Text(L10n.string("免费版保留随机整理、滑动整理和按时间整理；支持者版额外解锁完整时间列表、图片压缩、视频压缩、大文件清理、相似照片清理和主题切换。"))
                             .font(.system(size: 14, weight: .regular))
                             .foregroundColor(PhotoDeleteStyle.secondaryText)
                             .frame(maxWidth: .infinity, alignment: .leading)

@@ -14074,6 +14074,50 @@
         }
       }
     },
+    "横向": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Landscape"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "横向"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "橫向"
+          }
+        }
+      }
+    },
+    "竖向": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Portrait"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "竖向"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "直向"
+          }
+        }
+      }
+    },
     "%lld 个": {
       "localizations": {
         "en": {
@@ -19662,6 +19706,50 @@
         }
       }
     },
+    "方向": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Orientation"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "方向"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "方向"
+          }
+        }
+      }
+    },
+    "方形": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Square"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "方形"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "方形"
+          }
+        }
+      }
+    },
     "图片压缩会生成新的 JPEG 副本，原图不会自动删除。最终节省空间以完成报告为准。": {
       "localizations": {
         "en": {
@@ -20120,6 +20208,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "免費版保留隨機整理、滑動整理、按時間整理和地點整理；支持者版額外解鎖完整時間列表、圖片壓縮、影片壓縮、大檔案清理、相似照片清理和主題切換。"
+          }
+        }
+      }
+    },
+    "免费版保留随机整理、滑动整理和按时间整理；支持者版额外解锁完整时间列表、图片压缩、视频压缩、大文件清理、相似照片清理和主题切换。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The free version keeps random review, swipe review, and time organizing. Supporter also unlocks the full time list, image compression, video compression, large file cleanup, similar photo cleanup, and themes."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "免费版保留随机整理、滑动整理和按时间整理；支持者版额外解锁完整时间列表、图片压缩、视频压缩、大文件清理、相似照片清理和主题切换。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "免費版保留隨機整理、滑動整理和按時間整理；支持者版額外解鎖完整時間列表、圖片壓縮、影片壓縮、大檔案清理、相似照片清理和主題切換。"
           }
         }
       }
@@ -20850,6 +20960,28 @@
         }
       }
     },
+    "修改时间": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modified"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "修改时间"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修改時間"
+          }
+        }
+      }
+    },
     "未保存拍摄时间": {
       "localizations": {
         "en": {
@@ -21154,6 +21286,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "左右滑動瀏覽照片，上滑加入待刪除；想換手勢，可以在整理頁底部打開設定。"
+          }
+        }
+      }
+    },
+    "手势已更新：左滑删除，右滑保留，上滑收藏。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gestures changed: swipe left to delete, right to keep, up to favorite."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "手势已更新：左滑删除，右滑保留，上滑收藏。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手勢已更新：左滑刪除，右滑保留，上滑收藏。"
           }
         }
       }

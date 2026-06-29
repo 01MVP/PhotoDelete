@@ -1102,7 +1102,7 @@ struct CandidatePhotoPreviewView: View {
     }
 
     private func previewMediaHeight(in size: CGSize) -> CGFloat {
-        min(max(size.height * 0.58, 320), size.height * 0.68)
+        min(max(size.height * 0.82, 420), size.height * 0.88)
     }
 
     private var isLivePhotoAsset: Bool {
@@ -1192,12 +1192,20 @@ private struct PhotoAssetDetailsPanel: View {
 
             VStack(spacing: 0) {
                 detailRow(label: L10n.string("拍摄时间"), value: captureDateText, icon: "calendar")
-                Divider().background(PhotoDeleteStyle.hairline).padding(.leading, 44)
-                detailRow(label: L10n.string("地点"), value: locationText, icon: "location")
+                if let locationText {
+                    detailDivider
+                    detailRow(label: L10n.string("地点"), value: locationText, icon: "location")
+                }
+                if let modificationDateText {
+                    detailDivider
+                    detailRow(label: L10n.string("修改时间"), value: modificationDateText, icon: "clock.arrow.circlepath")
+                }
                 Divider().background(PhotoDeleteStyle.hairline).padding(.leading, 44)
                 detailRow(label: L10n.string("类型"), value: mediaTypeText, icon: mediaTypeIcon)
                 Divider().background(PhotoDeleteStyle.hairline).padding(.leading, 44)
                 detailRow(label: L10n.string("尺寸"), value: pixelSizeText, icon: "aspectratio")
+                Divider().background(PhotoDeleteStyle.hairline).padding(.leading, 44)
+                detailRow(label: L10n.string("方向"), value: orientationText, icon: "rectangle")
 
                 if asset.mediaType == .video {
                     Divider().background(PhotoDeleteStyle.hairline).padding(.leading, 44)
@@ -1212,6 +1220,10 @@ private struct PhotoAssetDetailsPanel: View {
             .photoDeleteCard()
         }
         .accessibilityElement(children: .contain)
+    }
+
+    private var detailDivider: some View {
+        Divider().background(PhotoDeleteStyle.hairline).padding(.leading, 44)
     }
 
     private func detailRow(label: String, value: String, icon: String) -> some View {
@@ -1240,11 +1252,16 @@ private struct PhotoAssetDetailsPanel: View {
         PhotoAssetMetadataFormatter.detailCaptureDate(for: asset.creationDate)
     }
 
-    private var locationText: String {
-        PhotoAssetMetadataFormatter.locationText(
+    private var locationText: String? {
+        PhotoAssetMetadataFormatter.optionalLocationText(
             locationTitle: locationTitle,
             coordinate: asset.location?.coordinate
         )
+    }
+
+    private var modificationDateText: String? {
+        guard let modificationDate = asset.modificationDate else { return nil }
+        return AppDateFormatter.string(from: modificationDate, dateStyle: .medium, timeStyle: .short)
     }
 
     private var mediaTypeText: String {
@@ -1272,6 +1289,19 @@ private struct PhotoAssetDetailsPanel: View {
             return L10n.string("未知")
         }
         return "\(asset.pixelWidth) × \(asset.pixelHeight)"
+    }
+
+    private var orientationText: String {
+        guard asset.pixelWidth > 0, asset.pixelHeight > 0 else {
+            return L10n.string("未知")
+        }
+        if asset.pixelWidth > asset.pixelHeight {
+            return L10n.string("横向")
+        }
+        if asset.pixelHeight > asset.pixelWidth {
+            return L10n.string("竖向")
+        }
+        return L10n.string("方形")
     }
 
     private var durationText: String {

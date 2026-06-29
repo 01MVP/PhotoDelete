@@ -214,8 +214,7 @@ struct VideoCompressionEstimate: Equatable {
 
 struct VideoFileSizeEstimate: Equatable {
     enum Source: Equatable {
-        case localFile
-        case bitrate
+        case assetResource
         case iCloud
         case unavailable
     }
@@ -225,7 +224,7 @@ struct VideoFileSizeEstimate: Equatable {
 
     var isReliable: Bool {
         switch source {
-        case .localFile, .bitrate:
+        case .assetResource:
             return true
         case .iCloud, .unavailable:
             return false
@@ -1321,36 +1320,27 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             throw VideoCompressionError.notVideo
         }
 
-        let fallbackSizeMB = fallbackVideoFileSizeMB(for: asset)
         do {
-            let request = try await requestVideoAssetForSizeEstimate(for: asset)
-            guard let videoAsset = request.asset else {
-                return VideoFileSizeEstimate(
-                    sizeMB: fallbackSizeMB,
-                    source: request.isInCloud ? .iCloud : .unavailable
-                )
-            }
-
-            if let localFileSizeMB = localVideoFileSizeMB(for: videoAsset) {
-                return VideoFileSizeEstimate(sizeMB: localFileSizeMB, source: .localFile)
-            }
-
-            if let bitrateSizeMB = try await bitrateEstimatedVideoFileSizeMB(
-                for: videoAsset,
-                fallbackDuration: asset.duration
-            ) {
-                return VideoFileSizeEstimate(sizeMB: bitrateSizeMB, source: .bitrate)
-            }
-
-            return VideoFileSizeEstimate(
-                sizeMB: fallbackSizeMB,
-                source: request.isInCloud ? .iCloud : .unavailable
-            )
+            let sizeMB = try await actualVideoFileSizeMB(for: asset, networkAccessAllowed: false)
+            return VideoFileSizeEstimate(sizeMB: sizeMB, source: .assetResource)
         } catch is CancellationError {
             throw CancellationError()
         } catch {}
 
-        return VideoFileSizeEstimate(sizeMB: fallbackSizeMB, source: .unavailable)
+        do {
+            let request = try await requestVideoAssetForSizeEstimate(for: asset)
+            guard request.asset != nil else {
+                return VideoFileSizeEstimate(
+                    sizeMB: 0,
+                    source: request.isInCloud ? .iCloud : .unavailable
+                )
+            }
+            return VideoFileSizeEstimate(sizeMB: 0, source: .unavailable)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {}
+
+        return VideoFileSizeEstimate(sizeMB: 0, source: .unavailable)
     }
 
     func estimatedVideoFileSizeMB(for asset: PHAsset) async throws -> Double {
@@ -1359,44 +1349,6 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             throw VideoCompressionError.videoUnavailable
         }
         return estimate.sizeMB
-    }
-
-    private func localVideoFileSizeMB(for videoAsset: AVAsset) -> Double? {
-        guard let urlAsset = videoAsset as? AVURLAsset,
-              urlAsset.url.isFileURL,
-              let fileSize = try? urlAsset.url.resourceValues(forKeys: [.fileSizeKey]).fileSize,
-              fileSize > 0 else {
-            return nil
-        }
-        return Double(fileSize) / 1_048_576
-    }
-
-    private func bitrateEstimatedVideoFileSizeMB(
-        for videoAsset: AVAsset,
-        fallbackDuration: TimeInterval
-    ) async throws -> Double? {
-        let duration = try await videoAsset.load(.duration)
-        let videoTracks = try await videoAsset.loadTracks(withMediaType: .video)
-        let audioTracks = try await videoAsset.loadTracks(withMediaType: .audio)
-
-        var totalDataRate: Double = 0
-        for track in videoTracks + audioTracks {
-            let dataRate = try await track.load(.estimatedDataRate)
-            if dataRate > 0 {
-                totalDataRate += Double(dataRate)
-            }
-        }
-
-        guard totalDataRate > 0 else { return nil }
-
-        let loadedSeconds = CMTimeGetSeconds(duration)
-        let seconds = max((loadedSeconds.isFinite && loadedSeconds > 0) ? loadedSeconds : fallbackDuration, 1)
-        return max(totalDataRate * seconds / 8 / 1_048_576, 0)
-    }
-
-    private func fallbackVideoFileSizeMB(for asset: PHAsset) -> Double {
-        let megapixels = Double(asset.pixelWidth) * Double(asset.pixelHeight) / 1_000_000
-        return max(asset.duration * 8.0, megapixels * 0.75, 2.0)
     }
 
     private func requestVideoAssetForSizeEstimate(
@@ -1622,7 +1574,10 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         }
     }
 
-    private func actualVideoFileSizeMB(for asset: PHAsset) async throws -> Double {
+    private func actualVideoFileSizeMB(
+        for asset: PHAsset,
+        networkAccessAllowed: Bool = true
+    ) async throws -> Double {
         let resources = PHAssetResource.assetResources(for: asset)
         guard let resource = resources.first(where: { $0.type == .fullSizeVideo }) ??
             resources.first(where: { $0.type == .video }) else {
@@ -1630,7 +1585,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         }
 
         let options = PHAssetResourceRequestOptions()
-        options.isNetworkAccessAllowed = true
+        options.isNetworkAccessAllowed = networkAccessAllowed
 
         let counterLock = NSLock()
         var byteCount: Int64 = 0

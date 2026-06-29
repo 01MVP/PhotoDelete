@@ -15,8 +15,6 @@ enum SwipeViewDestination: Hashable {
     case timeBrowser
     case historicalToday
     case period(AdvancedTimeScope, Date)
-    case locationBrowser
-    case location(String)
 
     static func == (lhs: SwipeViewDestination, rhs: SwipeViewDestination) -> Bool {
         switch (lhs, rhs) {
@@ -34,10 +32,6 @@ enum SwipeViewDestination: Hashable {
             return true
         case (.period(let lhsScope, let lhsDate), .period(let rhsScope, let rhsDate)):
             return lhsScope == rhsScope && lhsDate == rhsDate
-        case (.locationBrowser, .locationBrowser):
-            return true
-        case (.location(let lhsID), .location(let rhsID)):
-            return lhsID == rhsID
         default:
             return false
         }
@@ -65,11 +59,6 @@ enum SwipeViewDestination: Hashable {
             hasher.combine("period")
             hasher.combine(scope)
             hasher.combine(date)
-        case .locationBrowser:
-            hasher.combine("locationBrowser")
-        case .location(let id):
-            hasher.combine("location")
-            hasher.combine(id)
         }
     }
 }
@@ -179,25 +168,6 @@ struct HomeView: View {
                         selectedAdvancedTimeScope: scope
                     )
                     .environmentObject(dataManager)
-                case .locationBrowser:
-                    if AppConstants.isLocationOrganizingVisible {
-                        LocationOrganizeView()
-                            .environmentObject(dataManager)
-                    } else {
-                        EmptyView()
-                    }
-                case .location(let groupID):
-                    if AppConstants.isLocationOrganizingVisible {
-                        SwipePhotoView(
-                            selectedCategory: nil,
-                            selectedTimeGroup: nil,
-                            selectedAlbumInfo: nil,
-                            selectedLocationGroupID: groupID
-                        )
-                        .environmentObject(dataManager)
-                    } else {
-                        EmptyView()
-                    }
                 }
             }
         }
@@ -211,7 +181,6 @@ struct HomeView: View {
                     VStack(spacing: 18) {
                         introSection(isCompact: true)
                         primaryOrganizeSection(isCompact: true)
-                        browseOrganizeSection
                     }
                     .frame(maxWidth: .infinity)
 
@@ -225,7 +194,6 @@ struct HomeView: View {
                 VStack(spacing: PhotoDeleteStyle.sectionSpacing) {
                     introSection(isCompact: false)
                     primaryOrganizeSection(isCompact: false)
-                    browseOrganizeSection
                     secondaryEntrySection
                     timelineSection
                 }
@@ -488,33 +456,6 @@ struct HomeView: View {
         }
         .padding(isCompact ? 18 : 20)
         .photoDeleteCard()
-    }
-
-    @ViewBuilder
-    private var browseOrganizeSection: some View {
-        if AppConstants.isLocationOrganizingVisible, libraryContentState == .available {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Text(L10n.string("地点整理"))
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(PhotoDeleteStyle.primaryText)
-                    Spacer()
-                }
-                .padding(.horizontal, 2)
-
-                VStack(spacing: 0) {
-                    HomeEntryRow(
-                        icon: "location",
-                        title: L10n.string("地点"),
-                        detail: L10n.string("按地点继续"),
-                        tint: PhotoDeleteStyle.accent
-                    ) {
-                        navigationPath.append(SwipeViewDestination.locationBrowser)
-                    }
-                }
-                .photoDeleteCard()
-            }
-        }
     }
 
     // MARK: - 快速入口区域

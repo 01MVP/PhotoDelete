@@ -415,6 +415,7 @@ enum AppConstants {
     static let hasSeenReviewModeHintKey = "photoDeleteHasSeenReviewModeHint"
     static let hasSeenAlbumShortcutHintKey = "photoDeleteHasSeenAlbumShortcutHintV2"
     static let hasSeenDeleteButtonTipKey = "photoDeleteHasSeenDeleteButtonTip"
+    static let gestureUpdateNoticePendingKey = "photoDeleteGestureUpdateNoticePendingV1"
     static let reviewProgressByScopeKey = "photoDeleteReviewProgressByScope"
     static let randomReviewSessionsKey = "photoDeleteRandomReviewSessions"
     static let appAppearanceKey = "photoDeleteAppAppearance"
@@ -425,7 +426,6 @@ enum AppConstants {
     static let supporterPurchaseDateKey = "photoDeleteSupporterPurchaseDate"
     static let supporterTrialStartDateKey = "photoDeleteSupporterTrialStartDate"
     static let supporterTrialDuration: TimeInterval = 3 * 24 * 60 * 60
-    static let isLocationOrganizingVisible = true
     static let isImageCompressionVisible = true
     static var privacyShortText: String {
         L10n.string("照片整理只在本机完成。不需要账号，也不会上传你的照片。")
