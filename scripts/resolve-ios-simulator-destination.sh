@@ -16,7 +16,15 @@ preferred_devices=(
 available_devices="$(xcrun simctl list devices available 2>/dev/null || true)"
 
 for device_name in "${preferred_devices[@]}"; do
-  if grep -q "$device_name (" <<<"$available_devices"; then
+  if awk -F '[()]' -v wanted="$device_name" '/iPhone/ {
+    name = $1
+    gsub(/^[[:space:]]+|[[:space:]]+$/, "", name)
+    if (name == wanted) {
+      found = 1
+      exit
+    }
+  }
+  END { exit(found ? 0 : 1) }' <<<"$available_devices"; then
     printf 'platform=iOS Simulator,name=%s\n' "$device_name"
     exit 0
   fi
