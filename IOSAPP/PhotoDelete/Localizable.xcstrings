@@ -4496,6 +4496,28 @@
         }
       }
     },
+    "左滑删除，右滑保留": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swipe left to delete, right to keep"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "左滑删除，右滑保留"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "左滑刪除，右滑保留"
+          }
+        }
+      }
+    },
     "左滑删除，右滑跳过，上滑收藏。所有删除都会在最后统一确认。": {
       "localizations": {
         "en": {
@@ -9290,6 +9312,12 @@
             "value": "Swipe quickly to decide what stays. Photos you want to delete go into a pending list first, and nothing is deleted until you finish."
           }
         },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "用滑动快速判断照片去留。想删除的照片会先进入待确认列表，完成前不会真正删除。"
+          }
+        },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
@@ -9645,6 +9673,50 @@
           "stringUnit": {
             "state": "translated",
             "value": "第 %lld 周"
+          }
+        }
+      }
+    },
+    "第 %lld/%lld 页": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Page %1$lld of %2$lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "第 %1$lld/%2$lld 页"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第 %1$lld/%2$lld 頁"
+          }
+        }
+      }
+    },
+    "引导页": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intro pages"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "引导页"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "引導頁"
           }
         }
       }
@@ -10327,6 +10399,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Make photo cleanup simple"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "让照片整理变得简单"
           }
         },
         "zh-Hant": {
@@ -11371,6 +11449,50 @@
           "stringUnit": {
             "state": "translated",
             "value": "重新查看引導"
+          }
+        }
+      }
+    },
+    "重试识别地名": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retry Place Names"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "重试识别地名"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重試識別地名"
+          }
+        }
+      }
+    },
+    "稍后也可以在设置里重新查看引导。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can show this intro again later from Settings."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "稍后也可以在设置里重新查看引导。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "稍後也可以在設定裡重新查看引導。"
           }
         }
       }
@@ -16934,6 +17056,28 @@
         }
       }
     },
+    "按地点整理": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Organize by Place"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "按地点整理"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按地點整理"
+          }
+        }
+      }
+    },
     "地点照片": {
       "localizations": {
         "en": {
@@ -16952,6 +17096,50 @@
           "stringUnit": {
             "state": "translated",
             "value": "地點照片"
+          }
+        }
+      }
+    },
+    "只显示能识别出地名的照片。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only photos with readable place names are shown."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "只显示能识别出地名的照片。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只顯示能識別出地名的照片。"
+          }
+        }
+      }
+    },
+    "暂时没能识别出地名，可以稍后重试。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Place names could not be recognized for now. Try again later."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "暂时没能识别出地名，可以稍后重试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暫時沒能識別出地名，可以稍後重試。"
           }
         }
       }
@@ -17546,6 +17734,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "按拍攝地點查看照片，所有整理都只在本機完成。"
+          }
+        }
+      }
+    },
+    "按拍摄地点查看照片，只显示能识别出地名的分组。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View photos by shooting location. Only groups with readable place names are shown."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "按拍摄地点查看照片，只显示能识别出地名的分组。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按拍攝地點查看照片，只顯示能識別出地名的分組。"
           }
         }
       }
@@ -21224,6 +21434,28 @@
         }
       }
     },
+    "照片不会上传": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photos are not uploaded"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "照片不会上传"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "照片不會上傳"
+          }
+        }
+      }
+    },
     "不需要账号，也不会上传照片。点开始后才会请求访问照片库。": {
       "localizations": {
         "en": {
@@ -21286,6 +21518,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "左右滑動瀏覽照片，上滑加入待刪除；想換手勢，可以在整理頁底部打開設定。"
+          }
+        }
+      }
+    },
+    "默认左滑删除、右滑保留、上滑收藏；想换手势，可以在整理页底部打开设置。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "By default, swipe left to delete, right to keep, and up to favorite. To change gestures, open settings at the bottom of the review screen."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "默认左滑删除、右滑保留、上滑收藏；想换手势，可以在整理页底部打开设置。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "預設左滑刪除、右滑保留、上滑收藏；想換手勢，可以在整理頁底部打開設定。"
           }
         }
       }

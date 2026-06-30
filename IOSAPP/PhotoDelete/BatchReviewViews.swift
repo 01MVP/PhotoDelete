@@ -929,6 +929,7 @@ struct PhotoAssetVideoPlayerView: View {
     var autoPlay = true
     var isMuted = true
     var ignoresSafeArea = true
+    var allowsPlayerInteraction = true
 
     @State private var player: AVPlayer?
     @State private var requestID: PHImageRequestID?
@@ -944,6 +945,7 @@ struct PhotoAssetVideoPlayerView: View {
             if let player {
                 VideoPlayer(player: player)
                     .ignoresSafeArea(edges: ignoresSafeArea ? .all : [])
+                    .allowsHitTesting(allowsPlayerInteraction)
                     .onAppear {
                         if autoPlay {
                             player.isMuted = isMuted

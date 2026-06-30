@@ -47,14 +47,14 @@ private struct OnboardingFlowView: View {
     private let pages: [OnboardingPage] = [
         OnboardingPage(
             icon: "photo.on.rectangle.angled",
-            title: L10n.string("像系统相册一样浏览"),
-            message: L10n.string("左右滑动切换照片，不会打乱整理进度。需要清理时，再用明确的动作加入待确认列表。"),
+            title: L10n.string("让照片整理变得简单"),
+            message: L10n.string("用滑动快速判断照片去留。想删除的照片会先进入待确认列表，完成前不会真正删除。"),
             visual: .organize
         ),
         OnboardingPage(
             icon: "hand.draw",
-            title: L10n.string("上滑加入待删除"),
-            message: L10n.string("默认上滑只是先放进待删除，最后统一确认。手势和视频播放方式都可以在整理页快速调整。"),
+            title: L10n.string("左滑删除，右滑保留"),
+            message: L10n.string("左滑删除，右滑保留，上滑收藏。点完成后再统一确认。"),
             visual: .swipe
         ),
         OnboardingPage(
@@ -65,7 +65,7 @@ private struct OnboardingFlowView: View {
         ),
         OnboardingPage(
             icon: "lock.shield",
-            title: L10n.string("只在本机整理"),
+            title: L10n.string("照片不会上传"),
             message: L10n.string("不需要账号，也不会上传照片。点开始后才会请求访问照片库。"),
             visual: .privacy
         )
@@ -76,17 +76,7 @@ private struct OnboardingFlowView: View {
             PhotoDeleteScreenBackground()
 
             VStack(spacing: 0) {
-                HStack {
-                    Spacer()
-
-                    Button(L10n.string("跳过")) {
-                        onSkip()
-                    }
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundColor(PhotoDeleteStyle.secondaryText)
-                    .padding(.horizontal, 22)
-                    .padding(.top, 18)
-                }
+                OnboardingHeaderView(onSkip: onSkip)
 
                 TabView(selection: $selectedPage) {
                     ForEach(Array(pages.enumerated()), id: \.offset) { index, page in
@@ -100,19 +90,15 @@ private struct OnboardingFlowView: View {
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
 
-                VStack(spacing: 20) {
-                    HStack(spacing: 8) {
-                        ForEach(pages.indices, id: \.self) { index in
-                            Capsule(style: .continuous)
-                                .fill(index == selectedPage ? PhotoDeleteStyle.accent : PhotoDeleteStyle.hairline)
-                                .frame(width: index == selectedPage ? 24 : 7, height: 7)
-                                .animation(.spring(response: 0.28, dampingFraction: 0.82), value: selectedPage)
-                        }
-                    }
+                VStack(spacing: 18) {
+                    OnboardingPageIndicator(
+                        pageCount: pages.count,
+                        selectedPage: selectedPage
+                    )
 
-	                    Button(action: advance) {
+                    Button(action: advance) {
                         HStack(spacing: 8) {
-                            Text(selectedPage == pages.count - 1 ? L10n.string("开始") : L10n.string("继续"))
+                            Text(selectedPage == pages.count - 1 ? L10n.string("开始整理照片") : L10n.string("继续"))
 
                             Image(systemName: selectedPage == pages.count - 1 ? "checkmark" : "arrow.right")
                                 .font(.system(size: 15, weight: .semibold))
@@ -121,7 +107,7 @@ private struct OnboardingFlowView: View {
                     .photoDeletePrimaryButton()
                     .padding(.horizontal, 28)
                 }
-                .padding(.bottom, 34)
+                .padding(.bottom, 30)
             }
         }
         .onAppear {
@@ -156,6 +142,75 @@ private struct OnboardingFlowView: View {
     }
 }
 
+private struct OnboardingHeaderView: View {
+    let onSkip: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Label {
+                Text(AppConstants.appDisplayName)
+                    .font(.callout.weight(.semibold))
+            } icon: {
+                Image(systemName: "photo.on.rectangle.angled")
+                    .font(.callout.weight(.semibold))
+            }
+            .foregroundStyle(PhotoDeleteStyle.primaryText)
+            .padding(.horizontal, 13)
+            .padding(.vertical, 9)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(PhotoDeleteStyle.elevatedSurface)
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .stroke(PhotoDeleteStyle.hairline, lineWidth: 1)
+                    )
+            )
+
+            Spacer()
+
+            Button(action: onSkip) {
+                Text(L10n.string("跳过"))
+                    .font(.callout.weight(.medium))
+                    .foregroundStyle(PhotoDeleteStyle.secondaryText)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+            }
+            .buttonStyle(.plain)
+            .photoDeleteMinimumTapTarget()
+            .accessibilityHint(L10n.string("稍后也可以在设置里重新查看引导。"))
+        }
+        .padding(.horizontal, 22)
+        .padding(.top, 16)
+    }
+}
+
+private struct OnboardingPageIndicator: View {
+    let pageCount: Int
+    let selectedPage: Int
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(0..<pageCount, id: \.self) { index in
+                Capsule(style: .continuous)
+                    .fill(index == selectedPage ? PhotoDeleteStyle.accent : PhotoDeleteStyle.hairline)
+                    .frame(width: index == selectedPage ? 24 : 7, height: 7)
+            }
+        }
+        .animation(.spring(response: 0.28, dampingFraction: 0.82), value: selectedPage)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(L10n.string("引导页"))
+        .accessibilityValue(
+            Text(
+                String(
+                    format: L10n.string("第 %lld/%lld 页"),
+                    Int64(selectedPage + 1),
+                    Int64(pageCount)
+                )
+            )
+        )
+    }
+}
+
 private struct OnboardingPage {
     let icon: String
     let title: String
@@ -179,42 +234,40 @@ private struct OnboardingPageView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            VStack(spacing: 30) {
-                Spacer(minLength: 18)
+            ScrollView {
+                VStack(spacing: 26) {
+                    OnboardingVisualView(page: page, animate: animateVisual)
+                        .frame(width: min(geometry.size.width - 54, 322), height: min(geometry.size.height * 0.4, 292))
+                        .accessibilityHidden(true)
 
-                OnboardingVisualView(page: page, animate: animateVisual)
-                    .frame(width: min(geometry.size.width - 54, 322), height: min(geometry.size.height * 0.42, 306))
+                    VStack(spacing: 12) {
+                        Text(page.title)
+                            .font(.title2.weight(.semibold))
+                            .foregroundStyle(PhotoDeleteStyle.primaryText)
+                            .multilineTextAlignment(.center)
 
-                VStack(spacing: 12) {
-                    Text(page.title)
-                        .font(.system(size: 30, weight: .semibold))
-                        .foregroundColor(PhotoDeleteStyle.primaryText)
-                        .multilineTextAlignment(.center)
-                        .minimumScaleFactor(0.86)
+                        Text(page.message)
+                            .font(.body)
+                            .foregroundStyle(PhotoDeleteStyle.secondaryText)
+                            .multilineTextAlignment(.center)
+                            .lineSpacing(4)
+                            .fixedSize(horizontal: false, vertical: true)
 
-                    Text(page.message)
-                        .font(.system(size: 16, weight: .regular))
-                        .foregroundColor(PhotoDeleteStyle.secondaryText)
-                        .multilineTextAlignment(.center)
-                        .lineSpacing(4)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    if let linkTitle = page.linkTitle, let linkURL = page.linkURL {
-                        Link(destination: linkURL) {
-                            HStack(spacing: 7) {
-                                Text(linkTitle)
-                                Image(systemName: "arrow.up.right")
-                                    .font(.system(size: 12, weight: .semibold))
+                        if let linkTitle = page.linkTitle, let linkURL = page.linkURL {
+                            Link(destination: linkURL) {
+                                Label(linkTitle, systemImage: "arrow.up.right")
+                                    .font(.callout.weight(.semibold))
+                                    .foregroundStyle(PhotoDeleteStyle.accent)
+                                    .labelStyle(.titleAndIcon)
                             }
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(PhotoDeleteStyle.accent)
                             .padding(.top, 4)
                         }
                     }
+                    .padding(.horizontal, 32)
                 }
-                .padding(.horizontal, 32)
-
-                Spacer(minLength: 18)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 20)
+                .padding(.bottom, 22)
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
         }
@@ -222,19 +275,27 @@ private struct OnboardingPageView: View {
 }
 
 private struct OnboardingVisualView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let page: OnboardingPage
     let animate: Bool
 
     var body: some View {
-        switch page.visual {
-        case .organize:
-            OrganizeIntroVisual(animate: animate)
-        case .swipe:
-            SwipeIntroVisual(animate: animate)
-        case .advanced:
-            AdvancedCleanupIntroVisual(animate: animate)
-        case .privacy:
-            PrivacyIntroVisual(animate: animate)
+        Group {
+            switch page.visual {
+            case .organize:
+                OrganizeIntroVisual(animate: animate)
+            case .swipe:
+                SwipeIntroVisual(animate: animate)
+            case .advanced:
+                AdvancedCleanupIntroVisual(animate: animate)
+            case .privacy:
+                PrivacyIntroVisual(animate: animate)
+            }
+        }
+        .transaction { transaction in
+            if reduceMotion {
+                transaction.animation = nil
+            }
         }
     }
 }
@@ -328,24 +389,24 @@ private struct SwipeIntroVisual: View {
             swipeDestination(
                 symbol: "arrow.left",
                 direction: L10n.string("左滑"),
-                action: L10n.string("下一张"),
-                color: PhotoDeleteStyle.accent,
+                action: L10n.string("删除"),
+                color: PhotoDeleteStyle.destructive,
                 x: -118,
                 y: 12
             )
             swipeDestination(
                 symbol: "arrow.right",
                 direction: L10n.string("右滑"),
-                action: L10n.string("上一张"),
-                color: PhotoDeleteStyle.accent,
+                action: L10n.string("保留"),
+                color: PhotoDeleteStyle.positive,
                 x: 118,
                 y: 12
             )
             swipeDestination(
                 symbol: "arrow.up",
                 direction: L10n.string("上滑"),
-                action: L10n.string("删除"),
-                color: PhotoDeleteStyle.destructive,
+                action: L10n.string("收藏"),
+                color: PhotoDeleteStyle.accent,
                 x: 0,
                 y: -106
             )
@@ -421,6 +482,13 @@ private struct AdvancedCleanupIntroVisual: View {
                     tint: PhotoDeleteStyle.positive,
                     delayIndex: 2
                 )
+
+                advancedToolRow(
+                    icon: "photo.badge.arrow.down",
+                    title: L10n.string("图片压缩"),
+                    tint: PhotoDeleteStyle.accent,
+                    delayIndex: 3
+                )
             }
             .padding(.horizontal, 28)
         }
@@ -442,7 +510,7 @@ private struct AdvancedCleanupIntroVisual: View {
                 .foregroundColor(tint)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.vertical, 8)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(PhotoDeleteStyle.elevatedSurface)

@@ -35,6 +35,7 @@ struct SwipePhotoView: View {
     let selectedDate: Date?
     let selectedAdvancedTimeScope: AdvancedTimeScope?
     let selectedAdvancedCleanup: AdvancedCleanupKind?
+    let selectedLocationGroupID: String?
     let randomReviewScope: PhotoRandomReviewScope?
     let selectedHistoricalToday: Bool
 
@@ -86,6 +87,7 @@ struct SwipePhotoView: View {
         selectedDate: Date? = nil,
         selectedAdvancedTimeScope: AdvancedTimeScope? = nil,
         selectedAdvancedCleanup: AdvancedCleanupKind? = nil,
+        selectedLocationGroupID: String? = nil,
         randomReviewScope: PhotoRandomReviewScope? = nil,
         selectedHistoricalToday: Bool = false
     ) {
@@ -95,6 +97,7 @@ struct SwipePhotoView: View {
         self.selectedDate = selectedDate
         self.selectedAdvancedTimeScope = selectedAdvancedTimeScope
         self.selectedAdvancedCleanup = selectedAdvancedCleanup
+        self.selectedLocationGroupID = selectedLocationGroupID
         self.randomReviewScope = randomReviewScope
         self.selectedHistoricalToday = selectedHistoricalToday
     }
@@ -148,6 +151,8 @@ struct SwipePhotoView: View {
             return dataManager.getPhotosForDay(selectedDate)
         } else if let selectedAdvancedCleanup {
             return dataManager.getPhotosForAdvancedCleanup(selectedAdvancedCleanup)
+        } else if let selectedLocationGroupID {
+            return dataManager.getPhotosForLocationGroup(selectedLocationGroupID)
         } else if let category = selectedCategory {
             return dataManager.getRealPhotos(for: category)
         } else if let timeGroupString = selectedTimeGroup,
@@ -323,6 +328,9 @@ struct SwipePhotoView: View {
         .onAppear {
             applySessionPlaybackPreferenceIfNeeded()
             syncPendingOperationCounts()
+            if selectedLocationGroupID != nil {
+                dataManager.loadLocationGroups()
+            }
             if refreshSelectedAlbumState() {
                 initializeSessionIfNeeded()
             }
@@ -341,6 +349,10 @@ struct SwipePhotoView: View {
         }
         .onChange(of: dataManager.advancedCleanupQueuesRevision) { _ in
             guard selectedAdvancedCleanup != nil else { return }
+            refreshSessionForSourceChangeIfNeeded(force: true)
+        }
+        .onChange(of: dataManager.locationGroupsRevision) { _ in
+            guard selectedLocationGroupID != nil else { return }
             refreshSessionForSourceChangeIfNeeded(force: true)
         }
         .onChange(of: currentPhotoIndex) { _ in
@@ -1358,6 +1370,7 @@ struct SwipePhotoView: View {
     private var isWaitingForSourceData: Bool {
         dataManager.photoLibraryManager.isLoading ||
             dataManager.isPreparingLibrary ||
+            (selectedLocationGroupID != nil && (dataManager.isLoadingLocationGroups || dataManager.isResolvingLocationTitles)) ||
             dataManager.isLoadingAdvancedCleanupQueues
     }
 
@@ -2018,6 +2031,10 @@ struct SwipePhotoView: View {
             return "advanced:\(selectedAdvancedCleanup.rawValue)"
         }
 
+        if let selectedLocationGroupID {
+            return "location:\(selectedLocationGroupID)"
+        }
+
         if let selectedCategory {
             return "category:\(selectedCategory.rawValue)"
         }
@@ -2454,6 +2471,8 @@ struct SwipePhotoView: View {
             return AdvancedSwipeDateFormatter.dayTitle.string(from: selectedDate)
         } else if let selectedAdvancedCleanup {
             return selectedAdvancedCleanup.title
+        } else if let selectedLocationGroupID {
+            return dataManager.locationGroupTitle(for: selectedLocationGroupID) ?? L10n.string("地点")
         } else if let category = selectedCategory {
             return category.title
         } else if let timeGroup = selectedTimeGroup {
@@ -2684,35 +2703,17 @@ private struct PhotoSwipeDragFeedbackView: View {
     private var hint: some View {
         switch feedback.direction {
         case .left:
-            VStack {
-                Spacer()
-                HStack {
-                    Spacer()
-                    SwipeEdgeHint(
-                        icon: SwipeGestureDirection.left.icon,
-                        title: "\(SwipeGestureDirection.left.title)\(feedback.action.title)",
-                        color: feedback.action.tint
-                    )
-                    .padding(.trailing, 14)
-                    .padding(.bottom, 16)
-                    .offset(x: 10 - feedback.progress * 10)
-                }
-            }
+            centeredHint(
+                icon: SwipeGestureDirection.left.icon,
+                title: "\(SwipeGestureDirection.left.title)\(feedback.action.title)",
+                color: feedback.action.tint
+            )
         case .right:
-            VStack {
-                Spacer()
-                HStack {
-                    SwipeEdgeHint(
-                        icon: SwipeGestureDirection.right.icon,
-                        title: "\(SwipeGestureDirection.right.title)\(feedback.action.title)",
-                        color: feedback.action.tint
-                    )
-                    .padding(.leading, 14)
-                    .padding(.bottom, 16)
-                    .offset(x: -10 + feedback.progress * 10)
-                    Spacer()
-                }
-            }
+            centeredHint(
+                icon: SwipeGestureDirection.right.icon,
+                title: "\(SwipeGestureDirection.right.title)\(feedback.action.title)",
+                color: feedback.action.tint
+            )
         case .up:
             VStack {
                 SwipeEdgeHint(
@@ -2736,6 +2737,16 @@ private struct PhotoSwipeDragFeedbackView: View {
                 .offset(y: 10 - feedback.progress * 10)
             }
         }
+    }
+
+    private func centeredHint(icon: String, title: String, color: Color) -> some View {
+        SwipeEdgeHint(
+            icon: icon,
+            title: title,
+            color: color
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        .scaleEffect(0.94 + feedback.progress * 0.06)
     }
 
     private var glowColors: [Color] {
@@ -2945,7 +2956,8 @@ struct RealPhotoCard: View {
                 PhotoAssetVideoPlayerView(
                     asset: asset,
                     photoLibraryManager: photoLibraryManager,
-                    isMuted: videoMuted
+                    isMuted: videoMuted,
+                    allowsPlayerInteraction: false
                 )
                 .frame(width: displaySize.width, height: displaySize.height)
                 .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
@@ -2969,6 +2981,7 @@ struct RealPhotoCard: View {
                         isMuted: videoMuted,
                         contentMode: .scaleAspectFit
                     )
+                    .allowsHitTesting(false)
                     .frame(width: displaySize.width, height: displaySize.height)
                 }
                 .frame(width: displaySize.width, height: displaySize.height)

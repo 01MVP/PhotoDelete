@@ -732,6 +732,7 @@ private final class TwoRowPhotoBrowserCell: UICollectionViewCell, UIGestureRecog
         videoContainerView.translatesAutoresizingMaskIntoConstraints = false
         videoContainerView.backgroundColor = .black
         videoContainerView.isHidden = true
+        videoContainerView.isUserInteractionEnabled = false
         containerView.addSubview(videoContainerView)
 
         closeVideoButton.translatesAutoresizingMaskIntoConstraints = false

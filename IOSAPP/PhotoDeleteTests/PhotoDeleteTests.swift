@@ -298,10 +298,58 @@ struct PhotoDeleteTests {
                 coordinate: CLLocationCoordinate2D(latitude: 31.2304, longitude: 121.4737)
             ) == "上海 · 徐汇"
         )
+        #expect(
+            PhotoAssetMetadataFormatter.optionalLocationText(
+                locationTitle: nil,
+                coordinate: CLLocationCoordinate2D(latitude: 31.2304, longitude: 121.4737)
+            ) == nil
+        )
+    }
 
-        let coordinateText = PhotoAssetMetadataFormatter.coordinateText(latitude: 31.2304, longitude: 121.4737)
-        #expect(coordinateText.contains("31.2304"))
-        #expect(coordinateText.contains("121.4737"))
+    @Test func photoLocationGroupingOnlyShowsResolvedPlaceNames() async throws {
+        let shanghaiID = PhotoLocationGrouping.groupID(latitude: 31.2304, longitude: 121.4737)
+        let beijingID = PhotoLocationGrouping.groupID(latitude: 39.9042, longitude: 116.4074)
+        let records = [
+            PhotoLocationAssetRecord(identifier: "sh-1", latitude: 31.2304, longitude: 121.4737, isReviewed: true),
+            PhotoLocationAssetRecord(identifier: "sh-2", latitude: 31.2310, longitude: 121.4730, isReviewed: false),
+            PhotoLocationAssetRecord(identifier: "bj-1", latitude: 39.9042, longitude: 116.4074, isReviewed: false),
+            PhotoLocationAssetRecord(identifier: "none-1", latitude: nil, longitude: nil, isReviewed: false)
+        ]
+
+        let result = PhotoLocationGrouping.buildGroups(
+            from: records,
+            titleCache: [
+                shanghaiID: PhotoLocationResolvedTitle(title: "上海 · 徐汇")
+            ]
+        )
+
+        #expect(result.groups.map(\.id) == [shanghaiID])
+        #expect(result.groups.first?.title == "上海 · 徐汇")
+        #expect(result.groups.first?.reviewedCount == 1)
+        #expect(result.identifiersByGroupID[shanghaiID] == ["sh-1", "sh-2"])
+        #expect(result.unresolvedCoordinatesByGroupID[beijingID] != nil)
+        #expect(result.identifiersByGroupID[PhotoLocationGrouping.noLocationID] == nil)
+    }
+
+    @Test func photoLocationDisplayTitlePrefersReadablePlaceFields() async throws {
+        #expect(
+            PhotoLocationGrouping.displayTitle(
+                name: "People's Park",
+                locality: "上海",
+                subLocality: "黄浦",
+                administrativeArea: "上海市",
+                country: "中国"
+            ) == "上海 · 黄浦"
+        )
+        #expect(
+            PhotoLocationGrouping.displayTitle(
+                name: "中国",
+                locality: nil,
+                subLocality: nil,
+                administrativeArea: nil,
+                country: "中国"
+            ) == "中国"
+        )
     }
 
     @Test func photoReviewModeNormalizesStoredValues() async throws {

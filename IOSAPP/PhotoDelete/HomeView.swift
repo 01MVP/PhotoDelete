@@ -13,7 +13,9 @@ enum SwipeViewDestination: Hashable {
     case album(AlbumInfo)
     case random(PhotoRandomReviewScope)
     case timeBrowser
+    case locationBrowser
     case historicalToday
+    case location(String)
     case period(AdvancedTimeScope, Date)
 
     static func == (lhs: SwipeViewDestination, rhs: SwipeViewDestination) -> Bool {
@@ -28,8 +30,12 @@ enum SwipeViewDestination: Hashable {
             return lhsScope == rhsScope
         case (.timeBrowser, .timeBrowser):
             return true
+        case (.locationBrowser, .locationBrowser):
+            return true
         case (.historicalToday, .historicalToday):
             return true
+        case (.location(let lhsGroupID), .location(let rhsGroupID)):
+            return lhsGroupID == rhsGroupID
         case (.period(let lhsScope, let lhsDate), .period(let rhsScope, let rhsDate)):
             return lhsScope == rhsScope && lhsDate == rhsDate
         default:
@@ -53,8 +59,13 @@ enum SwipeViewDestination: Hashable {
             hasher.combine(scope)
         case .timeBrowser:
             hasher.combine("timeBrowser")
+        case .locationBrowser:
+            hasher.combine("locationBrowser")
         case .historicalToday:
             hasher.combine("historicalToday")
+        case .location(let groupID):
+            hasher.combine("location")
+            hasher.combine(groupID)
         case .period(let scope, let date):
             hasher.combine("period")
             hasher.combine(scope)
@@ -151,12 +162,23 @@ struct HomeView: View {
                 case .timeBrowser:
                     TimeOrganizeView()
                         .environmentObject(dataManager)
+                case .locationBrowser:
+                    LocationOrganizeView()
+                        .environmentObject(dataManager)
                 case .historicalToday:
                     SwipePhotoView(
                         selectedCategory: nil,
                         selectedTimeGroup: nil,
                         selectedAlbumInfo: nil,
                         selectedHistoricalToday: true
+                    )
+                    .environmentObject(dataManager)
+                case .location(let groupID):
+                    SwipePhotoView(
+                        selectedCategory: nil,
+                        selectedTimeGroup: nil,
+                        selectedAlbumInfo: nil,
+                        selectedLocationGroupID: groupID
                     )
                     .environmentObject(dataManager)
                 case .period(let scope, let intervalStart):
@@ -181,6 +203,7 @@ struct HomeView: View {
                     VStack(spacing: 18) {
                         introSection(isCompact: true)
                         primaryOrganizeSection(isCompact: true)
+                        locationOrganizeSection
                     }
                     .frame(maxWidth: .infinity)
 
@@ -194,6 +217,7 @@ struct HomeView: View {
                 VStack(spacing: PhotoDeleteStyle.sectionSpacing) {
                     introSection(isCompact: false)
                     primaryOrganizeSection(isCompact: false)
+                    locationOrganizeSection
                     secondaryEntrySection
                     timelineSection
                 }
@@ -222,7 +246,7 @@ struct HomeView: View {
                             .font(.system(size: 17, weight: .semibold))
                             .foregroundColor(PhotoDeleteStyle.primaryText)
 
-                        Text(L10n.string("左右滑动浏览照片，上滑加入待删除；想换手势，可以在整理页底部打开设置。"))
+                        Text(L10n.string("默认左滑删除、右滑保留、上滑收藏；想换手势，可以在整理页底部打开设置。"))
                             .font(.system(size: 14, weight: .regular))
                             .foregroundColor(PhotoDeleteStyle.secondaryText)
                             .fixedSize(horizontal: false, vertical: true)
@@ -456,6 +480,42 @@ struct HomeView: View {
         }
         .padding(isCompact ? 18 : 20)
         .photoDeleteCard()
+    }
+
+    // MARK: - 地点整理入口
+    private var locationOrganizeSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(L10n.string("按地点整理"))
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.primaryText)
+                Spacer()
+            }
+            .padding(.horizontal, 2)
+
+            HomeEntryRow(
+                icon: "mappin.and.ellipse",
+                title: L10n.string("地点整理"),
+                detail: locationOrganizeDetail,
+                tint: PhotoDeleteStyle.accent
+            ) {
+                navigationPath.append(SwipeViewDestination.locationBrowser)
+            }
+            .photoDeleteCard()
+        }
+    }
+
+    private var locationOrganizeDetail: String {
+        if dataManager.isLoadingLocationGroups || dataManager.isResolvingLocationTitles {
+            return L10n.string("正在整理地点")
+        }
+
+        let count = dataManager.locationGroups.reduce(0) { $0 + $1.assetCount }
+        if count > 0 {
+            return L10n.shortPhotoCount(count)
+        }
+
+        return L10n.string("按地点继续")
     }
 
     // MARK: - 快速入口区域

@@ -245,6 +245,221 @@ enum PhotoRandomReviewSessionStore {
     }
 }
 
+struct PhotoLocationAssetRecord: Equatable {
+    let identifier: String
+    let latitude: Double?
+    let longitude: Double?
+    let isReviewed: Bool
+
+    init(identifier: String, location: CLLocation?, isReviewed: Bool) {
+        self.identifier = identifier
+        self.latitude = location?.coordinate.latitude
+        self.longitude = location?.coordinate.longitude
+        self.isReviewed = isReviewed
+    }
+
+    init(identifier: String, latitude: Double?, longitude: Double?, isReviewed: Bool) {
+        self.identifier = identifier
+        self.latitude = latitude
+        self.longitude = longitude
+        self.isReviewed = isReviewed
+    }
+}
+
+struct PhotoLocationGroupInfo: Identifiable, Equatable, Hashable {
+    let id: String
+    let title: String
+    let subtitle: String
+    let assetCount: Int
+    let reviewedCount: Int
+    let isNoLocationGroup: Bool
+
+    var progress: Double {
+        guard assetCount > 0 else { return 0 }
+        return min(Double(reviewedCount) / Double(assetCount), 1)
+    }
+}
+
+struct PhotoLocationResolvedTitle: Codable, Equatable, Hashable, Sendable {
+    let title: String
+    let resolvedAt: Date
+    let latitude: Double?
+    let longitude: Double?
+
+    init(
+        title: String,
+        resolvedAt: Date = Date(),
+        latitude: Double? = nil,
+        longitude: Double? = nil
+    ) {
+        self.title = title
+        self.resolvedAt = resolvedAt
+        self.latitude = latitude
+        self.longitude = longitude
+    }
+}
+
+enum PhotoLocationGrouping {
+    static let noLocationID = "location:none"
+    static let defaultMaximumGroups = 120
+    private static let coordinateBucketSize = 0.05
+
+    struct Result {
+        let groups: [PhotoLocationGroupInfo]
+        let identifiersByGroupID: [String: [String]]
+        let representativeCoordinatesByGroupID: [String: CLLocationCoordinate2D]
+        let unresolvedCoordinatesByGroupID: [String: CLLocationCoordinate2D]
+    }
+
+    static func buildGroups(
+        from records: [PhotoLocationAssetRecord],
+        maximumGroups: Int = defaultMaximumGroups,
+        titleCache: [String: PhotoLocationResolvedTitle] = [:]
+    ) -> Result {
+        guard maximumGroups > 0 else {
+            return Result(
+                groups: [],
+                identifiersByGroupID: [:],
+                representativeCoordinatesByGroupID: [:],
+                unresolvedCoordinatesByGroupID: [:]
+            )
+        }
+
+        var buckets: [String: [PhotoLocationAssetRecord]] = [:]
+        for record in records {
+            let id = groupID(latitude: record.latitude, longitude: record.longitude)
+            guard id != noLocationID else { continue }
+            buckets[id, default: []].append(record)
+        }
+
+        let sortedLocationBuckets = buckets
+            .map { id, records in (id: id, records: records) }
+            .sorted {
+                if $0.records.count == $1.records.count {
+                    return $0.id < $1.id
+                }
+                return $0.records.count > $1.records.count
+            }
+            .prefix(maximumGroups)
+
+        var groups: [PhotoLocationGroupInfo] = []
+        var cache: [String: [String]] = [:]
+        var representativeCoordinates: [String: CLLocationCoordinate2D] = [:]
+        var unresolvedCoordinates: [String: CLLocationCoordinate2D] = [:]
+
+        for bucket in sortedLocationBuckets {
+            guard let representativeCoordinate = representativeCoordinate(for: bucket.records) else {
+                continue
+            }
+            representativeCoordinates[bucket.id] = representativeCoordinate
+
+            guard let resolvedTitle = titleCache[bucket.id]?.title.nilIfBlank else {
+                unresolvedCoordinates[bucket.id] = representativeCoordinate
+                continue
+            }
+
+            groups.append(
+                PhotoLocationGroupInfo(
+                    id: bucket.id,
+                    title: resolvedTitle,
+                    subtitle: locationSubtitle(for: bucket.records),
+                    assetCount: bucket.records.count,
+                    reviewedCount: reviewedCount(in: bucket.records),
+                    isNoLocationGroup: false
+                )
+            )
+            cache[bucket.id] = bucket.records.map(\.identifier)
+        }
+
+        return Result(
+            groups: groups,
+            identifiersByGroupID: cache,
+            representativeCoordinatesByGroupID: representativeCoordinates.filter { cache[$0.key] != nil },
+            unresolvedCoordinatesByGroupID: unresolvedCoordinates
+        )
+    }
+
+    static func groupID(latitude: Double?, longitude: Double?) -> String {
+        guard let latitude,
+              let longitude,
+              latitude >= -90,
+              latitude <= 90,
+              longitude >= -180,
+              longitude <= 180 else {
+            return noLocationID
+        }
+
+        let latBucket = Int((latitude / coordinateBucketSize).rounded(.toNearestOrAwayFromZero))
+        let lonBucket = Int((longitude / coordinateBucketSize).rounded(.toNearestOrAwayFromZero))
+        return "location:\(latBucket):\(lonBucket)"
+    }
+
+    static func displayTitle(
+        name: String? = nil,
+        locality: String?,
+        subLocality: String?,
+        administrativeArea: String?,
+        country: String?
+    ) -> String? {
+        let countryTitle = country.nilIfBlank
+        let localityParts = [locality, subLocality]
+            .compactMap { $0.nilIfBlank }
+            .uniquedPreservingOrder()
+        if !localityParts.isEmpty {
+            return localityParts.joined(separator: " · ")
+        }
+
+        if let administrativeArea = administrativeArea.nilIfBlank {
+            return administrativeArea
+        }
+
+        if let name = name.nilIfBlank,
+           name != countryTitle {
+            return name
+        }
+
+        return countryTitle
+    }
+
+    private static func locationSubtitle(for records: [PhotoLocationAssetRecord]) -> String {
+        if records.isEmpty {
+            return L10n.shortPhotoCount(0)
+        }
+
+        let reviewedCount = reviewedCount(in: records)
+        return String(
+            format: L10n.string("%lld 张 · 已整理 %lld 张"),
+            Int64(records.count),
+            Int64(reviewedCount)
+        )
+    }
+
+    private static func reviewedCount(in records: [PhotoLocationAssetRecord]) -> Int {
+        records.reduce(0) { count, record in
+            count + (record.isReviewed ? 1 : 0)
+        }
+    }
+
+    private static func representativeCoordinate(for records: [PhotoLocationAssetRecord]) -> CLLocationCoordinate2D? {
+        let validCoordinates = records.compactMap { record -> CLLocationCoordinate2D? in
+            guard let latitude = record.latitude,
+                  let longitude = record.longitude,
+                  latitude >= -90,
+                  latitude <= 90,
+                  longitude >= -180,
+                  longitude <= 180 else {
+                return nil
+            }
+            return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        }
+        guard !validCoordinates.isEmpty else { return nil }
+
+        let latitude = validCoordinates.reduce(0) { $0 + $1.latitude } / Double(validCoordinates.count)
+        let longitude = validCoordinates.reduce(0) { $0 + $1.longitude } / Double(validCoordinates.count)
+        return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    }
+}
+
 enum PhotoReviewSessionPaginator {
     static let defaultInitialPageSize = 80
     static let defaultPageSize = 80
@@ -406,16 +621,6 @@ enum PhotoAssetMetadataFormatter {
             return locationTitle
         }
 
-        guard let coordinate else {
-            return nil
-        }
-
-        return coordinateText(latitude: coordinate.latitude, longitude: coordinate.longitude)
-    }
-
-    static func coordinateText(latitude: Double, longitude: Double) -> String {
-        let latitudeText = latitude.formatted(.number.precision(.fractionLength(4)))
-        let longitudeText = longitude.formatted(.number.precision(.fractionLength(4)))
-        return "\(latitudeText), \(longitudeText)"
+        return nil
     }
 }
