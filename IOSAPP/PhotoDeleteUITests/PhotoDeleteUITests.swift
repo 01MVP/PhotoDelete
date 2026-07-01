@@ -194,46 +194,51 @@ final class PhotoDeleteUITests: XCTestCase {
 
     @MainActor
     private func openSettingsTab(in app: XCUIApplication) {
-        tapTabItem(in: app, labels: ["设置", "Settings"], fallbackOffset: CGVector(dx: 0.59, dy: 0.045))
+        tapTabItem(in: app, labels: ["设置", "Settings"], fallbackOffset: CGVector(dx: 0.88, dy: 0.96))
     }
 
     @MainActor
     private func openOrganizeTab(in app: XCUIApplication) {
-        tapTabItem(in: app, labels: ["整理", "Organize"], fallbackOffset: CGVector(dx: 0.41, dy: 0.045))
+        tapTabItem(in: app, labels: ["整理", "Organize"], fallbackOffset: CGVector(dx: 0.13, dy: 0.96))
     }
 
     @MainActor
     private func openAlbumsTab(in app: XCUIApplication) {
-        tapTabItem(in: app, labels: ["相册", "Albums"], fallbackOffset: CGVector(dx: 0.47, dy: 0.045))
+        tapTabItem(in: app, labels: ["相册", "Albums"], fallbackOffset: CGVector(dx: 0.38, dy: 0.96))
     }
 
     @MainActor
     private func tapTabItem(in app: XCUIApplication, labels: [String], fallbackOffset: CGVector) {
         for label in labels {
             let tabBarButton = app.tabBars.buttons.matching(identifier: label).firstMatch
-            if tabBarButton.waitForExistence(timeout: 1) {
-                tabBarButton.tap()
+            if tabBarButton.waitForExistence(timeout: 1), tabBarButton.isHittable {
+                tapHittableElement(tabBarButton)
                 return
             }
         }
 
         for label in labels {
             let button = app.buttons.matching(identifier: label).firstMatch
-            if button.waitForExistence(timeout: 1) {
-                button.tap()
+            if button.waitForExistence(timeout: 1), button.isHittable {
+                tapHittableElement(button)
                 return
             }
         }
 
         for label in labels {
             let element = app.descendants(matching: .any).matching(identifier: label).firstMatch
-            if element.waitForExistence(timeout: 1) {
-                element.tap()
+            if element.waitForExistence(timeout: 1), element.isHittable {
+                tapHittableElement(element)
                 return
             }
         }
 
         app.coordinate(withNormalizedOffset: fallbackOffset).tap()
+    }
+
+    @MainActor
+    private func tapHittableElement(_ element: XCUIElement) {
+        element.tap()
     }
 
     @MainActor
