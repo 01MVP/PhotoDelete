@@ -309,6 +309,7 @@ enum PhotoLocationGrouping {
         let identifiersByGroupID: [String: [String]]
         let representativeCoordinatesByGroupID: [String: CLLocationCoordinate2D]
         let unresolvedCoordinatesByGroupID: [String: CLLocationCoordinate2D]
+        let resolvedGroupIDs: Set<String>
     }
 
     static func buildGroups(
@@ -321,7 +322,8 @@ enum PhotoLocationGrouping {
                 groups: [],
                 identifiersByGroupID: [:],
                 representativeCoordinatesByGroupID: [:],
-                unresolvedCoordinatesByGroupID: [:]
+                unresolvedCoordinatesByGroupID: [:],
+                resolvedGroupIDs: []
             )
         }
 
@@ -346,18 +348,45 @@ enum PhotoLocationGrouping {
         var cache: [String: [String]] = [:]
         var representativeCoordinates: [String: CLLocationCoordinate2D] = [:]
         var unresolvedCoordinates: [String: CLLocationCoordinate2D] = [:]
+        var resolvedGroupIDs: Set<String> = []
+        var groupIndexByTitleKey: [String: Int] = [:]
+        var recordsByGroupID: [String: [PhotoLocationAssetRecord]] = [:]
 
         for bucket in sortedLocationBuckets {
-            guard let representativeCoordinate = representativeCoordinate(for: bucket.records) else {
+            guard let bucketCoordinate = representativeCoordinate(for: bucket.records) else {
                 continue
             }
-            representativeCoordinates[bucket.id] = representativeCoordinate
+            representativeCoordinates[bucket.id] = bucketCoordinate
 
             guard let resolvedTitle = readableLocationTitle(titleCache[bucket.id]?.title) else {
-                unresolvedCoordinates[bucket.id] = representativeCoordinate
+                unresolvedCoordinates[bucket.id] = bucketCoordinate
                 continue
             }
 
+            resolvedGroupIDs.insert(bucket.id)
+            let titleKey = normalizedTitleKey(resolvedTitle)
+            if let existingIndex = groupIndexByTitleKey[titleKey] {
+                let existingGroup = groups[existingIndex]
+                let canonicalGroupID = existingGroup.id
+                let mergedRecords = recordsByGroupID[canonicalGroupID, default: []] + bucket.records
+                recordsByGroupID[canonicalGroupID] = mergedRecords
+                cache[canonicalGroupID] = mergedRecords.map(\.identifier)
+                if let mergedCoordinate = representativeCoordinate(for: mergedRecords) {
+                    representativeCoordinates[canonicalGroupID] = mergedCoordinate
+                }
+                groups[existingIndex] = PhotoLocationGroupInfo(
+                    id: canonicalGroupID,
+                    title: existingGroup.title,
+                    subtitle: locationSubtitle(for: mergedRecords),
+                    assetCount: mergedRecords.count,
+                    reviewedCount: reviewedCount(in: mergedRecords),
+                    isNoLocationGroup: false
+                )
+                continue
+            }
+
+            groupIndexByTitleKey[titleKey] = groups.count
+            recordsByGroupID[bucket.id] = bucket.records
             groups.append(
                 PhotoLocationGroupInfo(
                     id: bucket.id,
@@ -375,7 +404,8 @@ enum PhotoLocationGrouping {
             groups: groups,
             identifiersByGroupID: cache,
             representativeCoordinatesByGroupID: representativeCoordinates.filter { cache[$0.key] != nil },
-            unresolvedCoordinatesByGroupID: unresolvedCoordinates
+            unresolvedCoordinatesByGroupID: unresolvedCoordinates,
+            resolvedGroupIDs: resolvedGroupIDs
         )
     }
 
@@ -424,6 +454,14 @@ enum PhotoLocationGrouping {
     static func readableLocationTitle(_ value: String?) -> String? {
         guard let title = value.nilIfBlank else { return nil }
         return looksLikeCoordinateTitle(title) ? nil : title
+    }
+
+    private static func normalizedTitleKey(_ title: String) -> String {
+        title
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .components(separatedBy: .whitespacesAndNewlines)
+            .joined()
+            .lowercased()
     }
 
     private static func locationSubtitle(for records: [PhotoLocationAssetRecord]) -> String {

@@ -59,6 +59,7 @@ struct SwipePhotoView: View {
     @State private var sessionProgressSaveWorkItem: DispatchWorkItem?
     @State private var previewAsset: CandidatePreviewAsset?
     @State private var inlinePlayingVideoAssetID: String?
+    @State private var manuallyStoppedVideoAssetID: String?
     @State private var cardModeReviewActionCount = 0
     @State private var showReviewModeHint = false
     @State private var showAlbumShortcutHint = false
@@ -226,6 +227,9 @@ struct SwipePhotoView: View {
         if inlinePlayingVideoAssetID == asset.localIdentifier {
             return true
         }
+        if manuallyStoppedVideoAssetID == asset.localIdentifier {
+            return false
+        }
         return reviewMediaAutoPlay &&
             !isAssetQueuedForDelete(asset) &&
             !isAssetQueuedForFavorite(asset) &&
@@ -357,6 +361,7 @@ struct SwipePhotoView: View {
         }
         .onChange(of: currentPhotoIndex) { _ in
             stopInlineVideoPlaybackIfNeeded(forNextIndex: currentPhotoIndex)
+            manuallyStoppedVideoAssetID = nil
             expandLoadedSessionPhotosIfNeeded(for: currentPhotoIndex)
             scheduleSessionProgressSave()
         }
@@ -570,7 +575,9 @@ struct SwipePhotoView: View {
                 metadataSummary: metadataSummary(for: asset),
                 displaySize: cardSize,
                 targetSize: imageTargetSize(for: cardSize),
-                onStopVideoPlayback: stopInlineVideoPlayback
+                onStopVideoPlayback: {
+                    stopInlineVideoPlayback(rememberManualStopFor: asset)
+                }
             )
             .id(asset.localIdentifier)
             .transition(cardBrowseTransition)
@@ -588,7 +595,8 @@ struct SwipePhotoView: View {
                 }
             }
             .offset(dragOffset)
-            .gesture(createDragGesture())
+            .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .highPriorityGesture(createDragGesture())
             .photoDeleteSimultaneousTapGesture(enabled: inlinePlayingVideoAssetID != asset.localIdentifier) {
                 openAssetPreview(asset)
             }
@@ -657,22 +665,11 @@ struct SwipePhotoView: View {
         guard progress > 0 else { return nil }
 
         let action = configuredAction(for: direction)
-        guard shouldShowDragFeedback(for: action) else { return nil }
-
         return PhotoSwipeDragFeedbackState(
             direction: direction,
             action: action,
             progress: progress
         )
-    }
-
-    private func shouldShowDragFeedback(for action: SwipeGestureAction) -> Bool {
-        switch action {
-        case .previous, .next, .close:
-            return false
-        case .delete, .keep, .favorite:
-            return true
-        }
     }
 
     private func browserPhotoArea(in containerSize: CGSize) -> some View {
@@ -701,7 +698,9 @@ struct SwipePhotoView: View {
                 onOpenAsset: openAssetPreview(_:),
                 onSwipeUpToDelete: handleBrowserSwipeUpDelete(_:at:),
                 onCancelDelete: cancelDeleteCandidate(_:at:),
-                onStopVideoPlayback: stopInlineVideoPlayback
+                onStopVideoPlayback: {
+                    stopInlineVideoPlayback()
+                }
             )
             .frame(height: tileHeight * 2 + 20)
         }
@@ -721,12 +720,17 @@ struct SwipePhotoView: View {
         let assetID = asset.localIdentifier
         if inlinePlayingVideoAssetID == assetID {
             inlinePlayingVideoAssetID = nil
+            manuallyStoppedVideoAssetID = assetID
         } else {
+            manuallyStoppedVideoAssetID = nil
             inlinePlayingVideoAssetID = assetID
         }
     }
 
-    private func stopInlineVideoPlayback() {
+    private func stopInlineVideoPlayback(rememberManualStopFor asset: PHAsset? = nil) {
+        if let asset, asset.mediaType == .video {
+            manuallyStoppedVideoAssetID = asset.localIdentifier
+        }
         inlinePlayingVideoAssetID = nil
     }
 
@@ -1688,7 +1692,7 @@ struct SwipePhotoView: View {
     }
 
     private func createDragGesture() -> some Gesture {
-        DragGesture()
+        DragGesture(minimumDistance: 6)
             .onChanged { value in
                 dragOffset = visualDragOffset(for: value.translation)
             }
@@ -1706,11 +1710,11 @@ struct SwipePhotoView: View {
         switch action {
         case .previous, .next:
             return CGSize(
-                width: min(max(translation.width, -72), 72),
+                width: min(max(translation.width, -120), 120),
                 height: 0
             )
         case .close:
-            return CGSize(width: 0, height: min(max(translation.height, -56), 56))
+            return CGSize(width: 0, height: min(max(translation.height, -112), 112))
         case .delete, .keep, .favorite:
             return translation
         }
@@ -2584,17 +2588,17 @@ private struct InlineVideoCloseButton: View {
 
     var body: some View {
         Button(action: action) {
-            Label(L10n.string("关闭"), systemImage: "xmark")
+            Label(L10n.string("停止播放"), systemImage: "stop.fill")
                 .labelStyle(.iconOnly)
                 .font(.system(size: 12, weight: .bold))
                 .foregroundColor(.white)
                 .frame(width: 30, height: 30)
-                .background(Circle().fill(Color.black.opacity(0.58)))
-                .overlay(Circle().stroke(Color.white.opacity(0.24), lineWidth: 1))
+                .background(Circle().fill(Color.black.opacity(0.76)))
+                .overlay(Circle().stroke(Color.white.opacity(0.34), lineWidth: 1))
         }
         .buttonStyle(.plain)
         .photoDeleteMinimumTapTarget()
-        .accessibilityLabel(L10n.string("关闭"))
+        .accessibilityLabel(L10n.string("停止播放"))
     }
 }
 
@@ -2620,7 +2624,7 @@ private extension View {
     @ViewBuilder
     func inlineVideoCloseAccessibility(isActive: Bool, action: @escaping () -> Void) -> some View {
         if isActive {
-            self.accessibilityAction(named: Text(L10n.string("关闭"))) {
+            self.accessibilityAction(named: Text(L10n.string("停止播放"))) {
                 action()
             }
         } else {
@@ -2644,7 +2648,7 @@ private struct PhotoSwipeDragFeedbackView: View {
             directionStripe
             hint
         }
-        .opacity(0.28 + feedback.progress * 0.72)
+        .opacity(0.7 + feedback.progress * 0.3)
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
@@ -2744,8 +2748,7 @@ private struct PhotoSwipeDragFeedbackView: View {
             title: title,
             color: color
         )
-        .padding(.top, 22)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         .scaleEffect(0.94 + feedback.progress * 0.06)
     }
 
@@ -2823,32 +2826,32 @@ private struct SwipeEdgeHint: View {
             }
 
             Text(title.appLocalized)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(color)
+                .font(.system(size: 15, weight: .bold))
+                .foregroundColor(.white)
                 .lineLimit(1)
-                .minimumScaleFactor(0.78)
+                .minimumScaleFactor(0.82)
 
             if iconPlacement == .trailing {
                 iconView
             }
         }
-        .padding(.horizontal, 11)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
         .background(
             Capsule(style: .continuous)
-                .fill(PhotoDeleteStyle.background.opacity(0.74))
+                .fill(color.opacity(0.96))
                 .overlay(
                     Capsule(style: .continuous)
-                        .stroke(color.opacity(0.62), lineWidth: 1.2)
+                        .stroke(Color.white.opacity(0.34), lineWidth: 1.2)
                 )
         )
-        .shadow(color: PhotoDeleteStyle.floatingShadow, radius: 10, x: 0, y: 4)
+        .shadow(color: Color.black.opacity(0.28), radius: 12, x: 0, y: 5)
     }
 
     private var iconView: some View {
         Image(systemName: icon)
-            .font(.system(size: 11, weight: .bold))
-            .foregroundColor(color)
+            .font(.system(size: 13, weight: .bold))
+            .foregroundColor(.white)
     }
 }
 

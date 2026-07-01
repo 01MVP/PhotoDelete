@@ -344,6 +344,38 @@ struct PhotoDeleteTests {
         #expect(result.identifiersByGroupID[PhotoLocationGrouping.noLocationID] == nil)
     }
 
+    @Test func photoLocationGroupingMergesDuplicateReadableTitles() async throws {
+        let firstID = PhotoLocationGrouping.groupID(latitude: 22.5400, longitude: 113.9400)
+        let secondID = PhotoLocationGrouping.groupID(latitude: 22.5900, longitude: 113.9400)
+        let thirdID = PhotoLocationGrouping.groupID(latitude: 22.6500, longitude: 113.9900)
+        #expect(Set([firstID, secondID, thirdID]).count == 3)
+
+        let records = [
+            PhotoLocationAssetRecord(identifier: "sz-1", latitude: 22.5400, longitude: 113.9400, isReviewed: true),
+            PhotoLocationAssetRecord(identifier: "sz-2", latitude: 22.5900, longitude: 113.9400, isReviewed: false),
+            PhotoLocationAssetRecord(identifier: "sz-3", latitude: 22.6500, longitude: 113.9900, isReviewed: true)
+        ]
+        let title = "深圳市 · 南山区"
+
+        let result = PhotoLocationGrouping.buildGroups(
+            from: records,
+            titleCache: [
+                firstID: PhotoLocationResolvedTitle(title: title),
+                secondID: PhotoLocationResolvedTitle(title: "  \(title)  "),
+                thirdID: PhotoLocationResolvedTitle(title: "\n\(title)\t")
+            ]
+        )
+
+        let group = try #require(result.groups.first)
+        #expect(result.groups.count == 1)
+        #expect(group.id == firstID)
+        #expect(group.title == title)
+        #expect(group.assetCount == 3)
+        #expect(group.reviewedCount == 2)
+        #expect(result.identifiersByGroupID[firstID] == ["sz-1", "sz-2", "sz-3"])
+        #expect(result.resolvedGroupIDs == Set([firstID, secondID, thirdID]))
+    }
+
     @Test func photoLocationDisplayTitlePrefersReadablePlaceFields() async throws {
         #expect(
             PhotoLocationGrouping.displayTitle(

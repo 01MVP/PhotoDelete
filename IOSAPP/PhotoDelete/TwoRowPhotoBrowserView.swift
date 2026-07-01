@@ -737,10 +737,11 @@ private final class TwoRowPhotoBrowserCell: UICollectionViewCell, UIGestureRecog
 
         closeVideoButton.translatesAutoresizingMaskIntoConstraints = false
         closeVideoButton.tintColor = .white
-        closeVideoButton.backgroundColor = UIColor.black.withAlphaComponent(0.56)
+        closeVideoButton.backgroundColor = UIColor.black.withAlphaComponent(0.76)
         closeVideoButton.layer.cornerRadius = 15
         closeVideoButton.layer.cornerCurve = .continuous
-        closeVideoButton.setImage(UIImage(systemName: "xmark"), for: .normal)
+        closeVideoButton.setImage(UIImage(systemName: "stop.fill"), for: .normal)
+        closeVideoButton.accessibilityLabel = L10n.string("停止播放")
         closeVideoButton.isHidden = true
         closeVideoButton.addTarget(self, action: #selector(handleStopVideoPlaybackTap), for: .touchUpInside)
         containerView.addSubview(closeVideoButton)

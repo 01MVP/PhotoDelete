@@ -20,11 +20,10 @@ struct LocationOrganizeView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    header
                     content
                 }
                 .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
-                .padding(.top, 18)
+                .padding(.top, 12)
                 .padding(.bottom, 28)
             }
         }
@@ -34,42 +33,14 @@ struct LocationOrganizeView: View {
         .task {
             guard !hasRequestedLocationGroups else { return }
             hasRequestedLocationGroups = true
-            refreshLocationGroups(force: true)
+            refreshLocationGroups(force: dataManager.locationGroups.isEmpty)
         }
         .onReceive(dataManager.photoLibraryManager.$allPhotos) { photos in
             let signature = photoListSignature(for: photos)
             guard lastPhotoListSignature != signature else { return }
             lastPhotoListSignature = signature
-            dataManager.loadLocationGroups(force: true)
+            dataManager.loadLocationGroups(force: dataManager.locationGroups.isEmpty)
         }
-    }
-
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 12) {
-                PhotoDeleteIconTile(
-                    icon: "mappin.and.ellipse",
-                    tint: PhotoDeleteStyle.accent,
-                    size: 42,
-                    cornerRadius: 12,
-                    filled: false
-                )
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(L10n.string("地点整理"))
-                        .font(.system(size: 22, weight: .semibold))
-                        .foregroundColor(PhotoDeleteStyle.primaryText)
-
-                    Text(L10n.string("按拍摄地点查看照片，只显示能识别出地名的分组。"))
-                        .font(.system(size: 15, weight: .regular))
-                        .foregroundColor(PhotoDeleteStyle.secondaryText)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-        }
-        .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .photoDeleteCard()
     }
 
     @ViewBuilder
@@ -93,32 +64,25 @@ struct LocationOrganizeView: View {
                 } : nil
             )
         } else {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(L10n.string("按地点继续"))
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.primaryText)
-                    .padding(.horizontal, 2)
+            LazyVStack(spacing: 0) {
+                ForEach(Array(dataManager.locationGroups.enumerated()), id: \.element.id) { index, group in
+                    NavigationLink(value: SwipeViewDestination.location(group.id)) {
+                        LocationGroupRow(
+                            group: group,
+                            thumbnailAsset: dataManager.getPhotosForLocationGroup(group.id).first,
+                            photoLibraryManager: dataManager.photoLibraryManager
+                        )
+                    }
+                    .buttonStyle(.plain)
 
-                LazyVStack(spacing: 0) {
-                    ForEach(Array(dataManager.locationGroups.enumerated()), id: \.element.id) { index, group in
-                        NavigationLink(value: SwipeViewDestination.location(group.id)) {
-                            LocationGroupRow(
-                                group: group,
-                                thumbnailAsset: dataManager.getPhotosForLocationGroup(group.id).first,
-                                photoLibraryManager: dataManager.photoLibraryManager
-                            )
-                        }
-                        .buttonStyle(.plain)
-
-                        if index != dataManager.locationGroups.count - 1 {
-                            Divider()
-                                .background(PhotoDeleteStyle.hairline)
-                                .padding(.leading, 76)
-                        }
+                    if index != dataManager.locationGroups.count - 1 {
+                        Divider()
+                            .background(PhotoDeleteStyle.hairline)
+                            .padding(.leading, 76)
                     }
                 }
-                .photoDeleteCard()
             }
+            .photoDeleteCard()
         }
     }
 

@@ -100,6 +100,7 @@ class DataManager: ObservableObject {
         let locationGroups: [PhotoLocationGroupInfo]
         let representativeCoordinatesByGroupID: [String: CLLocationCoordinate2D]
         let unresolvedCoordinatesByGroupID: [String: CLLocationCoordinate2D]
+        let resolvedGroupIDs: Set<String>
     }
 
     private struct LocationGroupBuildSignature: Equatable {
@@ -1614,7 +1615,9 @@ class DataManager: ObservableObject {
                     !result.unresolvedCoordinatesByGroupID.isEmpty ? nil : signature
                 self.isLoadingLocationGroups = false
 
-                let validGroupIDs = Set(result.cache.keys).union(result.unresolvedCoordinatesByGroupID.keys)
+                let validGroupIDs = Set(result.cache.keys)
+                    .union(result.unresolvedCoordinatesByGroupID.keys)
+                    .union(result.resolvedGroupIDs)
                 self.locationTitleCacheStore.prune(
                     keeping: validGroupIDs,
                     localeIdentifier: titleLocaleIdentifier
@@ -1910,7 +1913,8 @@ class DataManager: ObservableObject {
             cache: cache,
             locationGroups: result.groups,
             representativeCoordinatesByGroupID: result.representativeCoordinatesByGroupID,
-            unresolvedCoordinatesByGroupID: result.unresolvedCoordinatesByGroupID
+            unresolvedCoordinatesByGroupID: result.unresolvedCoordinatesByGroupID,
+            resolvedGroupIDs: result.resolvedGroupIDs
         )
     }
 

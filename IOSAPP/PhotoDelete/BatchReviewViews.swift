@@ -936,6 +936,8 @@ struct PhotoAssetVideoPlayerView: View {
     @State private var isLoading = true
     @State private var didFail = false
     @State private var loadingAssetIdentifier: String?
+    @State private var playbackProgress: Double = 0
+    @State private var timeObserverToken: Any?
 
     var body: some View {
         ZStack {
@@ -946,6 +948,10 @@ struct PhotoAssetVideoPlayerView: View {
                 VideoPlayer(player: player)
                     .ignoresSafeArea(edges: ignoresSafeArea ? .all : [])
                     .allowsHitTesting(allowsPlayerInteraction)
+                    .overlay(alignment: .bottom) {
+                        VideoPlaybackProgressBar(progress: playbackProgress)
+                            .allowsHitTesting(false)
+                    }
                     .onAppear {
                         if autoPlay {
                             player.isMuted = isMuted
@@ -986,6 +992,7 @@ struct PhotoAssetVideoPlayerView: View {
         loadingAssetIdentifier = requestedAssetID
         isLoading = true
         didFail = false
+        playbackProgress = 0
 
         requestID = photoLibraryManager.loadPlayerItem(for: asset) { playerItem in
             guard loadingAssetIdentifier == requestedAssetID else { return }
@@ -994,24 +1001,79 @@ struct PhotoAssetVideoPlayerView: View {
 
             guard let playerItem else {
                 didFail = true
+                playbackProgress = 0
                 return
             }
 
             let loadedPlayer = AVPlayer(playerItem: playerItem)
             loadedPlayer.isMuted = isMuted
             player = loadedPlayer
+            installPlaybackProgressObserver(for: loadedPlayer)
             if autoPlay {
                 loadedPlayer.play()
             }
         }
     }
 
+    private func installPlaybackProgressObserver(for loadedPlayer: AVPlayer) {
+        removePlaybackProgressObserver()
+        playbackProgress = 0
+        timeObserverToken = loadedPlayer.addPeriodicTimeObserver(
+            forInterval: CMTime(seconds: 0.25, preferredTimescale: 600),
+            queue: .main
+        ) { [weak loadedPlayer] time in
+            guard let currentPlayer = loadedPlayer else { return }
+            let duration = currentPlayer.currentItem?.duration.seconds ?? 0
+            guard duration.isFinite, duration > 0, time.seconds.isFinite else {
+                playbackProgress = 0
+                return
+            }
+            playbackProgress = min(max(time.seconds / duration, 0), 1)
+        }
+    }
+
+    private func removePlaybackProgressObserver() {
+        guard let timeObserverToken else { return }
+        player?.removeTimeObserver(timeObserverToken)
+        self.timeObserverToken = nil
+    }
+
     private func cleanup() {
         photoLibraryManager.cancelImageRequest(requestID)
         requestID = nil
         loadingAssetIdentifier = nil
+        removePlaybackProgressObserver()
         player?.pause()
         player = nil
+        playbackProgress = 0
+    }
+}
+
+private struct VideoPlaybackProgressBar: View {
+    let progress: Double
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                Capsule(style: .continuous)
+                    .fill(Color.white.opacity(0.24))
+
+                Capsule(style: .continuous)
+                    .fill(PhotoDeleteStyle.accent)
+                    .frame(width: proxy.size.width * CGFloat(min(max(progress, 0), 1)))
+            }
+        }
+        .frame(height: 4)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(
+            LinearGradient(
+                colors: [.clear, Color.black.opacity(0.46)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
+        .accessibilityHidden(true)
     }
 }
 
