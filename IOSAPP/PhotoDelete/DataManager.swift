@@ -1243,8 +1243,14 @@ class DataManager: ObservableObject {
         }
         flushCluster()
 
-        let sortedGroups = groups.sorted {
-            ($0.representativeDate ?? .distantPast) > ($1.representativeDate ?? .distantPast)
+        let sortedGroups = groups.sorted { lhs, rhs in
+            if lhs.estimatedSpaceMB != rhs.estimatedSpaceMB {
+                return lhs.estimatedSpaceMB > rhs.estimatedSpaceMB
+            }
+            if lhs.suggestedDeleteCount != rhs.suggestedDeleteCount {
+                return lhs.suggestedDeleteCount > rhs.suggestedDeleteCount
+            }
+            return (lhs.representativeDate ?? .distantPast) > (rhs.representativeDate ?? .distantPast)
         }
 
         guard let maxGroups else { return sortedGroups }
@@ -1479,10 +1485,10 @@ class DataManager: ObservableObject {
     }
 
     private static func estimatedAssetSizeMBForAsset(_ asset: PHAsset) -> Double {
-        let megapixels = Double(asset.pixelWidth) * Double(asset.pixelHeight) / 1_000_000
         if asset.mediaType == .video {
             return 0
         }
+        let megapixels = Double(asset.pixelWidth) * Double(asset.pixelHeight) / 1_000_000
         return max(megapixels * 0.55, 0.8)
     }
 

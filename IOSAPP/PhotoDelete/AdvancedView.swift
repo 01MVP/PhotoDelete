@@ -1317,7 +1317,9 @@ private struct AdvancedAssetListView: View {
     }
 
     private var filteredAssets: [PHAsset] {
-        assets.filter { matches(asset: $0, filter: selectedFilter) }
+        let filtered = assets.filter { matches(asset: $0, filter: selectedFilter) }
+        guard prefersSizeFirstOrder else { return filtered }
+        return filtered.sorted(by: sizeFirstOrder)
     }
 
     private var visibleFilteredAssets: [PHAsset] {
@@ -1366,6 +1368,22 @@ private struct AdvancedAssetListView: View {
 
     private var hasUnresolvedVideoSizes: Bool {
         !filteredVideoAssets.isEmpty && loadedReliableVideoSizeCount < filteredVideoAssets.count
+    }
+
+    private var prefersSizeFirstOrder: Bool {
+        switch mode {
+        case .cleanup(.largeFiles), .cleanup(.videos), .cleanup(.videoCompression):
+            return true
+        case .cleanup(.similarPhotos), .cleanup(.imageCompression):
+            return false
+        }
+    }
+
+    private var videoSizeLoadTargets: [PHAsset] {
+        if prefersSizeFirstOrder {
+            return assets.filter { $0.mediaType == .video }
+        }
+        return visibleFilteredAssets.filter { $0.mediaType == .video }
     }
 
     var body: some View {
@@ -1480,7 +1498,7 @@ private struct AdvancedAssetListView: View {
         .onChange(of: selectedFilter) { _ in
             visibleAssetLimit = 120
             pruneSelectionToFilteredAssets()
-            loadVideoSizes(for: visibleFilteredAssets)
+            loadVideoSizesForCurrentScope()
         }
         .onDisappear {
             sizeLoadingTask?.cancel()
@@ -1543,7 +1561,7 @@ private struct AdvancedAssetListView: View {
         pruneSelectionToFilteredAssets()
         seedCachedVideoSizeEstimates(for: loadedAssets)
         isLoadingAssets = false
-        loadVideoSizes(for: visibleFilteredAssets)
+        loadVideoSizesForCurrentScope()
     }
 
     private func matches(asset: PHAsset, filter: AdvancedCleanupFilter) -> Bool {
@@ -1555,7 +1573,12 @@ private struct AdvancedAssetListView: View {
         case .photos:
             return asset.mediaType == .image
         case .large:
-            return sizeForFiltering(asset) >= (asset.mediaType == .video ? 80 : 18)
+            if asset.mediaType == .video {
+                guard let estimate = videoSizeEstimatesByAssetID[asset.localIdentifier] else { return true }
+                guard estimate.isReliable else { return true }
+                return estimate.sizeMB >= 80
+            }
+            return dataManager.estimatedSizeMB(for: asset) >= 18
         case .long:
             return asset.mediaType == .video && asset.duration >= 60
         case .month:
@@ -1591,6 +1614,36 @@ private struct AdvancedAssetListView: View {
         case .unavailable:
             return L10n.string("待确认")
         }
+    }
+
+    private func sizeFirstOrder(_ lhs: PHAsset, _ rhs: PHAsset) -> Bool {
+        let lhsSize = reliableSortSizeMB(for: lhs)
+        let rhsSize = reliableSortSizeMB(for: rhs)
+        switch (lhsSize, rhsSize) {
+        case let (lhsSize?, rhsSize?) where lhsSize != rhsSize:
+            return lhsSize > rhsSize
+        case (.some, nil):
+            return true
+        case (nil, .some):
+            return false
+        default:
+            break
+        }
+
+        let lhsDate = lhs.creationDate ?? .distantPast
+        let rhsDate = rhs.creationDate ?? .distantPast
+        if lhsDate != rhsDate {
+            return lhsDate > rhsDate
+        }
+
+        return lhs.localIdentifier < rhs.localIdentifier
+    }
+
+    private func reliableSortSizeMB(for asset: PHAsset) -> Double? {
+        if asset.mediaType == .video {
+            return reliableVideoSizeMB(for: asset)
+        }
+        return dataManager.estimatedSizeMB(for: asset)
     }
 
     private func sizeStatusSystemImage(for asset: PHAsset) -> String? {
@@ -1698,7 +1751,11 @@ private struct AdvancedAssetListView: View {
                 step: assetLimitStep
             )
         }
-        loadVideoSizes(for: visibleFilteredAssets)
+        loadVideoSizesForCurrentScope()
+    }
+
+    private func loadVideoSizesForCurrentScope() {
+        loadVideoSizes(for: videoSizeLoadTargets)
     }
 
     private func toggleSelection(_ asset: PHAsset) {
@@ -1926,9 +1983,6 @@ private struct AdvancedImageCompressionView: View {
         }
         .task {
             reloadAssets()
-        }
-        .onDisappear {
-            compressionTask?.cancel()
         }
     }
 
@@ -3224,7 +3278,9 @@ private struct AdvancedVideoCompressionView: View {
     }
 
     private var compressibleAssets: [PHAsset] {
-        assets.filter { !processedVideoAssetIDs.contains($0.localIdentifier) }
+        assets
+            .filter { !processedVideoAssetIDs.contains($0.localIdentifier) }
+            .sorted(by: videoSizeFirstOrder)
     }
 
     private var visibleCompressibleAssets: [PHAsset] {
@@ -3431,7 +3487,6 @@ private struct AdvancedVideoCompressionView: View {
             reloadAssets()
         }
         .onDisappear {
-            compressionTask?.cancel()
             sizeLoadingTask?.cancel()
         }
     }
@@ -3552,7 +3607,7 @@ private struct AdvancedVideoCompressionView: View {
         pruneSelectionToCompressibleAssets()
         seedCachedVideoSizeEstimates(for: loadedAssets)
         isLoadingAssets = false
-        loadVideoSizes(for: visibleCompressibleAssets)
+        loadVideoSizesForAllPendingVideos()
     }
 
     private func refreshProcessedVideoAssetIDs() {
@@ -3614,6 +3669,29 @@ private struct AdvancedVideoCompressionView: View {
             return nil
         }
         return estimate.sizeMB
+    }
+
+    private func videoSizeFirstOrder(_ lhs: PHAsset, _ rhs: PHAsset) -> Bool {
+        let lhsSize = reliableSizeMB(for: lhs)
+        let rhsSize = reliableSizeMB(for: rhs)
+        switch (lhsSize, rhsSize) {
+        case let (lhsSize?, rhsSize?) where lhsSize != rhsSize:
+            return lhsSize > rhsSize
+        case (.some, nil):
+            return true
+        case (nil, .some):
+            return false
+        default:
+            break
+        }
+
+        let lhsDate = lhs.creationDate ?? .distantPast
+        let rhsDate = rhs.creationDate ?? .distantPast
+        if lhsDate != rhsDate {
+            return lhsDate > rhsDate
+        }
+
+        return lhs.localIdentifier < rhs.localIdentifier
     }
 
     private func hasReliableSizes(for selectedAssets: [PHAsset]) -> Bool {
@@ -3700,7 +3778,11 @@ private struct AdvancedVideoCompressionView: View {
                 step: videoLimitStep
             )
         }
-        loadVideoSizes(for: visibleCompressibleAssets)
+        loadVideoSizesForAllPendingVideos()
+    }
+
+    private func loadVideoSizesForAllPendingVideos() {
+        loadVideoSizes(for: compressibleAssets)
     }
 
     private func showMoreCompressibleVideosIfNeeded(currentAsset asset: PHAsset) {
@@ -3796,7 +3878,6 @@ private struct AdvancedVideoCompressionView: View {
                         currentCompressionProgress = progress
                         currentCompressionMessage = message
                     }
-                    try Task.checkCancellation()
                     resultItems.append(AdvancedVideoCompressionResultItem(result: result))
                 } catch is CancellationError {
                     break
@@ -3820,7 +3901,7 @@ private struct AdvancedVideoCompressionView: View {
                 currentCompressionProgress = 0
                 currentCompressionMessage = nil
 
-                if !wasCancelled, !resultItems.isEmpty {
+                if !resultItems.isEmpty {
                     let completedResult = AdvancedVideoCompressionResult(
                         items: resultItems,
                         failedCount: failedCount,
@@ -5909,15 +5990,15 @@ private enum AdvancedCleanupFilter: String, Hashable, Identifiable {
     static func options(for kind: AdvancedCleanupKind) -> [AdvancedCleanupFilter] {
         switch kind {
         case .similarPhotos:
-            return [.all, .recommended, .burst, .month]
+            return [.all, .burst]
         case .largeFiles:
-            return [.all, .videos, .photos, .month]
+            return [.all, .videos, .photos]
         case .imageCompression:
-            return [.all, .large, .month]
+            return [.all, .large]
         case .videoCompression:
-            return [.all, .large, .long, .month]
+            return [.all, .large, .long]
         case .videos:
-            return [.all, .large, .long, .month]
+            return [.all, .large, .long]
         }
     }
 }

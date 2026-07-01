@@ -353,7 +353,7 @@ enum PhotoLocationGrouping {
             }
             representativeCoordinates[bucket.id] = representativeCoordinate
 
-            guard let resolvedTitle = titleCache[bucket.id]?.title.nilIfBlank else {
+            guard let resolvedTitle = readableLocationTitle(titleCache[bucket.id]?.title) else {
                 unresolvedCoordinates[bucket.id] = representativeCoordinate
                 continue
             }
@@ -401,24 +401,29 @@ enum PhotoLocationGrouping {
         administrativeArea: String?,
         country: String?
     ) -> String? {
-        let countryTitle = country.nilIfBlank
+        let countryTitle = readableLocationTitle(country)
         let localityParts = [locality, subLocality]
-            .compactMap { $0.nilIfBlank }
+            .compactMap { readableLocationTitle($0) }
             .uniquedPreservingOrder()
         if !localityParts.isEmpty {
             return localityParts.joined(separator: " · ")
         }
 
-        if let administrativeArea = administrativeArea.nilIfBlank {
+        if let administrativeArea = readableLocationTitle(administrativeArea) {
             return administrativeArea
         }
 
-        if let name = name.nilIfBlank,
+        if let name = readableLocationTitle(name),
            name != countryTitle {
             return name
         }
 
         return countryTitle
+    }
+
+    static func readableLocationTitle(_ value: String?) -> String? {
+        guard let title = value.nilIfBlank else { return nil }
+        return looksLikeCoordinateTitle(title) ? nil : title
     }
 
     private static func locationSubtitle(for records: [PhotoLocationAssetRecord]) -> String {
@@ -457,6 +462,32 @@ enum PhotoLocationGrouping {
         let latitude = validCoordinates.reduce(0) { $0 + $1.latitude } / Double(validCoordinates.count)
         let longitude = validCoordinates.reduce(0) { $0 + $1.longitude } / Double(validCoordinates.count)
         return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    }
+
+    private static func looksLikeCoordinateTitle(_ title: String) -> Bool {
+        let normalized = title
+            .replacingOccurrences(of: "−", with: "-")
+            .replacingOccurrences(of: "–", with: "-")
+            .replacingOccurrences(of: "—", with: "-")
+        let coordinateCharacters = CharacterSet(
+            charactersIn: "0123456789.,，;:°º'\"′″+-()[]/\\ NSEWnsew"
+        )
+        let containsOnlyCoordinateCharacters = normalized.unicodeScalars.allSatisfy {
+            coordinateCharacters.contains($0)
+        }
+        guard containsOnlyCoordinateCharacters else { return false }
+
+        let numberCharacters = CharacterSet(charactersIn: "0123456789.+-")
+        let numbers = normalized
+            .components(separatedBy: numberCharacters.inverted)
+            .compactMap { Double($0) }
+        guard numbers.count >= 2 else { return false }
+
+        return zip(numbers, numbers.dropFirst()).contains { firstValue, secondValue in
+            let first = abs(firstValue)
+            let second = abs(secondValue)
+            return (first <= 90 && second <= 180) || (first <= 180 && second <= 90)
+        }
     }
 }
 
@@ -617,7 +648,7 @@ enum PhotoAssetMetadataFormatter {
     }
 
     static func optionalLocationText(locationTitle: String?, coordinate: CLLocationCoordinate2D?) -> String? {
-        if let locationTitle = locationTitle?.nilIfBlank {
+        if let locationTitle = PhotoLocationGrouping.readableLocationTitle(locationTitle) {
             return locationTitle
         }
 

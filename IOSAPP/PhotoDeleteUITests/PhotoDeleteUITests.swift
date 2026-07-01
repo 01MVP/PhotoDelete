@@ -20,17 +20,17 @@ final class PhotoDeleteUITests: XCTestCase {
         let app = makeApp(completedOnboarding: false)
         app.launch()
 
-        XCTAssertTrue(app.staticTexts["像系统相册一样浏览"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["让照片整理变得简单"].waitForExistence(timeout: 10))
         app.buttons["继续"].tap()
 
-        XCTAssertTrue(app.staticTexts["上滑加入待删除"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["左滑删除，右滑保留"].waitForExistence(timeout: 3))
         app.buttons["继续"].tap()
 
         XCTAssertTrue(app.staticTexts["找回更多空间"].waitForExistence(timeout: 3))
         app.buttons["继续"].tap()
 
-        XCTAssertTrue(app.staticTexts["只在本机整理"].waitForExistence(timeout: 3))
-        app.buttons["开始"].tap()
+        XCTAssertTrue(app.staticTexts["照片不会上传"].waitForExistence(timeout: 3))
+        app.buttons["开始整理照片"].tap()
         _ = allowFullPhotoLibraryAccessIfNeeded(app: app)
 
         XCTAssertTrue(

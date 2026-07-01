@@ -294,6 +294,18 @@ struct PhotoDeleteTests {
         #expect(PhotoAssetMetadataFormatter.optionalLocationText(locationTitle: nil, coordinate: nil) == nil)
         #expect(
             PhotoAssetMetadataFormatter.locationText(
+                locationTitle: "31.2304, 121.4737",
+                coordinate: CLLocationCoordinate2D(latitude: 31.2304, longitude: 121.4737)
+            ) == L10n.string("无地点信息")
+        )
+        #expect(
+            PhotoAssetMetadataFormatter.optionalLocationText(
+                locationTitle: "31.2304, 121.4737",
+                coordinate: CLLocationCoordinate2D(latitude: 31.2304, longitude: 121.4737)
+            ) == nil
+        )
+        #expect(
+            PhotoAssetMetadataFormatter.locationText(
                 locationTitle: "上海 · 徐汇",
                 coordinate: CLLocationCoordinate2D(latitude: 31.2304, longitude: 121.4737)
             ) == "上海 · 徐汇"
@@ -319,7 +331,8 @@ struct PhotoDeleteTests {
         let result = PhotoLocationGrouping.buildGroups(
             from: records,
             titleCache: [
-                shanghaiID: PhotoLocationResolvedTitle(title: "上海 · 徐汇")
+                shanghaiID: PhotoLocationResolvedTitle(title: "上海 · 徐汇"),
+                beijingID: PhotoLocationResolvedTitle(title: "39.9042, 116.4074")
             ]
         )
 
@@ -349,6 +362,15 @@ struct PhotoDeleteTests {
                 administrativeArea: nil,
                 country: "中国"
             ) == "中国"
+        )
+        #expect(
+            PhotoLocationGrouping.displayTitle(
+                name: "31.2304, 121.4737",
+                locality: nil,
+                subLocality: nil,
+                administrativeArea: nil,
+                country: nil
+            ) == nil
         )
     }
 

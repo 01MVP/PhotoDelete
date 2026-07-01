@@ -1231,9 +1231,9 @@ class PhotoLibraryManager: NSObject, ObservableObject {
 
         await progressHandler?(0.04, L10n.string("正在读取原视频信息"))
         try Task.checkCancellation()
-        let originalSizeMB = try await actualVideoFileSizeMB(for: asset)
-        try Task.checkCancellation()
         let videoAsset = try await requestVideoAsset(for: asset)
+        try Task.checkCancellation()
+        let originalSizeMB = try await actualVideoFileSizeMB(for: asset, preferredVideoAsset: videoAsset)
         try Task.checkCancellation()
         await progressHandler?(0.12, L10n.string("正在准备压缩参数"))
         let originalDimensions = try await displayDimensions(for: videoAsset)
@@ -1254,7 +1254,6 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         await progressHandler?(0.9, L10n.string("正在保存压缩副本"))
         try Task.checkCancellation()
         let createdAssetIdentifier = try await saveCompressedVideo(at: output.url, originalAsset: asset)
-        try Task.checkCancellation()
         await progressHandler?(1, L10n.string("压缩副本已保存"))
         return VideoCompressionResult(
             originalAssetIdentifier: asset.localIdentifier,
@@ -1321,21 +1320,19 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         }
 
         do {
-            let sizeMB = try await actualVideoFileSizeMB(for: asset, networkAccessAllowed: false)
-            return VideoFileSizeEstimate(sizeMB: sizeMB, source: .assetResource)
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch {}
-
-        do {
             let request = try await requestVideoAssetForSizeEstimate(for: asset)
-            guard request.asset != nil else {
+            guard let videoAsset = request.asset else {
                 return VideoFileSizeEstimate(
                     sizeMB: 0,
                     source: request.isInCloud ? .iCloud : .unavailable
                 )
             }
-            return VideoFileSizeEstimate(sizeMB: 0, source: .unavailable)
+            let sizeMB = try await actualVideoFileSizeMB(
+                for: asset,
+                networkAccessAllowed: false,
+                preferredVideoAsset: videoAsset
+            )
+            return VideoFileSizeEstimate(sizeMB: sizeMB, source: .assetResource)
         } catch is CancellationError {
             throw CancellationError()
         } catch {}
@@ -1576,8 +1573,14 @@ class PhotoLibraryManager: NSObject, ObservableObject {
 
     private func actualVideoFileSizeMB(
         for asset: PHAsset,
-        networkAccessAllowed: Bool = true
+        networkAccessAllowed: Bool = true,
+        preferredVideoAsset: AVAsset? = nil
     ) async throws -> Double {
+        if let preferredVideoAsset,
+           let sizeMB = try? localVideoFileSizeMB(for: preferredVideoAsset) {
+            return sizeMB
+        }
+
         let resources = PHAssetResource.assetResources(for: asset)
         guard let resource = resources.first(where: { $0.type == .fullSizeVideo }) ??
             resources.first(where: { $0.type == .video }) else {
@@ -1625,6 +1628,23 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         } onCancel: {
             cancellation.cancel()
         }
+    }
+
+    private func localVideoFileSizeMB(for asset: AVAsset) throws -> Double {
+        guard let urlAsset = asset as? AVURLAsset, urlAsset.url.isFileURL else {
+            throw VideoCompressionError.videoUnavailable
+        }
+
+        let values = try urlAsset.url.resourceValues(forKeys: [.fileSizeKey, .totalFileSizeKey])
+        if let bytes = values.totalFileSize ?? values.fileSize {
+            return max(Double(bytes) / 1_048_576, 0)
+        }
+
+        let attributes = try FileManager.default.attributesOfItem(atPath: urlAsset.url.path)
+        guard let bytes = attributes[.size] as? NSNumber else {
+            throw VideoCompressionError.videoUnavailable
+        }
+        return max(bytes.doubleValue / 1_048_576, 0)
     }
 
     private func displayDimensions(for asset: AVAsset) async throws -> CGSize {

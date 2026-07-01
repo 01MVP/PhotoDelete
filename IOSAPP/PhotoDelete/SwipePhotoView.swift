@@ -466,6 +466,21 @@ struct SwipePhotoView: View {
                         if showCompletionMessage {
                             completionOverlay
                         }
+
+                        if shouldShowGestureUpdateNotice && !showCompletionMessage {
+                            VStack {
+                                GestureUpdateNoticeBanner(
+                                    onAdjust: openGestureSettingsFromNotice,
+                                    onDismiss: acknowledgeGestureUpdateNotice
+                                )
+                                .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
+                                .padding(.top, 14)
+                                .transition(.move(edge: .top).combined(with: .opacity))
+
+                                Spacer(minLength: 0)
+                            }
+                            .zIndex(2)
+                        }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if shouldShowInitialPreparingState {
@@ -887,15 +902,6 @@ struct SwipePhotoView: View {
     // MARK: - 底部控制区域
     private var bottomControls: some View {
         VStack(spacing: 10) {
-            if shouldShowGestureUpdateNotice {
-                GestureUpdateNoticeBanner(
-                    onAdjust: openGestureSettingsFromNotice,
-                    onDismiss: acknowledgeGestureUpdateNotice
-                )
-                .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-
             if shouldShowAlbumShortcutGuidance {
                 AlbumShortcutHintBubble(onDismiss: acknowledgeAlbumShortcutHint)
                     .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
@@ -932,13 +938,6 @@ struct SwipePhotoView: View {
         VStack(alignment: .leading, spacing: 16) {
             sessionSummaryPanel
             gestureGuidePanel
-            if shouldShowGestureUpdateNotice {
-                GestureUpdateNoticeBanner(
-                    onAdjust: openGestureSettingsFromNotice,
-                    onDismiss: acknowledgeGestureUpdateNotice
-                )
-                .transition(.move(edge: .top).combined(with: .opacity))
-            }
             if shouldShowAlbumShortcutGuidance {
                 AlbumShortcutHintBubble(onDismiss: acknowledgeAlbumShortcutHint)
                     .transition(.move(edge: .top).combined(with: .opacity))
@@ -2745,7 +2744,8 @@ private struct PhotoSwipeDragFeedbackView: View {
             title: title,
             color: color
         )
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        .padding(.top, 22)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .scaleEffect(0.94 + feedback.progress * 0.06)
     }
 
@@ -2959,6 +2959,7 @@ struct RealPhotoCard: View {
                     isMuted: videoMuted,
                     allowsPlayerInteraction: false
                 )
+                .allowsHitTesting(false)
                 .frame(width: displaySize.width, height: displaySize.height)
                 .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                 .overlay(
