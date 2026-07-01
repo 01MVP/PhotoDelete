@@ -857,7 +857,7 @@ class DataManager: ObservableObject {
     func getPhotosForAdvancedCleanup(_ kind: AdvancedCleanupKind) -> [PHAsset] {
         switch kind {
         case .similarPhotos:
-            return similarPhotoCandidates(maxCount: 240)
+            return similarPhotoCandidates()
         case .largeFiles:
             return largeFileCandidates()
         case .imageCompression:
@@ -878,21 +878,18 @@ class DataManager: ObservableObject {
     ) {
         let photos = photoLibraryManager.allPhotos
         let videos = photoLibraryManager.videos
+        let screenshotIDs = Set(photoLibraryManager.screenshots.map(\.localIdentifier))
         let processedImageIDs = imageCompressionProcessedAssetIDs()
 
         DispatchQueue.global(qos: .userInitiated).async {
             let loadedAssets: [PHAsset]
             switch kind {
             case .similarPhotos:
-                loadedAssets = Array(
-                    Self.makeSimilarPhotoGroups(
-                        photos: photos,
-                        screenshotIDs: Set(),
-                        maxGroups: 120
-                    )
-                    .flatMap(\.assets)
-                    .prefix(240)
+                loadedAssets = Self.makeSimilarPhotoGroups(
+                    photos: photos,
+                    screenshotIDs: screenshotIDs
                 )
+                .flatMap(\.assets)
             case .largeFiles:
                 loadedAssets = Self.largeFileCandidates(from: photos)
             case .imageCompression:
@@ -1144,8 +1141,7 @@ class DataManager: ObservableObject {
     ) -> [AdvancedCleanupQueue] {
         let similarGroups = makeSimilarPhotoGroups(
             photos: photos,
-            screenshotIDs: screenshotIDs,
-            maxGroups: 120
+            screenshotIDs: screenshotIDs
         )
         let largeFiles = largeFileCandidates(from: photos)
         let videoCompressionCandidates = videoCompressionCandidates(from: videos)
@@ -1191,7 +1187,7 @@ class DataManager: ObservableObject {
         return queues
     }
 
-    func makeSimilarPhotoGroups(maxGroups: Int = 80) -> [AdvancedSimilarPhotoGroup] {
+    func makeSimilarPhotoGroups(maxGroups: Int? = nil) -> [AdvancedSimilarPhotoGroup] {
         Self.makeSimilarPhotoGroups(
             photos: photoLibraryManager.allPhotos,
             screenshotIDs: Set(photoLibraryManager.screenshots.map(\.localIdentifier)),
@@ -1202,7 +1198,7 @@ class DataManager: ObservableObject {
     private static func makeSimilarPhotoGroups(
         photos allPhotos: [PHAsset],
         screenshotIDs: Set<String>,
-        maxGroups: Int
+        maxGroups: Int? = nil
     ) -> [AdvancedSimilarPhotoGroup] {
         let photos = allPhotos
             .filter { asset in
@@ -1247,15 +1243,18 @@ class DataManager: ObservableObject {
         }
         flushCluster()
 
-        return Array(groups.sorted {
+        let sortedGroups = groups.sorted {
             ($0.representativeDate ?? .distantPast) > ($1.representativeDate ?? .distantPast)
-        }.prefix(maxGroups))
+        }
+
+        guard let maxGroups else { return sortedGroups }
+        return Array(sortedGroups.prefix(max(maxGroups, 0)))
     }
 
-    private func similarPhotoCandidates(maxCount: Int) -> [PHAsset] {
-        Array(makeSimilarPhotoGroups(maxGroups: max(80, maxCount / 2))
-            .flatMap(\.assets)
-            .prefix(maxCount))
+    private func similarPhotoCandidates(maxCount: Int? = nil) -> [PHAsset] {
+        let candidates = makeSimilarPhotoGroups().flatMap(\.assets)
+        guard let maxCount else { return candidates }
+        return Array(candidates.prefix(max(maxCount, 0)))
     }
 
     private func largeFileCandidates(maxCount: Int? = nil) -> [PHAsset] {
@@ -1652,11 +1651,11 @@ class DataManager: ObservableObject {
 
     func locationGroupTitle(for groupID: String) -> String? {
         if let title = locationGroups.first(where: { $0.id == groupID })?.title {
-            return Self.trimmedNonEmpty(title)
+            return PhotoLocationGrouping.readableLocationTitle(title)
         }
         if let cachedTitle = locationTitleCacheStore
             .titleCache(localeIdentifier: Self.currentLocationTitleLocaleIdentifier())[groupID]?.title {
-            return Self.trimmedNonEmpty(cachedTitle)
+            return PhotoLocationGrouping.readableLocationTitle(cachedTitle)
         }
         return nil
     }
@@ -1675,7 +1674,10 @@ class DataManager: ObservableObject {
             longitude: coordinate.longitude
         )
         guard groupID != PhotoLocationGrouping.noLocationID else { return nil }
-        return locationGroupTitle(for: groupID)
+        return PhotoAssetMetadataFormatter.optionalLocationText(
+            locationTitle: locationGroupTitle(for: groupID),
+            coordinate: coordinate
+        )
     }
 
     private func resolveLocationTitlesIfNeeded(

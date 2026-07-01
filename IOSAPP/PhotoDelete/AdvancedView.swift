@@ -5191,9 +5191,20 @@ private struct AdvancedSimilarPhotoGroupsView: View {
     @State private var selectedFilter: AdvancedCleanupFilter = .all
     @State private var showBatchConfirm = false
     @State private var previewAsset: AdvancedPreviewAsset?
+    @State private var visibleGroupLimit = 24
+
+    private let groupLimitStep = 24
 
     private var filteredGroups: [AdvancedSimilarPhotoGroup] {
         groups.filter { matches(group: $0, filter: selectedFilter) }
+    }
+
+    private var visibleFilteredGroups: [AdvancedSimilarPhotoGroup] {
+        VisibleListPagination.visibleItems(filteredGroups, limit: visibleGroupLimit)
+    }
+
+    private var hasMoreFilteredGroups: Bool {
+        VisibleListPagination.hasMore(totalCount: filteredGroups.count, limit: visibleGroupLimit)
     }
 
     private var selectedAssets: [PHAsset] {
@@ -5232,7 +5243,7 @@ private struct AdvancedSimilarPhotoGroupsView: View {
                         )
                     } else {
                         LazyVStack(spacing: 10) {
-                            ForEach(filteredGroups) { group in
+                            ForEach(visibleFilteredGroups) { group in
                                 AdvancedSimilarPhotoGroupCard(
                                     group: group,
                                     photoLibraryManager: dataManager.photoLibraryManager,
@@ -5241,7 +5252,18 @@ private struct AdvancedSimilarPhotoGroupsView: View {
                                     onToggleAsset: toggleSelection,
                                     onPreview: { previewAsset = AdvancedPreviewAsset(asset: $0) }
                                 )
+                                .onAppear {
+                                    showMoreGroupsIfNeeded(currentGroup: group)
+                                }
                             }
+                        }
+
+                        if hasMoreFilteredGroups {
+                            Text(L10n.string("继续向下滚动加载更多"))
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(PhotoDeleteStyle.secondaryText)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
                         }
                     }
 
@@ -5278,6 +5300,7 @@ private struct AdvancedSimilarPhotoGroupsView: View {
             reloadGroups()
         }
         .onChange(of: selectedFilter) { _ in
+            visibleGroupLimit = groupLimitStep
             pruneSelectionToFilteredGroups()
         }
     }
@@ -5285,7 +5308,7 @@ private struct AdvancedSimilarPhotoGroupsView: View {
     private func toggleRecommendedSelection() {
         HapticManager.impact(.light)
         if selectedAssetIDs.isEmpty {
-            selectedAssetIDs = Set(filteredGroups.flatMap { $0.assets.dropFirst().map(\.localIdentifier) })
+            selectedAssetIDs = Set(visibleFilteredGroups.flatMap { $0.assets.dropFirst().map(\.localIdentifier) })
         } else {
             selectedAssetIDs.removeAll()
         }
@@ -5325,8 +5348,28 @@ private struct AdvancedSimilarPhotoGroupsView: View {
     }
 
     private func reloadGroups() {
-        groups = dataManager.makeSimilarPhotoGroups(maxGroups: 80)
+        groups = dataManager.makeSimilarPhotoGroups()
+        visibleGroupLimit = groupLimitStep
         pruneSelectionToFilteredGroups()
+    }
+
+    private func showMoreGroups() {
+        withAnimation(.easeInOut(duration: 0.18)) {
+            visibleGroupLimit = VisibleListPagination.advancedLimit(
+                totalCount: filteredGroups.count,
+                currentLimit: visibleGroupLimit,
+                step: groupLimitStep
+            )
+        }
+    }
+
+    private func showMoreGroupsIfNeeded(currentGroup group: AdvancedSimilarPhotoGroup) {
+        guard hasMoreFilteredGroups,
+              let index = visibleFilteredGroups.firstIndex(where: { $0.id == group.id }),
+              index >= max(visibleFilteredGroups.count - 4, 0) else {
+            return
+        }
+        showMoreGroups()
     }
 
     private func matches(group: AdvancedSimilarPhotoGroup, filter: AdvancedCleanupFilter) -> Bool {
