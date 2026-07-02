@@ -69,7 +69,7 @@ final class PhotoDeleteUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["关于与支持"].exists)
         XCTAssertTrue(app.staticTexts["照片访问权限"].exists)
         XCTAssertTrue(app.staticTexts["触感反馈"].exists)
-        XCTAssertTrue(app.staticTexts["给 OnePhoto 删图评分"].exists)
+        XCTAssertTrue(app.staticTexts["给删图评分"].exists)
         XCTAssertTrue(app.staticTexts["邮件反馈"].exists)
         XCTAssertTrue(app.staticTexts["关于创作者"].exists)
         app.swipeUp()

@@ -49,7 +49,7 @@ OneZen
 | --- | --- | --- | --- |
 | Series Name | 系列母品牌 | 固定为 `One` | `One` |
 | Product Brand | 单品主品牌 | `One` + 一个英文词，或按产品检索需要拆词 | `OnePhoto` |
-| App Store Name | 商店搜索和转化 | 品牌 + 本地化功能词；若精准品牌名被占用，记录实际可用名 | `OnePhoto Cleaner` / `OnePhoto 删图` |
+| App Store Name | 商店搜索和转化 | 品牌 + 本地化功能词；若精准品牌名被占用，记录实际可用名 | `OnePhoto` / `删图` |
 | Chinese Alias | 中文解释别名 | 只解释，不做主品牌 | `删图`、`一言`、`一愿` |
 
 ## 设备显示名
@@ -76,7 +76,7 @@ OneZen
 ```text
 删图
 一言
-OnePhoto 删图
+删图
 Photo Cleaner
 ```
 
@@ -109,17 +109,17 @@ App Store 名称承担两个任务：品牌识别和搜索转化。
 OnePhoto 当前标准：
 
 ```text
-英文 App Store：OnePhoto Cleaner
-中文 App Store：OnePhoto 删图
+英文 App Store：OnePhoto
+中文 App Store：删图
 英文设备显示名：OnePhoto
-中文设备显示名：OnePhoto 删图
+中文设备显示名：删图
 ```
 
 不推荐：
 
 ```text
 删图 - 旧品牌相册清理
-OnePhoto 删图 照片清理
+删图 照片清理
 旧品牌: Swipe Cleaner
 Photo Cleaner
 ```
@@ -152,19 +152,19 @@ OnePhoto 示例：
 - 第一次介绍产品时：
 
 ```text
-OnePhoto 删图，一款用滑动方式删图和整理相册的工具。
+删图，一款用滑动方式删图和整理相册的工具。
 ```
 
 - 中文 App Store 名称中的功能词：
 
 ```text
-OnePhoto 删图
+删图
 ```
 
 - 中文文章标题或小红书/公众号说明：
 
 ```text
-我做了 OnePhoto 删图：一个删除前可确认的删图工具
+我做了 删图：一个删除前可确认的删图工具
 ```
 
 - SEO/ASO 关键词：
@@ -194,7 +194,7 @@ OnePhoto 删图
 | OneSay | 一言 | OneSay | `OneSay，一款语音/记录工具` |
 | OneWish | 一愿 | OneWish | `OneWish，帮你生成和保存愿望画面` |
 | OneZen | 可保留中文解释词 | OneZen | `OneZen，冥想、呼吸与专注练习` |
-| OnePhoto | 删图 | OnePhoto | `OnePhoto 删图` 用于中文 App Store 和中文区品牌位 |
+| OnePhoto | 删图 | OnePhoto | `删图` 用于中文 App Store 和中文区品牌位 |
 
 迁移原则：
 
@@ -217,7 +217,7 @@ H1：OnePhoto
 中文页推荐：
 
 ```text
-H1：OnePhoto 删图
+H1：删图
 副文案：用滑动方式整理照片，删除前统一确认。
 ```
 
@@ -247,7 +247,7 @@ Footer：
 规则：
 
 - 英文素材使用 `OnePhoto`。
-- 中文素材使用 `OnePhoto 删图`。
+- 中文素材使用 `删图`。
 - 中文卖点可以写中文，但品牌不翻译。
 - 不在同一张图里同时出现 `OnePhoto`、`删图`、旧品牌三套名字。
 - 若需要中文解释，用一句功能说明承接。
@@ -285,7 +285,7 @@ OnePhoto 当前标准：
 
 ```text
 英文：OnePhoto Supporter
-中文：OnePhoto 删图支持者版
+中文：删图支持者版
 ```
 
 规则：
@@ -373,17 +373,17 @@ OnePhoto 是本规范的第一批落地产品。
 
 ```text
 英文设备显示名：OnePhoto
-中文设备显示名：OnePhoto 删图
-英文 App Store：OnePhoto Cleaner
-中文 App Store：OnePhoto 删图
+中文设备显示名：删图
+英文 App Store：OnePhoto
+中文 App Store：删图
 英文内购：OnePhoto Supporter
-中文内购：OnePhoto 删图支持者版
+中文内购：删图支持者版
 ```
 
 中文介绍口径：
 
 ```text
-OnePhoto 删图是一款用滑动方式整理照片的 iPhone 工具。删除不会立刻执行，所有待删照片都会先进入确认页。
+删图是一款用滑动方式整理照片的 iPhone 工具。删除不会立刻执行，所有待删照片都会先进入确认页。
 ```
 
 英文介绍口径：
@@ -413,6 +413,6 @@ OnePhoto helps you clean up your iPhone photo library with a safe swipe workflow
 
 - One 系列以后统一英文主品牌。
 - 中文别名保留解释价值，但不再作为设备显示名和主品牌。
-- OnePhoto 原计划使用 `OnePhoto` 作为英文 App Store 名称，但该名称已被 App Store Connect 占用，实际英文 App Store 名称改为 `OnePhoto Cleaner`。
-- OnePhoto 使用 `OnePhoto 删图` 作为中文 App Store 名称。
-- OnePhoto 安装到英文用户手机上显示 `OnePhoto`，安装到中文用户手机上显示 `OnePhoto 删图`。
+- OnePhoto 原计划使用 `OnePhoto` 作为英文 App Store 名称，但该名称已被 App Store Connect 占用，实际英文 App Store 名称改为 `OnePhoto`。
+- OnePhoto 使用 `删图` 作为中文 App Store 名称。
+- OnePhoto 安装到英文用户手机上显示 `OnePhoto`，安装到中文用户手机上显示 `删图`。

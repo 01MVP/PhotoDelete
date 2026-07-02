@@ -102,6 +102,8 @@ struct TwoRowPhotoBrowserView: UIViewRepresentable {
         private var onCancelDelete: (PHAsset, Int) -> Void
         private var onStopVideoPlayback: () -> Void
         private var suppressNextProgrammaticScroll = false
+        private var didScrollToInitialCurrentPhoto = false
+        private var isInitialScrollScheduled = false
 
         weak var collectionView: UICollectionView?
 
@@ -177,6 +179,7 @@ struct TwoRowPhotoBrowserView: UIViewRepresentable {
                 collectionView.reloadData()
                 collectionView.layoutIfNeeded()
                 scrollToCurrentPhoto(in: collectionView, animated: false)
+                didScrollToInitialCurrentPhoto = true
                 return
             }
 
@@ -189,9 +192,13 @@ struct TwoRowPhotoBrowserView: UIViewRepresentable {
             if currentIndexChanged {
                 guard !suppressNextProgrammaticScroll else {
                     suppressNextProgrammaticScroll = false
+                    didScrollToInitialCurrentPhoto = true
                     return
                 }
+                didScrollToInitialCurrentPhoto = true
                 scrollToCurrentPhoto(in: collectionView, animated: collectionView.window != nil)
+            } else {
+                scrollToInitialCurrentPhotoIfNeeded(in: collectionView)
             }
         }
 
@@ -326,6 +333,40 @@ struct TwoRowPhotoBrowserView: UIViewRepresentable {
             let indexPath = IndexPath(item: currentIndex, section: 0)
             collectionView.layoutIfNeeded()
             collectionView.scrollToItem(at: indexPath, at: .centeredHorizontally, animated: animated)
+        }
+
+        private func scrollToInitialCurrentPhotoIfNeeded(in collectionView: UICollectionView) {
+            guard !didScrollToInitialCurrentPhoto else { return }
+            guard assets.indices.contains(currentIndex) else {
+                didScrollToInitialCurrentPhoto = true
+                return
+            }
+
+            guard collectionView.bounds.width > 0,
+                  collectionView.bounds.height > 0 else {
+                scheduleInitialCurrentPhotoScroll(in: collectionView)
+                return
+            }
+
+            collectionView.layoutIfNeeded()
+            guard collectionView.contentSize.width > 0 else {
+                scheduleInitialCurrentPhotoScroll(in: collectionView)
+                return
+            }
+
+            scrollToCurrentPhoto(in: collectionView, animated: false)
+            didScrollToInitialCurrentPhoto = true
+        }
+
+        private func scheduleInitialCurrentPhotoScroll(in collectionView: UICollectionView) {
+            guard !isInitialScrollScheduled else { return }
+            isInitialScrollScheduled = true
+
+            DispatchQueue.main.async { [weak self, weak collectionView] in
+                guard let self, let collectionView else { return }
+                self.isInitialScrollScheduled = false
+                self.scrollToInitialCurrentPhotoIfNeeded(in: collectionView)
+            }
         }
 
         private func selectCenteredVisibleItemIfNeeded() {

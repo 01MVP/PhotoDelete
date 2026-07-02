@@ -150,7 +150,7 @@ struct CleanupAchievementsView: View {
             }
             Button(L10n.string("取消"), role: .cancel) {}
         } message: {
-            Text(L10n.string("只会清空 OnePhoto 删图的本机统计，不会影响照片。"))
+            Text(L10n.string("只会清空删图的本机统计，不会影响照片。"))
         }
     }
 

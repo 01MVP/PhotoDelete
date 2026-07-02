@@ -12,7 +12,7 @@ struct CreatorMVPGuideSection: View {
                     .font(.system(size: 20, weight: .semibold))
                     .foregroundColor(PhotoDeleteStyle.primaryText)
 
-                Text(L10n.string("OnePhoto 删图是我用 AI 从 0 到 1 做出来的——发现痛点、写代码、上架，全程记录在 01MVP。不管你是想做自己的小产品，还是单纯好奇 AI 写代码能到什么程度，都可以看看。"))
+                Text(L10n.string("删图是我用 AI 从 0 到 1 做出来的——发现痛点、写代码、上架，全程记录在 01MVP。不管你是想做自己的小产品，还是单纯好奇 AI 写代码能到什么程度，都可以看看。"))
                     .font(.system(size: 15, weight: .regular))
                     .foregroundColor(PhotoDeleteStyle.secondaryText)
                     .lineSpacing(4)

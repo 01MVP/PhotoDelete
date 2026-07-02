@@ -284,7 +284,7 @@ struct SettingsView: View {
                 SettingRow(
                     icon: "star",
                     iconColor: PhotoDeleteStyle.warning,
-                    title: L10n.string("给 OnePhoto 删图评分"),
+                    title: L10n.string("给删图评分"),
                     showsChevron: false,
                     action: requestAppReview
                 )
@@ -333,7 +333,7 @@ struct SettingsView: View {
                 SettingRow(
                     icon: "info.circle",
                     iconColor: PhotoDeleteStyle.secondaryText,
-                    title: L10n.string("关于 OnePhoto 删图"),
+                    title: L10n.string("关于删图"),
                     subtitle: L10n.string("版本 \(AppConstants.displayVersion)"),
                     action: {
                         activeSheet = .about
@@ -682,7 +682,7 @@ struct SettingsView: View {
         components.scheme = "mailto"
         components.path = AppConstants.feedbackEmail
         components.queryItems = [
-            URLQueryItem(name: "subject", value: L10n.string("OnePhoto 删图 App 反馈")),
+            URLQueryItem(name: "subject", value: L10n.string("删图 App 反馈")),
             URLQueryItem(name: "body", value: FeedbackDiagnostics.emailBody())
         ]
 
@@ -1311,7 +1311,7 @@ private struct LanguageSettingsView: View {
                                 .font(.system(size: 24, weight: .semibold))
                                 .foregroundColor(PhotoDeleteStyle.primaryText)
 
-                            Text(L10n.string("默认跟随 iPhone 系统语言。也可以在这里固定 OnePhoto 删图的显示语言。"))
+                            Text(L10n.string("默认跟随 iPhone 系统语言。也可以在这里固定删图的显示语言。"))
                                 .font(.system(size: 15, weight: .regular))
                                 .foregroundColor(PhotoDeleteStyle.secondaryText)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -1615,7 +1615,7 @@ struct MailComposeView: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> MFMailComposeViewController {
         let composer = MFMailComposeViewController()
         composer.mailComposeDelegate = context.coordinator
-        composer.setSubject(L10n.string("OnePhoto 删图 App 反馈"))
+        composer.setSubject(L10n.string("删图 App 反馈"))
         composer.setToRecipients([AppConstants.feedbackEmail])
         composer.setMessageBody(FeedbackDiagnostics.emailBody(), isHTML: false)
 
@@ -1826,7 +1826,7 @@ struct PrivacyInfoView: View {
                             PrivacyInfoRow(
                                 icon: "icloud.slash",
                                 title: L10n.string("不上传照片"),
-                                detail: L10n.string("OnePhoto 删图不接入自己的云端服务，也不会把照片发到服务器。")
+                                detail: L10n.string("删图不接入自己的云端服务，也不会把照片发到服务器。")
                             )
 
                             PrivacyInfoRow(
