@@ -40,6 +40,8 @@ class DataManager: ObservableObject {
     @Published private(set) var cleanupStatsRevision = UUID()
     @Published private(set) var videoCompressionHistoryRevision = UUID()
     @Published private(set) var imageCompressionHistoryRevision = UUID()
+    @Published private(set) var imageCompressionJob = AdvancedImageCompressionJobState()
+    @Published private(set) var videoCompressionJob = AdvancedVideoCompressionJobState()
     @Published private(set) var reviewedAssetIDs: Set<String> = []
     @Published private(set) var periodSummariesByScope: [AdvancedTimeScope: [PhotoPeriodSummary]] = [:]
     @Published private(set) var isLoadingPeriodSummaries = false
@@ -86,6 +88,8 @@ class DataManager: ObservableObject {
     private var pendingDeleteCandidateIDs: Set<String> = []
     private var pendingFavoriteCandidateIDs: Set<String> = []
     private var videoFileSizeEstimateCache: [String: VideoFileSizeEstimate] = [:]
+    private var imageCompressionTask: Task<Void, Never>?
+    private var videoCompressionTask: Task<Void, Never>?
     private var cancellables: Set<AnyCancellable> = []
 
     private struct TimeGroupBuildResult {
@@ -534,6 +538,241 @@ class DataManager: ObservableObject {
         imageCompressionHistoryRevision = UUID()
     }
 
+    func startImageCompression(images: [PHAsset], plan: ImageCompressionPlan) {
+        guard !images.isEmpty, !imageCompressionJob.isCompressing else { return }
+
+        imageCompressionTask?.cancel()
+        imageCompressionJob = .running(totalCount: images.count)
+        imageCompressionTask = Task { [weak self] in
+            guard let self else { return }
+            let backgroundTaskID = await MainActor.run {
+                Self.beginAdvancedCompressionBackgroundTask(named: "PhotoDelete.ImageCompression")
+            }
+            var resultItems: [AdvancedImageCompressionResultItem] = []
+            var failedCount = 0
+            var firstErrorMessage: String?
+
+            for (index, asset) in images.enumerated() {
+                if Task.isCancelled {
+                    break
+                }
+
+                await MainActor.run {
+                    self.imageCompressionJob.processedCount = index
+                    self.imageCompressionJob.currentProgress = 0
+                    self.imageCompressionJob.message = String(format: L10n.string("正在处理第 %lld 张图片"), Int64(index + 1))
+                }
+
+                do {
+                    let result = try await self.photoLibraryManager.compressImage(
+                        asset,
+                        plan: plan
+                    ) { [weak self] progress, message in
+                        guard let self else { return }
+                        self.imageCompressionJob.currentProgress = progress
+                        self.imageCompressionJob.message = message
+                    }
+                    resultItems.append(AdvancedImageCompressionResultItem(result: result))
+                } catch is CancellationError {
+                    break
+                } catch {
+                    failedCount += 1
+                    if firstErrorMessage == nil {
+                        firstErrorMessage = error.localizedDescription
+                    }
+                }
+
+                await MainActor.run {
+                    self.imageCompressionJob.processedCount = index + 1
+                    self.imageCompressionJob.currentProgress = 0
+                }
+            }
+
+            let wasCancelled = Task.isCancelled
+            await MainActor.run {
+                self.imageCompressionJob.isCompressing = false
+                self.imageCompressionJob.currentProgress = 0
+                self.imageCompressionJob.message = nil
+                self.imageCompressionTask = nil
+
+                if !resultItems.isEmpty {
+                    let completedResult = AdvancedImageCompressionResult(
+                        items: resultItems,
+                        failedCount: failedCount,
+                        completedAt: Date(),
+                        plan: plan
+                    )
+                    self.imageCompressionJob.result = completedResult
+                    self.recordImageCompressionSession(
+                        imageCount: completedResult.successCount,
+                        failedCount: failedCount,
+                        originalSizeMB: completedResult.originalSizeMB,
+                        compressedSizeMB: completedResult.compressedSizeMB,
+                        date: completedResult.completedAt,
+                        items: completedResult.historyItems
+                    )
+                    HapticManager.notify(.success)
+                } else if !wasCancelled {
+                    self.imageCompressionJob.errorMessage = firstErrorMessage ?? L10n.string("图片压缩失败，请稍后再试。")
+                    HapticManager.notify(.warning)
+                }
+
+                if failedCount > 0 && !resultItems.isEmpty {
+                    self.imageCompressionJob.errorMessage = String(format: L10n.string("有 %lld 张图片未完成"), Int64(failedCount))
+                }
+
+                Self.endAdvancedCompressionBackgroundTask(backgroundTaskID)
+            }
+        }
+    }
+
+    func startVideoCompression(videos: [PHAsset], plan: VideoCompressionPlan) {
+        guard !videos.isEmpty, !videoCompressionJob.isCompressing else { return }
+
+        videoCompressionTask?.cancel()
+        videoCompressionJob = .running(totalCount: videos.count)
+        videoCompressionTask = Task { [weak self] in
+            guard let self else { return }
+            let backgroundTaskID = await MainActor.run {
+                Self.beginAdvancedCompressionBackgroundTask(named: "PhotoDelete.VideoCompression")
+            }
+            var resultItems: [AdvancedVideoCompressionResultItem] = []
+            var failedCount = 0
+            var firstErrorMessage: String?
+
+            for (index, asset) in videos.enumerated() {
+                if Task.isCancelled {
+                    break
+                }
+
+                await MainActor.run {
+                    self.videoCompressionJob.processedCount = index
+                    self.videoCompressionJob.currentProgress = 0
+                    self.videoCompressionJob.message = String(format: L10n.string("正在处理第 %lld 个视频"), Int64(index + 1))
+                }
+
+                do {
+                    let result = try await self.photoLibraryManager.compressVideo(
+                        asset,
+                        plan: plan
+                    ) { [weak self] progress, message in
+                        guard let self else { return }
+                        self.videoCompressionJob.currentProgress = progress
+                        self.videoCompressionJob.message = message
+                    }
+                    resultItems.append(AdvancedVideoCompressionResultItem(result: result))
+                } catch is CancellationError {
+                    break
+                } catch {
+                    failedCount += 1
+                    if firstErrorMessage == nil {
+                        firstErrorMessage = error.localizedDescription
+                    }
+                }
+
+                await MainActor.run {
+                    self.videoCompressionJob.processedCount = index + 1
+                    self.videoCompressionJob.currentProgress = 0
+                }
+            }
+
+            let wasCancelled = Task.isCancelled
+            await MainActor.run {
+                self.videoCompressionJob.isCompressing = false
+                self.videoCompressionJob.currentProgress = 0
+                self.videoCompressionJob.message = nil
+                self.videoCompressionTask = nil
+
+                if !resultItems.isEmpty {
+                    let completedResult = AdvancedVideoCompressionResult(
+                        items: resultItems,
+                        failedCount: failedCount,
+                        completedAt: Date(),
+                        plan: plan
+                    )
+                    self.videoCompressionJob.result = completedResult
+                    self.recordVideoCompressionSession(
+                        videoCount: completedResult.successCount,
+                        failedCount: failedCount,
+                        originalSizeMB: completedResult.originalSizeMB,
+                        compressedSizeMB: completedResult.compressedSizeMB,
+                        date: completedResult.completedAt,
+                        items: completedResult.historyItems
+                    )
+                    self.cacheVideoCompressionSizeEstimates(from: resultItems)
+                    HapticManager.notify(.success)
+                } else if !wasCancelled {
+                    self.videoCompressionJob.errorMessage = firstErrorMessage ?? L10n.string("视频压缩失败，请稍后再试。")
+                    HapticManager.notify(.warning)
+                }
+
+                if failedCount > 0 && !resultItems.isEmpty {
+                    self.videoCompressionJob.errorMessage = String(format: L10n.string("有 %lld 个视频未完成"), Int64(failedCount))
+                }
+
+                Self.endAdvancedCompressionBackgroundTask(backgroundTaskID)
+            }
+        }
+    }
+
+    func setImageCompressionError(_ message: String?) {
+        imageCompressionJob.errorMessage = message
+    }
+
+    func setVideoCompressionError(_ message: String?) {
+        videoCompressionJob.errorMessage = message
+    }
+
+    func clearImageCompressionResult() {
+        imageCompressionJob.result = nil
+        imageCompressionJob.errorMessage = nil
+    }
+
+    func clearVideoCompressionResult() {
+        videoCompressionJob.result = nil
+        videoCompressionJob.errorMessage = nil
+    }
+
+    private func cancelAdvancedCompressionJobs() {
+        imageCompressionTask?.cancel()
+        videoCompressionTask?.cancel()
+        imageCompressionTask = nil
+        videoCompressionTask = nil
+        imageCompressionJob = AdvancedImageCompressionJobState()
+        videoCompressionJob = AdvancedVideoCompressionJobState()
+    }
+
+    private func cacheVideoCompressionSizeEstimates(from items: [AdvancedVideoCompressionResultItem]) {
+        for item in items {
+            videoFileSizeEstimateCache[item.originalAssetIdentifier] = VideoFileSizeEstimate(
+                sizeMB: item.originalSizeMB,
+                source: .assetResource
+            )
+            if let createdAssetIdentifier = item.createdAssetIdentifier {
+                videoFileSizeEstimateCache[createdAssetIdentifier] = VideoFileSizeEstimate(
+                    sizeMB: item.compressedSizeMB,
+                    source: .assetResource
+                )
+            }
+        }
+    }
+
+    private static func beginAdvancedCompressionBackgroundTask(named name: String) -> UIBackgroundTaskIdentifier {
+        var taskID: UIBackgroundTaskIdentifier = .invalid
+        taskID = UIApplication.shared.beginBackgroundTask(withName: name) {
+            if taskID != .invalid {
+                UIApplication.shared.endBackgroundTask(taskID)
+                taskID = .invalid
+            }
+        }
+        return taskID
+    }
+
+    private static func endAdvancedCompressionBackgroundTask(_ taskID: UIBackgroundTaskIdentifier) {
+        guard taskID != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(taskID)
+    }
+
     private func refreshDerivedLibraryData() {
         pruneReviewedAssetIDs()
         restorePendingCandidatesFromSavedIDs()
@@ -543,6 +782,7 @@ class DataManager: ObservableObject {
     }
 
     private func clearLibraryStateAfterAccessLoss() {
+        cancelAdvancedCompressionJobs()
         isPreparingLibrary = false
         isReloadingLibrary = false
         isRestoringLibrarySnapshot = false
@@ -1487,7 +1727,10 @@ class DataManager: ObservableObject {
 
     private static func estimatedAssetSizeMBForAsset(_ asset: PHAsset) -> Double {
         if asset.mediaType == .video {
-            return 0
+            let megapixels = Double(asset.pixelWidth) * Double(asset.pixelHeight) / 1_000_000
+            let duration = max(asset.duration, 1)
+            let bitrateMbps = min(max(megapixels * 4.2, 2.4), 48)
+            return max(duration * bitrateMbps / 8, 1.5)
         }
         let megapixels = Double(asset.pixelWidth) * Double(asset.pixelHeight) / 1_000_000
         return max(megapixels * 0.55, 0.8)

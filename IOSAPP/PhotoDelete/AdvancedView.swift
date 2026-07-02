@@ -371,6 +371,24 @@ struct AdvancedView: View {
                     .foregroundColor(PhotoDeleteStyle.secondaryText)
             }
 
+            if dataManager.imageCompressionJob.isCompressing {
+                AdvancedVideoCompressionProgressCard(
+                    processedCount: dataManager.imageCompressionJob.processedCount,
+                    totalCount: dataManager.imageCompressionJob.totalCount,
+                    currentProgress: dataManager.imageCompressionJob.currentProgress,
+                    message: dataManager.imageCompressionJob.message
+                )
+            }
+
+            if dataManager.videoCompressionJob.isCompressing {
+                AdvancedVideoCompressionProgressCard(
+                    processedCount: dataManager.videoCompressionJob.processedCount,
+                    totalCount: dataManager.videoCompressionJob.totalCount,
+                    currentProgress: dataManager.videoCompressionJob.currentProgress,
+                    message: dataManager.videoCompressionJob.message
+                )
+            }
+
             let visibleQueues = queues.filter { AdvancedCleanupKind.visibleCases.contains($0.kind) }
 
             if visibleQueues.isEmpty && dataManager.isLoadingAdvancedCleanupQueues {
@@ -1296,6 +1314,7 @@ private struct AdvancedAssetListView: View {
     let mode: AdvancedAssetListMode
 
     @State private var assets: [PHAsset] = []
+    @State private var orderedAssets: [PHAsset] = []
     @State private var videoSizeEstimatesByAssetID: [String: VideoFileSizeEstimate] = [:]
     @State private var selectedAssetIDs: Set<String> = []
     @State private var selectedFilter: AdvancedCleanupFilter = .all
@@ -1303,13 +1322,13 @@ private struct AdvancedAssetListView: View {
     @State private var showBatchConfirm = false
     @State private var previewAsset: AdvancedPreviewAsset?
     @State private var sizeLoadingTask: Task<Void, Never>?
-    @State private var visibleAssetLimit = 120
+    @State private var visibleAssetLimit = 40
     @State private var isLoadingAssets = false
     @State private var isLoadingVideoSizes = false
     @State private var assetLoadGeneration = 0
     @State private var sizeLoadGeneration = 0
 
-    private let assetLimitStep = 120
+    private let assetLimitStep = 40
     private let videoSizeUpdateBatchSize = 8
 
     private var selectedAssets: [PHAsset] {
@@ -1317,9 +1336,8 @@ private struct AdvancedAssetListView: View {
     }
 
     private var filteredAssets: [PHAsset] {
-        let filtered = assets.filter { matches(asset: $0, filter: selectedFilter) }
-        guard prefersSizeFirstOrder else { return filtered }
-        return filtered.sorted(by: sizeFirstOrder)
+        guard selectedFilter != .all else { return orderedAssets }
+        return orderedAssets.filter { matches(asset: $0, filter: selectedFilter) }
     }
 
     private var visibleFilteredAssets: [PHAsset] {
@@ -1337,7 +1355,7 @@ private struct AdvancedAssetListView: View {
     private var filteredTotalSizeMB: Double {
         filteredAssets.reduce(0) { partial, asset in
             if asset.mediaType == .video {
-                return partial + (reliableVideoSizeMB(for: asset) ?? 0)
+                return partial + (reliableVideoSizeMB(for: asset) ?? dataManager.estimatedSizeMB(for: asset))
             }
             return partial + dataManager.estimatedSizeMB(for: asset)
         }
@@ -1380,9 +1398,6 @@ private struct AdvancedAssetListView: View {
     }
 
     private var videoSizeLoadTargets: [PHAsset] {
-        if prefersSizeFirstOrder {
-            return assets.filter { $0.mediaType == .video }
-        }
         return visibleFilteredAssets.filter { $0.mediaType == .video }
     }
 
@@ -1392,7 +1407,8 @@ private struct AdvancedAssetListView: View {
 
             ScrollView {
                 VStack(spacing: 14) {
-                    if case .cleanup(let kind) = mode {
+                    if case .cleanup(let kind) = mode,
+                       AdvancedCleanupFilter.options(for: kind).count > 1 {
                         AdvancedFilterPills(kind: kind, selection: $selectedFilter)
                     }
 
@@ -1442,19 +1458,18 @@ private struct AdvancedAssetListView: View {
                                     onToggleSelection: { toggleSelection(asset) },
                                     onPreview: { previewAsset = AdvancedPreviewAsset(asset: asset) }
                                 )
+                                .onAppear {
+                                    showMoreAssetsIfNeeded(currentAsset: asset)
+                                }
                             }
                         }
 
                         if hasMoreFilteredAssets {
-                            Button(action: showMoreAssets) {
-                                Text(L10n.string("显示更多"))
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(PhotoDeleteStyle.accent)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 12)
-                            }
-                            .buttonStyle(.plain)
-                            .photoDeleteMinimumTapTarget()
+                            Text(L10n.string("继续向下滚动加载更多"))
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(PhotoDeleteStyle.secondaryText)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
                         }
                     }
 
@@ -1496,7 +1511,7 @@ private struct AdvancedAssetListView: View {
             reloadAssets()
         }
         .onChange(of: selectedFilter) { _ in
-            visibleAssetLimit = 120
+            visibleAssetLimit = 40
             pruneSelectionToFilteredAssets()
             loadVideoSizesForCurrentScope()
         }
@@ -1556,10 +1571,11 @@ private struct AdvancedAssetListView: View {
 
     private func applyLoadedAssets(_ loadedAssets: [PHAsset]) {
         assets = loadedAssets
-        visibleAssetLimit = 120
+        visibleAssetLimit = 40
         pruneVideoSizeEstimates(for: loadedAssets)
-        pruneSelectionToFilteredAssets()
         seedCachedVideoSizeEstimates(for: loadedAssets)
+        refreshOrderedAssets()
+        pruneSelectionToFilteredAssets()
         isLoadingAssets = false
         loadVideoSizesForCurrentScope()
     }
@@ -1596,7 +1612,7 @@ private struct AdvancedAssetListView: View {
 
     private func displaySizeMB(for asset: PHAsset) -> Double {
         if asset.mediaType == .video {
-            return reliableVideoSizeMB(for: asset) ?? 0
+            return reliableVideoSizeMB(for: asset) ?? dataManager.estimatedSizeMB(for: asset)
         }
         return dataManager.estimatedSizeMB(for: asset)
     }
@@ -1641,7 +1657,7 @@ private struct AdvancedAssetListView: View {
 
     private func reliableSortSizeMB(for asset: PHAsset) -> Double? {
         if asset.mediaType == .video {
-            return reliableVideoSizeMB(for: asset)
+            return reliableVideoSizeMB(for: asset) ?? dataManager.estimatedSizeMB(for: asset)
         }
         return dataManager.estimatedSizeMB(for: asset)
     }
@@ -1689,6 +1705,15 @@ private struct AdvancedAssetListView: View {
             dataManager.cacheVideoFileSizeEstimate(estimate, forAssetIdentifier: assetID)
             videoSizeEstimatesByAssetID[assetID] = estimate
         }
+        refreshOrderedAssets()
+    }
+
+    private func refreshOrderedAssets() {
+        guard prefersSizeFirstOrder else {
+            orderedAssets = assets
+            return
+        }
+        orderedAssets = assets.sorted(by: sizeFirstOrder)
     }
 
     private func loadVideoSizes(for loadedAssets: [PHAsset]) {
@@ -1752,6 +1777,15 @@ private struct AdvancedAssetListView: View {
             )
         }
         loadVideoSizesForCurrentScope()
+    }
+
+    private func showMoreAssetsIfNeeded(currentAsset asset: PHAsset) {
+        guard hasMoreFilteredAssets,
+              let index = visibleFilteredAssets.firstIndex(where: { $0.localIdentifier == asset.localIdentifier }),
+              index >= max(visibleFilteredAssets.count - 6, 0) else {
+            return
+        }
+        showMoreAssets()
     }
 
     private func loadVideoSizesForCurrentScope() {
@@ -1823,25 +1857,25 @@ private struct AdvancedImageCompressionView: View {
     @State private var assets: [PHAsset] = []
     @State private var selectedAssetIDs: Set<String> = []
     @State private var compressionPlan: ImageCompressionPlan = .default
-    @State private var isCompressing = false
-    @State private var processedImageCount = 0
-    @State private var compressionTotalCount = 0
-    @State private var currentCompressionProgress: Double = 0
-    @State private var currentCompressionMessage: String?
-    @State private var compressionErrorMessage: String?
-    @State private var compressionResult: AdvancedImageCompressionResult?
     @State private var showingCompressionComparison = false
     @State private var dismissCompressionResultAfterBatch = false
     @State private var previewAsset: AdvancedPreviewAsset?
     @State private var showBatchConfirm = false
     @State private var compressionOptionsContext: AdvancedImageCompressionOptionsContext?
-    @State private var compressionTask: Task<Void, Never>?
     @State private var visibleImageLimit = 24
     @State private var selectedTab: AdvancedImageCompressionTab = .pending
     @State private var isLoadingAssets = false
     @State private var assetLoadGeneration = 0
 
     private let imageLimitStep = 24
+
+    private var compressionJob: AdvancedImageCompressionJobState {
+        dataManager.imageCompressionJob
+    }
+
+    private var isCompressing: Bool {
+        compressionJob.isCompressing
+    }
 
     private var selectedAssets: [PHAsset] {
         compressibleAssets.filter { selectedAssetIDs.contains($0.localIdentifier) }
@@ -1896,14 +1930,14 @@ private struct AdvancedImageCompressionView: View {
 
                     if isCompressing {
                         AdvancedVideoCompressionProgressCard(
-                            processedCount: processedImageCount,
-                            totalCount: compressionTotalCount,
-                            currentProgress: currentCompressionProgress,
-                            message: currentCompressionMessage
+                            processedCount: compressionJob.processedCount,
+                            totalCount: compressionJob.totalCount,
+                            currentProgress: compressionJob.currentProgress,
+                            message: compressionJob.message
                         )
                     }
 
-                    if let compressionResult {
+                    if let compressionResult = compressionJob.result {
                         AdvancedImageCompressionResultCard(
                             result: compressionResult,
                             onCompare: showCompressionComparison,
@@ -1912,7 +1946,7 @@ private struct AdvancedImageCompressionView: View {
                         )
                     }
 
-                    if let compressionErrorMessage {
+                    if let compressionErrorMessage = compressionJob.errorMessage {
                         AdvancedVideoCompressionMessageCard(
                             icon: "exclamationmark.triangle.fill",
                             message: compressionErrorMessage,
@@ -1938,7 +1972,7 @@ private struct AdvancedImageCompressionView: View {
                 AdvancedImageCompressionActionBar(
                     count: selectedAssetIDs.count,
                     estimateText: selectedCompressionEstimateText,
-                    processedCount: processedImageCount,
+                    processedCount: compressionJob.processedCount,
                     isCompressing: isCompressing,
                     onCompress: presentCompressionOptions,
                     onDelete: deleteSelectedImages
@@ -1950,7 +1984,7 @@ private struct AdvancedImageCompressionView: View {
         .fullScreenCover(isPresented: $showBatchConfirm, onDismiss: {
             reloadAssets()
             if dismissCompressionResultAfterBatch {
-                compressionResult = nil
+                dataManager.clearImageCompressionResult()
                 dismissCompressionResultAfterBatch = false
             }
         }) {
@@ -1964,7 +1998,7 @@ private struct AdvancedImageCompressionView: View {
             )
         }
         .sheet(isPresented: $showingCompressionComparison) {
-            if let compressionResult {
+            if let compressionResult = compressionJob.result {
                 AdvancedImageCompressionComparisonSheet(
                     result: compressionResult,
                     photoLibraryManager: dataManager.photoLibraryManager
@@ -1983,6 +2017,11 @@ private struct AdvancedImageCompressionView: View {
         }
         .task {
             reloadAssets()
+        }
+        .onChange(of: dataManager.imageCompressionHistoryRevision) { _ in
+            selectedAssetIDs.removeAll()
+            reloadAssets()
+            showingCompressionComparison = false
         }
     }
 
@@ -2120,7 +2159,7 @@ private struct AdvancedImageCompressionView: View {
         } else {
             selectedAssetIDs.insert(id)
         }
-        compressionErrorMessage = nil
+        dataManager.setImageCompressionError(nil)
     }
 
     private func toggleBulkSelection() {
@@ -2132,7 +2171,7 @@ private struct AdvancedImageCompressionView: View {
         } else {
             selectedAssetIDs.formUnion(visibleIDs)
         }
-        compressionErrorMessage = nil
+        dataManager.setImageCompressionError(nil)
     }
 
     private func pruneSelectionToCompressibleAssets() {
@@ -2160,126 +2199,22 @@ private struct AdvancedImageCompressionView: View {
 
     private func compressSelectedImages(images: [PHAsset], plan: ImageCompressionPlan) {
         guard !images.isEmpty, !isCompressing else { return }
-        isCompressing = true
-        processedImageCount = 0
-        compressionTotalCount = images.count
-        currentCompressionProgress = 0
-        currentCompressionMessage = L10n.string("正在准备压缩")
-        compressionErrorMessage = nil
-        compressionResult = nil
-        compressionTask?.cancel()
-        compressionTask = Task {
-            let backgroundTaskID = await MainActor.run {
-                beginCompressionBackgroundTask()
-            }
-            var resultItems: [AdvancedImageCompressionResultItem] = []
-            var failedCount = 0
-            var firstErrorMessage: String?
-
-            for (index, asset) in images.enumerated() {
-                if Task.isCancelled {
-                    break
-                }
-
-                await MainActor.run {
-                    processedImageCount = index
-                    currentCompressionProgress = 0
-                    currentCompressionMessage = String(format: L10n.string("正在处理第 %lld 张图片"), Int64(index + 1))
-                }
-
-                do {
-                    let result = try await dataManager.photoLibraryManager.compressImage(
-                        asset,
-                        plan: plan
-                    ) { progress, message in
-                        currentCompressionProgress = progress
-                        currentCompressionMessage = message
-                    }
-                    resultItems.append(AdvancedImageCompressionResultItem(result: result))
-                } catch is CancellationError {
-                    break
-                } catch {
-                    failedCount += 1
-                    if firstErrorMessage == nil {
-                        firstErrorMessage = error.localizedDescription
-                    }
-                }
-
-                await MainActor.run {
-                    processedImageCount = index + 1
-                    currentCompressionProgress = 0
-                }
-            }
-
-            let wasCancelled = Task.isCancelled
-            await MainActor.run {
-                isCompressing = false
-                compressionTask = nil
-                currentCompressionProgress = 0
-                currentCompressionMessage = nil
-
-                if !resultItems.isEmpty {
-                    let completedResult = AdvancedImageCompressionResult(
-                        items: resultItems,
-                        failedCount: failedCount,
-                        completedAt: Date(),
-                        plan: plan
-                    )
-                    compressionResult = completedResult
-                    dataManager.recordImageCompressionSession(
-                        imageCount: completedResult.successCount,
-                        failedCount: failedCount,
-                        originalSizeMB: completedResult.originalSizeMB,
-                        compressedSizeMB: completedResult.compressedSizeMB,
-                        date: completedResult.completedAt,
-                        items: completedResult.historyItems
-                    )
-                    selectedAssetIDs.removeAll()
-                    reloadAssets()
-                    showingCompressionComparison = false
-                    HapticManager.notify(.success)
-                } else if !wasCancelled {
-                    compressionErrorMessage = firstErrorMessage ?? L10n.string("图片压缩失败，请稍后再试。")
-                    HapticManager.notify(.warning)
-                }
-
-                if failedCount > 0 && !resultItems.isEmpty {
-                    compressionErrorMessage = String(format: L10n.string("有 %lld 张图片未完成"), Int64(failedCount))
-                }
-
-                endCompressionBackgroundTask(backgroundTaskID)
-            }
-        }
-    }
-
-    private func beginCompressionBackgroundTask() -> UIBackgroundTaskIdentifier {
-        var taskID: UIBackgroundTaskIdentifier = .invalid
-        taskID = UIApplication.shared.beginBackgroundTask(withName: "PhotoDelete.ImageCompression") {
-            if taskID != .invalid {
-                UIApplication.shared.endBackgroundTask(taskID)
-                taskID = .invalid
-            }
-        }
-        return taskID
-    }
-
-    private func endCompressionBackgroundTask(_ taskID: UIBackgroundTaskIdentifier) {
-        guard taskID != .invalid else { return }
-        UIApplication.shared.endBackgroundTask(taskID)
+        dataManager.clearImageCompressionResult()
+        dataManager.startImageCompression(images: images, plan: plan)
     }
 
     private func showCompressionComparison() {
-        guard compressionResult?.createdAssetIdentifiers.isEmpty == false else {
-            compressionErrorMessage = L10n.string("暂时找不到压缩后图片。")
+        guard compressionJob.result?.createdAssetIdentifiers.isEmpty == false else {
+            dataManager.setImageCompressionError(L10n.string("暂时找不到压缩后图片。"))
             return
         }
         showingCompressionComparison = true
     }
 
     private func queueOriginalImagesForDeletion() {
-        guard let compressionResult else { return }
+        guard let compressionResult = compressionJob.result else { return }
         guard compressionResult.hasMeaningfulSavings else {
-            compressionErrorMessage = L10n.string("这次没有明显减少空间，建议先保留原图。")
+            dataManager.setImageCompressionError(L10n.string("这次没有明显减少空间，建议先保留原图。"))
             return
         }
 
@@ -2290,7 +2225,7 @@ private struct AdvancedImageCompressionView: View {
             originalAssets.append(asset)
         }
         guard !originalAssets.isEmpty else {
-            compressionErrorMessage = L10n.string("暂时找不到原图。")
+            dataManager.setImageCompressionError(L10n.string("暂时找不到原图。"))
             return
         }
 
@@ -2313,7 +2248,7 @@ private struct AdvancedImageCompressionView: View {
             originalAssets.append(asset)
         }
         guard !originalAssets.isEmpty else {
-            compressionErrorMessage = L10n.string("暂时找不到原图。")
+            dataManager.setImageCompressionError(L10n.string("暂时找不到原图。"))
             return
         }
 
@@ -2327,145 +2262,8 @@ private struct AdvancedImageCompressionView: View {
     }
 
     private func keepOriginalImages() {
-        compressionResult = nil
-        compressionErrorMessage = nil
+        dataManager.clearImageCompressionResult()
         showingCompressionComparison = false
-    }
-}
-
-private struct AdvancedImageCompressionResultItem: Identifiable, Equatable {
-    let originalAssetIdentifier: String
-    let createdAssetIdentifier: String?
-    let originalSizeMB: Double
-    let compressedSizeMB: Double
-    let originalDimensions: CGSize
-    let outputDimensions: CGSize
-
-    var id: String { originalAssetIdentifier }
-
-    init(result: ImageCompressionResult) {
-        self.originalAssetIdentifier = result.originalAssetIdentifier
-        self.createdAssetIdentifier = result.createdAssetIdentifier
-        self.originalSizeMB = result.originalSizeMB
-        self.compressedSizeMB = result.compressedSizeMB
-        self.originalDimensions = result.originalDimensions
-        self.outputDimensions = result.outputDimensions
-    }
-
-    var savedSizeMB: Double {
-        max(originalSizeMB - compressedSizeMB, 0)
-    }
-
-    var hasMeaningfulSavings: Bool {
-        savedSizeMB >= max(0.5, originalSizeMB * 0.03)
-    }
-}
-
-private struct AdvancedImageCompressionResult: Equatable {
-    let items: [AdvancedImageCompressionResultItem]
-    let failedCount: Int
-    let completedAt: Date
-    let plan: ImageCompressionPlan
-
-    var successCount: Int {
-        items.count
-    }
-
-    var originalSizeMB: Double {
-        items.reduce(0) { $0 + $1.originalSizeMB }
-    }
-
-    var compressedSizeMB: Double {
-        items.reduce(0) { $0 + $1.compressedSizeMB }
-    }
-
-    var savedSizeMB: Double {
-        max(originalSizeMB - compressedSizeMB, 0)
-    }
-
-    var hasMeaningfulSavings: Bool {
-        savedSizeMB >= max(0.5, originalSizeMB * 0.03)
-    }
-
-    var formattedOriginalSize: String {
-        CleanupStatsFormatter.space(originalSizeMB)
-    }
-
-    var formattedCompressedSize: String {
-        CleanupStatsFormatter.space(compressedSizeMB)
-    }
-
-    var formattedSavedSize: String {
-        CleanupStatsFormatter.space(savedSizeMB)
-    }
-
-    var savedRatioText: String {
-        guard originalSizeMB > 0 else { return "0%" }
-        return "\(max(Int((savedSizeMB / originalSizeMB * 100).rounded()), 0))%"
-    }
-
-    var createdCopiesText: String {
-        String(format: L10n.string("%lld 张"), Int64(successCount))
-    }
-
-    var completionTitle: String {
-        failedCount > 0 ? L10n.string("压缩部分完成") : L10n.string("压缩完成")
-    }
-
-    var completionSubtitle: String {
-        if successCount == 1 {
-            return L10n.string("已生成 1 张压缩后图片")
-        }
-        return String(format: L10n.string("已生成 %lld 张压缩后图片"), Int64(successCount))
-    }
-
-    var createdAssetIdentifiers: [String] {
-        items.compactMap(\.createdAssetIdentifier)
-    }
-
-    var historyItems: [ImageCompressionSessionItem] {
-        items.map { item in
-            ImageCompressionSessionItem(
-                originalAssetIdentifier: item.originalAssetIdentifier,
-                createdAssetIdentifier: item.createdAssetIdentifier,
-                originalSizeMB: item.originalSizeMB,
-                compressedSizeMB: item.compressedSizeMB
-            )
-        }
-    }
-
-    var sizeSummaryText: String {
-        guard let firstItem = items.first else { return L10n.string("保持原尺寸") }
-
-        if items.count == 1 {
-            let original = dimensionsText(firstItem.originalDimensions)
-            let output = dimensionsText(firstItem.outputDimensions)
-            if original == output {
-                return String(format: L10n.string("保持 %@"), original)
-            }
-            return String(format: L10n.string("%@ → %@"), original, output)
-        }
-
-        let allKeptOriginalSize = items.allSatisfy { item in
-            dimensionsText(item.originalDimensions) == dimensionsText(item.outputDimensions)
-        }
-        if allKeptOriginalSize {
-            return L10n.string("全部保持原尺寸")
-        }
-
-        let outputDimensions = Set(items.map { dimensionsText($0.outputDimensions) })
-        if outputDimensions.count == 1, let output = outputDimensions.first {
-            return String(format: L10n.string("输出 %@"), output)
-        }
-
-        return L10n.string("多种尺寸")
-    }
-
-    private func dimensionsText(_ size: CGSize) -> String {
-        let width = Int(size.width.rounded())
-        let height = Int(size.height.rounded())
-        guard width > 0, height > 0 else { return L10n.string("未知") }
-        return "\(width)×\(height)"
     }
 }
 
@@ -3244,23 +3042,16 @@ private enum AdvancedVideoCompressionTab: String, CaseIterable, Identifiable {
 private struct AdvancedVideoCompressionView: View {
     @EnvironmentObject var dataManager: DataManager
     @State private var assets: [PHAsset] = []
+    @State private var orderedAssets: [PHAsset] = []
     @State private var videoSizeEstimatesByAssetID: [String: VideoFileSizeEstimate] = [:]
     @State private var selectedAssetIDs: Set<String> = []
     @State private var compressionPlan: VideoCompressionPlan = .default
-    @State private var isCompressing = false
-    @State private var processedVideoCount = 0
-    @State private var compressionTotalCount = 0
-    @State private var currentCompressionProgress: Double = 0
-    @State private var currentCompressionMessage: String?
-    @State private var compressionErrorMessage: String?
-    @State private var compressionResult: AdvancedVideoCompressionResult?
     @State private var showingCompressionComparison = false
     @State private var showingICloudVideoInfo = false
     @State private var dismissCompressionResultAfterBatch = false
     @State private var previewAsset: AdvancedPreviewAsset?
     @State private var showBatchConfirm = false
     @State private var compressionOptionsContext: AdvancedVideoCompressionOptionsContext?
-    @State private var compressionTask: Task<Void, Never>?
     @State private var sizeLoadingTask: Task<Void, Never>?
     @State private var selectedTab: AdvancedVideoCompressionTab = .pending
     @State private var visibleVideoLimit = 40
@@ -3273,14 +3064,20 @@ private struct AdvancedVideoCompressionView: View {
     private let videoLimitStep = 40
     private let videoSizeUpdateBatchSize = 8
 
+    private var compressionJob: AdvancedVideoCompressionJobState {
+        dataManager.videoCompressionJob
+    }
+
+    private var isCompressing: Bool {
+        compressionJob.isCompressing
+    }
+
     private var selectedAssets: [PHAsset] {
         compressibleAssets.filter { selectedAssetIDs.contains($0.localIdentifier) }
     }
 
     private var compressibleAssets: [PHAsset] {
-        assets
-            .filter { !processedVideoAssetIDs.contains($0.localIdentifier) }
-            .sorted(by: videoSizeFirstOrder)
+        orderedAssets.filter { !processedVideoAssetIDs.contains($0.localIdentifier) }
     }
 
     private var visibleCompressibleAssets: [PHAsset] {
@@ -3329,7 +3126,7 @@ private struct AdvancedVideoCompressionView: View {
 
         let visibleReliableSizeCount = loadedReliableVideoSizeCount(in: visibleCompressibleAssets)
         let visibleLoadedSizeCount = loadedVideoSizeCount(in: visibleCompressibleAssets)
-        let visibleTotalSizeMB = visibleCompressibleAssets.reduce(0) { $0 + (reliableSizeMB(for: $1) ?? 0) }
+        let visibleTotalSizeMB = visibleCompressibleAssets.reduce(0) { $0 + (reliableSizeMB(for: $1) ?? dataManager.estimatedSizeMB(for: $1)) }
 
         if visibleReliableSizeCount == visibleCompressibleAssets.count {
             return String(
@@ -3392,14 +3189,14 @@ private struct AdvancedVideoCompressionView: View {
 
                     if isCompressing {
                         AdvancedVideoCompressionProgressCard(
-                            processedCount: processedVideoCount,
-                            totalCount: compressionTotalCount,
-                            currentProgress: currentCompressionProgress,
-                            message: currentCompressionMessage
+                            processedCount: compressionJob.processedCount,
+                            totalCount: compressionJob.totalCount,
+                            currentProgress: compressionJob.currentProgress,
+                            message: compressionJob.message
                         )
                     }
 
-                    if let compressionResult {
+                    if let compressionResult = compressionJob.result {
                         AdvancedVideoCompressionResultCard(
                             result: compressionResult,
                             onCompare: showCompressionComparison,
@@ -3408,7 +3205,7 @@ private struct AdvancedVideoCompressionView: View {
                         )
                     }
 
-                    if let compressionErrorMessage {
+                    if let compressionErrorMessage = compressionJob.errorMessage {
                         AdvancedVideoCompressionMessageCard(
                             icon: "exclamationmark.triangle.fill",
                             message: compressionErrorMessage,
@@ -3434,7 +3231,7 @@ private struct AdvancedVideoCompressionView: View {
                 AdvancedVideoCompressionActionBar(
                     count: selectedAssetIDs.count,
                     estimateText: selectedCompressionEstimateText,
-                    processedCount: processedVideoCount,
+                    processedCount: compressionJob.processedCount,
                     isCompressing: isCompressing,
                     onCompress: presentCompressionOptions,
                     onDelete: deleteSelectedVideos
@@ -3446,7 +3243,7 @@ private struct AdvancedVideoCompressionView: View {
         .fullScreenCover(isPresented: $showBatchConfirm, onDismiss: {
             reloadAssets()
             if dismissCompressionResultAfterBatch {
-                compressionResult = nil
+                dataManager.clearVideoCompressionResult()
                 dismissCompressionResultAfterBatch = false
             }
         }) {
@@ -3460,7 +3257,7 @@ private struct AdvancedVideoCompressionView: View {
             )
         }
         .sheet(isPresented: $showingCompressionComparison) {
-            if let compressionResult {
+            if let compressionResult = compressionJob.result {
                 AdvancedVideoCompressionComparisonSheet(
                     result: compressionResult,
                     photoLibraryManager: dataManager.photoLibraryManager
@@ -3485,6 +3282,12 @@ private struct AdvancedVideoCompressionView: View {
         }
         .task {
             reloadAssets()
+        }
+        .onChange(of: dataManager.videoCompressionHistoryRevision) { _ in
+            selectedAssetIDs.removeAll()
+            refreshProcessedVideoAssetIDs()
+            reloadAssets()
+            showingCompressionComparison = false
         }
         .onDisappear {
             sizeLoadingTask?.cancel()
@@ -3606,8 +3409,9 @@ private struct AdvancedVideoCompressionView: View {
         }
         pruneSelectionToCompressibleAssets()
         seedCachedVideoSizeEstimates(for: loadedAssets)
+        refreshOrderedAssets()
         isLoadingAssets = false
-        loadVideoSizesForAllPendingVideos()
+        loadVideoSizesForVisiblePendingVideos()
     }
 
     private func refreshProcessedVideoAssetIDs() {
@@ -3632,7 +3436,7 @@ private struct AdvancedVideoCompressionView: View {
     }
 
     private func displaySizeMB(for asset: PHAsset) -> Double {
-        reliableSizeMB(for: asset) ?? 0
+        reliableSizeMB(for: asset) ?? dataManager.estimatedSizeMB(for: asset)
     }
 
     private func displaySizeText(for asset: PHAsset) -> String {
@@ -3672,8 +3476,8 @@ private struct AdvancedVideoCompressionView: View {
     }
 
     private func videoSizeFirstOrder(_ lhs: PHAsset, _ rhs: PHAsset) -> Bool {
-        let lhsSize = reliableSizeMB(for: lhs)
-        let rhsSize = reliableSizeMB(for: rhs)
+        let lhsSize = sortSizeMB(for: lhs)
+        let rhsSize = sortSizeMB(for: rhs)
         switch (lhsSize, rhsSize) {
         case let (lhsSize?, rhsSize?) where lhsSize != rhsSize:
             return lhsSize > rhsSize
@@ -3692,6 +3496,10 @@ private struct AdvancedVideoCompressionView: View {
         }
 
         return lhs.localIdentifier < rhs.localIdentifier
+    }
+
+    private func sortSizeMB(for asset: PHAsset) -> Double? {
+        reliableSizeMB(for: asset) ?? dataManager.estimatedSizeMB(for: asset)
     }
 
     private func hasReliableSizes(for selectedAssets: [PHAsset]) -> Bool {
@@ -3718,6 +3526,11 @@ private struct AdvancedVideoCompressionView: View {
             dataManager.cacheVideoFileSizeEstimate(estimate, forAssetIdentifier: assetID)
             videoSizeEstimatesByAssetID[assetID] = estimate
         }
+        refreshOrderedAssets()
+    }
+
+    private func refreshOrderedAssets() {
+        orderedAssets = assets.sorted(by: videoSizeFirstOrder)
     }
 
     private func loadVideoSizes(for loadedAssets: [PHAsset]) {
@@ -3778,11 +3591,11 @@ private struct AdvancedVideoCompressionView: View {
                 step: videoLimitStep
             )
         }
-        loadVideoSizesForAllPendingVideos()
+        loadVideoSizesForVisiblePendingVideos()
     }
 
-    private func loadVideoSizesForAllPendingVideos() {
-        loadVideoSizes(for: compressibleAssets)
+    private func loadVideoSizesForVisiblePendingVideos() {
+        loadVideoSizes(for: visibleCompressibleAssets)
     }
 
     private func showMoreCompressibleVideosIfNeeded(currentAsset asset: PHAsset) {
@@ -3803,7 +3616,7 @@ private struct AdvancedVideoCompressionView: View {
         } else {
             selectedAssetIDs.insert(id)
         }
-        compressionErrorMessage = nil
+        dataManager.setVideoCompressionError(nil)
     }
 
     private func toggleBulkSelection() {
@@ -3815,7 +3628,7 @@ private struct AdvancedVideoCompressionView: View {
         } else {
             selectedAssetIDs.formUnion(visibleIDs)
         }
-        compressionErrorMessage = nil
+        dataManager.setVideoCompressionError(nil)
     }
 
     private func pruneSelectionToCompressibleAssets() {
@@ -3843,133 +3656,13 @@ private struct AdvancedVideoCompressionView: View {
 
     private func compressSelectedVideos(videos: [PHAsset], plan: VideoCompressionPlan) {
         guard !videos.isEmpty, !isCompressing else { return }
-        isCompressing = true
-        processedVideoCount = 0
-        compressionTotalCount = videos.count
-        currentCompressionProgress = 0
-        currentCompressionMessage = L10n.string("正在准备压缩")
-        compressionErrorMessage = nil
-        compressionResult = nil
-        compressionTask?.cancel()
-        compressionTask = Task {
-            let backgroundTaskID = await MainActor.run {
-                beginCompressionBackgroundTask()
-            }
-            var resultItems: [AdvancedVideoCompressionResultItem] = []
-            var failedCount = 0
-            var firstErrorMessage: String?
-
-            for (index, asset) in videos.enumerated() {
-                if Task.isCancelled {
-                    break
-                }
-
-                await MainActor.run {
-                    processedVideoCount = index
-                    currentCompressionProgress = 0
-                    currentCompressionMessage = String(format: L10n.string("正在处理第 %lld 个视频"), Int64(index + 1))
-                }
-
-                do {
-                    let result = try await dataManager.photoLibraryManager.compressVideo(
-                        asset,
-                        plan: plan
-                    ) { progress, message in
-                        currentCompressionProgress = progress
-                        currentCompressionMessage = message
-                    }
-                    resultItems.append(AdvancedVideoCompressionResultItem(result: result))
-                } catch is CancellationError {
-                    break
-                } catch {
-                    failedCount += 1
-                    if firstErrorMessage == nil {
-                        firstErrorMessage = error.localizedDescription
-                    }
-                }
-
-                await MainActor.run {
-                    processedVideoCount = index + 1
-                    currentCompressionProgress = 0
-                }
-            }
-
-            let wasCancelled = Task.isCancelled
-            await MainActor.run {
-                isCompressing = false
-                compressionTask = nil
-                currentCompressionProgress = 0
-                currentCompressionMessage = nil
-
-                if !resultItems.isEmpty {
-                    let completedResult = AdvancedVideoCompressionResult(
-                        items: resultItems,
-                        failedCount: failedCount,
-                        completedAt: Date(),
-                        plan: plan
-                    )
-                    compressionResult = completedResult
-                    dataManager.recordVideoCompressionSession(
-                        videoCount: completedResult.successCount,
-                        failedCount: failedCount,
-                        originalSizeMB: completedResult.originalSizeMB,
-                        compressedSizeMB: completedResult.compressedSizeMB,
-                        date: completedResult.completedAt,
-                        items: completedResult.historyItems
-                    )
-                    for item in resultItems {
-                        let originalEstimate = VideoFileSizeEstimate(
-                            sizeMB: item.originalSizeMB,
-                            source: .assetResource
-                        )
-                        videoSizeEstimatesByAssetID[item.originalAssetIdentifier] = originalEstimate
-                        dataManager.cacheVideoFileSizeEstimate(originalEstimate, forAssetIdentifier: item.originalAssetIdentifier)
-                        if let createdAssetIdentifier = item.createdAssetIdentifier {
-                            let compressedEstimate = VideoFileSizeEstimate(
-                                sizeMB: item.compressedSizeMB,
-                                source: .assetResource
-                            )
-                            videoSizeEstimatesByAssetID[createdAssetIdentifier] = compressedEstimate
-                            dataManager.cacheVideoFileSizeEstimate(compressedEstimate, forAssetIdentifier: createdAssetIdentifier)
-                        }
-                    }
-                    selectedAssetIDs.removeAll()
-                    reloadAssets()
-                    showingCompressionComparison = false
-                    HapticManager.notify(.success)
-                } else if !wasCancelled {
-                    compressionErrorMessage = firstErrorMessage ?? L10n.string("视频压缩失败，请稍后再试。")
-                    HapticManager.notify(.warning)
-                }
-
-                if failedCount > 0 && !resultItems.isEmpty {
-                    compressionErrorMessage = String(format: L10n.string("有 %lld 个视频未完成"), Int64(failedCount))
-                }
-
-                endCompressionBackgroundTask(backgroundTaskID)
-            }
-        }
-    }
-
-    private func beginCompressionBackgroundTask() -> UIBackgroundTaskIdentifier {
-        var taskID: UIBackgroundTaskIdentifier = .invalid
-        taskID = UIApplication.shared.beginBackgroundTask(withName: "PhotoDelete.VideoCompression") {
-            if taskID != .invalid {
-                UIApplication.shared.endBackgroundTask(taskID)
-                taskID = .invalid
-            }
-        }
-        return taskID
-    }
-
-    private func endCompressionBackgroundTask(_ taskID: UIBackgroundTaskIdentifier) {
-        guard taskID != .invalid else { return }
-        UIApplication.shared.endBackgroundTask(taskID)
+        dataManager.clearVideoCompressionResult()
+        dataManager.startVideoCompression(videos: videos, plan: plan)
     }
 
     private func showCompressionComparison() {
-        guard compressionResult?.createdAssetIdentifiers.isEmpty == false else {
-            compressionErrorMessage = L10n.string("暂时找不到压缩后视频。")
+        guard compressionJob.result?.createdAssetIdentifiers.isEmpty == false else {
+            dataManager.setVideoCompressionError(L10n.string("暂时找不到压缩后视频。"))
             return
         }
         showingCompressionComparison = true
@@ -3980,9 +3673,9 @@ private struct AdvancedVideoCompressionView: View {
     }
 
     private func queueOriginalVideosForDeletion() {
-        guard let compressionResult else { return }
+        guard let compressionResult = compressionJob.result else { return }
         guard compressionResult.hasMeaningfulSavings else {
-            compressionErrorMessage = L10n.string("这次没有明显减少空间，建议先保留原视频。")
+            dataManager.setVideoCompressionError(L10n.string("这次没有明显减少空间，建议先保留原视频。"))
             return
         }
 
@@ -3993,7 +3686,7 @@ private struct AdvancedVideoCompressionView: View {
             originalAssets.append(asset)
         }
         guard !originalAssets.isEmpty else {
-            compressionErrorMessage = L10n.string("暂时找不到原视频。")
+            dataManager.setVideoCompressionError(L10n.string("暂时找不到原视频。"))
             return
         }
 
@@ -4016,7 +3709,7 @@ private struct AdvancedVideoCompressionView: View {
             originalAssets.append(asset)
         }
         guard !originalAssets.isEmpty else {
-            compressionErrorMessage = L10n.string("暂时找不到原视频。")
+            dataManager.setVideoCompressionError(L10n.string("暂时找不到原视频。"))
             return
         }
 
@@ -4030,159 +3723,8 @@ private struct AdvancedVideoCompressionView: View {
     }
 
     private func keepOriginalVideos() {
-        compressionResult = nil
-        compressionErrorMessage = nil
+        dataManager.clearVideoCompressionResult()
         showingCompressionComparison = false
-    }
-}
-
-private struct AdvancedVideoCompressionResultItem: Identifiable, Equatable {
-    let originalAssetIdentifier: String
-    let createdAssetIdentifier: String?
-    let originalSizeMB: Double
-    let compressedSizeMB: Double
-    let originalDimensions: CGSize
-    let outputDimensions: CGSize
-
-    var id: String { originalAssetIdentifier }
-
-    init(result: VideoCompressionResult) {
-        self.originalAssetIdentifier = result.originalAssetIdentifier
-        self.createdAssetIdentifier = result.createdAssetIdentifier
-        self.originalSizeMB = result.originalSizeMB
-        self.compressedSizeMB = result.compressedSizeMB
-        self.originalDimensions = result.originalDimensions
-        self.outputDimensions = result.outputDimensions
-    }
-
-    var savedSizeMB: Double {
-        max(originalSizeMB - compressedSizeMB, 0)
-    }
-
-    var hasMeaningfulSavings: Bool {
-        savedSizeMB >= max(1, originalSizeMB * 0.02)
-    }
-}
-
-private struct AdvancedVideoCompressionResult: Equatable {
-    let items: [AdvancedVideoCompressionResultItem]
-    let failedCount: Int
-    let completedAt: Date
-    let plan: VideoCompressionPlan
-
-    var successCount: Int {
-        items.count
-    }
-
-    var originalSizeMB: Double {
-        items.reduce(0) { $0 + $1.originalSizeMB }
-    }
-
-    var compressedSizeMB: Double {
-        items.reduce(0) { $0 + $1.compressedSizeMB }
-    }
-
-    var savedSizeMB: Double {
-        max(originalSizeMB - compressedSizeMB, 0)
-    }
-
-    var hasMeaningfulSavings: Bool {
-        savedSizeMB >= max(1, originalSizeMB * 0.02)
-    }
-
-    var formattedOriginalSize: String {
-        CleanupStatsFormatter.space(originalSizeMB)
-    }
-
-    var formattedCompressedSize: String {
-        CleanupStatsFormatter.space(compressedSizeMB)
-    }
-
-    var formattedSavedSize: String {
-        CleanupStatsFormatter.space(savedSizeMB)
-    }
-
-    var savedRatioPercent: Int {
-        guard originalSizeMB > 0 else { return 0 }
-        return max(Int((savedSizeMB / originalSizeMB * 100).rounded()), 0)
-    }
-
-    var savedRatioText: String {
-        "\(savedRatioPercent)%"
-    }
-
-    var createdCopiesText: String {
-        String(format: L10n.string("%lld 个"), Int64(successCount))
-    }
-
-    var completionTitle: String {
-        failedCount > 0 ? L10n.string("压缩部分完成") : L10n.string("压缩完成")
-    }
-
-    var completionSubtitle: String {
-        if successCount == 1 {
-            return L10n.string("已生成 1 个压缩后视频")
-        }
-        return String(format: L10n.string("已生成 %lld 个压缩后视频"), Int64(successCount))
-    }
-
-    var createdAssetIdentifiers: [String] {
-        items.compactMap(\.createdAssetIdentifier)
-    }
-
-    var historyItems: [VideoCompressionSessionItem] {
-        items.map { item in
-            VideoCompressionSessionItem(
-                originalAssetIdentifier: item.originalAssetIdentifier,
-                createdAssetIdentifier: item.createdAssetIdentifier,
-                originalSizeMB: item.originalSizeMB,
-                compressedSizeMB: item.compressedSizeMB
-            )
-        }
-    }
-
-    var keptResolutionText: String {
-        guard let firstItem = items.first else { return L10n.string("保持原分辨率") }
-        let original = dimensionsText(firstItem.originalDimensions)
-        let output = dimensionsText(firstItem.outputDimensions)
-        if original == output {
-            return String(format: L10n.string("分辨率保持 %@"), original)
-        }
-        return String(format: L10n.string("分辨率 %@ → %@"), original, output)
-    }
-
-    var resolutionSummaryText: String {
-        guard let firstItem = items.first else { return L10n.string("保持原分辨率") }
-
-        if items.count == 1 {
-            let original = dimensionsText(firstItem.originalDimensions)
-            let output = dimensionsText(firstItem.outputDimensions)
-            if original == output {
-                return String(format: L10n.string("保持 %@"), original)
-            }
-            return String(format: L10n.string("%@ → %@"), original, output)
-        }
-
-        let allKeptOriginalResolution = items.allSatisfy { item in
-            dimensionsText(item.originalDimensions) == dimensionsText(item.outputDimensions)
-        }
-        if allKeptOriginalResolution {
-            return L10n.string("全部保持原分辨率")
-        }
-
-        let outputDimensions = Set(items.map { dimensionsText($0.outputDimensions) })
-        if outputDimensions.count == 1, let output = outputDimensions.first {
-            return String(format: L10n.string("输出 %@"), output)
-        }
-
-        return L10n.string("多种分辨率")
-    }
-
-    private func dimensionsText(_ size: CGSize) -> String {
-        let width = Int(size.width.rounded())
-        let height = Int(size.height.rounded())
-        guard width > 0, height > 0 else { return L10n.string("未知") }
-        return "\(width)×\(height)"
     }
 }
 
@@ -5992,7 +5534,7 @@ private enum AdvancedCleanupFilter: String, Hashable, Identifiable {
         case .similarPhotos:
             return [.all, .burst]
         case .largeFiles:
-            return [.all, .videos, .photos]
+            return [.all]
         case .imageCompression:
             return [.all, .large]
         case .videoCompression:
