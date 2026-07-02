@@ -34,7 +34,7 @@ final class PhotoDeleteUITests: XCTestCase {
         _ = allowFullPhotoLibraryAccessIfNeeded(app: app)
 
         XCTAssertTrue(
-            app.staticTexts["OnePhoto 删图"].waitForExistence(timeout: 10) ||
+            app.staticTexts["整理"].waitForExistence(timeout: 10) ||
                 app.staticTexts["需要访问照片库"].waitForExistence(timeout: 2) ||
                 app.staticTexts["随机浏览"].waitForExistence(timeout: 2) ||
                 app.staticTexts["没有可整理的照片"].waitForExistence(timeout: 2)
@@ -46,7 +46,7 @@ final class PhotoDeleteUITests: XCTestCase {
         let app = makeApp(completedOnboarding: true)
         app.launch()
 
-        XCTAssertTrue(app.staticTexts["OnePhoto 删图"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["整理"].waitForExistence(timeout: 10))
         XCTAssertTrue(
             app.staticTexts["需要访问照片库"].exists ||
                 app.staticTexts["随机浏览"].exists ||
@@ -119,9 +119,11 @@ final class PhotoDeleteUITests: XCTestCase {
 
         let app = makeApp(completedOnboarding: true, appLanguage: appLanguage, seedLibrary: true)
         app.launch()
-        for _ in 0..<3 where allowFullPhotoLibraryAccessIfNeeded(app: app) {
+        _ = allowFullPhotoLibraryAccessIfNeeded(app: app)
+        if !waitForHomeReady(in: app, language: appLanguage, timeout: 30) {
             app.terminate()
             app.launch()
+            _ = allowFullPhotoLibraryAccessIfNeeded(app: app)
         }
 
         XCTAssertTrue(waitForHomeReady(in: app, language: appLanguage, timeout: 30))
@@ -324,7 +326,7 @@ final class PhotoDeleteUITests: XCTestCase {
             return true
         }
 
-        let writeLabels = ["允许删除", "删除", "Delete"]
+        let writeLabels = ["允许删除", "Allow Delete Access", "Allow Deletion"]
         if tapFirstExistingButton(in: app, labels: writeLabels, timeout: 2) {
             sleep(1)
             return true
@@ -335,7 +337,7 @@ final class PhotoDeleteUITests: XCTestCase {
             sleep(1)
             return true
         }
-        if tapFirstExistingButton(in: springboard, labels: writeLabels, timeout: 2) {
+        if tapFirstExistingButton(in: springboard, labels: writeLabels + ["删除", "Delete"], timeout: 2) {
             sleep(1)
             return true
         }

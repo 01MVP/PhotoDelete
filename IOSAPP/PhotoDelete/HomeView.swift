@@ -138,7 +138,7 @@ struct HomeView: View {
                     }
                 }
             }
-            .navigationTitle(AppConstants.appDisplayName)
+            .navigationTitle(L10n.string("整理"))
             .navigationBarTitleDisplayMode(.large)
             .navigationDestination(for: SwipeViewDestination.self) { destination in
                 switch destination {

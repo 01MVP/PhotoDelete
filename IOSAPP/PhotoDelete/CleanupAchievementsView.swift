@@ -79,8 +79,11 @@ struct CleanupAchievementsEntryCard: View {
 struct CleanupAchievementsView: View {
     @ObservedObject var statsStore: CleanupStatsStore
     var showsDoneButton = false
+    var showsHistory = false
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @State private var showingClearConfirmation = false
 
     private var allProgress: [CleanupAchievementProgress] {
         statsStore.achievementProgresses
@@ -90,8 +93,12 @@ struct CleanupAchievementsView: View {
         allProgress.filter(\.isUnlocked)
     }
 
-    private var closeProgress: [CleanupAchievementProgress] {
-        statsStore.closeAchievementProgresses
+    private var nextProgress: CleanupAchievementProgress? {
+        statsStore.nextAchievementProgress
+    }
+
+    private var summary: CleanupStatsSummary {
+        statsStore.summary
     }
 
     private var groupedAllProgress: [CleanupAchievementCategoryProgressGroup] {
@@ -106,35 +113,25 @@ struct CleanupAchievementsView: View {
             PhotoDeleteScreenBackground()
 
             ScrollView {
-                VStack(spacing: 18) {
-                    introHeader
-                    overviewCard
+                VStack(spacing: PhotoDeleteStyle.sectionSpacing) {
+                    archiveSummarySection
+                    nextBadgeSection
 
-                    achievementSection(
-                        title: L10n.string("已获得"),
-                        subtitle: L10n.string("已经完成的清理里程碑"),
-                        progressItems: unlockedProgress,
-                        emptyTitle: L10n.string("还没有获得徽章"),
-                        emptySubtitle: L10n.string("完成一次清理后会点亮第一枚徽章。")
-                    )
+                    badgeWallSection
 
-                    achievementSection(
-                        title: L10n.string("接近完成"),
-                        subtitle: L10n.string("优先追踪最接近的目标"),
-                        progressItems: closeProgress,
-                        emptyTitle: L10n.string("暂无待完成目标"),
-                        emptySubtitle: L10n.string("当前所有徽章都已经点亮。")
-                    )
-
-                    allAchievementSection
+                    if showsHistory {
+                        historySection
+                    }
                 }
                 .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
-                .padding(.top, 18)
+                .padding(.top, PhotoDeleteStyle.rootContentTopSpacing)
                 .padding(.bottom, 36)
+                .frame(maxWidth: PhotoDeleteAdaptiveLayout.readableContentMaxWidth(horizontalSizeClass: horizontalSizeClass))
+                .frame(maxWidth: .infinity)
             }
             .scrollIndicators(.hidden)
         }
-        .navigationTitle(L10n.string("清理成就"))
+        .navigationTitle(showsHistory ? L10n.string("成就与历史") : L10n.string("清理成就"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
@@ -147,78 +144,119 @@ struct CleanupAchievementsView: View {
                 }
             }
         }
-    }
-
-    private var introHeader: some View {
-        Text(L10n.string("记录删除、节省空间和连续整理进度"))
-            .font(.system(size: 14, weight: .regular))
-            .foregroundColor(PhotoDeleteStyle.secondaryText)
-            .lineLimit(2)
-            .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var overviewCard: some View {
-        HStack(spacing: 10) {
-            CleanupAchievementOverviewMetric(
-                value: "\(unlockedProgress.count)",
-                label: L10n.string("已获得"),
-                tint: PhotoDeleteStyle.warning
-            )
-
-            CleanupAchievementOverviewMetric(
-                value: "\(statsStore.currentStreakDays)",
-                label: L10n.string("连续天数"),
-                tint: PhotoDeleteStyle.positive
-            )
-
-            CleanupAchievementOverviewMetric(
-                value: statsStore.summary.formattedSpaceSaved,
-                label: L10n.string("累计节省"),
-                tint: PhotoDeleteStyle.accent
-            )
+        .confirmationDialog(L10n.string("清空本机统计记录？"), isPresented: $showingClearConfirmation, titleVisibility: .visible) {
+            Button(L10n.string("清空统计记录"), role: .destructive) {
+                statsStore.clearAll()
+            }
+            Button(L10n.string("取消"), role: .cancel) {}
+        } message: {
+            Text(L10n.string("只会清空 OnePhoto 删图的本机统计，不会影响照片。"))
         }
-        .padding(14)
-        .photoDeleteCard()
     }
 
-    private func achievementSection(
-        title: String,
-        subtitle: String,
-        progressItems: [CleanupAchievementProgress],
-        emptyTitle: String,
-        emptySubtitle: String
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.primaryText)
+    private var archiveSummarySection: some View {
+        VStack(spacing: 16) {
+            HStack {
+                Text(showsHistory ? L10n.string("清理档案") : L10n.string("清理成就"))
+                    .photoDeleteSectionHeading()
 
-                Text(subtitle)
-                    .font(.system(size: 12, weight: .regular))
-                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                Spacer()
             }
 
-            if progressItems.isEmpty {
-                CleanupAchievementEmptyCard(title: emptyTitle, subtitle: emptySubtitle)
-            } else {
-                LazyVStack(spacing: 9) {
-                    ForEach(progressItems) { progress in
-                        CleanupAchievementProgressRow(progress: progress)
+            VStack(spacing: 0) {
+                HStack(spacing: 12) {
+                    PhotoDeleteIconTile(
+                        icon: "seal.fill",
+                        tint: PhotoDeleteStyle.warning,
+                        size: 38,
+                        cornerRadius: 11
+                    )
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(L10n.string("徽章、连续整理和节省空间进度"))
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(PhotoDeleteStyle.primaryText)
+                            .lineLimit(2)
+
+                        Text(L10n.string("所有记录只保存在本机。"))
+                            .font(.system(size: 12, weight: .regular))
+                            .foregroundColor(PhotoDeleteStyle.secondaryText)
+                            .lineLimit(1)
                     }
+
+                    Spacer(minLength: 8)
+
+                    Text("\(unlockedProgress.count)/\(allProgress.count)")
+                        .font(.system(size: 13, weight: .semibold))
+                        .monospacedDigit()
+                        .foregroundColor(PhotoDeleteStyle.warning)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 15)
+
+                Divider()
+                    .background(PhotoDeleteStyle.hairline)
+                    .padding(.horizontal, 16)
+
+                HStack(spacing: 8) {
+                    StatCard(
+                        value: "\(unlockedProgress.count)/\(allProgress.count)",
+                        label: L10n.string("已获得"),
+                        color: PhotoDeleteStyle.warning
+                    )
+                    StatCard(
+                        value: "\(summary.sessions)",
+                        label: L10n.string("清理次数"),
+                        color: PhotoDeleteStyle.accent
+                    )
+                    StatCard(
+                        value: "\(summary.deletedPhotos)",
+                        label: L10n.string("累计删除"),
+                        color: PhotoDeleteStyle.destructive
+                    )
+                    StatCard(
+                        value: summary.formattedSpaceSaved,
+                        label: L10n.string("累计节省"),
+                        color: PhotoDeleteStyle.positive
+                    )
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 16)
+            }
+            .photoDeleteCard()
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var nextBadgeSection: some View {
+        VStack(spacing: 16) {
+            HStack {
+                Text(L10n.string("下一个徽章"))
+                    .photoDeleteSectionHeading()
+
+                Spacer()
+            }
+
+            VStack(spacing: 0) {
+                if let nextProgress {
+                    CleanupAchievementNextRow(progress: nextProgress)
+                } else {
+                    CleanupAchievementAllUnlockedRow()
                 }
             }
+            .photoDeleteCard()
         }
     }
 
-    private var allAchievementSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(L10n.string("全部徽章"))
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.primaryText)
+    private var badgeWallSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(L10n.string("里程碑徽章"))
+                    .photoDeleteSectionHeading()
 
-                Text(L10n.string("按类型查看每一枚清理里程碑"))
+                Text(L10n.string("按类型点亮每一枚清理徽章"))
                     .font(.system(size: 12, weight: .regular))
                     .foregroundColor(PhotoDeleteStyle.secondaryText)
             }
@@ -240,6 +278,23 @@ struct CleanupAchievementsView: View {
             }
         }
     }
+
+    @ViewBuilder
+    private var historySection: some View {
+        VStack(spacing: 16) {
+            SupporterMonthlySection(summaries: statsStore.monthlySummaries)
+
+            SupporterHistorySection(sessions: Array(statsStore.sessions.prefix(50)))
+
+            Button(role: .destructive) {
+                showingClearConfirmation = true
+            } label: {
+                Text(L10n.string("清空统计记录"))
+                    .frame(maxWidth: .infinity)
+            }
+            .photoDeleteSecondaryButton()
+        }
+    }
 }
 
 private struct CleanupAchievementCategoryProgressGroup: Identifiable {
@@ -249,31 +304,68 @@ private struct CleanupAchievementCategoryProgressGroup: Identifiable {
     var id: String { category.id }
 }
 
-private struct CleanupAchievementOverviewMetric: View {
-    let value: String
-    let label: String
-    let tint: Color
+private struct CleanupAchievementNextRow: View {
+    let progress: CleanupAchievementProgress
 
     var body: some View {
-        VStack(spacing: 4) {
-            Text(value)
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundColor(tint)
-                .lineLimit(1)
-                .minimumScaleFactor(0.62)
+        HStack(spacing: 12) {
+            CleanupAchievementMedal(progress: progress, size: 42)
 
-            Text(label)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(PhotoDeleteStyle.secondaryText)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(progress.achievement.title)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.primaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+
+                Text(progress.remainingDescription)
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.78)
+            }
+
+            Spacer(minLength: 8)
+
+            Text(progress.valueDescription)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(progress.achievement.tint.color)
                 .lineLimit(1)
-                .minimumScaleFactor(0.72)
+                .minimumScaleFactor(0.68)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 13, style: .continuous)
-                .fill(tint.opacity(0.1))
-        )
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(minHeight: PhotoDeleteStyle.rowMinHeight)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct CleanupAchievementAllUnlockedRow: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            PhotoDeleteIconTile(
+                icon: "checkmark.seal.fill",
+                tint: PhotoDeleteStyle.positive,
+                size: 38,
+                cornerRadius: 11
+            )
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(L10n.string("全部徽章已点亮"))
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.primaryText)
+
+                Text(L10n.string("已经完成所有清理里程碑。"))
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(minHeight: PhotoDeleteStyle.rowMinHeight)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -281,82 +373,148 @@ private struct CleanupAchievementCategoryGroup: View {
     let title: String
     let progressItems: [CleanupAchievementProgress]
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            Text(title)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(PhotoDeleteStyle.secondaryText)
-                .lineLimit(1)
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .body) private var badgeMinimumWidth: CGFloat = 80
 
-            LazyVStack(spacing: 9) {
+    private var unlockedCount: Int {
+        progressItems.filter(\.isUnlocked).count
+    }
+
+    private var columns: [GridItem] {
+        if dynamicTypeSize.isAccessibilitySize {
+            return [GridItem(.flexible(), spacing: 10)]
+        }
+
+        return [GridItem(.adaptive(minimum: max(78, badgeMinimumWidth), maximum: 96), spacing: 8)]
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.primaryText)
+                    .lineLimit(1)
+
+                Spacer()
+
+                Text("\(unlockedCount)/\(progressItems.count)")
+                    .font(.system(size: 12, weight: .semibold))
+                    .monospacedDigit()
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                    .lineLimit(1)
+            }
+
+            LazyVGrid(
+                columns: columns,
+                spacing: 8
+            ) {
                 ForEach(progressItems) { progress in
-                    CleanupAchievementProgressRow(progress: progress)
+                    CleanupAchievementBadgeTile(progress: progress)
                 }
             }
         }
+        .padding(14)
+        .photoDeleteCard()
     }
 }
 
-private struct CleanupAchievementProgressRow: View {
+private struct CleanupAchievementBadgeTile: View {
     let progress: CleanupAchievementProgress
 
+    @ScaledMetric(relativeTo: .body) private var medalSize: CGFloat = 42
+    @ScaledMetric(relativeTo: .body) private var tileMinHeight: CGFloat = 92
+
     var body: some View {
-        HStack(spacing: 12) {
-            PhotoDeleteIconTile(
-                icon: progress.achievement.systemImage,
-                tint: progress.achievement.tint.color,
-                size: 40,
-                cornerRadius: 12,
-                style: progress.isUnlocked ? .solid : .soft
-            )
+        VStack(spacing: 7) {
+            CleanupAchievementMedal(progress: progress, size: medalSize)
 
-            VStack(alignment: .leading, spacing: 7) {
-                HStack(spacing: 7) {
-                    Text(progress.achievement.title)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(PhotoDeleteStyle.primaryText)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.78)
+            Text(progress.achievement.title)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(PhotoDeleteStyle.primaryText)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+                .frame(maxWidth: .infinity, minHeight: 28, alignment: .center)
 
-                    if progress.isUnlocked {
-                        Image(systemName: "checkmark.seal.fill")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(PhotoDeleteStyle.positive)
-                    }
-
-                    Spacer(minLength: 6)
-
-                    Text(progress.valueDescription)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(progress.isUnlocked ? PhotoDeleteStyle.positive : PhotoDeleteStyle.secondaryText)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.68)
-                }
-
-                Text(progress.achievement.subtitle)
-                    .font(.system(size: 12, weight: .regular))
-                    .foregroundColor(PhotoDeleteStyle.secondaryText)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.78)
-
-                ProgressView(value: progress.progress)
-                    .progressViewStyle(LinearProgressViewStyle(tint: progress.achievement.tint.color))
-                    .clipShape(Capsule(style: .continuous))
-            }
+            Text(progress.isUnlocked ? L10n.string("已点亮") : progress.valueDescription)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundColor(progress.isUnlocked ? progress.achievement.tint.color : PhotoDeleteStyle.secondaryText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.62)
         }
-        .padding(13)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(PhotoDeleteStyle.surface)
+        .frame(maxWidth: .infinity, minHeight: tileMinHeight)
+        .padding(.vertical, 4)
+        .opacity(progress.isUnlocked ? 1 : 0.58)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(Text("\(progress.achievement.title)，\(progress.achievement.subtitle)，\(progress.valueDescription)"))
+    }
+}
+
+private struct CleanupAchievementMedal: View {
+    let progress: CleanupAchievementProgress
+    var size: CGFloat = 56
+    var isFeatured = false
+
+    private var tint: Color {
+        progress.achievement.tint.color
+    }
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    progress.isUnlocked
+                    ? AnyShapeStyle(LinearGradient(
+                        colors: [tint.opacity(0.98), tint.opacity(0.68)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ))
+                    : AnyShapeStyle(PhotoDeleteStyle.surface)
+                )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    Circle()
                         .stroke(
-                            progress.isUnlocked ? progress.achievement.tint.color.opacity(0.26) : PhotoDeleteStyle.cardStroke,
-                            lineWidth: 1
+                            progress.isUnlocked ? tint.opacity(0.36) : PhotoDeleteStyle.cardStroke,
+                            lineWidth: progress.isUnlocked ? 1.5 : 1
                         )
                 )
-        )
-        .accessibilityElement(children: .combine)
+                .shadow(
+                    color: progress.isUnlocked ? tint.opacity(isFeatured ? 0.26 : 0.18) : .clear,
+                    radius: isFeatured ? 10 : 6,
+                    y: isFeatured ? 5 : 3
+                )
+
+            Image(systemName: progress.achievement.systemImage)
+                .symbolRenderingMode(.monochrome)
+                .font(.system(size: max(size * 0.38, 18), weight: .semibold))
+                .foregroundColor(progress.isUnlocked ? .white : tint.opacity(0.78))
+        }
+        .frame(width: size, height: size)
+        .overlay(alignment: .bottomTrailing) {
+            statusMarker
+        }
+    }
+
+    @ViewBuilder
+    private var statusMarker: some View {
+        let markerSize = max(size * 0.28, 15)
+
+        if progress.isUnlocked {
+            Image(systemName: "checkmark")
+                .font(.system(size: markerSize * 0.54, weight: .bold))
+                .foregroundColor(.white)
+                .frame(width: markerSize, height: markerSize)
+                .background(Circle().fill(PhotoDeleteStyle.positive))
+                .overlay(Circle().stroke(PhotoDeleteStyle.surface, lineWidth: 2))
+        } else {
+            Image(systemName: "lock.fill")
+                .font(.system(size: markerSize * 0.48, weight: .bold))
+                .foregroundColor(PhotoDeleteStyle.tertiaryText)
+                .frame(width: markerSize, height: markerSize)
+                .background(Circle().fill(PhotoDeleteStyle.elevatedSurface))
+                .overlay(Circle().stroke(PhotoDeleteStyle.surface, lineWidth: 1.5))
+        }
     }
 }
 

@@ -99,10 +99,14 @@ struct SettingsView: View {
                 SupporterView()
                     .environmentObject(dataManager)
                     .environmentObject(purchaseManager)
-            case .cleanupHistory:
-                CleanupHistoryView(statsStore: dataManager.cleanupStatsStore)
-            case .cleanupAchievements:
-                CleanupAchievementsView(statsStore: dataManager.cleanupStatsStore, showsDoneButton: true)
+            case .cleanupActivity:
+                NavigationStack {
+                    CleanupAchievementsView(
+                        statsStore: dataManager.cleanupStatsStore,
+                        showsDoneButton: true,
+                        showsHistory: true
+                    )
+                }
             case .gestureSettings:
                 GestureSettingsView()
             case .languageSettings:
@@ -169,26 +173,12 @@ struct SettingsView: View {
                     .padding(.horizontal, 16)
 
                 SettingRow(
-                    icon: "clock.arrow.circlepath",
-                    iconColor: PhotoDeleteStyle.positive,
-                    title: L10n.string("清理历史"),
-                    subtitle: L10n.string("查看本机清理记录和节省空间"),
-                    action: {
-                        activeSheet = .cleanupHistory
-                    }
-                )
-
-                Divider()
-                    .background(PhotoDeleteStyle.hairline)
-                    .padding(.horizontal, 16)
-
-                SettingRow(
                     icon: "seal.fill",
                     iconColor: PhotoDeleteStyle.warning,
-                    title: L10n.string("清理成就"),
-                    subtitle: cleanupAchievementsSubtitle,
+                    title: L10n.string("成就与历史"),
+                    subtitle: cleanupActivitySubtitle,
                     action: {
-                        activeSheet = .cleanupAchievements
+                        activeSheet = .cleanupActivity
                     }
                 )
             }
@@ -196,11 +186,12 @@ struct SettingsView: View {
         }
     }
 
-    private var cleanupAchievementsSubtitle: String {
+    private var cleanupActivitySubtitle: String {
         String(
-            format: L10n.string("已获得 %lld/%lld 枚徽章"),
+            format: L10n.string("已获得 %lld/%lld 枚徽章 · %lld 次清理"),
             Int64(dataManager.cleanupStatsStore.unlockedAchievements.count),
-            Int64(dataManager.cleanupStatsStore.achievementProgresses.count)
+            Int64(dataManager.cleanupStatsStore.achievementProgresses.count),
+            Int64(dataManager.cleanupStatsStore.summary.sessions)
         )
     }
 
@@ -763,8 +754,7 @@ private enum SettingsSheet: Identifiable {
     case author
     case privacy
     case supporter
-    case cleanupHistory
-    case cleanupAchievements
+    case cleanupActivity
     case gestureSettings
     case languageSettings
     case appearanceSettings
@@ -776,8 +766,7 @@ private enum SettingsSheet: Identifiable {
         case .author: return "author"
         case .privacy: return "privacy"
         case .supporter: return "supporter"
-        case .cleanupHistory: return "cleanupHistory"
-        case .cleanupAchievements: return "cleanupAchievements"
+        case .cleanupActivity: return "cleanupActivity"
         case .gestureSettings: return "gestureSettings"
         case .languageSettings: return "languageSettings"
         case .appearanceSettings: return "appearanceSettings"
