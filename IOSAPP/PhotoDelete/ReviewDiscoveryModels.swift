@@ -72,6 +72,7 @@ enum PhotoRandomReviewScope: String, CaseIterable, Identifiable, Codable, Hashab
 
 enum PhotoRandomReviewPlanner {
     static let defaultBatchSize = 20
+    static let continuousReviewLimit = Int.max
     static let oldPhotoMinimumMonthAge = 6
 
     static func plannedIdentifiers(

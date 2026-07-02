@@ -187,7 +187,7 @@ struct SwipePhotoView: View {
     }
 
     private var shouldPageSessionPhotos: Bool {
-        randomReviewScope == nil && selectedAdvancedCleanup == nil
+        selectedAdvancedCleanup == nil
     }
 
     private var activeAlbumInfo: AlbumInfo? {
@@ -847,12 +847,6 @@ struct SwipePhotoView: View {
                     }
                     .photoDeletePrimaryButton()
 
-                    if randomReviewScope != nil {
-                        Button(L10n.string("再随机一组")) {
-                            startNextRandomReviewSession()
-                        }
-                        .photoDeleteSecondaryButton()
-                    }
                 }
             }
             .padding(24)
@@ -863,7 +857,7 @@ struct SwipePhotoView: View {
     }
 
     private var completionTitle: String {
-        randomReviewScope == nil ? L10n.string("整理完成！") : L10n.string("这一组整理完了")
+        L10n.string("整理完成！")
     }
 
     private var completionSubtitle: String {
@@ -2140,24 +2134,6 @@ struct SwipePhotoView: View {
         } else {
             dismiss()
         }
-    }
-
-    private func startNextRandomReviewSession() {
-        guard randomReviewScope != nil else { return }
-        flushPendingSwipeMutations()
-        dataManager.clearRandomReviewSession(scopeID: sessionProgressScopeID)
-        actionHistory.removeAll()
-        currentPhotoIndex = 0
-        showCompletionMessage = false
-        didInitializeSession = false
-        sessionPhotos = []
-        allSessionPhotos = []
-        loadedSessionPhotoCount = 0
-        sessionReviewedCount = 0
-        cardModeReviewActionCount = 0
-        sessionDeleteActionCount = 0
-        initializeSessionIfNeeded()
-        HapticManager.impact(.light)
     }
 
     private func handleUndoAction() {

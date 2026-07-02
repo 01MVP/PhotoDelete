@@ -1575,6 +1575,24 @@ struct PhotoDeleteTests {
         #expect(Set(resolved).count == resolved.count)
     }
 
+    @Test func randomReviewPlannerContinuousModeDropsReviewedLegacySessionItems() async throws {
+        let identifiers = makeAssetIDs(120)
+        let reviewed = Set(identifiers.prefix(20))
+        let resolved = PhotoRandomReviewPlanner.resolvedSessionIdentifiers(
+            existingSessionIDs: Array(identifiers.prefix(30)),
+            candidateIdentifiers: identifiers,
+            validIdentifiers: Set(identifiers),
+            excludedIdentifiers: reviewed,
+            seed: "continuous",
+            limit: PhotoRandomReviewPlanner.continuousReviewLimit
+        )
+
+        #expect(resolved.count == 100)
+        #expect(Set(resolved) == Set(identifiers.dropFirst(20)))
+        #expect(Set(resolved).isDisjoint(with: reviewed))
+        #expect(Array(resolved.prefix(10)) == Array(identifiers.dropFirst(20).prefix(10)))
+    }
+
     @Test func randomReviewSessionStoreRoundTripsAndClearsScope() async throws {
         let suiteName = "PhotoDeleteRandomSession-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suiteName))

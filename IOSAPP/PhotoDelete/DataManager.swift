@@ -107,9 +107,13 @@ class DataManager: ObservableObject {
         let photoCount: Int
         let firstPhotoID: String?
         let lastPhotoID: String?
+        let assetLocationSignature: UInt64
         let reviewedCount: Int
+        let reviewedAssetSignature: UInt64
         let deleteCandidateCount: Int
+        let deleteCandidateSignature: UInt64
         let favoriteCandidateCount: Int
+        let favoriteCandidateSignature: UInt64
         let cachedTitleCount: Int
         let titleLocaleIdentifier: String
     }
@@ -749,7 +753,7 @@ class DataManager: ObservableObject {
     func makeRandomReviewPhotos(
         for scope: PhotoRandomReviewScope,
         scopeID: String,
-        limit: Int = PhotoRandomReviewPlanner.defaultBatchSize
+        limit: Int = PhotoRandomReviewPlanner.continuousReviewLimit
     ) -> [PHAsset] {
         let sourcePhotos = getPhotosForRandomReviewScope(scope)
         let validSourcePhotos = scope == .memories ? photoLibraryManager.allPhotos : sourcePhotos
@@ -762,8 +766,7 @@ class DataManager: ObservableObject {
             validIdentifiers: validIDs,
             excludedIdentifiers: randomReviewExcludedIdentifiers(),
             seed: UUID().uuidString,
-            limit: limit,
-            preservesExistingSessionIdentifiers: !existingIDs.isEmpty
+            limit: limit
         )
 
         guard !resolvedIDs.isEmpty else {
@@ -771,11 +774,8 @@ class DataManager: ObservableObject {
             return []
         }
 
-        if resolvedIDs != existingIDs {
-            PhotoRandomReviewSessionStore.save(
-                assetIdentifiers: resolvedIDs,
-                scopeID: scopeID
-            )
+        if !existingIDs.isEmpty {
+            PhotoRandomReviewSessionStore.clear(scopeID: scopeID)
         }
 
         return Self.assets(in: validSourcePhotos, preserving: resolvedIDs)
@@ -1571,9 +1571,13 @@ class DataManager: ObservableObject {
             photoCount: photos.count,
             firstPhotoID: photos.first?.localIdentifier,
             lastPhotoID: photos.last?.localIdentifier,
+            assetLocationSignature: Self.locationAssetSignature(for: photos),
             reviewedCount: reviewedIDs.count,
+            reviewedAssetSignature: Self.identifierSignature(reviewedIDs),
             deleteCandidateCount: deleteCandidateIDs.count,
+            deleteCandidateSignature: Self.identifierSignature(deleteCandidateIDs),
             favoriteCandidateCount: favoriteCandidateIDs.count,
+            favoriteCandidateSignature: Self.identifierSignature(favoriteCandidateIDs),
             cachedTitleCount: titleCache.count,
             titleLocaleIdentifier: titleLocaleIdentifier
         )
@@ -1918,6 +1922,43 @@ class DataManager: ObservableObject {
         )
     }
 
+    private static func locationAssetSignature(for assets: [PHAsset]) -> UInt64 {
+        assets.reduce(Self.signatureSeed) { hash, asset in
+            let coordinate = asset.location?.coordinate
+            let latitude = coordinate.map { Int64(($0.latitude * 1_000_000).rounded()) } ?? 0
+            let longitude = coordinate.map { Int64(($0.longitude * 1_000_000).rounded()) } ?? 0
+            return mixedSignature(
+                hash,
+                values: [
+                    asset.localIdentifier,
+                    "\(latitude)",
+                    "\(longitude)"
+                ]
+            )
+        }
+    }
+
+    private static func identifierSignature(_ identifiers: Set<String>) -> UInt64 {
+        mixedSignature(Self.signatureSeed, values: identifiers.sorted())
+    }
+
+    private static var signatureSeed: UInt64 {
+        14_695_981_039_346_656_037
+    }
+
+    private static func mixedSignature(_ initialHash: UInt64, values: [String]) -> UInt64 {
+        var hash = initialHash
+        for value in values {
+            for byte in value.utf8 {
+                hash ^= UInt64(byte)
+                hash &*= 1_099_511_628_211
+            }
+            hash ^= 0xff
+            hash &*= 1_099_511_628_211
+        }
+        return hash
+    }
+
     private func isAssetOrganized(_ asset: PHAsset) -> Bool {
         let identifier = asset.localIdentifier
         let deleteCandidateIDs = Set(deleteCandidates.map(\.localIdentifier))
@@ -2036,12 +2077,23 @@ class DataManager: ObservableObject {
         let workItem = DispatchWorkItem { [weak self] in
             guard let self, self.photoLibraryManager.hasPhotoLibraryAccess else { return }
             self.refreshDerivedLibraryData()
+            if self.hasLoadedLocationGroups {
+                self.loadLocationGroups(force: true)
+            }
             if self.hasLoadedAlbums {
                 self.loadAlbums(showLoading: false)
             }
         }
         libraryDataRefreshWorkItem = workItem
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
+    }
+
+    private var hasLoadedLocationGroups: Bool {
+        !locationGroups.isEmpty ||
+            isLoadingLocationGroups ||
+            isResolvingLocationTitles ||
+            unresolvedLocationGroupCount > 0 ||
+            lastLocationGroupBuildSignature != nil
     }
 
     // MARK: - 相册数据加载
