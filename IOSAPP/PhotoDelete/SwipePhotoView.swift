@@ -305,7 +305,7 @@ struct SwipePhotoView: View {
             syncPendingOperationCounts()
             initializeSessionIfNeeded()
         }) {
-            BatchConfirmView(albumInfo: activeAlbumInfo) {
+            BatchConfirmView(albumInfo: activeAlbumInfo) { _ in
                 if shouldDismissAfterBatch {
                     dismiss()
                 }

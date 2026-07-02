@@ -848,11 +848,18 @@ struct PhotoDeleteTests {
         #expect(store.summary.savedSizeMB == 38)
         #expect(store.sessions[0].formattedSavedSize == "38.0 MB")
         #expect(store.sessions[0].items == [item])
+        #expect(store.sessions[0].items.first?.isOriginalDeleted == false)
+
+        let deletedAt = makeDate(year: 2026, month: 6, day: 16, calendar: Calendar(identifier: .gregorian))
+        #expect(store.markOriginalsDeleted(assetIdentifiers: ["original-video"], date: deletedAt))
+        #expect(store.sessions[0].items.first?.originalDeletedAt == deletedAt)
+        #expect(!store.markOriginalsDeleted(assetIdentifiers: ["original-video"], date: deletedAt))
 
         let reloadedStore = VideoCompressionHistoryStore(fileURL: fileURL)
         #expect(reloadedStore.sessions.count == 1)
         #expect(reloadedStore.summary.compressedSizeMB == 62)
         #expect(reloadedStore.sessions[0].items.first?.createdAssetIdentifier == "compressed-copy")
+        #expect(reloadedStore.sessions[0].items.first?.originalDeletedAt == deletedAt)
     }
 
     @Test func dataManagerRecordsVideoCompressionHistoryAndUpdatesRevision() async throws {
@@ -930,11 +937,18 @@ struct PhotoDeleteTests {
         #expect(store.summary.savedSizeMB == 16)
         #expect(store.sessions[0].formattedSavedSize == "16.0 MB")
         #expect(store.sessions[0].items == [item])
+        #expect(store.sessions[0].items.first?.isOriginalDeleted == false)
+
+        let deletedAt = makeDate(year: 2026, month: 6, day: 26, calendar: Calendar(identifier: .gregorian))
+        #expect(store.markOriginalsDeleted(assetIdentifiers: ["original-image"], date: deletedAt))
+        #expect(store.sessions[0].items.first?.originalDeletedAt == deletedAt)
+        #expect(!store.markOriginalsDeleted(assetIdentifiers: ["original-image"], date: deletedAt))
 
         let reloadedStore = ImageCompressionHistoryStore(fileURL: fileURL)
         #expect(reloadedStore.sessions.count == 1)
         #expect(reloadedStore.summary.compressedSizeMB == 14)
         #expect(reloadedStore.sessions[0].items.first?.createdAssetIdentifier == "compressed-image")
+        #expect(reloadedStore.sessions[0].items.first?.originalDeletedAt == deletedAt)
     }
 
     @Test func dataManagerRecordsImageCompressionHistoryAndUpdatesRevision() async throws {
@@ -972,11 +986,16 @@ struct PhotoDeleteTests {
         let small = CGSize(width: 1_200, height: 900)
 
         #expect(ImageCompressionSize.original.targetPixelSize(for: large) == large)
-        #expect(ImageCompressionSize.automatic.targetPixelSize(for: large) == CGSize(width: 2_400, height: 1_800))
+        #expect(ImageCompressionSize.automatic.targetPixelSize(for: large) == CGSize(width: 3_200, height: 2_400))
         #expect(ImageCompressionSize.large.targetPixelSize(for: large) == CGSize(width: 2_400, height: 1_800))
         #expect(ImageCompressionSize.medium.targetPixelSize(for: large) == CGSize(width: 1_600, height: 1_200))
         #expect(ImageCompressionSize.automatic.targetPixelSize(for: small) == small)
         #expect(ImageCompressionSize.large.targetPixelSize(for: small) == small)
+    }
+
+    @Test func imageCompressionDefaultPlanPreservesMoreDetail() async throws {
+        #expect(ImageCompressionPlan.default.quality == .high)
+        #expect(ImageCompressionPlan.default.size == .automatic)
     }
 
     @Test func imageCompressionQualityRatiosAreOrdered() async throws {

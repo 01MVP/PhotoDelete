@@ -388,10 +388,10 @@ enum AppConstants {
     static let websiteURL = "https://01mvp.com"
     static let oneZenAppStoreURL = URL(string: "https://apps.apple.com/cn/app/id6780318004")!
     static let technicalAppName = "PhotoDelete"
-    static let zhHansAppStoreName = "删图"
-    static let enAppStoreName = "OneClean: Swipe Photo Cleaner"
+    static let zhHansAppStoreName = "OnePhoto 删图"
+    static let enAppStoreName = "OnePhoto Cleaner"
     static var appDisplayName: String {
-        L10n.string("删图")
+        L10n.string("OnePhoto 删图")
     }
     static let landscapeBreakpoint: CGFloat = 700
     static let hapticsEnabledKey = "photoDeleteHapticsEnabled"

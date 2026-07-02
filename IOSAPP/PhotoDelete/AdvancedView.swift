@@ -1633,17 +1633,15 @@ private struct AdvancedAssetListView: View {
     }
 
     private func sizeFirstOrder(_ lhs: PHAsset, _ rhs: PHAsset) -> Bool {
-        let lhsSize = reliableSortSizeMB(for: lhs)
-        let rhsSize = reliableSortSizeMB(for: rhs)
-        switch (lhsSize, rhsSize) {
-        case let (lhsSize?, rhsSize?) where lhsSize != rhsSize:
-            return lhsSize > rhsSize
-        case (.some, nil):
-            return true
-        case (nil, .some):
-            return false
-        default:
-            break
+        let lhsRank = sizeSortRank(for: lhs)
+        let rhsRank = sizeSortRank(for: rhs)
+
+        if lhsRank.priority != rhsRank.priority {
+            return lhsRank.priority < rhsRank.priority
+        }
+
+        if lhsRank.sizeMB != rhsRank.sizeMB {
+            return lhsRank.sizeMB > rhsRank.sizeMB
         }
 
         let lhsDate = lhs.creationDate ?? .distantPast
@@ -1655,11 +1653,18 @@ private struct AdvancedAssetListView: View {
         return lhs.localIdentifier < rhs.localIdentifier
     }
 
-    private func reliableSortSizeMB(for asset: PHAsset) -> Double? {
+    private func sizeSortRank(for asset: PHAsset) -> (priority: Int, sizeMB: Double) {
         if asset.mediaType == .video {
-            return reliableVideoSizeMB(for: asset) ?? dataManager.estimatedSizeMB(for: asset)
+            guard let estimate = videoSizeEstimatesByAssetID[asset.localIdentifier] else {
+                return (priority: 1, sizeMB: dataManager.estimatedSizeMB(for: asset))
+            }
+            guard estimate.isReliable else {
+                return (priority: 1, sizeMB: dataManager.estimatedSizeMB(for: asset))
+            }
+            return (priority: 0, sizeMB: estimate.sizeMB)
         }
-        return dataManager.estimatedSizeMB(for: asset)
+
+        return (priority: 0, sizeMB: dataManager.estimatedSizeMB(for: asset))
     }
 
     private func sizeStatusSystemImage(for asset: PHAsset) -> String? {
@@ -1988,7 +1993,9 @@ private struct AdvancedImageCompressionView: View {
                 dismissCompressionResultAfterBatch = false
             }
         }) {
-            BatchConfirmView()
+            BatchConfirmView { deletedAssetIDs in
+                dataManager.markImageCompressionOriginalsDeleted(assetIdentifiers: deletedAssetIDs)
+            }
                 .environmentObject(dataManager)
         }
         .sheet(item: $previewAsset) { item in
@@ -2105,7 +2112,10 @@ private struct AdvancedImageCompressionView: View {
                 sessions: dataManager.imageCompressionHistoryStore.sessions,
                 photoLibraryManager: dataManager.photoLibraryManager,
                 startsExpanded: true,
-                onDeleteOriginals: queueCompressedHistoryOriginalImagesForDeletion
+                onDeleteOriginals: queueCompressedHistoryOriginalImagesForDeletion,
+                onPreview: { asset in
+                    previewAsset = AdvancedPreviewAsset(asset: asset)
+                }
             )
         }
     }
@@ -2723,17 +2733,20 @@ private struct AdvancedImageCompressionHistoryCard: View {
     let sessions: [ImageCompressionSession]
     let photoLibraryManager: PhotoLibraryManager
     let onDeleteOriginals: (() -> Void)?
+    let onPreview: ((PHAsset) -> Void)?
     @State private var isExpanded = false
 
     init(
         sessions: [ImageCompressionSession],
         photoLibraryManager: PhotoLibraryManager,
         startsExpanded: Bool = false,
-        onDeleteOriginals: (() -> Void)? = nil
+        onDeleteOriginals: (() -> Void)? = nil,
+        onPreview: ((PHAsset) -> Void)? = nil
     ) {
         self.sessions = sessions
         self.photoLibraryManager = photoLibraryManager
         self.onDeleteOriginals = onDeleteOriginals
+        self.onPreview = onPreview
         _isExpanded = State(initialValue: startsExpanded)
     }
 
@@ -2834,7 +2847,8 @@ private struct AdvancedImageCompressionHistoryCard: View {
                                 ForEach(Array(session.items.prefix(3))) { item in
                                     AdvancedImageCompressionHistoryItemRow(
                                         item: item,
-                                        photoLibraryManager: photoLibraryManager
+                                        photoLibraryManager: photoLibraryManager,
+                                        onPreview: onPreview
                                     )
                                 }
 
@@ -2867,6 +2881,7 @@ private struct AdvancedImageCompressionHistoryCard: View {
 private struct AdvancedImageCompressionHistoryItemRow: View {
     let item: ImageCompressionSessionItem
     let photoLibraryManager: PhotoLibraryManager
+    let onPreview: ((PHAsset) -> Void)?
 
     private var originalAsset: PHAsset? {
         PHAsset.fetchAssets(withLocalIdentifiers: [item.originalAssetIdentifier], options: nil).firstObject
@@ -2877,7 +2892,29 @@ private struct AdvancedImageCompressionHistoryItemRow: View {
         return PHAsset.fetchAssets(withLocalIdentifiers: [createdAssetIdentifier], options: nil).firstObject
     }
 
+    private var canPreviewCompressedAsset: Bool {
+        compressedAsset != nil && onPreview != nil
+    }
+
+    private var isOriginalDeleted: Bool {
+        item.isOriginalDeleted || originalAsset == nil
+    }
+
+    @ViewBuilder
     var body: some View {
+        if let compressedAsset, let onPreview {
+            Button {
+                onPreview(compressedAsset)
+            } label: {
+                rowContent
+            }
+            .buttonStyle(.plain)
+        } else {
+            rowContent
+        }
+    }
+
+    private var rowContent: some View {
         HStack(alignment: .center, spacing: 10) {
             thumbnail(for: compressedAsset)
 
@@ -2894,7 +2931,7 @@ private struct AdvancedImageCompressionHistoryItemRow: View {
 
                 Label(originalStatusText, systemImage: originalStatusIcon)
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(originalAsset == nil ? PhotoDeleteStyle.positive : PhotoDeleteStyle.warning)
+                    .foregroundColor(isOriginalDeleted ? PhotoDeleteStyle.positive : PhotoDeleteStyle.warning)
                     .lineLimit(1)
             }
 
@@ -2903,6 +2940,12 @@ private struct AdvancedImageCompressionHistoryItemRow: View {
             Text(item.formattedSavedSize)
                 .font(.system(size: 12, weight: .bold))
                 .foregroundColor(item.savedSizeMB > 0 ? PhotoDeleteStyle.positive : PhotoDeleteStyle.warning)
+
+            if canPreviewCompressedAsset {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+            }
         }
         .padding(9)
         .background(
@@ -2933,11 +2976,11 @@ private struct AdvancedImageCompressionHistoryItemRow: View {
     }
 
     private var originalStatusText: String {
-        originalAsset == nil ? L10n.string("原图已删除") : L10n.string("原图仍保留")
+        isOriginalDeleted ? L10n.string("原图已删除") : L10n.string("原图仍保留")
     }
 
     private var originalStatusIcon: String {
-        originalAsset == nil ? "checkmark.circle.fill" : "exclamationmark.circle"
+        isOriginalDeleted ? "checkmark.circle.fill" : "exclamationmark.circle"
     }
 
     private func title(for asset: PHAsset?, fallback: String) -> String {
@@ -3247,7 +3290,9 @@ private struct AdvancedVideoCompressionView: View {
                 dismissCompressionResultAfterBatch = false
             }
         }) {
-            BatchConfirmView()
+            BatchConfirmView { deletedAssetIDs in
+                dataManager.markVideoCompressionOriginalsDeleted(assetIdentifiers: deletedAssetIDs)
+            }
                 .environmentObject(dataManager)
         }
         .sheet(item: $previewAsset) { item in
@@ -3384,7 +3429,10 @@ private struct AdvancedVideoCompressionView: View {
                 sessions: dataManager.videoCompressionHistoryStore.sessions,
                 photoLibraryManager: dataManager.photoLibraryManager,
                 startsExpanded: true,
-                onDeleteOriginals: queueCompressedHistoryOriginalVideosForDeletion
+                onDeleteOriginals: queueCompressedHistoryOriginalVideosForDeletion,
+                onPreview: { asset in
+                    previewAsset = AdvancedPreviewAsset(asset: asset)
+                }
             )
         }
     }
@@ -3476,17 +3524,15 @@ private struct AdvancedVideoCompressionView: View {
     }
 
     private func videoSizeFirstOrder(_ lhs: PHAsset, _ rhs: PHAsset) -> Bool {
-        let lhsSize = sortSizeMB(for: lhs)
-        let rhsSize = sortSizeMB(for: rhs)
-        switch (lhsSize, rhsSize) {
-        case let (lhsSize?, rhsSize?) where lhsSize != rhsSize:
-            return lhsSize > rhsSize
-        case (.some, nil):
-            return true
-        case (nil, .some):
-            return false
-        default:
-            break
+        let lhsRank = videoSizeSortRank(for: lhs)
+        let rhsRank = videoSizeSortRank(for: rhs)
+
+        if lhsRank.priority != rhsRank.priority {
+            return lhsRank.priority < rhsRank.priority
+        }
+
+        if lhsRank.sizeMB != rhsRank.sizeMB {
+            return lhsRank.sizeMB > rhsRank.sizeMB
         }
 
         let lhsDate = lhs.creationDate ?? .distantPast
@@ -3498,8 +3544,14 @@ private struct AdvancedVideoCompressionView: View {
         return lhs.localIdentifier < rhs.localIdentifier
     }
 
-    private func sortSizeMB(for asset: PHAsset) -> Double? {
-        reliableSizeMB(for: asset) ?? dataManager.estimatedSizeMB(for: asset)
+    private func videoSizeSortRank(for asset: PHAsset) -> (priority: Int, sizeMB: Double) {
+        guard let estimate = videoSizeEstimatesByAssetID[asset.localIdentifier] else {
+            return (priority: 1, sizeMB: dataManager.estimatedSizeMB(for: asset))
+        }
+        guard estimate.isReliable else {
+            return (priority: 1, sizeMB: dataManager.estimatedSizeMB(for: asset))
+        }
+        return (priority: 0, sizeMB: estimate.sizeMB)
     }
 
     private func hasReliableSizes(for selectedAssets: [PHAsset]) -> Bool {
@@ -4482,17 +4534,20 @@ private struct AdvancedVideoCompressionHistoryCard: View {
     let sessions: [VideoCompressionSession]
     let photoLibraryManager: PhotoLibraryManager
     let onDeleteOriginals: (() -> Void)?
+    let onPreview: ((PHAsset) -> Void)?
     @State private var isExpanded = false
 
     init(
         sessions: [VideoCompressionSession],
         photoLibraryManager: PhotoLibraryManager,
         startsExpanded: Bool = false,
-        onDeleteOriginals: (() -> Void)? = nil
+        onDeleteOriginals: (() -> Void)? = nil,
+        onPreview: ((PHAsset) -> Void)? = nil
     ) {
         self.sessions = sessions
         self.photoLibraryManager = photoLibraryManager
         self.onDeleteOriginals = onDeleteOriginals
+        self.onPreview = onPreview
         _isExpanded = State(initialValue: startsExpanded)
     }
 
@@ -4593,7 +4648,8 @@ private struct AdvancedVideoCompressionHistoryCard: View {
                                 ForEach(Array(session.items.prefix(3))) { item in
                                     AdvancedVideoCompressionHistoryItemRow(
                                         item: item,
-                                        photoLibraryManager: photoLibraryManager
+                                        photoLibraryManager: photoLibraryManager,
+                                        onPreview: onPreview
                                     )
                                 }
 
@@ -4626,6 +4682,7 @@ private struct AdvancedVideoCompressionHistoryCard: View {
 private struct AdvancedVideoCompressionHistoryItemRow: View {
     let item: VideoCompressionSessionItem
     let photoLibraryManager: PhotoLibraryManager
+    let onPreview: ((PHAsset) -> Void)?
 
     private var originalAsset: PHAsset? {
         PHAsset.fetchAssets(withLocalIdentifiers: [item.originalAssetIdentifier], options: nil).firstObject
@@ -4636,7 +4693,29 @@ private struct AdvancedVideoCompressionHistoryItemRow: View {
         return PHAsset.fetchAssets(withLocalIdentifiers: [createdAssetIdentifier], options: nil).firstObject
     }
 
+    private var isOriginalDeleted: Bool {
+        item.isOriginalDeleted || originalAsset == nil
+    }
+
+    private var canPreviewCompressedAsset: Bool {
+        compressedAsset != nil && onPreview != nil
+    }
+
+    @ViewBuilder
     var body: some View {
+        if let compressedAsset, let onPreview {
+            Button {
+                onPreview(compressedAsset)
+            } label: {
+                rowContent
+            }
+            .buttonStyle(.plain)
+        } else {
+            rowContent
+        }
+    }
+
+    private var rowContent: some View {
         HStack(alignment: .center, spacing: 10) {
             thumbnail(for: compressedAsset)
 
@@ -4653,7 +4732,7 @@ private struct AdvancedVideoCompressionHistoryItemRow: View {
 
                 Label(originalStatusText, systemImage: originalStatusIcon)
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(originalAsset == nil ? PhotoDeleteStyle.positive : PhotoDeleteStyle.warning)
+                    .foregroundColor(isOriginalDeleted ? PhotoDeleteStyle.positive : PhotoDeleteStyle.warning)
                     .lineLimit(1)
             }
 
@@ -4662,6 +4741,12 @@ private struct AdvancedVideoCompressionHistoryItemRow: View {
             Text(item.formattedSavedSize)
                 .font(.system(size: 12, weight: .bold))
                 .foregroundColor(item.savedSizeMB > 0 ? PhotoDeleteStyle.positive : PhotoDeleteStyle.warning)
+
+            if canPreviewCompressedAsset {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+            }
         }
         .padding(9)
         .background(
@@ -4692,11 +4777,11 @@ private struct AdvancedVideoCompressionHistoryItemRow: View {
     }
 
     private var originalStatusText: String {
-        originalAsset == nil ? L10n.string("原视频已删除") : L10n.string("原视频仍保留")
+        isOriginalDeleted ? L10n.string("原视频已删除") : L10n.string("原视频仍保留")
     }
 
     private var originalStatusIcon: String {
-        originalAsset == nil ? "checkmark.circle.fill" : "exclamationmark.circle"
+        isOriginalDeleted ? "checkmark.circle.fill" : "exclamationmark.circle"
     }
 
     private func title(for asset: PHAsset?, fallback: String) -> String {

@@ -538,6 +538,16 @@ class DataManager: ObservableObject {
         imageCompressionHistoryRevision = UUID()
     }
 
+    func markVideoCompressionOriginalsDeleted(assetIdentifiers: Set<String>) {
+        guard videoCompressionHistoryStore.markOriginalsDeleted(assetIdentifiers: assetIdentifiers) else { return }
+        videoCompressionHistoryRevision = UUID()
+    }
+
+    func markImageCompressionOriginalsDeleted(assetIdentifiers: Set<String>) {
+        guard imageCompressionHistoryStore.markOriginalsDeleted(assetIdentifiers: assetIdentifiers) else { return }
+        imageCompressionHistoryRevision = UUID()
+    }
+
     func startImageCompression(images: [PHAsset], plan: ImageCompressionPlan) {
         guard !images.isEmpty, !imageCompressionJob.isCompressing else { return }
 

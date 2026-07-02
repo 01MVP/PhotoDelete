@@ -10,7 +10,7 @@
 
 默认规则：
 
-- 设备桌面显示名只使用英文品牌名，例如 `OnePhoto`、`OneSay`、`OneWish`、`OneZen`。
+- 设备桌面显示名通常只使用英文品牌名，例如 `OneSay`、`OneWish`、`OneZen`；若产品为了搜索采用拆词命名，以当前落地标准为准。
 - App Store 主名称使用“品牌名 + 本地化功能词”。
 - 中文别名只作为解释、搜索和传播辅助，不再作为主品牌。
 - 官网、截图、Logo、导航、多产品合集页统一使用 `One*` 主品牌。
@@ -29,7 +29,6 @@ One + ProductWord
 示例：
 
 ```text
-OnePhoto
 OneSay
 OneWish
 OneZen
@@ -49,8 +48,8 @@ OneZen
 | 层级 | 用途 | 规则 | 示例 |
 | --- | --- | --- | --- |
 | Series Name | 系列母品牌 | 固定为 `One` | `One` |
-| Product Brand | 单品主品牌 | `One` + 一个英文词 | `OnePhoto` |
-| App Store Name | 商店搜索和转化 | 品牌 + 本地化功能词 | `OnePhoto: Photo Cleaner` / `OnePhoto - 删图` |
+| Product Brand | 单品主品牌 | `One` + 一个英文词，或按产品检索需要拆词 | `OnePhoto` |
+| App Store Name | 商店搜索和转化 | 品牌 + 本地化功能词；若精准品牌名被占用，记录实际可用名 | `OnePhoto Cleaner` / `OnePhoto 删图` |
 | Chinese Alias | 中文解释别名 | 只解释，不做主品牌 | `删图`、`一言`、`一愿` |
 
 ## 设备显示名
@@ -67,7 +66,6 @@ OneZen
 正确示例：
 
 ```text
-OnePhoto
 OneSay
 OneWish
 OneZen
@@ -95,14 +93,14 @@ App Store 名称承担两个任务：品牌识别和搜索转化。
 命名格式：
 
 ```text
-英文区：OneProduct: Core Keyword
-中文区：OneProduct - 中文功能词
+英文区：OneProduct: Core Keyword，或记录已验证可用的检索名
+中文区：OneProduct 中文功能词，或记录已验证可用的本地化名
 ```
 
 规则：
 
-- 英文区保留 `OneProduct`，后接高意图英文关键词。
-- 中文区保留 `OneProduct`，后接短中文功能词。
+- 英文区优先保留品牌，必要时后接高意图英文关键词。
+- 中文区优先保留品牌，后接短中文功能词。
 - 不堆叠多个关键词。
 - 不把中文别名放在品牌前面。
 - 不使用纯功能名作为 App Store 名称。
@@ -111,17 +109,18 @@ App Store 名称承担两个任务：品牌识别和搜索转化。
 OnePhoto 当前标准：
 
 ```text
-英文 App Store：OnePhoto: Photo Cleaner
-中文 App Store：OnePhoto - 删图
-设备显示名：OnePhoto
+英文 App Store：OnePhoto Cleaner
+中文 App Store：OnePhoto 删图
+英文设备显示名：OnePhoto
+中文设备显示名：OnePhoto 删图
 ```
 
 不推荐：
 
 ```text
-删图 - OnePhoto相册清理
-OnePhoto - 删图 照片清理
-Photo Delete: Swipe Cleaner
+删图 - 旧品牌相册清理
+OnePhoto 删图 照片清理
+旧品牌: Swipe Cleaner
 Photo Cleaner
 ```
 
@@ -153,19 +152,19 @@ OnePhoto 示例：
 - 第一次介绍产品时：
 
 ```text
-OnePhoto，一款用滑动方式删图和整理相册的工具。
+OnePhoto 删图，一款用滑动方式删图和整理相册的工具。
 ```
 
 - 中文 App Store 名称中的功能词：
 
 ```text
-OnePhoto - 删图
+OnePhoto 删图
 ```
 
 - 中文文章标题或小红书/公众号说明：
 
 ```text
-我做了 OnePhoto：一个删除前可确认的删图工具
+我做了 OnePhoto 删图：一个删除前可确认的删图工具
 ```
 
 - SEO/ASO 关键词：
@@ -195,7 +194,7 @@ OnePhoto - 删图
 | OneSay | 一言 | OneSay | `OneSay，一款语音/记录工具` |
 | OneWish | 一愿 | OneWish | `OneWish，帮你生成和保存愿望画面` |
 | OneZen | 可保留中文解释词 | OneZen | `OneZen，冥想、呼吸与专注练习` |
-| OnePhoto | 删图 | OnePhoto | `OnePhoto - 删图` 仅用于 App Store 中文区 |
+| OnePhoto | 删图 | OnePhoto | `OnePhoto 删图` 用于中文 App Store 和中文区品牌位 |
 
 迁移原则：
 
@@ -211,14 +210,14 @@ OnePhoto - 删图
 推荐结构：
 
 ```text
-H1：OnePhoto: Photo Cleaner
+H1：OnePhoto
 副文案：Swipe through your camera roll, review before deleting, and keep cleanup on device.
 ```
 
 中文页推荐：
 
 ```text
-H1：OnePhoto - 删图
+H1：OnePhoto 删图
 副文案：用滑动方式整理照片，删除前统一确认。
 ```
 
@@ -237,19 +236,20 @@ Footer：
 不推荐：
 
 ```text
-删图 - 相册清理助手 | OnePhoto
-Photo Delete: Swipe Cleaner
+删图 - 相册清理助手 | 旧品牌
+旧品牌: Swipe Cleaner
 ```
 
 ## 截图与营销素材
 
-截图和营销素材的品牌位统一使用 `OneProduct`。
+截图和营销素材的品牌位统一使用当前产品展示名。
 
 规则：
 
-- 截图角标、封面、视频开头统一使用英文主品牌。
+- 英文素材使用 `OnePhoto`。
+- 中文素材使用 `OnePhoto 删图`。
 - 中文卖点可以写中文，但品牌不翻译。
-- 不在同一张图里同时出现 `OnePhoto`、`删图`、`Photo Delete` 三套名字。
+- 不在同一张图里同时出现 `OnePhoto`、`删图`、旧品牌三套名字。
 - 若需要中文解释，用一句功能说明承接。
 
 正确示例：
@@ -264,7 +264,7 @@ OnePhoto
 ```text
 删图
 Photo Delete
-OnePhoto
+旧品牌
 ```
 
 三者同时出现会稀释品牌。
@@ -285,7 +285,7 @@ OnePhoto 当前标准：
 
 ```text
 英文：OnePhoto Supporter
-中文：OnePhoto 支持者版
+中文：OnePhoto 删图支持者版
 ```
 
 规则：
@@ -372,17 +372,18 @@ OnePhoto 是本规范的第一批落地产品。
 当前标准：
 
 ```text
-设备显示名：OnePhoto
-英文 App Store：OnePhoto: Photo Cleaner
-中文 App Store：OnePhoto - 删图
+英文设备显示名：OnePhoto
+中文设备显示名：OnePhoto 删图
+英文 App Store：OnePhoto Cleaner
+中文 App Store：OnePhoto 删图
 英文内购：OnePhoto Supporter
-中文内购：OnePhoto 支持者版
+中文内购：OnePhoto 删图支持者版
 ```
 
 中文介绍口径：
 
 ```text
-OnePhoto 是一款用滑动方式整理照片的 iPhone 工具。删除不会立刻执行，所有待删照片都会先进入确认页。
+OnePhoto 删图是一款用滑动方式整理照片的 iPhone 工具。删除不会立刻执行，所有待删照片都会先进入确认页。
 ```
 
 英文介绍口径：
@@ -412,6 +413,6 @@ OnePhoto helps you clean up your iPhone photo library with a safe swipe workflow
 
 - One 系列以后统一英文主品牌。
 - 中文别名保留解释价值，但不再作为设备显示名和主品牌。
-- OnePhoto 使用 `OnePhoto: Photo Cleaner` 作为英文 App Store 名称。
-- OnePhoto 使用 `OnePhoto - 删图` 作为中文 App Store 名称。
-- OnePhoto 安装到中文用户手机上仍显示 `OnePhoto`。
+- OnePhoto 原计划使用 `OnePhoto` 作为英文 App Store 名称，但该名称已被 App Store Connect 占用，实际英文 App Store 名称改为 `OnePhoto Cleaner`。
+- OnePhoto 使用 `OnePhoto 删图` 作为中文 App Store 名称。
+- OnePhoto 安装到英文用户手机上显示 `OnePhoto`，安装到中文用户手机上显示 `OnePhoto 删图`。

@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="IOSAPP/PhotoDelete/Assets.xcassets/AppIcon.appiconset/Icon-1024.png" width="120" alt="PhotoDelete app icon" />
+  <img src="IOSAPP/PhotoDelete/Assets.xcassets/AppIcon.appiconset/Icon-1024.png" width="120" alt="OnePhoto app icon" />
 </p>
 
-<h1 align="center">PhotoDelete / 删图</h1>
+<h1 align="center">OnePhoto / PhotoDelete</h1>
 
 <p align="center">
   <strong>Swipe through your camera roll, queue decisions safely, and confirm before anything is changed.</strong><br />
@@ -22,7 +22,7 @@
 </p>
 
 <p align="center">
-  <img src="site/assets/photodelete-home.jpg" width="320" alt="PhotoDelete home screen" />
+  <img src="site/assets/photodelete-home.jpg" width="320" alt="OnePhoto home screen" />
 </p>
 
 <p align="center">
@@ -33,7 +33,7 @@
 
 ### 项目定位
 
-PhotoDelete（中文显示名：删图）是一款 iPhone 相册整理工具。它用卡片滑动和双行浏览两种模式帮助用户快速判断照片去留：左滑加入待删除、右滑保留、上滑收藏、下滑跳过。所有删除和收藏都会先进入候选库，用户在确认页复核后，应用才会通过系统 Photos 框架执行真实操作。
+OnePhoto 删图（技术项目名：PhotoDelete）是一款 iPhone 相册整理工具。它用卡片滑动和双行浏览两种模式帮助用户快速判断照片去留：左滑加入待删除、右滑保留、上滑收藏、下滑跳过。所有删除和收藏都会先进入候选库，用户在确认页复核后，应用才会通过系统 Photos 框架执行真实操作。
 
 核心清理功能免费、无账号、无广告。支持者版通过 StoreKit 一次性内购解锁长期清理统计、成就、按日/周/月/年整理和进阶清理队列。照片处理在本机完成，应用不会上传照片、视频或整理决策。
 
@@ -133,7 +133,7 @@ BUILD_NUMBER=202606111630 scripts/release-testflight.sh
 
 ### 隐私
 
-PhotoDelete 使用系统 Photos 框架读取和管理照片。照片、视频、相册内容和整理决策不会上传到服务器。应用没有接入第三方广告追踪 SDK；StoreKit 内购、评分、外部链接和邮件反馈会使用相应的系统能力。
+OnePhoto 删图使用系统 Photos 框架读取和管理照片。照片、视频、相册内容和整理决策不会上传到服务器。应用没有接入第三方广告追踪 SDK；StoreKit 内购、评分、外部链接和邮件反馈会使用相应的系统能力。
 
 隐私政策：[photodelete.01mvp.com/privacy](https://photodelete.01mvp.com/privacy/)
 
@@ -150,7 +150,7 @@ PhotoDelete 使用系统 Photos 框架读取和管理照片。照片、视频、
 
 ### What It Is
 
-PhotoDelete is an iPhone photo cleanup app built with SwiftUI and the Photos framework. It lets you review your camera roll with swipe gestures or a two-row browser, queue delete/favorite decisions safely, then confirm everything before the app writes changes back to the real Photos library.
+OnePhoto is an iPhone photo cleanup app built with SwiftUI and the Photos framework. The technical project name remains PhotoDelete. It lets you review your camera roll with swipe gestures or a two-row browser, queue delete/favorite decisions safely, then confirm everything before the app writes changes back to the real Photos library.
 
 The core cleanup flow is free, accountless, ad-free, and on-device. A one-time StoreKit supporter unlock adds long-term cleanup stats, achievements, day/week/month/year review, and advanced cleanup queues. The app does not upload photos, videos, or cleanup decisions.
 
@@ -250,7 +250,7 @@ The website and privacy policy live in `site/` and deploy to Cloudflare Pages at
 
 ### Privacy
 
-PhotoDelete uses Apple's Photos framework to read and manage the local library. Photos, videos, library contents, and cleanup decisions are not uploaded to a server. The app does not include third-party advertising tracking SDKs; StoreKit purchases, ratings, external links, and mail feedback use their corresponding system services.
+OnePhoto uses Apple's Photos framework to read and manage the local library. Photos, videos, library contents, and cleanup decisions are not uploaded to a server. The app does not include third-party advertising tracking SDKs; StoreKit purchases, ratings, external links, and mail feedback use their corresponding system services.
 
 Privacy Policy: [photodelete.01mvp.com/en/privacy](https://photodelete.01mvp.com/en/privacy/)
 

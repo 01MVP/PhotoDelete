@@ -161,7 +161,7 @@ private struct SupporterPaywallContent: View {
                 }
 
                 VStack(spacing: 8) {
-                    Text(L10n.string("删图支持者版"))
+                    Text(L10n.string("OnePhoto 删图支持者版"))
                         .font(.system(size: 28, weight: .semibold))
                         .foregroundColor(PhotoDeleteStyle.primaryText)
 
@@ -833,7 +833,7 @@ struct CleanupHistoryView: View {
             }
             Button(L10n.string("取消"), role: .cancel) {}
         } message: {
-            Text(L10n.string("只会清空删图的本机统计，不会影响照片。"))
+            Text(L10n.string("只会清空 OnePhoto 删图的本机统计，不会影响照片。"))
         }
     }
 }

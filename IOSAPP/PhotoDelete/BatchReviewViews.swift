@@ -23,10 +23,11 @@ struct BatchConfirmView: View {
     @State private var showAchievements = false
     @State private var selectedDeleteIDs: Set<String> = []
     @State private var selectedFavoriteIDs: Set<String> = []
+    @State private var completedDeletedIDs: Set<String> = []
     let albumInfo: AlbumInfo?
-    let onComplete: (() -> Void)?
+    let onComplete: ((Set<String>) -> Void)?
 
-    init(albumInfo: AlbumInfo? = nil, onComplete: (() -> Void)? = nil) {
+    init(albumInfo: AlbumInfo? = nil, onComplete: ((Set<String>) -> Void)? = nil) {
         self.albumInfo = albumInfo
         self.onComplete = onComplete
     }
@@ -235,6 +236,7 @@ struct BatchConfirmView: View {
             DispatchQueue.main.async {
                 isProcessing = false
                 if success {
+                    completedDeletedIDs = Set(deletedAssets.map(\.localIdentifier))
                     completedCelebration = celebration ?? CleanupCelebration(
                         deletedPhotos: deletedAssets.count,
                         favoritedPhotos: favoriteAssets.count,
@@ -296,7 +298,7 @@ struct BatchConfirmView: View {
 
     private func finishCompletedFlow() {
         dismiss()
-        onComplete?()
+        onComplete?(completedDeletedIDs)
     }
 
     private func cancelOperations() {

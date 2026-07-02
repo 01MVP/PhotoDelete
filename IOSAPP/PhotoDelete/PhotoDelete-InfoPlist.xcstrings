@@ -8,19 +8,19 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "OneClean"
+            "value": "OnePhoto"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "删图"
+            "value": "OnePhoto 删图"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "刪圖"
+            "value": "OnePhoto 刪圖"
           }
         }
       }
@@ -32,19 +32,19 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "OneClean"
+            "value": "OnePhoto"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "删图"
+            "value": "OnePhoto 删图"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "刪圖"
+            "value": "OnePhoto 刪圖"
           }
         }
       }
@@ -56,19 +56,19 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "OneClean needs permission to favorite photos, add them to albums, save compressed copies, and apply changes after you confirm."
+            "value": "OnePhoto needs permission to favorite photos, add them to albums, save compressed copies, and apply changes after you confirm."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "删图需要权限来收藏照片、加入相册、保存压缩副本，并在您确认后执行选择的更改。"
+            "value": "OnePhoto 删图需要权限来收藏照片、加入相册、保存压缩副本，并在您确认后执行选择的更改。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "刪圖需要權限來收藏照片、加入相簿、保存壓縮副本，並在你確認後執行選擇的更改。"
+            "value": "OnePhoto 刪圖需要權限來收藏照片、加入相簿、保存壓縮副本，並在你確認後執行選擇的更改。"
           }
         }
       }
@@ -80,19 +80,19 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "OneClean needs access to read, organize, favorite, and delete selected photos after you confirm. We never upload or share your photos."
+            "value": "OnePhoto needs access to read, organize, favorite, and delete selected photos after you confirm. We never upload or share your photos."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "删图需要访问照片库来读取、整理、收藏，并在您确认后删除选择的照片。我们不会上传或分享您的照片。"
+            "value": "OnePhoto 删图需要访问照片库来读取、整理、收藏，并在您确认后删除选择的照片。我们不会上传或分享您的照片。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "刪圖需要訪問照片庫來讀取、整理、收藏，並在你確認後刪除選擇的照片。我們不會上傳或分享你的照片。"
+            "value": "OnePhoto 刪圖需要訪問照片庫來讀取、整理、收藏，並在你確認後刪除選擇的照片。我們不會上傳或分享你的照片。"
           }
         }
       }

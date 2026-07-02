@@ -339,7 +339,7 @@ enum ImageCompressionSize: String, CaseIterable, Identifiable {
         case .original:
             return L10n.string("不改变尺寸，只调整图片编码质量。")
         case .automatic:
-            return L10n.string("超大图片缩到 2400px，较小图片保持原尺寸。")
+            return L10n.string("超大图片缩到 3200px，较小图片保持原尺寸。")
         case .large:
             return L10n.string("适合日常照片备份，细节和体积更平衡。")
         case .medium:
@@ -351,7 +351,9 @@ enum ImageCompressionSize: String, CaseIterable, Identifiable {
         switch self {
         case .original:
             return nil
-        case .automatic, .large:
+        case .automatic:
+            return 3_200
+        case .large:
             return 2_400
         case .medium:
             return 1_600
@@ -367,7 +369,7 @@ enum ImageCompressionSize: String, CaseIterable, Identifiable {
         case .original:
             return CGSize(width: width.rounded(), height: height.rounded())
         case .automatic:
-            guard longEdge > 3_000 else {
+            guard longEdge > 3_600 else {
                 return CGSize(width: width.rounded(), height: height.rounded())
             }
         case .large, .medium:
@@ -388,7 +390,7 @@ struct ImageCompressionPlan: Equatable {
     var quality: ImageCompressionQuality
     var size: ImageCompressionSize
 
-    static let `default` = ImageCompressionPlan(quality: .balanced, size: .automatic)
+    static let `default` = ImageCompressionPlan(quality: .high, size: .automatic)
 
     var title: String {
         "\(quality.title) · \(size.title)"

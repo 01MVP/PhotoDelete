@@ -18,9 +18,28 @@ struct ImageCompressionSessionItem: Codable, Identifiable, Equatable {
     let createdAssetIdentifier: String?
     let originalSizeMB: Double
     let compressedSizeMB: Double
+    let originalDeletedAt: Date?
+
+    init(
+        originalAssetIdentifier: String,
+        createdAssetIdentifier: String?,
+        originalSizeMB: Double,
+        compressedSizeMB: Double,
+        originalDeletedAt: Date? = nil
+    ) {
+        self.originalAssetIdentifier = originalAssetIdentifier
+        self.createdAssetIdentifier = createdAssetIdentifier
+        self.originalSizeMB = max(originalSizeMB, 0)
+        self.compressedSizeMB = max(compressedSizeMB, 0)
+        self.originalDeletedAt = originalDeletedAt
+    }
 
     var id: String {
         "\(originalAssetIdentifier)-\(createdAssetIdentifier ?? "missing")"
+    }
+
+    var isOriginalDeleted: Bool {
+        originalDeletedAt != nil
     }
 
     var savedSizeMB: Double {
@@ -37,6 +56,16 @@ struct ImageCompressionSessionItem: Codable, Identifiable, Equatable {
 
     var formattedSavedSize: String {
         CleanupStatsFormatter.space(savedSizeMB)
+    }
+
+    func markingOriginalDeleted(at date: Date) -> ImageCompressionSessionItem {
+        ImageCompressionSessionItem(
+            originalAssetIdentifier: originalAssetIdentifier,
+            createdAssetIdentifier: createdAssetIdentifier,
+            originalSizeMB: originalSizeMB,
+            compressedSizeMB: compressedSizeMB,
+            originalDeletedAt: originalDeletedAt ?? date
+        )
     }
 }
 
@@ -188,6 +217,41 @@ final class ImageCompressionHistoryStore: ObservableObject {
     func clearAll() {
         sessions.removeAll()
         save()
+    }
+
+    @discardableResult
+    func markOriginalsDeleted(assetIdentifiers: Set<String>, date: Date = Date()) -> Bool {
+        guard !assetIdentifiers.isEmpty else { return false }
+
+        var changed = false
+        sessions = sessions.map { session in
+            var sessionChanged = false
+            let updatedItems = session.items.map { item in
+                guard assetIdentifiers.contains(item.originalAssetIdentifier),
+                      !item.isOriginalDeleted else {
+                    return item
+                }
+                sessionChanged = true
+                changed = true
+                return item.markingOriginalDeleted(at: date)
+            }
+
+            guard sessionChanged else { return session }
+            return ImageCompressionSession(
+                id: session.id,
+                date: session.date,
+                imageCount: session.imageCount,
+                failedCount: session.failedCount,
+                originalSizeMB: session.originalSizeMB,
+                compressedSizeMB: session.compressedSizeMB,
+                items: updatedItems
+            )
+        }
+
+        if changed {
+            save()
+        }
+        return changed
     }
 
     private func load() {
