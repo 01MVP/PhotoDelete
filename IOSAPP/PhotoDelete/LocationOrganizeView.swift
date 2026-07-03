@@ -41,6 +41,9 @@ struct LocationOrganizeView: View {
             lastPhotoListSignature = signature
             dataManager.loadLocationGroups(force: dataManager.locationGroups.isEmpty)
         }
+        .onDisappear {
+            dataManager.cancelLocationTitleResolution()
+        }
     }
 
     @ViewBuilder

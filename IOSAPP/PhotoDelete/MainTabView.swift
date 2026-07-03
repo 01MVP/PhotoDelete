@@ -38,12 +38,13 @@ struct MainTabView: View {
             configureTabBarAppearance()
         }
         .onChange(of: scenePhase) { phase in
-            guard phase == .active else { return }
+            guard phase == .active else {
+                dataManager.cancelLocationTitleResolution()
+                return
+            }
             configureTabBarAppearance()
             dataManager.syncPhotoLibraryAuthorization()
-            Task {
-                await purchaseManager.refreshEntitlementsAfterPotentialExternalChange()
-            }
+            purchaseManager.refreshEntitlementsAfterForegroundActivationIfNeeded()
         }
         .onReceive(NotificationCenter.default.publisher(for: AppConstants.openAlbumsTabNotificationName)) { _ in
             selectedTab = .albums

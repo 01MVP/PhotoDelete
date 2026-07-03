@@ -17,6 +17,7 @@ struct SwipePhotoView: View {
     @EnvironmentObject var dataManager: DataManager
     @Environment(\.dismiss) private var dismiss
     @Environment(\.displayScale) private var displayScale
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @AppStorage(AppConstants.leftSwipeActionKey) private var leftSwipeActionValue = SwipeGesturePreset.standard.leftAction.rawValue
     @AppStorage(AppConstants.rightSwipeActionKey) private var rightSwipeActionValue = SwipeGesturePreset.standard.rightAction.rawValue
@@ -71,10 +72,27 @@ struct SwipePhotoView: View {
     @State private var sessionVideoMuted = true
     @State private var didApplySessionPlaybackPreference = false
     @State private var cardTransitionDirection = CardBrowseTransitionDirection.none
+    @State private var isCompletingSwipe = false
+    @State private var hasPreparedSwipeCommit = false
 
     private let reviewModeHintThreshold = 5
     private let deleteButtonTipThreshold = 3
     private let albumShortcutTwoRowThreshold = 4
+    private enum SwipeMotion {
+        static let minimumDragDistance: CGFloat = 4
+        static let previewStartDistance: CGFloat = 14
+        static let directionLockDistance: CGFloat = 12
+        static let commitDistance: CGFloat = 92
+        static let predictedCommitDistance: CGFloat = 148
+        static let minimumPredictedCommitDrag: CGFloat = 38
+        static let browseClamp: CGFloat = 120
+        static let closeClamp: CGFloat = 112
+        static let actionDragLimit: CGFloat = 210
+        static let actionDragResistance: CGFloat = 0.34
+        static let maxCardTiltDegrees: CGFloat = 7
+        static let maxActiveScaleReduction: CGFloat = 0.025
+        static let exitAnimationDuration: TimeInterval = 0.18
+    }
     private static let countFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
@@ -238,7 +256,7 @@ struct SwipePhotoView: View {
     }
 
     private var canPerformPhotoAction: Bool {
-        currentRealPhoto != nil && !showCompletionMessage && !isCurrentPhotoBeingFiled
+        currentRealPhoto != nil && !showCompletionMessage && !isCurrentPhotoBeingFiled && !isCompletingSwipe
     }
 
     private var reviewMode: PhotoReviewMode {
@@ -594,6 +612,8 @@ struct SwipePhotoView: View {
                         .transition(.opacity)
                 }
             }
+            .scaleEffect(cardScale(for: dragOffset))
+            .rotationEffect(cardRotationAngle(for: dragOffset, in: cardSize), anchor: .bottom)
             .offset(dragOffset)
             .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             .highPriorityGesture(createDragGesture())
@@ -616,6 +636,10 @@ struct SwipePhotoView: View {
     }
 
     private var cardBrowseTransition: AnyTransition {
+        if reduceMotion {
+            return .opacity
+        }
+
         switch cardTransitionDirection {
         case .previous:
             return .asymmetric(
@@ -647,8 +671,8 @@ struct SwipePhotoView: View {
     }
 
     private func dragFeedback(for translation: CGSize) -> PhotoSwipeDragFeedbackState? {
-        let previewStart: CGFloat = 14
-        let commitDistance: CGFloat = 100
+        let previewStart = SwipeMotion.previewStartDistance
+        let commitDistance = SwipeMotion.commitDistance
         guard let direction = dominantSwipeDirection(for: translation, threshold: previewStart) else {
             return nil
         }
@@ -1686,17 +1710,23 @@ struct SwipePhotoView: View {
     }
 
     private func createDragGesture() -> some Gesture {
-        DragGesture(minimumDistance: 6)
+        DragGesture(minimumDistance: SwipeMotion.minimumDragDistance)
             .onChanged { value in
+                guard !isCompletingSwipe else { return }
                 dragOffset = visualDragOffset(for: value.translation)
+                updateSwipeCommitFeedback(for: value.translation)
             }
             .onEnded { value in
-                handleSwipeGesture(translation: value.translation)
+                guard !isCompletingSwipe else { return }
+                handleSwipeGesture(
+                    translation: value.translation,
+                    predictedEndTranslation: value.predictedEndTranslation
+                )
             }
     }
 
     private func visualDragOffset(for translation: CGSize) -> CGSize {
-        guard let direction = dominantSwipeDirection(for: translation, threshold: 12) else {
+        guard let direction = dominantSwipeDirection(for: translation, threshold: SwipeMotion.directionLockDistance) else {
             return translation
         }
 
@@ -1704,22 +1734,70 @@ struct SwipePhotoView: View {
         switch action {
         case .previous, .next:
             return CGSize(
-                width: min(max(translation.width, -120), 120),
+                width: min(max(translation.width, -SwipeMotion.browseClamp), SwipeMotion.browseClamp),
                 height: 0
             )
         case .close:
-            return CGSize(width: 0, height: min(max(translation.height, -112), 112))
+            return CGSize(width: 0, height: min(max(translation.height, -SwipeMotion.closeClamp), SwipeMotion.closeClamp))
         case .delete, .keep, .favorite:
-            return translation
+            switch direction {
+            case .left, .right:
+                return CGSize(
+                    width: rubberBanded(
+                        translation.width,
+                        limit: SwipeMotion.actionDragLimit,
+                        resistance: SwipeMotion.actionDragResistance
+                    ),
+                    height: translation.height * 0.35
+                )
+            case .up, .down:
+                return CGSize(
+                    width: translation.width * 0.22,
+                    height: rubberBanded(
+                        translation.height,
+                        limit: SwipeMotion.actionDragLimit,
+                        resistance: SwipeMotion.actionDragResistance
+                    )
+                )
+            }
         }
     }
 
-    private func handleSwipeGesture(translation: CGSize) {
-        let threshold: CGFloat = 100
+    private func cardRotationAngle(for offset: CGSize, in cardSize: CGSize) -> Angle {
+        guard !reduceMotion else { return .degrees(0) }
+        let width = max(cardSize.width, 1)
+        let normalized = max(min(offset.width / width, 1), -1)
+        return .degrees(Double(normalized * SwipeMotion.maxCardTiltDegrees))
+    }
 
+    private func cardScale(for offset: CGSize) -> CGFloat {
+        guard !reduceMotion else { return 1 }
+        let distance = hypot(offset.width, offset.height)
+        let progress = min(distance / SwipeMotion.commitDistance, 1)
+        return 1 - progress * SwipeMotion.maxActiveScaleReduction
+    }
+
+    private func rubberBanded(_ value: CGFloat, limit: CGFloat, resistance: CGFloat) -> CGFloat {
+        let distance = abs(value)
+        guard distance > limit else { return value }
+        let sign: CGFloat = value < 0 ? -1 : 1
+        return sign * (limit + (distance - limit) * resistance)
+    }
+
+    private func updateSwipeCommitFeedback(for translation: CGSize) {
+        let isPastCommitDistance = dominantSwipeDirection(for: translation, threshold: SwipeMotion.commitDistance) != nil
+        if isPastCommitDistance && !hasPreparedSwipeCommit {
+            hasPreparedSwipeCommit = true
+            HapticManager.impact(.light)
+        } else if !isPastCommitDistance {
+            hasPreparedSwipeCommit = false
+        }
+    }
+
+    private func handleSwipeGesture(translation: CGSize, predictedEndTranslation: CGSize) {
         // 如果显示完成消息，允许滑动操作
         if showCompletionMessage {
-            if abs(translation.width) > threshold {
+            if abs(translation.width) > SwipeMotion.commitDistance {
                 if translation.width < 0 {
                     // 左滑：显示批量确认
                     presentBatchConfirmation(dismissAfter: false)
@@ -1740,17 +1818,133 @@ struct SwipePhotoView: View {
             return
         }
 
-        if let direction = dominantSwipeDirection(for: translation, threshold: threshold) {
+        if let direction = committedSwipeDirection(
+            translation: translation,
+            predictedEndTranslation: predictedEndTranslation
+        ) {
             let action = configuredAction(for: direction)
-            clearDragOffsetWithoutAnimation()
-            performConfiguredSwipeAction(action, asset: asset)
+            completeCommittedSwipe(
+                direction: direction,
+                action: action,
+                asset: asset,
+                translation: translation,
+                predictedEndTranslation: predictedEndTranslation
+            )
             return
         }
 
         resetCardPosition()
     }
 
+    private func committedSwipeDirection(translation: CGSize, predictedEndTranslation: CGSize) -> SwipeDirection? {
+        if let direction = dominantSwipeDirection(for: translation, threshold: SwipeMotion.commitDistance) {
+            return direction
+        }
+
+        guard let predictedDirection = dominantSwipeDirection(
+            for: predictedEndTranslation,
+            threshold: SwipeMotion.predictedCommitDistance
+        ) else {
+            return nil
+        }
+
+        guard primaryDistance(for: predictedDirection, in: translation) >= SwipeMotion.minimumPredictedCommitDrag else {
+            return nil
+        }
+
+        return predictedDirection
+    }
+
+    private func primaryDistance(for direction: SwipeDirection, in translation: CGSize) -> CGFloat {
+        switch direction {
+        case .left, .right:
+            return abs(translation.width)
+        case .up, .down:
+            return abs(translation.height)
+        }
+    }
+
+    private func completeCommittedSwipe(
+        direction: SwipeDirection,
+        action: SwipeGestureAction,
+        asset: PHAsset,
+        translation: CGSize,
+        predictedEndTranslation: CGSize
+    ) {
+        hasPreparedSwipeCommit = false
+
+        switch action {
+        case .previous, .next, .close:
+            clearDragOffsetWithoutAnimation()
+            performConfiguredSwipeAction(action, asset: asset)
+        case .delete, .keep, .favorite:
+            completeCardExitSwipe(
+                direction: direction,
+                action: action,
+                asset: asset,
+                translation: translation,
+                predictedEndTranslation: predictedEndTranslation
+            )
+        }
+    }
+
+    private func completeCardExitSwipe(
+        direction: SwipeDirection,
+        action: SwipeGestureAction,
+        asset: PHAsset,
+        translation: CGSize,
+        predictedEndTranslation: CGSize
+    ) {
+        guard !reduceMotion else {
+            clearDragOffsetWithoutAnimation()
+            performConfiguredSwipeAction(action, asset: asset)
+            return
+        }
+
+        isCompletingSwipe = true
+        let exitOffset = cardExitOffset(
+            for: direction,
+            translation: translation,
+            predictedEndTranslation: predictedEndTranslation
+        )
+
+        withAnimation(.easeOut(duration: SwipeMotion.exitAnimationDuration)) {
+            dragOffset = exitOffset
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + SwipeMotion.exitAnimationDuration) {
+            guard isCompletingSwipe else { return }
+            guard currentRealPhoto?.localIdentifier == asset.localIdentifier else {
+                isCompletingSwipe = false
+                clearDragOffsetWithoutAnimation()
+                return
+            }
+
+            clearDragOffsetWithoutAnimation()
+            isCompletingSwipe = false
+            performConfiguredSwipeAction(action, asset: asset)
+        }
+    }
+
+    private func cardExitOffset(
+        for direction: SwipeDirection,
+        translation: CGSize,
+        predictedEndTranslation: CGSize
+    ) -> CGSize {
+        switch direction {
+        case .left:
+            return CGSize(width: -max(abs(predictedEndTranslation.width), 420), height: translation.height * 0.45)
+        case .right:
+            return CGSize(width: max(abs(predictedEndTranslation.width), 420), height: translation.height * 0.45)
+        case .up:
+            return CGSize(width: translation.width * 0.22, height: -max(abs(predictedEndTranslation.height), 520))
+        case .down:
+            return CGSize(width: translation.width * 0.22, height: max(abs(predictedEndTranslation.height), 520))
+        }
+    }
+
     private func clearDragOffsetWithoutAnimation() {
+        hasPreparedSwipeCommit = false
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {
@@ -2313,7 +2507,11 @@ struct SwipePhotoView: View {
     }
 
     private func resetCardPosition() {
-        withAnimation(.interactiveSpring(response: 0.28, dampingFraction: 0.86)) {
+        hasPreparedSwipeCommit = false
+        let resetAnimation: Animation = reduceMotion
+            ? .easeOut(duration: 0.12)
+            : .interactiveSpring(response: 0.32, dampingFraction: 0.82)
+        withAnimation(resetAnimation) {
             dragOffset = .zero
         }
     }

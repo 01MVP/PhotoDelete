@@ -51,6 +51,9 @@ final class PurchaseManager: ObservableObject {
     private let nowProvider: () -> Date
     private var updatesTask: Task<Void, Never>?
     private var productLoadRequest: (id: UUID, task: Task<[Product], Error>)?
+    private var externalEntitlementRefreshTask: Task<Void, Never>?
+    private var lastExternalEntitlementRefreshDate: Date?
+    private let externalEntitlementRefreshCooldown: TimeInterval = 20
 
     var supporterProduct: Product? {
         products.first { $0.id == AppConstants.supporterProductID }
@@ -152,6 +155,7 @@ final class PurchaseManager: ObservableObject {
 
     deinit {
         updatesTask?.cancel()
+        externalEntitlementRefreshTask?.cancel()
     }
 
     func startSupporterTrial() {
@@ -269,6 +273,24 @@ final class PurchaseManager: ObservableObject {
 
     func refreshEntitlementsAfterPotentialExternalChange() async {
         await refreshEntitlementsAfterPotentialExternalChange(showVerificationState: false)
+    }
+
+    func refreshEntitlementsAfterForegroundActivationIfNeeded() {
+        guard externalEntitlementRefreshTask == nil else { return }
+
+        let now = nowProvider()
+        if let lastExternalEntitlementRefreshDate,
+           now.timeIntervalSince(lastExternalEntitlementRefreshDate) < externalEntitlementRefreshCooldown {
+            return
+        }
+
+        lastExternalEntitlementRefreshDate = now
+        externalEntitlementRefreshTask = Task { [weak self] in
+            await self?.refreshEntitlementsAfterPotentialExternalChange()
+            await MainActor.run {
+                self?.externalEntitlementRefreshTask = nil
+            }
+        }
     }
 
     private func refreshEntitlementsAfterPotentialExternalChange(showVerificationState: Bool) async {

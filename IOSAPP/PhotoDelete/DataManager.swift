@@ -84,6 +84,7 @@ class DataManager: ObservableObject {
     private var pendingAdvancedCleanupQueueRefresh = false
     private var libraryDataRefreshWorkItem: DispatchWorkItem?
     private var nextLibraryDataRefreshDelay: TimeInterval?
+    private var suppressNextDerivedLibraryRefresh = false
     private var reviewedAssetIDsSaveWorkItem: DispatchWorkItem?
     private var pendingDeleteCandidateIDs: Set<String> = []
     private var pendingFavoriteCandidateIDs: Set<String> = []
@@ -180,7 +181,10 @@ class DataManager: ObservableObject {
             .store(in: &cancellables)
 
         photoLibraryManager.onLibraryDataChanged = { [weak self] in
-            self?.scheduleLibraryDataRefresh()
+            guard let self else { return }
+            let shouldRefreshDerivedData = !self.suppressNextDerivedLibraryRefresh
+            self.suppressNextDerivedLibraryRefresh = false
+            self.scheduleLibraryDataRefresh(refreshDerivedData: shouldRefreshDerivedData)
         }
 
         NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)
@@ -268,11 +272,8 @@ class DataManager: ObservableObject {
 
         photoLibraryManager.loadPhotos(preserveExistingData: !showPreparing) { [weak self] in
             guard let self else { return }
-            self.pruneReviewedAssetIDs()
-            self.restorePendingCandidatesFromSavedIDs()
-            self.prunePendingCandidates()
-            self.loadTimeGroups()
-            self.updateStats()
+            self.refreshDerivedLibraryData()
+            self.suppressNextDerivedLibraryRefresh = true
             self.isPreparingLibrary = false
             self.isReloadingLibrary = false
         }
@@ -292,23 +293,18 @@ class DataManager: ObservableObject {
                 return
             }
 
-            self.pruneReviewedAssetIDs()
-            self.restorePendingCandidatesFromSavedIDs()
-            self.prunePendingCandidates()
-            self.loadTimeGroups()
+            self.refreshDerivedLibraryData()
             _ = self.restoreCachedAlbums()
-            self.updateStats()
 
             self.photoLibraryManager.refreshPhotoLibraryIfNeeded { [weak self] didRefreshLibrary in
                 guard let self else { return }
-                self.pruneReviewedAssetIDs()
-                self.restorePendingCandidatesFromSavedIDs()
-                self.prunePendingCandidates()
-                self.loadTimeGroups()
                 if didRefreshLibrary {
+                    self.refreshDerivedLibraryData()
+                    self.suppressNextDerivedLibraryRefresh = true
                     self.hasLoadedAlbums = false
+                } else {
+                    self.updateStats()
                 }
-                self.updateStats()
             }
         }
     }
@@ -793,6 +789,9 @@ class DataManager: ObservableObject {
 
     private func clearLibraryStateAfterAccessLoss() {
         cancelAdvancedCompressionJobs()
+        libraryDataRefreshWorkItem?.cancel()
+        libraryDataRefreshWorkItem = nil
+        suppressNextDerivedLibraryRefresh = false
         isPreparingLibrary = false
         isReloadingLibrary = false
         isRestoringLibrarySnapshot = false
@@ -826,8 +825,7 @@ class DataManager: ObservableObject {
     }
 
     private func resetLocationGroupState(clearTitleCache: Bool) {
-        locationTitleResolutionTask?.cancel()
-        locationTitleResolutionTask = nil
+        cancelLocationTitleResolution()
         locationProgressRefreshWorkItem?.cancel()
         locationProgressRefreshWorkItem = nil
         locationGroupCache = [:]
@@ -842,6 +840,12 @@ class DataManager: ObservableObject {
         if clearTitleCache {
             locationTitleCacheStore.clear()
         }
+    }
+
+    func cancelLocationTitleResolution() {
+        locationTitleResolutionTask?.cancel()
+        locationTitleResolutionTask = nil
+        isResolvingLocationTitles = false
     }
 
     func cancelAllOperations() {
@@ -1844,9 +1848,7 @@ class DataManager: ObservableObject {
             return
         }
 
-        locationTitleResolutionTask?.cancel()
-        locationTitleResolutionTask = nil
-        isResolvingLocationTitles = false
+        cancelLocationTitleResolution()
         locationGroupBuildGeneration += 1
         let generation = locationGroupBuildGeneration
         isLoadingLocationGroups = true
@@ -2009,6 +2011,7 @@ class DataManager: ObservableObject {
                 }
 
                 self.isResolvingLocationTitles = false
+                self.locationTitleResolutionTask = nil
                 guard !Task.isCancelled else { return }
 
                 if !resolvedTitleSnapshot.isEmpty {
@@ -2323,13 +2326,15 @@ class DataManager: ObservableObject {
         savePendingCandidateIDsNow()
     }
 
-    private func scheduleLibraryDataRefresh() {
+    private func scheduleLibraryDataRefresh(refreshDerivedData: Bool = true) {
         libraryDataRefreshWorkItem?.cancel()
         let delay = nextLibraryDataRefreshDelay ?? 0.15
         nextLibraryDataRefreshDelay = nil
         let workItem = DispatchWorkItem { [weak self] in
             guard let self, self.photoLibraryManager.hasPhotoLibraryAccess else { return }
-            self.refreshDerivedLibraryData()
+            if refreshDerivedData {
+                self.refreshDerivedLibraryData()
+            }
             if self.hasLoadedLocationGroups {
                 self.loadLocationGroups(force: true)
             }

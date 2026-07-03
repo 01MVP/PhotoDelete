@@ -474,6 +474,8 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     private var localChangeNotificationsRemaining = 0
     private var localChangeResetWorkItem: DispatchWorkItem?
     private var isRestoringSnapshot = false
+    private var rebuildCachedAssetsWorkItem: DispatchWorkItem?
+    private var rebuildCachedAssetsGeneration = 0
 
     private var isObserverRegistered = false
     var onLibraryDataChanged: (() -> Void)?
@@ -502,6 +504,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         loadingProgress = 0
         hasLoadedPhotoLibrary = false
         isRestoringSnapshot = false
+        cancelPendingRebuildCachedAssets()
         pendingLoadCompletions.removeAll()
         imageCache.removeAllObjects()
         imageManager.stopCachingImagesForAllAssets()
@@ -978,6 +981,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     func loadSwipePreviewResult(
         for asset: PHAsset,
         size: CGSize,
+        networkAccessAllowed: Bool = false,
         completion: @escaping (PhotoLibraryImageResult) -> Void
     ) -> PHImageRequestID? {
         let cacheKey = imageCacheKey(for: asset, purpose: "swipe", size: size)
@@ -996,17 +1000,19 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         let options = PHImageRequestOptions()
         options.deliveryMode = .opportunistic
         options.resizeMode = .exact
-        options.isNetworkAccessAllowed = true
+        options.isNetworkAccessAllowed = networkAccessAllowed
         options.isSynchronous = false
-        options.progressHandler = { progress, _, _, _ in
-            DispatchQueue.main.async {
-                completion(PhotoLibraryImageResult(
-                    image: nil,
-                    isDegraded: false,
-                    isInCloud: true,
-                    progress: progress,
-                    isFinal: false
-                ))
+        if networkAccessAllowed {
+            options.progressHandler = { progress, _, _, _ in
+                DispatchQueue.main.async {
+                    completion(PhotoLibraryImageResult(
+                        image: nil,
+                        isDegraded: false,
+                        isInCloud: true,
+                        progress: progress,
+                        isFinal: false
+                    ))
+                }
             }
         }
 
@@ -1027,7 +1033,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                     self?.cacheImage(image, forKey: cacheKey, isDegraded: isDegraded)
                 }
 
-                let isWaitingForCloudDownload = image == nil && isInCloud && error == nil
+                let isWaitingForCloudDownload = networkAccessAllowed && image == nil && isInCloud && error == nil
                 completion(PhotoLibraryImageResult(
                     image: image,
                     isDegraded: isDegraded,
@@ -1158,6 +1164,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     func loadLivePhotoResult(
         for asset: PHAsset,
         size: CGSize,
+        networkAccessAllowed: Bool = false,
         completion: @escaping (PhotoLibraryLivePhotoResult) -> Void
     ) -> PHImageRequestID? {
         guard isLivePhoto(asset) else {
@@ -1173,7 +1180,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         let options = PHLivePhotoRequestOptions()
         options.deliveryMode = .opportunistic
         options.version = .current
-        options.isNetworkAccessAllowed = true
+        options.isNetworkAccessAllowed = networkAccessAllowed
 
         return imageManager.requestLivePhoto(
             for: asset,
@@ -1186,12 +1193,13 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                 let isInCloud = (info?[PHImageResultIsInCloudKey] as? Bool) == true
                 let isDegraded = (info?[PHImageResultIsDegradedKey] as? Bool) == true
                 guard !isCancelled else { return }
+                let isWaitingForCloudDownload = networkAccessAllowed && livePhoto == nil && isInCloud
 
                 completion(PhotoLibraryLivePhotoResult(
                     livePhoto: livePhoto,
                     isDegraded: isDegraded,
                     isInCloud: isInCloud,
-                    isFinal: !isDegraded
+                    isFinal: !isDegraded && !isWaitingForCloudDownload
                 ))
             }
         }
@@ -1418,7 +1426,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         let options = PHImageRequestOptions()
         options.deliveryMode = .opportunistic
         options.resizeMode = .exact
-        options.isNetworkAccessAllowed = true
+        options.isNetworkAccessAllowed = false
 
         imageManager.startCachingImages(
             for: assetsToPreload,
@@ -1450,7 +1458,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         let options = PHImageRequestOptions()
         options.deliveryMode = .opportunistic
         options.resizeMode = .exact
-        options.isNetworkAccessAllowed = true
+        options.isNetworkAccessAllowed = false
         imageManager.stopCachingImages(for: assets, targetSize: size, contentMode: .aspectFit, options: options)
     }
 
@@ -1476,7 +1484,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         let options = PHImageRequestOptions()
         options.deliveryMode = .opportunistic
         options.resizeMode = .fast
-        options.isNetworkAccessAllowed = true
+        options.isNetworkAccessAllowed = false
 
         return imageManager.requestImage(
             for: asset,
@@ -1494,6 +1502,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                 if let image {
                     self?.cacheImage(image, forKey: cacheKey, isDegraded: isDegraded)
                 } else if isInCloud && error == nil {
+                    completion(nil)
                     return
                 }
                 completion(image)
@@ -2140,9 +2149,10 @@ class PhotoLibraryManager: NSObject, ObservableObject {
 
     private func applyIncrementalPhotoChanges(_ changes: PHFetchResultChangeDetails<PHAsset>) {
         guard changes.hasIncrementalChanges, !changes.hasMoves else {
-            rebuildCachedAssets(from: changes.fetchResultAfterChanges)
+            scheduleRebuildCachedAssets(from: changes.fetchResultAfterChanges)
             return
         }
+        cancelPendingRebuildCachedAssets()
 
         let removedIDs = Set(changes.removedObjects.map(\.localIdentifier))
         if !removedIDs.isEmpty {
@@ -2173,7 +2183,30 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         onLibraryDataChanged?()
     }
 
-    private func rebuildCachedAssets(from fetchResult: PHFetchResult<PHAsset>) {
+    private func cancelPendingRebuildCachedAssets() {
+        rebuildCachedAssetsWorkItem?.cancel()
+        rebuildCachedAssetsWorkItem = nil
+        rebuildCachedAssetsGeneration += 1
+    }
+
+    private func scheduleRebuildCachedAssets(
+        from fetchResult: PHFetchResult<PHAsset>,
+        delay: TimeInterval = 0.35
+    ) {
+        rebuildCachedAssetsWorkItem?.cancel()
+        rebuildCachedAssetsGeneration += 1
+        let generation = rebuildCachedAssetsGeneration
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.rebuildCachedAssets(from: fetchResult, generation: generation)
+        }
+        rebuildCachedAssetsWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
+    }
+
+    private func rebuildCachedAssets(
+        from fetchResult: PHFetchResult<PHAsset>,
+        generation: Int? = nil
+    ) {
         DispatchQueue.global(qos: .utility).async { [weak self] in
             guard let self else { return }
 
@@ -2185,6 +2218,9 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             let screenPixelSize = Self.currentScreenPixelSize()
             self.categorizePhotos(photos, screenPixelSize: screenPixelSize) { videos, screenshots, livePhotos, favorites in
                 DispatchQueue.main.async {
+                    if let generation, self.rebuildCachedAssetsGeneration != generation {
+                        return
+                    }
                     self.allPhotos = photos
                     self.videos = videos
                     self.screenshots = screenshots
@@ -2195,6 +2231,9 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                     self.hasLoadedPhotoLibrary = true
                     self.saveSnapshot(allPhotos: photos, videos: videos, screenshots: screenshots, livePhotos: livePhotos, favorites: favorites)
                     self.finishLoadingPhotos()
+                    if let generation, self.rebuildCachedAssetsGeneration == generation {
+                        self.rebuildCachedAssetsWorkItem = nil
+                    }
                     self.onLibraryDataChanged?()
                 }
             }
@@ -2882,10 +2921,14 @@ extension PhotoLibraryManager: PHPhotoLibraryChangeObserver {
 
             self.allPhotosResult = changes.fetchResultAfterChanges
 
-            if self.shouldApplyChangeIncrementally() {
+            let isExpectedLocalChange = self.shouldApplyChangeIncrementally()
+
+            if changes.hasIncrementalChanges && !changes.hasMoves {
+                self.applyIncrementalPhotoChanges(changes)
+            } else if isExpectedLocalChange {
                 self.applyIncrementalPhotoChanges(changes)
             } else {
-                self.rebuildCachedAssets(from: changes.fetchResultAfterChanges)
+                self.scheduleRebuildCachedAssets(from: changes.fetchResultAfterChanges)
             }
         }
     }
