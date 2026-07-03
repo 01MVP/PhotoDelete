@@ -311,6 +311,7 @@ enum PhotoLocationGrouping {
         let representativeCoordinatesByGroupID: [String: CLLocationCoordinate2D]
         let unresolvedCoordinatesByGroupID: [String: CLLocationCoordinate2D]
         let resolvedGroupIDs: Set<String>
+        let locatedAssetCount: Int
     }
 
     static func buildGroups(
@@ -318,21 +319,23 @@ enum PhotoLocationGrouping {
         maximumGroups: Int = defaultMaximumGroups,
         titleCache: [String: PhotoLocationResolvedTitle] = [:]
     ) -> Result {
+        var buckets: [String: [PhotoLocationAssetRecord]] = [:]
+        for record in records {
+            let id = groupID(latitude: record.latitude, longitude: record.longitude)
+            guard id != noLocationID else { continue }
+            buckets[id, default: []].append(record)
+        }
+        let locatedAssetCount = buckets.values.reduce(0) { $0 + $1.count }
+
         guard maximumGroups > 0 else {
             return Result(
                 groups: [],
                 identifiersByGroupID: [:],
                 representativeCoordinatesByGroupID: [:],
                 unresolvedCoordinatesByGroupID: [:],
-                resolvedGroupIDs: []
+                resolvedGroupIDs: [],
+                locatedAssetCount: locatedAssetCount
             )
-        }
-
-        var buckets: [String: [PhotoLocationAssetRecord]] = [:]
-        for record in records {
-            let id = groupID(latitude: record.latitude, longitude: record.longitude)
-            guard id != noLocationID else { continue }
-            buckets[id, default: []].append(record)
         }
 
         let sortedLocationBuckets = buckets
@@ -406,7 +409,8 @@ enum PhotoLocationGrouping {
             identifiersByGroupID: cache,
             representativeCoordinatesByGroupID: representativeCoordinates.filter { cache[$0.key] != nil },
             unresolvedCoordinatesByGroupID: unresolvedCoordinates,
-            resolvedGroupIDs: resolvedGroupIDs
+            resolvedGroupIDs: resolvedGroupIDs,
+            locatedAssetCount: locatedAssetCount
         )
     }
 

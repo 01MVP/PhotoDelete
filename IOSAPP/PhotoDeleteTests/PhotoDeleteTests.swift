@@ -342,6 +342,7 @@ struct PhotoDeleteTests {
         #expect(result.identifiersByGroupID[shanghaiID] == ["sh-1", "sh-2"])
         #expect(result.unresolvedCoordinatesByGroupID[beijingID] != nil)
         #expect(result.identifiersByGroupID[PhotoLocationGrouping.noLocationID] == nil)
+        #expect(result.locatedAssetCount == 3)
     }
 
     @Test func photoLocationGroupingMergesDuplicateReadableTitles() async throws {
@@ -374,6 +375,35 @@ struct PhotoDeleteTests {
         #expect(group.reviewedCount == 2)
         #expect(result.identifiersByGroupID[firstID] == ["sz-1", "sz-2", "sz-3"])
         #expect(result.resolvedGroupIDs == Set([firstID, secondID, thirdID]))
+    }
+
+    @Test func photoLocationGroupingCountsAllLocatedAssetsWhenGroupsAreLimited() async throws {
+        let records = (0..<5).map { index in
+            PhotoLocationAssetRecord(
+                identifier: "asset-\(index)",
+                latitude: 20 + Double(index) * 0.1,
+                longitude: 110,
+                isReviewed: false
+            )
+        }
+        let titleCache = Dictionary(
+            uniqueKeysWithValues: records.map { record in
+                (
+                    PhotoLocationGrouping.groupID(latitude: record.latitude, longitude: record.longitude),
+                    PhotoLocationResolvedTitle(title: "地点 \(record.identifier)")
+                )
+            }
+        )
+
+        let result = PhotoLocationGrouping.buildGroups(
+            from: records,
+            maximumGroups: 2,
+            titleCache: titleCache
+        )
+
+        #expect(result.groups.count == 2)
+        #expect(result.groups.reduce(0) { $0 + $1.assetCount } == 2)
+        #expect(result.locatedAssetCount == 5)
     }
 
     @Test func photoLocationDisplayTitlePrefersReadablePlaceFields() async throws {

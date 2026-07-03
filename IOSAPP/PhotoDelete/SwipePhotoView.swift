@@ -72,7 +72,6 @@ struct SwipePhotoView: View {
     @State private var sessionVideoMuted = true
     @State private var didApplySessionPlaybackPreference = false
     @State private var cardTransitionDirection = CardBrowseTransitionDirection.none
-    @State private var isCompletingSwipe = false
     @State private var hasPreparedSwipeCommit = false
 
     private let reviewModeHintThreshold = 5
@@ -89,9 +88,7 @@ struct SwipePhotoView: View {
         static let closeClamp: CGFloat = 112
         static let actionDragLimit: CGFloat = 210
         static let actionDragResistance: CGFloat = 0.34
-        static let maxCardTiltDegrees: CGFloat = 7
-        static let maxActiveScaleReduction: CGFloat = 0.025
-        static let exitAnimationDuration: TimeInterval = 0.18
+        static let maxCardTiltDegrees: CGFloat = 4
     }
     private static let countFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
@@ -256,7 +253,7 @@ struct SwipePhotoView: View {
     }
 
     private var canPerformPhotoAction: Bool {
-        currentRealPhoto != nil && !showCompletionMessage && !isCurrentPhotoBeingFiled && !isCompletingSwipe
+        currentRealPhoto != nil && !showCompletionMessage && !isCurrentPhotoBeingFiled
     }
 
     private var reviewMode: PhotoReviewMode {
@@ -468,15 +465,17 @@ struct SwipePhotoView: View {
     // MARK: - 照片区域
     private var photoArea: some View {
         GeometryReader { geometry in
-            VStack {
-                Spacer()
+            let placeholderBottomReserve: CGFloat = geometry.size.width > geometry.size.height ? 0 : 88
 
+            Group {
                 if !dataManager.photoLibraryManager.hasPhotoLibraryAccess {
-                    PhotoAuthorizationCard(
-                        subtitle: L10n.string("请允许访问您的照片库来开始整理照片"),
-                        onRequestAccess: { dataManager.requestPhotoLibraryAccess() }
-                    )
-                    .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
+                    centeredPhotoAreaPlaceholder(in: geometry, bottomReserve: placeholderBottomReserve) {
+                        PhotoAuthorizationCard(
+                            subtitle: L10n.string("请允许访问您的照片库来开始整理照片"),
+                            onRequestAccess: { dataManager.requestPhotoLibraryAccess() }
+                        )
+                        .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
+                    }
                 } else if let realPhoto = currentRealPhoto {
                     ZStack {
                         switch reviewMode {
@@ -507,72 +506,94 @@ struct SwipePhotoView: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if shouldShowInitialPreparingState {
-                    PhotoSelectionLoadingCard(
-                        title: L10n.string("正在读取照片"),
-                        message: L10n.string("读取完成后会直接进入当前整理。"),
-                        progress: activeLibraryLoadingProgress
-                    )
-                    .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
-                } else if shouldShowBackgroundLoadingState {
-                    PhotoSelectionLoadingCard(
-                        title: L10n.string("正在读取当前相册"),
-                        message: L10n.string("照片很多时可能需要几秒，完成后会自动开始。"),
-                        progress: activeLibraryLoadingProgress
-                    )
-                    .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
-                } else {
-                    // 没有更多照片
-                    VStack(spacing: 20) {
-                        if totalPhotosCount == 0 {
-                            // 没有照片的情况
-                            Image(systemName: "photo.badge.plus")
-                                .font(.system(size: 60, weight: .medium))
-                                .foregroundColor(PhotoDeleteStyle.accent)
-
-                            Text(L10n.string("这里还没有可整理的照片"))
-                                .font(.system(size: 24, weight: .semibold))
-                                .foregroundColor(PhotoDeleteStyle.primaryText)
-
-                            Text(L10n.string("您可以返回选择其他分类，或稍后在系统照片中添加更多照片后再回来。"))
-                                .font(.system(size: 16, weight: .regular))
-                                .foregroundColor(PhotoDeleteStyle.secondaryText)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
-
-                            Button(action: { dismiss() }) {
-                                Text(L10n.string("返回主页"))
-                                    .frame(maxWidth: 180)
-                            }
-                            .photoDeleteSecondaryButton()
-                        } else {
-                            // 整理完成的情况
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.system(size: 60, weight: .medium))
-                                .foregroundColor(PhotoDeleteStyle.positive)
-
-                            Text(L10n.string("整理完成！"))
-                                .font(.system(size: 24, weight: .semibold))
-                                .foregroundColor(PhotoDeleteStyle.primaryText)
-
-                            Text(L10n.string("您已经整理完所有照片"))
-                                .font(.system(size: 16, weight: .regular))
-                                .foregroundColor(PhotoDeleteStyle.secondaryText)
-
-                            Button(action: { dismiss() }) {
-                                Text(L10n.string("返回主页"))
-                                    .frame(maxWidth: 180)
-                            }
-                            .photoDeleteSecondaryButton()
-                        }
+                    centeredPhotoAreaPlaceholder(in: geometry, bottomReserve: placeholderBottomReserve) {
+                        PhotoSelectionLoadingCard(
+                            title: L10n.string("正在读取照片"),
+                            message: L10n.string("读取完成后会直接进入当前整理。"),
+                            progress: activeLibraryLoadingProgress
+                        )
+                        .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
                     }
-                    .padding(24)
-                    .photoDeleteCard()
-                    .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
-                }
+                } else if shouldShowBackgroundLoadingState {
+                    centeredPhotoAreaPlaceholder(in: geometry, bottomReserve: placeholderBottomReserve) {
+                        PhotoSelectionLoadingCard(
+                            title: L10n.string("正在读取当前相册"),
+                            message: L10n.string("照片很多时可能需要几秒，完成后会自动开始。"),
+                            progress: activeLibraryLoadingProgress
+                        )
+                        .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
+                    }
+                } else {
+                    centeredPhotoAreaPlaceholder(in: geometry, bottomReserve: placeholderBottomReserve) {
+                        // 没有更多照片
+                        VStack(spacing: 20) {
+                            if totalPhotosCount == 0 {
+                                // 没有照片的情况
+                                Image(systemName: "photo.badge.plus")
+                                    .font(.system(size: 60, weight: .medium))
+                                    .foregroundColor(PhotoDeleteStyle.accent)
 
-                Spacer()
+                                Text(L10n.string("这里还没有可整理的照片"))
+                                    .font(.system(size: 24, weight: .semibold))
+                                    .foregroundColor(PhotoDeleteStyle.primaryText)
+
+                                Text(L10n.string("您可以返回选择其他分类，或稍后在系统照片中添加更多照片后再回来。"))
+                                    .font(.system(size: 16, weight: .regular))
+                                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
+
+                                Button(action: { dismiss() }) {
+                                    Text(L10n.string("返回主页"))
+                                        .frame(maxWidth: 180)
+                                }
+                                .photoDeleteSecondaryButton()
+                            } else {
+                                // 整理完成的情况
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 60, weight: .medium))
+                                    .foregroundColor(PhotoDeleteStyle.positive)
+
+                                Text(L10n.string("整理完成！"))
+                                    .font(.system(size: 24, weight: .semibold))
+                                    .foregroundColor(PhotoDeleteStyle.primaryText)
+
+                                Text(L10n.string("您已经整理完所有照片"))
+                                    .font(.system(size: 16, weight: .regular))
+                                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+
+                                Button(action: { dismiss() }) {
+                                    Text(L10n.string("返回主页"))
+                                        .frame(maxWidth: 180)
+                                }
+                                .photoDeleteSecondaryButton()
+                            }
+                        }
+                        .padding(24)
+                        .photoDeleteCard()
+                        .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
+                    }
+                }
             }
+            .frame(width: geometry.size.width, height: geometry.size.height)
         }
+    }
+
+    private func centeredPhotoAreaPlaceholder<Content: View>(
+        in geometry: GeometryProxy,
+        bottomReserve: CGFloat,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        let resolvedBottomReserve = min(bottomReserve, geometry.size.height * 0.2)
+
+        return VStack(spacing: 0) {
+            Spacer(minLength: 0)
+            content()
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: max(0, geometry.size.height - resolvedBottomReserve), alignment: .center)
+        .padding(.bottom, resolvedBottomReserve)
     }
 
     private func cardPhotoArea(asset: PHAsset, in containerSize: CGSize) -> some View {
@@ -612,7 +633,6 @@ struct SwipePhotoView: View {
                         .transition(.opacity)
                 }
             }
-            .scaleEffect(cardScale(for: dragOffset))
             .rotationEffect(cardRotationAngle(for: dragOffset, in: cardSize), anchor: .bottom)
             .offset(dragOffset)
             .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
@@ -1712,12 +1732,10 @@ struct SwipePhotoView: View {
     private func createDragGesture() -> some Gesture {
         DragGesture(minimumDistance: SwipeMotion.minimumDragDistance)
             .onChanged { value in
-                guard !isCompletingSwipe else { return }
                 dragOffset = visualDragOffset(for: value.translation)
                 updateSwipeCommitFeedback(for: value.translation)
             }
             .onEnded { value in
-                guard !isCompletingSwipe else { return }
                 handleSwipeGesture(
                     translation: value.translation,
                     predictedEndTranslation: value.predictedEndTranslation
@@ -1770,13 +1788,6 @@ struct SwipePhotoView: View {
         return .degrees(Double(normalized * SwipeMotion.maxCardTiltDegrees))
     }
 
-    private func cardScale(for offset: CGSize) -> CGFloat {
-        guard !reduceMotion else { return 1 }
-        let distance = hypot(offset.width, offset.height)
-        let progress = min(distance / SwipeMotion.commitDistance, 1)
-        return 1 - progress * SwipeMotion.maxActiveScaleReduction
-    }
-
     private func rubberBanded(_ value: CGFloat, limit: CGFloat, resistance: CGFloat) -> CGFloat {
         let distance = abs(value)
         guard distance > limit else { return value }
@@ -1823,13 +1834,7 @@ struct SwipePhotoView: View {
             predictedEndTranslation: predictedEndTranslation
         ) {
             let action = configuredAction(for: direction)
-            completeCommittedSwipe(
-                direction: direction,
-                action: action,
-                asset: asset,
-                translation: translation,
-                predictedEndTranslation: predictedEndTranslation
-            )
+            completeCommittedSwipe(action: action, asset: asset)
             return
         }
 
@@ -1864,83 +1869,10 @@ struct SwipePhotoView: View {
         }
     }
 
-    private func completeCommittedSwipe(
-        direction: SwipeDirection,
-        action: SwipeGestureAction,
-        asset: PHAsset,
-        translation: CGSize,
-        predictedEndTranslation: CGSize
-    ) {
+    private func completeCommittedSwipe(action: SwipeGestureAction, asset: PHAsset) {
         hasPreparedSwipeCommit = false
-
-        switch action {
-        case .previous, .next, .close:
-            clearDragOffsetWithoutAnimation()
-            performConfiguredSwipeAction(action, asset: asset)
-        case .delete, .keep, .favorite:
-            completeCardExitSwipe(
-                direction: direction,
-                action: action,
-                asset: asset,
-                translation: translation,
-                predictedEndTranslation: predictedEndTranslation
-            )
-        }
-    }
-
-    private func completeCardExitSwipe(
-        direction: SwipeDirection,
-        action: SwipeGestureAction,
-        asset: PHAsset,
-        translation: CGSize,
-        predictedEndTranslation: CGSize
-    ) {
-        guard !reduceMotion else {
-            clearDragOffsetWithoutAnimation()
-            performConfiguredSwipeAction(action, asset: asset)
-            return
-        }
-
-        isCompletingSwipe = true
-        let exitOffset = cardExitOffset(
-            for: direction,
-            translation: translation,
-            predictedEndTranslation: predictedEndTranslation
-        )
-
-        withAnimation(.easeOut(duration: SwipeMotion.exitAnimationDuration)) {
-            dragOffset = exitOffset
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + SwipeMotion.exitAnimationDuration) {
-            guard isCompletingSwipe else { return }
-            guard currentRealPhoto?.localIdentifier == asset.localIdentifier else {
-                isCompletingSwipe = false
-                clearDragOffsetWithoutAnimation()
-                return
-            }
-
-            clearDragOffsetWithoutAnimation()
-            isCompletingSwipe = false
-            performConfiguredSwipeAction(action, asset: asset)
-        }
-    }
-
-    private func cardExitOffset(
-        for direction: SwipeDirection,
-        translation: CGSize,
-        predictedEndTranslation: CGSize
-    ) -> CGSize {
-        switch direction {
-        case .left:
-            return CGSize(width: -max(abs(predictedEndTranslation.width), 420), height: translation.height * 0.45)
-        case .right:
-            return CGSize(width: max(abs(predictedEndTranslation.width), 420), height: translation.height * 0.45)
-        case .up:
-            return CGSize(width: translation.width * 0.22, height: -max(abs(predictedEndTranslation.height), 520))
-        case .down:
-            return CGSize(width: translation.width * 0.22, height: max(abs(predictedEndTranslation.height), 520))
-        }
+        clearDragOffsetWithoutAnimation()
+        performConfiguredSwipeAction(action, asset: asset)
     }
 
     private func clearDragOffsetWithoutAnimation() {
@@ -2108,12 +2040,10 @@ struct SwipePhotoView: View {
         }
 
         if newIndex < sessionPhotos.count {
-            if reviewMode == .browser {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
                 currentPhotoIndex = newIndex
-            } else {
-                withAnimation(.easeOut(duration: 0.15)) {
-                    currentPhotoIndex = newIndex
-                }
             }
             preloadUpcomingImages(from: newIndex)
         } else {

@@ -476,6 +476,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     private var isRestoringSnapshot = false
     private var rebuildCachedAssetsWorkItem: DispatchWorkItem?
     private var rebuildCachedAssetsGeneration = 0
+    private var needsPhotoLibraryReloadAfterCurrentLoad = false
 
     private var isObserverRegistered = false
     var onLibraryDataChanged: (() -> Void)?
@@ -504,6 +505,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         loadingProgress = 0
         hasLoadedPhotoLibrary = false
         isRestoringSnapshot = false
+        needsPhotoLibraryReloadAfterCurrentLoad = false
         cancelPendingRebuildCachedAssets()
         pendingLoadCompletions.removeAll()
         imageCache.removeAllObjects()
@@ -594,6 +596,18 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             let restoredLivePhotos = snapshot.livePhotoIDs.compactMap { assetByID[$0] }
             let restoredFavorites = snapshot.favoriteIDs.compactMap { assetByID[$0] }
             let fetchResult = PHAsset.fetchAssets(with: self.defaultPhotoFetchOptions())
+            let snapshotMatchesCurrentLibrary = snapshot.allPhotoIDs.count == fetchResult.count &&
+                restoredAssets.count == snapshot.allPhotoIDs.count
+
+            guard snapshotMatchesCurrentLibrary else {
+                DispatchQueue.main.async {
+                    self.isRestoringSnapshot = false
+                    self.snapshotStore.clear()
+                    completion(false)
+                    self.reloadPhotoLibraryAfterCurrentLoadIfNeeded()
+                }
+                return
+            }
 
             DispatchQueue.main.async {
                 self.allPhotosResult = fetchResult
@@ -607,6 +621,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                 self.hasLoadedPhotoLibrary = true
                 self.isRestoringSnapshot = false
                 completion(!restoredAssets.isEmpty || snapshot.allPhotoIDs.isEmpty)
+                self.reloadPhotoLibraryAfterCurrentLoadIfNeeded()
             }
         }
     }
@@ -704,6 +719,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                     self.saveSnapshot(allPhotos: [], videos: [], screenshots: [], livePhotos: [], favorites: [])
                     self.finishLoadingPhotos()
                     self.onLibraryDataChanged?()
+                    self.reloadPhotoLibraryAfterCurrentLoadIfNeeded()
                 }
                 return
             }
@@ -764,6 +780,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                     )
                     self.finishLoadingPhotos()
                     self.onLibraryDataChanged?()
+                    self.reloadPhotoLibraryAfterCurrentLoadIfNeeded()
                 }
             }
         }
@@ -2181,6 +2198,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         saveSnapshot(allPhotos: allPhotos, videos: videos, screenshots: screenshots, livePhotos: livePhotos, favorites: favorites)
         finishLoadingPhotos()
         onLibraryDataChanged?()
+        reloadPhotoLibraryAfterCurrentLoadIfNeeded()
     }
 
     private func cancelPendingRebuildCachedAssets() {
@@ -2235,9 +2253,22 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                         self.rebuildCachedAssetsWorkItem = nil
                     }
                     self.onLibraryDataChanged?()
+                    self.reloadPhotoLibraryAfterCurrentLoadIfNeeded()
                 }
             }
         }
+    }
+
+    private func reloadPhotoLibraryAfterCurrentLoadIfNeeded() {
+        guard needsPhotoLibraryReloadAfterCurrentLoad else { return }
+        guard hasPhotoLibraryAccess else {
+            needsPhotoLibraryReloadAfterCurrentLoad = false
+            return
+        }
+        guard !isLoading, !isRestoringSnapshot else { return }
+
+        needsPhotoLibraryReloadAfterCurrentLoad = false
+        loadPhotos(preserveExistingData: true)
     }
 
     private func removeAssets(with identifiers: Set<String>, from assets: inout [PHAsset]) {
@@ -2906,6 +2937,11 @@ extension PhotoLibraryManager: PHPhotoLibraryChangeObserver {
     func photoLibraryDidChange(_ changeInstance: PHChange) {
         DispatchQueue.main.async { [weak self] in
             guard let self else {
+                return
+            }
+
+            guard !self.isLoading, !self.isRestoringSnapshot, self.hasLoadedPhotoLibrary else {
+                self.needsPhotoLibraryReloadAfterCurrentLoad = true
                 return
             }
 

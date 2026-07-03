@@ -234,10 +234,15 @@ private struct OnboardingPageView: View {
 
     var body: some View {
         GeometryReader { geometry in
+            let verticalPadding = min(max(geometry.size.height * 0.035, 14), 26)
+            let contentSpacing = min(max(geometry.size.height * 0.035, 22), 28)
+            let visualWidth = min(max(geometry.size.width - 54, 248), 322)
+            let visualHeight = min(max(geometry.size.height * 0.36, 220), 292)
+
             ScrollView {
-                VStack(spacing: 26) {
+                VStack(spacing: contentSpacing) {
                     OnboardingVisualView(page: page, animate: animateVisual)
-                        .frame(width: min(geometry.size.width - 54, 322), height: min(geometry.size.height * 0.4, 292))
+                        .frame(width: visualWidth, height: visualHeight)
                         .accessibilityHidden(true)
 
                     VStack(spacing: 12) {
@@ -266,10 +271,14 @@ private struct OnboardingPageView: View {
                     .padding(.horizontal, 32)
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.top, 20)
-                .padding(.bottom, 22)
+                .frame(
+                    minHeight: max(0, geometry.size.height - verticalPadding * 2),
+                    alignment: .center
+                )
+                .padding(.vertical, verticalPadding)
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
+            .scrollIndicators(.hidden)
         }
     }
 }

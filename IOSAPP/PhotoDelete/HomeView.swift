@@ -510,7 +510,7 @@ struct HomeView: View {
             return L10n.string("正在整理地点")
         }
 
-        let count = dataManager.locationGroups.reduce(0) { $0 + $1.assetCount }
+        let count = dataManager.locatedAssetCount
         if count > 0 {
             return L10n.shortPhotoCount(count)
         }

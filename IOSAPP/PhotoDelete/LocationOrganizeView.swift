@@ -31,18 +31,20 @@ struct LocationOrganizeView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
         .task {
-            guard !hasRequestedLocationGroups else { return }
+            let shouldForceRefresh = dataManager.locationGroups.isEmpty ||
+                dataManager.unresolvedLocationGroupCount > 0
+            guard !hasRequestedLocationGroups || shouldForceRefresh else { return }
             hasRequestedLocationGroups = true
-            refreshLocationGroups(force: dataManager.locationGroups.isEmpty)
+            refreshLocationGroups(force: shouldForceRefresh)
         }
         .onReceive(dataManager.photoLibraryManager.$allPhotos) { photos in
             let signature = photoListSignature(for: photos)
             guard lastPhotoListSignature != signature else { return }
             lastPhotoListSignature = signature
-            dataManager.loadLocationGroups(force: dataManager.locationGroups.isEmpty)
-        }
-        .onDisappear {
-            dataManager.cancelLocationTitleResolution()
+            dataManager.loadLocationGroups(
+                force: dataManager.locationGroups.isEmpty ||
+                    dataManager.unresolvedLocationGroupCount > 0
+            )
         }
     }
 

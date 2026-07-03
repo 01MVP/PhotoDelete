@@ -50,6 +50,7 @@ class DataManager: ObservableObject {
     @Published private(set) var isLoadingLocationGroups = false
     @Published private(set) var isResolvingLocationTitles = false
     @Published private(set) var unresolvedLocationGroupCount = 0
+    @Published private(set) var locatedAssetCount = 0
     @Published private(set) var advancedCleanupQueues: [AdvancedCleanupQueue] = []
     @Published private(set) var advancedCleanupQueuesRevision = UUID()
     @Published private(set) var isLoadingAdvancedCleanupQueues = false
@@ -106,6 +107,7 @@ class DataManager: ObservableObject {
         let representativeCoordinatesByGroupID: [String: CLLocationCoordinate2D]
         let unresolvedCoordinatesByGroupID: [String: CLLocationCoordinate2D]
         let resolvedGroupIDs: Set<String>
+        let locatedAssetCount: Int
     }
 
     private struct LocationGroupBuildSignature: Equatable {
@@ -832,6 +834,7 @@ class DataManager: ObservableObject {
         locationGroups = []
         locationGroupCoordinatesByGroupID = [:]
         unresolvedLocationGroupCount = 0
+        locatedAssetCount = 0
         locationGroupsRevision = UUID()
         isLoadingLocationGroups = false
         isResolvingLocationTitles = false
@@ -843,9 +846,13 @@ class DataManager: ObservableObject {
     }
 
     func cancelLocationTitleResolution() {
+        let hadActiveResolution = locationTitleResolutionTask != nil || isResolvingLocationTitles
         locationTitleResolutionTask?.cancel()
         locationTitleResolutionTask = nil
         isResolvingLocationTitles = false
+        if hadActiveResolution {
+            lastLocationGroupBuildSignature = nil
+        }
     }
 
     func cancelAllOperations() {
@@ -938,7 +945,10 @@ class DataManager: ObservableObject {
     }
 
     private func scheduleLocationGroupsRefreshIfLoaded(delay: TimeInterval = 1.2) {
-        guard !locationGroups.isEmpty || isLoadingLocationGroups || isResolvingLocationTitles else { return }
+        guard locatedAssetCount > 0 ||
+            !locationGroups.isEmpty ||
+            isLoadingLocationGroups ||
+            isResolvingLocationTitles else { return }
 
         locationProgressRefreshWorkItem?.cancel()
         locationProgressRefreshGeneration += 1
@@ -1869,6 +1879,7 @@ class DataManager: ObservableObject {
                 self.locationGroups = result.locationGroups
                 self.locationGroupCoordinatesByGroupID = result.representativeCoordinatesByGroupID
                 self.unresolvedLocationGroupCount = result.unresolvedCoordinatesByGroupID.count
+                self.locatedAssetCount = result.locatedAssetCount
                 self.locationGroupsRevision = UUID()
                 self.lastLocationGroupBuildSignature = result.locationGroups.isEmpty &&
                     !result.unresolvedCoordinatesByGroupID.isEmpty ? nil : signature
@@ -2030,6 +2041,7 @@ class DataManager: ObservableObject {
                     self.locationGroups = result.locationGroups
                     self.locationGroupCoordinatesByGroupID = result.representativeCoordinatesByGroupID
                     self.unresolvedLocationGroupCount = result.unresolvedCoordinatesByGroupID.count
+                    self.locatedAssetCount = result.locatedAssetCount
                     self.locationGroupsRevision = UUID()
                     self.lastLocationGroupBuildSignature = nil
                 } else {
@@ -2174,7 +2186,8 @@ class DataManager: ObservableObject {
             locationGroups: result.groups,
             representativeCoordinatesByGroupID: result.representativeCoordinatesByGroupID,
             unresolvedCoordinatesByGroupID: result.unresolvedCoordinatesByGroupID,
-            resolvedGroupIDs: result.resolvedGroupIDs
+            resolvedGroupIDs: result.resolvedGroupIDs,
+            locatedAssetCount: result.locatedAssetCount
         )
     }
 
@@ -2347,7 +2360,8 @@ class DataManager: ObservableObject {
     }
 
     private var hasLoadedLocationGroups: Bool {
-        !locationGroups.isEmpty ||
+        locatedAssetCount > 0 ||
+            !locationGroups.isEmpty ||
             isLoadingLocationGroups ||
             isResolvingLocationTitles ||
             unresolvedLocationGroupCount > 0 ||
