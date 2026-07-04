@@ -1092,7 +1092,11 @@ private final class TwoRowPhotoBrowserCell: UICollectionViewCell, UIGestureRecog
                 return
             }
             self.previewWorkItem = nil
-            self.previewRequestID = self.photoLibraryManager?.loadBrowserPreviewResult(for: asset, size: targetSize) { [weak self] result in
+            self.previewRequestID = self.photoLibraryManager?.loadBrowserPreviewResult(
+                for: asset,
+                size: targetSize,
+                networkAccessAllowed: true
+            ) { [weak self] result in
                 guard let self, self.representedAssetID == requestedAssetID else { return }
                 if let image = result.image {
                     self.imageView.image = image
@@ -1100,8 +1104,10 @@ private final class TwoRowPhotoBrowserCell: UICollectionViewCell, UIGestureRecog
                     self.isLoadingAsset = false
                 }
                 if result.isFinal {
-                    self.loadedHighQualityAssetID = requestedAssetID
-                    self.loadedHighQualityTargetSize = targetSize
+                    if result.image != nil {
+                        self.loadedHighQualityAssetID = requestedAssetID
+                        self.loadedHighQualityTargetSize = targetSize
+                    }
                     self.previewRequestID = nil
                 }
             }

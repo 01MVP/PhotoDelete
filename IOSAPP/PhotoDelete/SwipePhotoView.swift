@@ -3368,7 +3368,11 @@ struct RealPhotoCard: View {
             self.thumbnailRequestID = nil
         }
 
-        previewRequestID = photoLibraryManager.loadSwipePreviewResult(for: asset, size: targetSize) { result in
+        previewRequestID = photoLibraryManager.loadSwipePreviewResult(
+            for: asset,
+            size: targetSize,
+            networkAccessAllowed: true
+        ) { result in
             guard loadingAssetIdentifier == requestedAssetID else { return }
             if result.isInCloud || result.progress != nil {
                 self.isDownloadingFromCloud = true
@@ -3401,6 +3405,13 @@ struct RealPhotoCard: View {
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) {
             guard loadingAssetIdentifier == requestedAssetID, image == nil else { return }
+            loadFallbackImage(for: requestedAssetID)
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
+            guard loadingAssetIdentifier == requestedAssetID,
+                  isShowingDegradedPreview,
+                  fallbackRequestID == nil else { return }
             loadFallbackImage(for: requestedAssetID)
         }
 
@@ -3468,14 +3479,22 @@ struct RealPhotoCard: View {
 
     private func loadFallbackImage(for requestedAssetID: String) {
         guard fallbackRequestID == nil else { return }
+        isDownloadingFromCloud = true
+        cloudDownloadProgress = nil
 
-        fallbackRequestID = photoLibraryManager.loadHighQualityPreview(for: asset, size: targetSize) { loadedImage in
+        fallbackRequestID = photoLibraryManager.loadHighQualityPreview(
+            for: asset,
+            size: targetSize,
+            networkAccessAllowed: true
+        ) { loadedImage in
             guard loadingAssetIdentifier == requestedAssetID else { return }
             if let loadedImage {
                 self.image = loadedImage
                 self.isLoading = false
+                self.resetPreviewLoadingState()
+            } else if self.previewRequestID == nil {
+                self.resetPreviewLoadingState()
             }
-            self.resetPreviewLoadingState()
             self.fallbackRequestID = nil
         }
     }

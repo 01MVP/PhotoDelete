@@ -1096,9 +1096,11 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                 let error = info?[PHImageErrorKey] as? Error
                 guard !isCancelled else { return }
 
-                if let image {
+                if let image, !isDegraded {
                     self?.cacheImage(image, forKey: cacheKey, isDegraded: isDegraded)
                     completion(image)
+                } else if image != nil {
+                    return
                 } else if isInCloud && error == nil {
                     return
                 } else {
@@ -1112,6 +1114,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     func loadBrowserPreviewResult(
         for asset: PHAsset,
         size: CGSize,
+        networkAccessAllowed: Bool = false,
         completion: @escaping (PhotoLibraryImageResult) -> Void
     ) -> PHImageRequestID? {
         let cacheKey = imageCacheKey(for: asset, purpose: "browser", size: size)
@@ -1131,8 +1134,21 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         options.deliveryMode = .opportunistic
         options.resizeMode = .exact
         options.version = .current
-        options.isNetworkAccessAllowed = false
+        options.isNetworkAccessAllowed = networkAccessAllowed
         options.isSynchronous = false
+        if networkAccessAllowed {
+            options.progressHandler = { progress, _, _, _ in
+                DispatchQueue.main.async {
+                    completion(PhotoLibraryImageResult(
+                        image: nil,
+                        isDegraded: false,
+                        isInCloud: true,
+                        progress: progress,
+                        isFinal: false
+                    ))
+                }
+            }
+        }
 
         return imageManager.requestImage(
             for: asset,
@@ -1150,12 +1166,13 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                     self?.cacheImage(image, forKey: cacheKey, isDegraded: isDegraded)
                 }
 
+                let isWaitingForCloudDownload = networkAccessAllowed && image == nil && isInCloud
                 completion(PhotoLibraryImageResult(
                     image: image,
                     isDegraded: isDegraded,
                     isInCloud: isInCloud,
                     progress: nil,
-                    isFinal: !isDegraded
+                    isFinal: !isDegraded && !isWaitingForCloudDownload
                 ))
             }
         }
