@@ -469,6 +469,10 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     private var allPhotosResult: PHFetchResult<PHAsset>?
     private let imageManager = PHCachingImageManager()
     private let imageCache = NSCache<NSString, UIImage>()
+    private struct SwipePreviewPreloadRequest {
+        let requestID: PHImageRequestID
+    }
+    private var swipePreviewPreloadRequests: [String: SwipePreviewPreloadRequest] = [:]
     private let snapshotStore = PhotoLibrarySnapshotStore()
     private var pendingLoadCompletions: [() -> Void] = []
     private var localChangeNotificationsRemaining = 0
@@ -510,6 +514,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         pendingLoadCompletions.removeAll()
         imageCache.removeAllObjects()
         imageManager.stopCachingImagesForAllAssets()
+        cancelSwipePreviewPreloads()
 
         if clearSnapshot {
             snapshotStore.clear()
@@ -1470,6 +1475,48 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         )
     }
 
+    func preloadSwipePreviewsForAssets(_ assets: [PHAsset], size: CGSize, maxCount: Int = 3) {
+        let assetsToPreload = Array(assets.prefix(maxCount))
+        let targetKeys = Set(assetsToPreload.map { swipePreviewPreloadKey(for: $0, size: size) })
+        cancelSwipePreviewPreloads(excluding: targetKeys)
+        guard !assetsToPreload.isEmpty else { return }
+
+        for asset in assetsToPreload {
+            let preloadKey = swipePreviewPreloadKey(for: asset, size: size)
+            guard swipePreviewPreloadRequests[preloadKey] == nil else { continue }
+
+            let requestID = loadSwipePreviewResult(
+                for: asset,
+                size: size,
+                networkAccessAllowed: true
+            ) { [weak self] result in
+                guard result.isFinal else { return }
+                self?.swipePreviewPreloadRequests[preloadKey] = nil
+            }
+
+            if let requestID {
+                swipePreviewPreloadRequests[preloadKey] = SwipePreviewPreloadRequest(requestID: requestID)
+            }
+        }
+    }
+
+    func cancelSwipePreviewPreloads() {
+        cancelSwipePreviewPreloads(excluding: [])
+    }
+
+    private func cancelSwipePreviewPreloads(excluding retainedKeys: Set<String>) {
+        let keysToCancel = swipePreviewPreloadRequests.keys.filter { !retainedKeys.contains($0) }
+        for key in keysToCancel {
+            guard let preloadRequest = swipePreviewPreloadRequests[key] else { continue }
+            imageManager.cancelImageRequest(preloadRequest.requestID)
+            swipePreviewPreloadRequests[key] = nil
+        }
+    }
+
+    private func swipePreviewPreloadKey(for asset: PHAsset, size: CGSize) -> String {
+        "\(asset.localIdentifier)_\(Int(size.width))x\(Int(size.height))"
+    }
+
     func preloadGridThumbnailsForAssets(_ assets: [PHAsset], size: CGSize, maxCount: Int = 30) {
         let assetsToPreload = Array(assets.prefix(maxCount))
         guard !assetsToPreload.isEmpty else { return }
@@ -1483,6 +1530,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     }
 
     func handleMemoryWarning() {
+        cancelSwipePreviewPreloads()
         imageCache.removeAllObjects()
         imageManager.stopCachingImagesForAllAssets()
     }

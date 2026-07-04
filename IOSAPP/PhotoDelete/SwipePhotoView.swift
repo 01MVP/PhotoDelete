@@ -335,6 +335,7 @@ struct SwipePhotoView: View {
                 preloadedAssets,
                 size: swipeImageTargetSize
             )
+            dataManager.photoLibraryManager.cancelSwipePreviewPreloads()
             preloadedAssets.removeAll()
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
@@ -1516,6 +1517,7 @@ struct SwipePhotoView: View {
                 preloadedAssets,
                 size: swipeImageTargetSize
             )
+            dataManager.photoLibraryManager.cancelSwipePreviewPreloads()
             preloadedAssets.removeAll()
             return
         }
@@ -1533,6 +1535,11 @@ struct SwipePhotoView: View {
             upcomingPhotos,
             size: swipeImageTargetSize,
             maxCount: 6
+        )
+        dataManager.photoLibraryManager.preloadSwipePreviewsForAssets(
+            Array(upcomingPhotos.dropFirst()),
+            size: swipeImageTargetSize,
+            maxCount: 3
         )
         preloadedAssets = upcomingPhotos
     }
@@ -3044,8 +3051,16 @@ struct RealPhotoCard: View {
     let targetSize: CGSize
     let onStopVideoPlayback: () -> Void
 
+    private enum PreviewImageQuality {
+        case none
+        case fallbackThumbnail
+        case screenPreview
+    }
+
     @State private var image: UIImage?
+    @State private var imageQuality = PreviewImageQuality.none
     @State private var isLoading = true
+    @State private var thumbnailFallbackWorkItem: DispatchWorkItem?
     @State private var thumbnailRequestID: PHImageRequestID?
     @State private var previewRequestID: PHImageRequestID?
     @State private var fallbackRequestID: PHImageRequestID?
@@ -3187,6 +3202,8 @@ struct RealPhotoCard: View {
             loadImage()
         }
         .onDisappear {
+            thumbnailFallbackWorkItem?.cancel()
+            thumbnailFallbackWorkItem = nil
             photoLibraryManager.cancelImageRequest(thumbnailRequestID)
             photoLibraryManager.cancelImageRequest(previewRequestID)
             photoLibraryManager.cancelImageRequest(fallbackRequestID)
@@ -3194,6 +3211,7 @@ struct RealPhotoCard: View {
             loadingAssetIdentifier = nil
             livePhoto = nil
             livePhotoRequestID = nil
+            imageQuality = .none
             resetPreviewLoadingState()
         }
     }
@@ -3339,12 +3357,16 @@ struct RealPhotoCard: View {
     }
 
     private func loadImage() {
+        thumbnailFallbackWorkItem?.cancel()
+        thumbnailFallbackWorkItem = nil
         photoLibraryManager.cancelImageRequest(thumbnailRequestID)
         photoLibraryManager.cancelImageRequest(previewRequestID)
         photoLibraryManager.cancelImageRequest(fallbackRequestID)
         photoLibraryManager.cancelImageRequest(livePhotoRequestID)
         isLoading = true
         image = nil
+        imageQuality = .none
+        thumbnailRequestID = nil
         fallbackRequestID = nil
         livePhoto = nil
         livePhotoRequestID = nil
@@ -3358,16 +3380,6 @@ struct RealPhotoCard: View {
             height: min(targetSize.height, 1_500)
         )
 
-        thumbnailRequestID = photoLibraryManager.loadFastThumbnail(for: asset, size: thumbnailSize) { loadedImage in
-            guard loadingAssetIdentifier == requestedAssetID else { return }
-            if let loadedImage {
-                self.image = loadedImage
-                self.isLoading = false
-                self.isShowingDegradedPreview = self.previewRequestID != nil
-            }
-            self.thumbnailRequestID = nil
-        }
-
         previewRequestID = photoLibraryManager.loadSwipePreviewResult(
             for: asset,
             size: targetSize,
@@ -3380,37 +3392,41 @@ struct RealPhotoCard: View {
             }
 
             if result.isDegraded {
-                self.isShowingDegradedPreview = true
+                self.isShowingDegradedPreview = self.imageQuality != .none
             }
 
             if let loadedImage = result.image {
-                self.image = loadedImage
-                self.isLoading = false
+                if result.isDegraded {
+                    self.isShowingDegradedPreview = self.imageQuality != .none
+                } else {
+                    self.image = loadedImage
+                    self.imageQuality = .screenPreview
+                    self.isLoading = false
+                    self.cancelThumbnailFallback()
+                }
             }
 
             if result.isFinal {
                 self.isDownloadingFromCloud = false
                 self.cloudDownloadProgress = nil
                 self.isShowingDegradedPreview = false
-                if result.image == nil, self.image == nil {
+                if self.imageQuality != .screenPreview {
                     self.loadFallbackImage(for: requestedAssetID)
                 }
                 self.previewRequestID = nil
             } else if result.image != nil {
-                self.isShowingDegradedPreview = true
+                self.isShowingDegradedPreview = self.imageQuality != .screenPreview
             } else if result.isInCloud, self.image == nil {
                 self.isLoading = true
             }
         }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) {
-            guard loadingAssetIdentifier == requestedAssetID, image == nil else { return }
-            loadFallbackImage(for: requestedAssetID)
-        }
+        scheduleThumbnailFallback(for: requestedAssetID, size: thumbnailSize)
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
             guard loadingAssetIdentifier == requestedAssetID,
                   isShowingDegradedPreview,
+                  imageQuality != .screenPreview,
                   fallbackRequestID == nil else { return }
             loadFallbackImage(for: requestedAssetID)
         }
@@ -3418,6 +3434,40 @@ struct RealPhotoCard: View {
         if photoLibraryManager.isLivePhoto(asset) {
             loadLivePhoto(for: requestedAssetID)
         }
+    }
+
+    private func scheduleThumbnailFallback(for requestedAssetID: String, size: CGSize) {
+        guard imageQuality == .none else { return }
+
+        let workItem = DispatchWorkItem {
+            guard loadingAssetIdentifier == requestedAssetID,
+                  imageQuality == .none,
+                  thumbnailRequestID == nil else {
+                return
+            }
+
+            thumbnailFallbackWorkItem = nil
+            thumbnailRequestID = photoLibraryManager.loadFastThumbnail(for: asset, size: size) { loadedImage in
+                guard loadingAssetIdentifier == requestedAssetID else { return }
+                if let loadedImage, imageQuality == .none {
+                    self.image = loadedImage
+                    self.imageQuality = .fallbackThumbnail
+                    self.isLoading = false
+                    self.isShowingDegradedPreview = self.previewRequestID != nil || self.fallbackRequestID != nil
+                }
+                self.thumbnailRequestID = nil
+            }
+        }
+
+        thumbnailFallbackWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22, execute: workItem)
+    }
+
+    private func cancelThumbnailFallback() {
+        thumbnailFallbackWorkItem?.cancel()
+        thumbnailFallbackWorkItem = nil
+        photoLibraryManager.cancelImageRequest(thumbnailRequestID)
+        thumbnailRequestID = nil
     }
 
     private func resetPreviewLoadingState() {
@@ -3490,7 +3540,9 @@ struct RealPhotoCard: View {
             guard loadingAssetIdentifier == requestedAssetID else { return }
             if let loadedImage {
                 self.image = loadedImage
+                self.imageQuality = .screenPreview
                 self.isLoading = false
+                self.cancelThumbnailFallback()
                 self.resetPreviewLoadingState()
             } else if self.previewRequestID == nil {
                 self.resetPreviewLoadingState()
