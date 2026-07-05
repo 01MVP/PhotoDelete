@@ -246,6 +246,40 @@ enum PhotoRandomReviewSessionStore {
     }
 }
 
+enum PhotoReviewProgressStore {
+    static func load(scopeID: String, defaults: UserDefaults = .standard) -> String? {
+        progressMap(defaults: defaults)[scopeID]
+    }
+
+    static func save(assetIdentifier: String, scopeID: String, defaults: UserDefaults = .standard) {
+        var map = progressMap(defaults: defaults)
+        map[scopeID] = assetIdentifier
+        defaults.set(map, forKey: AppConstants.reviewProgressByScopeKey)
+    }
+
+    static func clear(scopeID: String, defaults: UserDefaults = .standard) {
+        var map = progressMap(defaults: defaults)
+        map.removeValue(forKey: scopeID)
+        saveMap(map, defaults: defaults)
+    }
+
+    static func clearAll(defaults: UserDefaults = .standard) {
+        defaults.removeObject(forKey: AppConstants.reviewProgressByScopeKey)
+    }
+
+    private static func progressMap(defaults: UserDefaults) -> [String: String] {
+        defaults.dictionary(forKey: AppConstants.reviewProgressByScopeKey) as? [String: String] ?? [:]
+    }
+
+    private static func saveMap(_ map: [String: String], defaults: UserDefaults) {
+        if map.isEmpty {
+            defaults.removeObject(forKey: AppConstants.reviewProgressByScopeKey)
+        } else {
+            defaults.set(map, forKey: AppConstants.reviewProgressByScopeKey)
+        }
+    }
+}
+
 struct PhotoLocationAssetRecord: Equatable {
     let identifier: String
     let latitude: Double?

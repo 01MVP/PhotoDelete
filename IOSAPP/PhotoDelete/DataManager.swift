@@ -17,6 +17,50 @@ private let dataManagerLogger = Logger(
     category: "DataManager"
 )
 
+struct SimilarPhotoAssetFingerprint: Equatable {
+    let identifier: String
+    let creationDate: Date?
+    let mediaType: PHAssetMediaType
+    let pixelWidth: Int
+    let pixelHeight: Int
+    let burstIdentifier: String?
+    let isScreenshot: Bool
+
+    init(
+        identifier: String,
+        creationDate: Date?,
+        mediaType: PHAssetMediaType = .image,
+        pixelWidth: Int,
+        pixelHeight: Int,
+        burstIdentifier: String? = nil,
+        isScreenshot: Bool = false
+    ) {
+        self.identifier = identifier
+        self.creationDate = creationDate
+        self.mediaType = mediaType
+        self.pixelWidth = pixelWidth
+        self.pixelHeight = pixelHeight
+        self.burstIdentifier = burstIdentifier
+        self.isScreenshot = isScreenshot
+    }
+
+    init(asset: PHAsset, isScreenshot: Bool) {
+        self.init(
+            identifier: asset.localIdentifier,
+            creationDate: asset.creationDate,
+            mediaType: asset.mediaType,
+            pixelWidth: asset.pixelWidth,
+            pixelHeight: asset.pixelHeight,
+            burstIdentifier: asset.burstIdentifier,
+            isScreenshot: isScreenshot
+        )
+    }
+
+    var isEligibleImage: Bool {
+        mediaType == .image && creationDate != nil && !isScreenshot
+    }
+}
+
 class DataManager: ObservableObject {
     @Published var organizeStats = OrganizeStats()
 
@@ -54,6 +98,7 @@ class DataManager: ObservableObject {
     @Published private(set) var advancedCleanupQueues: [AdvancedCleanupQueue] = []
     @Published private(set) var advancedCleanupQueuesRevision = UUID()
     @Published private(set) var isLoadingAdvancedCleanupQueues = false
+    @Published private(set) var isRestoringLibrarySnapshot = false
     let cleanupStatsStore: CleanupStatsStore
     let videoCompressionHistoryStore: VideoCompressionHistoryStore
     let imageCompressionHistoryStore: ImageCompressionHistoryStore
@@ -62,7 +107,6 @@ class DataManager: ObservableObject {
     private let albumSnapshotStore = AlbumListSnapshotStore()
 
     private var isReloadingLibrary = false
-    private var isRestoringLibrarySnapshot = false
     private var hasLoadedAlbums = false
     private var isFetchingAlbums = false
     private var pendingAlbumRefresh = false
@@ -134,6 +178,12 @@ class DataManager: ObservableObject {
         let imageCompressionSessionCount: Int
         let imageCompressionItemCount: Int
     }
+
+    private static let similarPhotoTemporalMaxGap: TimeInterval = 18
+    private static let similarPhotoTemporalMaxClusterSpan: TimeInterval = 45
+    private static let similarPhotoAspectTolerance = 0.018
+    private static let similarPhotoDimensionRelativeTolerance = 0.08
+    private static let similarPhotoMinimumTemporalGroupSize = 3
 
     private struct DaySummaryAccumulator {
         var photoCount = 0
@@ -596,6 +646,9 @@ class DataManager: ObservableObject {
                 }
             }
 
+            let completedResultItems = resultItems
+            let completedFailedCount = failedCount
+            let completedFirstErrorMessage = firstErrorMessage
             let wasCancelled = Task.isCancelled
             await MainActor.run {
                 self.imageCompressionJob.isCompressing = false
@@ -603,17 +656,17 @@ class DataManager: ObservableObject {
                 self.imageCompressionJob.message = nil
                 self.imageCompressionTask = nil
 
-                if !resultItems.isEmpty {
+                if !completedResultItems.isEmpty {
                     let completedResult = AdvancedImageCompressionResult(
-                        items: resultItems,
-                        failedCount: failedCount,
+                        items: completedResultItems,
+                        failedCount: completedFailedCount,
                         completedAt: Date(),
                         plan: plan
                     )
                     self.imageCompressionJob.result = completedResult
                     self.recordImageCompressionSession(
                         imageCount: completedResult.successCount,
-                        failedCount: failedCount,
+                        failedCount: completedFailedCount,
                         originalSizeMB: completedResult.originalSizeMB,
                         compressedSizeMB: completedResult.compressedSizeMB,
                         date: completedResult.completedAt,
@@ -621,12 +674,12 @@ class DataManager: ObservableObject {
                     )
                     HapticManager.notify(.success)
                 } else if !wasCancelled {
-                    self.imageCompressionJob.errorMessage = firstErrorMessage ?? L10n.string("图片压缩失败，请稍后再试。")
+                    self.imageCompressionJob.errorMessage = completedFirstErrorMessage ?? L10n.string("图片压缩失败，请稍后再试。")
                     HapticManager.notify(.warning)
                 }
 
-                if failedCount > 0 && !resultItems.isEmpty {
-                    self.imageCompressionJob.errorMessage = String(format: L10n.string("有 %lld 张图片未完成"), Int64(failedCount))
+                if completedFailedCount > 0 && !completedResultItems.isEmpty {
+                    self.imageCompressionJob.errorMessage = String(format: L10n.string("有 %lld 张图片未完成"), Int64(completedFailedCount))
                 }
 
                 Self.endAdvancedCompressionBackgroundTask(backgroundTaskID)
@@ -684,6 +737,9 @@ class DataManager: ObservableObject {
                 }
             }
 
+            let completedResultItems = resultItems
+            let completedFailedCount = failedCount
+            let completedFirstErrorMessage = firstErrorMessage
             let wasCancelled = Task.isCancelled
             await MainActor.run {
                 self.videoCompressionJob.isCompressing = false
@@ -691,31 +747,31 @@ class DataManager: ObservableObject {
                 self.videoCompressionJob.message = nil
                 self.videoCompressionTask = nil
 
-                if !resultItems.isEmpty {
+                if !completedResultItems.isEmpty {
                     let completedResult = AdvancedVideoCompressionResult(
-                        items: resultItems,
-                        failedCount: failedCount,
+                        items: completedResultItems,
+                        failedCount: completedFailedCount,
                         completedAt: Date(),
                         plan: plan
                     )
                     self.videoCompressionJob.result = completedResult
                     self.recordVideoCompressionSession(
                         videoCount: completedResult.successCount,
-                        failedCount: failedCount,
+                        failedCount: completedFailedCount,
                         originalSizeMB: completedResult.originalSizeMB,
                         compressedSizeMB: completedResult.compressedSizeMB,
                         date: completedResult.completedAt,
                         items: completedResult.historyItems
                     )
-                    self.cacheVideoCompressionSizeEstimates(from: resultItems)
+                    self.cacheVideoCompressionSizeEstimates(from: completedResultItems)
                     HapticManager.notify(.success)
                 } else if !wasCancelled {
-                    self.videoCompressionJob.errorMessage = firstErrorMessage ?? L10n.string("视频压缩失败，请稍后再试。")
+                    self.videoCompressionJob.errorMessage = completedFirstErrorMessage ?? L10n.string("视频压缩失败，请稍后再试。")
                     HapticManager.notify(.warning)
                 }
 
-                if failedCount > 0 && !resultItems.isEmpty {
-                    self.videoCompressionJob.errorMessage = String(format: L10n.string("有 %lld 个视频未完成"), Int64(failedCount))
+                if completedFailedCount > 0 && !completedResultItems.isEmpty {
+                    self.videoCompressionJob.errorMessage = String(format: L10n.string("有 %lld 个视频未完成"), Int64(completedFailedCount))
                 }
 
                 Self.endAdvancedCompressionBackgroundTask(backgroundTaskID)
@@ -819,6 +875,7 @@ class DataManager: ObservableObject {
         clearPendingCandidateIDs()
         reviewedAssetIDs.removeAll()
         PhotoRandomReviewSessionStore.clearAll()
+        PhotoReviewProgressStore.clearAll(defaults: userDefaults)
         saveReviewedAssetIDsNow()
         hasLoadedAlbums = false
         isLoadingAlbums = false
@@ -900,6 +957,7 @@ class DataManager: ObservableObject {
         clearPendingCandidateIDs()
         reviewedAssetIDs.removeAll()
         PhotoRandomReviewSessionStore.clearAll()
+        PhotoReviewProgressStore.clearAll(defaults: userDefaults)
         saveReviewedAssetIDsNow()
         loadTimeGroups()
         scheduleLocationGroupsRefreshIfLoaded(delay: 0)
@@ -1465,48 +1523,29 @@ class DataManager: ObservableObject {
         screenshotIDs: Set<String>,
         maxGroups: Int? = nil
     ) -> [AdvancedSimilarPhotoGroup] {
-        let photos = allPhotos
-            .filter { asset in
-                asset.mediaType == .image &&
-                    asset.creationDate != nil &&
-                    !screenshotIDs.contains(asset.localIdentifier)
-            }
-            .sorted {
-                let lhsDate = $0.creationDate ?? .distantPast
-                let rhsDate = $1.creationDate ?? .distantPast
-                if lhsDate == rhsDate {
-                    return $0.localIdentifier < $1.localIdentifier
-                }
-                return lhsDate < rhsDate
-            }
-
-        var groups: [AdvancedSimilarPhotoGroup] = []
-        var cluster: [PHAsset] = []
-
-        func flushCluster() {
-            guard cluster.count >= 3 else { return }
-            let estimatedSpace = cluster.dropFirst().reduce(0) { $0 + estimatedAssetSizeMBForAsset($1) }
-            groups.append(
-                AdvancedSimilarPhotoGroup(
-                    assets: cluster.sorted {
-                        let lhsDate = $0.creationDate ?? .distantPast
-                        let rhsDate = $1.creationDate ?? .distantPast
-                        return lhsDate < rhsDate
-                    },
-                    estimatedSpaceMB: estimatedSpace
-                )
+        let assetsByID = Dictionary(uniqueKeysWithValues: allPhotos.map { ($0.localIdentifier, $0) })
+        let fingerprints = allPhotos.map { asset in
+            SimilarPhotoAssetFingerprint(
+                asset: asset,
+                isScreenshot: screenshotIDs.contains(asset.localIdentifier)
             )
         }
-
-        for asset in photos {
-            if let previous = cluster.last, isPotentiallySimilar(asset, to: previous) {
-                cluster.append(asset)
-            } else {
-                flushCluster()
-                cluster = [asset]
-            }
+        let groups = similarPhotoIdentifierGroups(from: fingerprints).compactMap { identifiers -> AdvancedSimilarPhotoGroup? in
+            let assets = identifiers.compactMap { assetsByID[$0] }
+            guard assets.count >= 2 else { return nil }
+            let estimatedSpace = assets.dropFirst().reduce(0) { $0 + estimatedAssetSizeMBForAsset($1) }
+            return AdvancedSimilarPhotoGroup(
+                assets: assets.sorted {
+                    let lhsDate = $0.creationDate ?? .distantPast
+                    let rhsDate = $1.creationDate ?? .distantPast
+                    if lhsDate == rhsDate {
+                        return $0.localIdentifier < $1.localIdentifier
+                    }
+                    return lhsDate < rhsDate
+                },
+                estimatedSpaceMB: estimatedSpace
+            )
         }
-        flushCluster()
 
         let sortedGroups = groups.sorted { lhs, rhs in
             if lhs.estimatedSpaceMB != rhs.estimatedSpaceMB {
@@ -1520,6 +1559,70 @@ class DataManager: ObservableObject {
 
         guard let maxGroups else { return sortedGroups }
         return Array(sortedGroups.prefix(max(maxGroups, 0)))
+    }
+
+    static func similarPhotoIdentifierGroups(
+        from fingerprints: [SimilarPhotoAssetFingerprint]
+    ) -> [[String]] {
+        let candidates = fingerprints
+            .filter(\.isEligibleImage)
+            .sorted {
+                let lhsDate = $0.creationDate ?? .distantPast
+                let rhsDate = $1.creationDate ?? .distantPast
+                if lhsDate == rhsDate {
+                    return $0.identifier < $1.identifier
+                }
+                return lhsDate < rhsDate
+            }
+
+        var groups: [[String]] = []
+        var consumedIdentifiers = Set<String>()
+
+        let burstGroups = Dictionary(grouping: candidates.compactMap { candidate -> SimilarPhotoAssetFingerprint? in
+            guard candidate.burstIdentifier?.isEmpty == false else { return nil }
+            return candidate
+        }, by: { $0.burstIdentifier ?? "" })
+
+        for burstGroup in burstGroups.values {
+            let sortedBurst = burstGroup.sorted {
+                let lhsDate = $0.creationDate ?? .distantPast
+                let rhsDate = $1.creationDate ?? .distantPast
+                if lhsDate == rhsDate {
+                    return $0.identifier < $1.identifier
+                }
+                return lhsDate < rhsDate
+            }
+            guard sortedBurst.count >= 2 else { continue }
+            let identifiers = sortedBurst.map(\.identifier)
+            groups.append(identifiers)
+            consumedIdentifiers.formUnion(identifiers)
+        }
+
+        var cluster: [SimilarPhotoAssetFingerprint] = []
+
+        func flushCluster() {
+            guard cluster.count >= similarPhotoMinimumTemporalGroupSize else {
+                cluster.removeAll()
+                return
+            }
+            groups.append(cluster.map(\.identifier))
+            consumedIdentifiers.formUnion(cluster.map(\.identifier))
+            cluster.removeAll()
+        }
+
+        for candidate in candidates where !consumedIdentifiers.contains(candidate.identifier) {
+            if let previous = cluster.last,
+               isPotentiallySimilar(candidate, to: previous),
+               isWithinSimilarPhotoClusterSpan(candidate, clusterStart: cluster.first) {
+                cluster.append(candidate)
+            } else {
+                flushCluster()
+                cluster = [candidate]
+            }
+        }
+        flushCluster()
+
+        return groups
     }
 
     private func similarPhotoCandidates(maxCount: Int? = nil) -> [PHAsset] {
@@ -1708,21 +1811,60 @@ class DataManager: ObservableObject {
         )
     }
 
-    private static func isPotentiallySimilar(_ asset: PHAsset, to previous: PHAsset) -> Bool {
-        guard let assetDate = asset.creationDate,
+    private static func isWithinSimilarPhotoClusterSpan(
+        _ candidate: SimilarPhotoAssetFingerprint,
+        clusterStart: SimilarPhotoAssetFingerprint?
+    ) -> Bool {
+        guard let startDate = clusterStart?.creationDate,
+              let candidateDate = candidate.creationDate else { return false }
+        return abs(candidateDate.timeIntervalSince(startDate)) <= similarPhotoTemporalMaxClusterSpan
+    }
+
+    private static func isPotentiallySimilar(
+        _ candidate: SimilarPhotoAssetFingerprint,
+        to previous: SimilarPhotoAssetFingerprint
+    ) -> Bool {
+        guard let assetDate = candidate.creationDate,
               let previousDate = previous.creationDate else { return false }
 
         let timeDistance = abs(assetDate.timeIntervalSince(previousDate))
-        guard timeDistance <= 90 else { return false }
+        guard timeDistance <= similarPhotoTemporalMaxGap else { return false }
 
-        let assetAspect = aspectRatio(for: asset)
-        let previousAspect = aspectRatio(for: previous)
-        return abs(assetAspect - previousAspect) <= 0.025
+        guard hasSameOrientation(candidate, previous),
+              hasSimilarDimensions(candidate, previous) else {
+            return false
+        }
+
+        let assetAspect = aspectRatio(width: candidate.pixelWidth, height: candidate.pixelHeight)
+        let previousAspect = aspectRatio(width: previous.pixelWidth, height: previous.pixelHeight)
+        return abs(assetAspect - previousAspect) <= similarPhotoAspectTolerance
     }
 
-    private static func aspectRatio(for asset: PHAsset) -> Double {
-        guard asset.pixelHeight > 0 else { return 0 }
-        return Double(asset.pixelWidth) / Double(asset.pixelHeight)
+    private static func hasSameOrientation(
+        _ lhs: SimilarPhotoAssetFingerprint,
+        _ rhs: SimilarPhotoAssetFingerprint
+    ) -> Bool {
+        let lhsPortrait = lhs.pixelHeight > lhs.pixelWidth
+        let rhsPortrait = rhs.pixelHeight > rhs.pixelWidth
+        return lhsPortrait == rhsPortrait
+    }
+
+    private static func hasSimilarDimensions(
+        _ lhs: SimilarPhotoAssetFingerprint,
+        _ rhs: SimilarPhotoAssetFingerprint
+    ) -> Bool {
+        relativeDifference(lhs.pixelWidth, rhs.pixelWidth) <= similarPhotoDimensionRelativeTolerance &&
+            relativeDifference(lhs.pixelHeight, rhs.pixelHeight) <= similarPhotoDimensionRelativeTolerance
+    }
+
+    private static func relativeDifference(_ lhs: Int, _ rhs: Int) -> Double {
+        let maxValue = Double(max(max(lhs, rhs), 1))
+        return Double(abs(lhs - rhs)) / maxValue
+    }
+
+    private static func aspectRatio(width: Int, height: Int) -> Double {
+        guard height > 0 else { return 0 }
+        return Double(width) / Double(height)
     }
 
     func estimatedSizeMB(for asset: PHAsset) -> Double {

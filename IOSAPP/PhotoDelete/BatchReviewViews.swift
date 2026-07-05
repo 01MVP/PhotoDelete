@@ -932,6 +932,7 @@ struct PhotoAssetVideoPlayerView: View {
     var isMuted = true
     var ignoresSafeArea = true
     var allowsPlayerInteraction = true
+    var onScrubbingChanged: (Bool) -> Void = { _ in }
 
     @State private var player: AVPlayer?
     @State private var requestID: PHImageRequestID?
@@ -940,6 +941,8 @@ struct PhotoAssetVideoPlayerView: View {
     @State private var loadingAssetIdentifier: String?
     @State private var playbackProgress: Double = 0
     @State private var timeObserverToken: Any?
+    @State private var isScrubbingPlayback = false
+    @State private var wasPlayingBeforeScrub = false
 
     var body: some View {
         ZStack {
@@ -951,8 +954,11 @@ struct PhotoAssetVideoPlayerView: View {
                     .ignoresSafeArea(edges: ignoresSafeArea ? .all : [])
                     .allowsHitTesting(allowsPlayerInteraction)
                     .overlay(alignment: .bottom) {
-                        VideoPlaybackProgressBar(progress: playbackProgress)
-                            .allowsHitTesting(false)
+                        VideoPlaybackProgressBar(
+                            progress: playbackProgress,
+                            onScrub: seekToProgress,
+                            onScrubbingChanged: handlePlaybackScrubbingChanged
+                        )
                     }
                     .onAppear {
                         if autoPlay {
@@ -1025,6 +1031,7 @@ struct PhotoAssetVideoPlayerView: View {
             queue: .main
         ) { [weak loadedPlayer] time in
             guard let currentPlayer = loadedPlayer else { return }
+            guard !isScrubbingPlayback else { return }
             let duration = currentPlayer.currentItem?.duration.seconds ?? 0
             guard duration.isFinite, duration > 0, time.seconds.isFinite else {
                 playbackProgress = 0
@@ -1040,6 +1047,37 @@ struct PhotoAssetVideoPlayerView: View {
         self.timeObserverToken = nil
     }
 
+    private func handlePlaybackScrubbingChanged(_ isScrubbing: Bool) {
+        guard isScrubbingPlayback != isScrubbing else { return }
+        isScrubbingPlayback = isScrubbing
+        onScrubbingChanged(isScrubbing)
+
+        if isScrubbing {
+            wasPlayingBeforeScrub = player?.timeControlStatus == .playing
+            player?.pause()
+        } else if wasPlayingBeforeScrub {
+            player?.play()
+            wasPlayingBeforeScrub = false
+        }
+    }
+
+    private func seekToProgress(_ progress: Double) {
+        guard let player,
+              let duration = player.currentItem?.duration.seconds,
+              duration.isFinite,
+              duration > 0 else {
+            return
+        }
+
+        let clampedProgress = VideoPlaybackProgressMapper.clamped(progress)
+        playbackProgress = clampedProgress
+        player.seek(
+            to: CMTime(seconds: duration * clampedProgress, preferredTimescale: 600),
+            toleranceBefore: .zero,
+            toleranceAfter: .zero
+        )
+    }
+
     private func cleanup() {
         photoLibraryManager.cancelImageRequest(requestID)
         requestID = nil
@@ -1048,11 +1086,35 @@ struct PhotoAssetVideoPlayerView: View {
         player?.pause()
         player = nil
         playbackProgress = 0
+        if isScrubbingPlayback {
+            onScrubbingChanged(false)
+        }
+        isScrubbingPlayback = false
+        wasPlayingBeforeScrub = false
+    }
+}
+
+enum VideoPlaybackProgressMapper {
+    static func clamped(_ progress: Double) -> Double {
+        min(max(progress, 0), 1)
+    }
+
+    static func progress(locationX: CGFloat, width: CGFloat) -> Double {
+        guard width > 0 else { return 0 }
+        return clamped(Double(locationX / width))
     }
 }
 
 private struct VideoPlaybackProgressBar: View {
     let progress: Double
+    let onScrub: (Double) -> Void
+    let onScrubbingChanged: (Bool) -> Void
+
+    @State private var scrubbingProgress: Double?
+
+    private var displayedProgress: Double {
+        VideoPlaybackProgressMapper.clamped(scrubbingProgress ?? progress)
+    }
 
     var body: some View {
         GeometryReader { proxy in
@@ -1062,10 +1124,19 @@ private struct VideoPlaybackProgressBar: View {
 
                 Capsule(style: .continuous)
                     .fill(PhotoDeleteStyle.accent)
-                    .frame(width: proxy.size.width * CGFloat(min(max(progress, 0), 1)))
+                    .frame(width: proxy.size.width * CGFloat(displayedProgress))
+
+                Circle()
+                    .fill(Color.white)
+                    .frame(width: 14, height: 14)
+                    .shadow(color: .black.opacity(0.28), radius: 4, x: 0, y: 1)
+                    .offset(x: max(0, proxy.size.width * CGFloat(displayedProgress) - 7))
             }
+            .frame(height: 18)
+            .contentShape(Rectangle())
+            .gesture(scrubGesture(width: proxy.size.width))
         }
-        .frame(height: 4)
+        .frame(height: 18)
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .background(
@@ -1075,7 +1146,33 @@ private struct VideoPlaybackProgressBar: View {
                 endPoint: .bottom
             )
         )
-        .accessibilityHidden(true)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(L10n.string("视频预览"))
+        .accessibilityValue(L10n.percent(Int(displayedProgress * 100)))
+    }
+
+    private func scrubGesture(width: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { value in
+                let nextProgress = VideoPlaybackProgressMapper.progress(
+                    locationX: value.location.x,
+                    width: width
+                )
+                if scrubbingProgress == nil {
+                    onScrubbingChanged(true)
+                }
+                scrubbingProgress = nextProgress
+                onScrub(nextProgress)
+            }
+            .onEnded { value in
+                let finalProgress = VideoPlaybackProgressMapper.progress(
+                    locationX: value.location.x,
+                    width: width
+                )
+                onScrub(finalProgress)
+                scrubbingProgress = nil
+                onScrubbingChanged(false)
+            }
     }
 }
 

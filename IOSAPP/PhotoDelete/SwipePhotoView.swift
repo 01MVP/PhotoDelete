@@ -73,6 +73,8 @@ struct SwipePhotoView: View {
     @State private var didApplySessionPlaybackPreference = false
     @State private var cardTransitionDirection = CardBrowseTransitionDirection.none
     @State private var hasPreparedSwipeCommit = false
+    @State private var isScrubbingInlineVideo = false
+    @State private var browserModeRefreshToken = UUID()
 
     private let reviewModeHintThreshold = 5
     private let deleteButtonTipThreshold = 3
@@ -615,6 +617,7 @@ struct SwipePhotoView: View {
                 metadataSummary: metadataSummary(for: asset),
                 displaySize: cardSize,
                 targetSize: imageTargetSize(for: cardSize),
+                isScrubbingVideo: $isScrubbingInlineVideo,
                 onStopVideoPlayback: {
                     stopInlineVideoPlayback(rememberManualStopFor: asset)
                 }
@@ -748,6 +751,7 @@ struct SwipePhotoView: View {
                 }
             )
             .frame(height: tileHeight * 2 + 20)
+            .id(browserModeRefreshToken)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.top, 12)
@@ -766,6 +770,7 @@ struct SwipePhotoView: View {
         if inlinePlayingVideoAssetID == assetID {
             inlinePlayingVideoAssetID = nil
             manuallyStoppedVideoAssetID = assetID
+            isScrubbingInlineVideo = false
         } else {
             manuallyStoppedVideoAssetID = nil
             inlinePlayingVideoAssetID = assetID
@@ -777,6 +782,7 @@ struct SwipePhotoView: View {
             manuallyStoppedVideoAssetID = asset.localIdentifier
         }
         inlinePlayingVideoAssetID = nil
+        isScrubbingInlineVideo = false
     }
 
     private func stopInlineVideoPlaybackIfNeeded(forNextIndex index: Int) {
@@ -786,6 +792,7 @@ struct SwipePhotoView: View {
             return
         }
         self.inlinePlayingVideoAssetID = nil
+        isScrubbingInlineVideo = false
     }
     private var browserStatusStrip: some View {
         VStack(spacing: 7) {
@@ -1412,6 +1419,7 @@ struct SwipePhotoView: View {
     private var isWaitingForSourceData: Bool {
         dataManager.photoLibraryManager.isLoading ||
             dataManager.isPreparingLibrary ||
+            dataManager.isRestoringLibrarySnapshot ||
             (selectedLocationGroupID != nil && (dataManager.isLoadingLocationGroups || dataManager.isResolvingLocationTitles)) ||
             dataManager.isLoadingAdvancedCleanupQueues
     }
@@ -1432,6 +1440,13 @@ struct SwipePhotoView: View {
         let currentIDs = allSessionPhotos.map(\.localIdentifier)
         let nextIDs = photos.map(\.localIdentifier)
         guard force || currentIDs != nextIDs || (allSessionPhotos.isEmpty && !photos.isEmpty) else {
+            return
+        }
+
+        if allSessionPhotos.isEmpty, !photos.isEmpty {
+            didInitializeSession = false
+            refreshSessionPhotos(photos)
+            didInitializeSession = true
             return
         }
 
@@ -1461,7 +1476,7 @@ struct SwipePhotoView: View {
                 assetIdentifiers: fullPhotos.map(\.localIdentifier),
                 reviewedAssetIdentifiers: dataManager.reviewedAssetIDs,
                 savedAssetIdentifier: restoredSessionProgressAssetID,
-                prefersFirstUnreviewedBeforeSavedProgress: shouldPreferFirstUnreviewedBeforeSavedProgress
+                prefersFirstUnreviewedBeforeSavedProgress: shouldPrioritizeNewPhotosBeforeSavedProgress
             )
         }
         showCompletionMessage = !fullPhotos.isEmpty && firstUnreviewedIndex == nil
@@ -1612,8 +1627,12 @@ struct SwipePhotoView: View {
     }
 
     private func toggleReviewMode() {
-        let nextMode = reviewMode.toggled
+        let currentMode = reviewMode
+        let nextMode = currentMode.toggled
         dismissReviewModeHint(markSeen: true)
+        if PhotoReviewModeSyncPolicy.shouldRefreshBrowserAnchor(from: currentMode, to: nextMode) {
+            browserModeRefreshToken = UUID()
+        }
         reviewModeValue = nextMode.rawValue
         resetCardPosition()
         preloadUpcomingImages(from: currentPhotoIndex)
@@ -1739,10 +1758,18 @@ struct SwipePhotoView: View {
     private func createDragGesture() -> some Gesture {
         DragGesture(minimumDistance: SwipeMotion.minimumDragDistance)
             .onChanged { value in
+                guard !isScrubbingInlineVideo else {
+                    dragOffset = .zero
+                    return
+                }
                 dragOffset = visualDragOffset(for: value.translation)
                 updateSwipeCommitFeedback(for: value.translation)
             }
             .onEnded { value in
+                guard !isScrubbingInlineVideo else {
+                    resetCardPosition()
+                    return
+                }
                 handleSwipeGesture(
                     translation: value.translation,
                     predictedEndTranslation: value.predictedEndTranslation
@@ -2097,10 +2124,10 @@ struct SwipePhotoView: View {
     }
 
     private var restoredSessionProgressAssetID: String? {
-        persistedProgressMap()[sessionProgressScopeID]
+        PhotoReviewProgressStore.load(scopeID: sessionProgressScopeID)
     }
 
-    private var shouldPreferFirstUnreviewedBeforeSavedProgress: Bool {
+    private var shouldPrioritizeNewPhotosBeforeSavedProgress: Bool {
         selectedCategory == .all && randomReviewScope == nil
     }
 
@@ -2122,13 +2149,10 @@ struct SwipePhotoView: View {
 
     private func persistSessionProgressIfPossible() {
         guard didInitializeSession, let asset = currentRealPhoto else { return }
-        var progressMap = persistedProgressMap()
-        progressMap[sessionProgressScopeID] = asset.localIdentifier
-        UserDefaults.standard.set(progressMap, forKey: AppConstants.reviewProgressByScopeKey)
-    }
-
-    private func persistedProgressMap() -> [String: String] {
-        UserDefaults.standard.dictionary(forKey: AppConstants.reviewProgressByScopeKey) as? [String: String] ?? [:]
+        PhotoReviewProgressStore.save(
+            assetIdentifier: asset.localIdentifier,
+            scopeID: sessionProgressScopeID
+        )
     }
 
     private var sessionProgressScopeID: String {
@@ -2672,6 +2696,7 @@ private struct SwipePhotoCardFrame: View {
     let metadataSummary: PhotoAssetMetadataSummary
     let displaySize: CGSize
     let targetSize: CGSize
+    @Binding var isScrubbingVideo: Bool
     let onStopVideoPlayback: () -> Void
 
     var body: some View {
@@ -2689,6 +2714,7 @@ private struct SwipePhotoCardFrame: View {
             metadataSummary: metadataSummary,
             displaySize: displaySize,
             targetSize: targetSize,
+            isScrubbingVideo: $isScrubbingVideo,
             onStopVideoPlayback: onStopVideoPlayback
         )
     }
@@ -3049,6 +3075,7 @@ struct RealPhotoCard: View {
     let metadataSummary: PhotoAssetMetadataSummary
     let displaySize: CGSize
     let targetSize: CGSize
+    @Binding var isScrubbingVideo: Bool
     let onStopVideoPlayback: () -> Void
 
     private enum PreviewImageQuality {
@@ -3079,9 +3106,9 @@ struct RealPhotoCard: View {
                     asset: asset,
                     photoLibraryManager: photoLibraryManager,
                     isMuted: videoMuted,
-                    allowsPlayerInteraction: false
+                    allowsPlayerInteraction: false,
+                    onScrubbingChanged: { isScrubbingVideo = $0 }
                 )
-                .allowsHitTesting(false)
                 .frame(width: displaySize.width, height: displaySize.height)
                 .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                 .overlay(

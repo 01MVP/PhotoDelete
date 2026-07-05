@@ -299,6 +299,12 @@ enum PhotoReviewMode: String, CaseIterable, Identifiable {
     }
 }
 
+enum PhotoReviewModeSyncPolicy {
+    static func shouldRefreshBrowserAnchor(from currentMode: PhotoReviewMode, to nextMode: PhotoReviewMode) -> Bool {
+        currentMode != .browser && nextMode == .browser
+    }
+}
+
 // MARK: - 时间分组
 enum TimeGroup: String, CaseIterable {
     case today

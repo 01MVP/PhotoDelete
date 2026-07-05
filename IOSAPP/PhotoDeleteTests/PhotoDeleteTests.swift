@@ -445,6 +445,13 @@ struct PhotoDeleteTests {
         #expect(PhotoReviewMode.browser.toggled == .card)
     }
 
+    @Test func photoReviewModeSyncRefreshesAnchorWhenEnteringBrowser() async throws {
+        #expect(PhotoReviewModeSyncPolicy.shouldRefreshBrowserAnchor(from: .card, to: .browser))
+        #expect(!PhotoReviewModeSyncPolicy.shouldRefreshBrowserAnchor(from: .browser, to: .card))
+        #expect(!PhotoReviewModeSyncPolicy.shouldRefreshBrowserAnchor(from: .browser, to: .browser))
+        #expect(!PhotoReviewModeSyncPolicy.shouldRefreshBrowserAnchor(from: .card, to: .card))
+    }
+
     @Test func photoCategoryIncludesLivePhotosQuickEntry() async throws {
         #expect(PhotoCategory.allCases == [.all, .videos, .screenshots, .livePhotos, .favorites])
         #expect(PhotoCategory.livePhotos.icon == "livephoto")
@@ -1660,6 +1667,33 @@ struct PhotoDeleteTests {
         #expect(PhotoRandomReviewSessionStore.load(scopeID: "random:memories", defaults: defaults).isEmpty)
     }
 
+    @Test func reviewProgressStoreRoundTripsAndClearsScope() async throws {
+        let suiteName = "PhotoDeleteReviewProgress-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        PhotoReviewProgressStore.save(assetIdentifier: "asset-42", scopeID: "category:all", defaults: defaults)
+
+        #expect(PhotoReviewProgressStore.load(scopeID: "category:all", defaults: defaults) == "asset-42")
+        #expect(PhotoReviewProgressStore.load(scopeID: "category:videos", defaults: defaults) == nil)
+
+        PhotoReviewProgressStore.clear(scopeID: "category:all", defaults: defaults)
+        #expect(PhotoReviewProgressStore.load(scopeID: "category:all", defaults: defaults) == nil)
+    }
+
+    @Test func clearLocalOrganizeDataClearsReviewProgress() async throws {
+        let suiteName = "PhotoDeleteClearProgress-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        PhotoReviewProgressStore.save(assetIdentifier: "asset-42", scopeID: "category:all", defaults: defaults)
+        let dm = DataManager(userDefaults: defaults)
+
+        dm.clearLocalOrganizeData()
+
+        #expect(PhotoReviewProgressStore.load(scopeID: "category:all", defaults: defaults) == nil)
+    }
+
     @Test func reviewSessionPaginatorExpandsNearEndAndClampsAtTotal() async throws {
         #expect(PhotoReviewSessionPaginator.initialLoadedCount(totalCount: 500) == 80)
         #expect(PhotoReviewSessionPaginator.expandedLoadedCount(totalCount: 500, currentLoadedCount: 80, currentIndex: 40) == 80)
@@ -1667,7 +1701,7 @@ struct PhotoDeleteTests {
         #expect(PhotoReviewSessionPaginator.expandedLoadedCount(totalCount: 120, currentLoadedCount: 80, currentIndex: 75) == 120)
     }
 
-    @Test func reviewSessionInitialTargetPrefersNewUnreviewedBeforeSavedProgress() async throws {
+    @Test func reviewSessionInitialTargetPrioritizesNewPhotosBeforeSavedProgress() async throws {
         let ids = ["new-2", "new-1", "reviewed-0", "saved-70", "unreviewed-71"]
         let reviewed: Set<String> = ["reviewed-0", "saved-70"]
 
@@ -1679,6 +1713,48 @@ struct PhotoDeleteTests {
         )
 
         #expect(index == 0)
+    }
+
+    @Test func reviewSessionInitialTargetReturnsToSavedProgressAfterNewPhotosAreReviewed() async throws {
+        let ids = ["new-2", "new-1", "reviewed-0", "saved-70", "unreviewed-71"]
+        let reviewed: Set<String> = ["new-2", "new-1", "reviewed-0"]
+
+        let index = PhotoReviewSessionPaginator.initialTargetIndex(
+            assetIdentifiers: ids,
+            reviewedAssetIdentifiers: reviewed,
+            savedAssetIdentifier: "saved-70",
+            prefersFirstUnreviewedBeforeSavedProgress: true
+        )
+
+        #expect(index == 3)
+    }
+
+    @Test func reviewSessionInitialTargetContinuesAfterSavedProgressWhenNewPhotosAreReviewed() async throws {
+        let ids = ["new-2", "new-1", "reviewed-0", "saved-70", "unreviewed-71"]
+        let reviewed: Set<String> = ["new-2", "new-1", "reviewed-0", "saved-70"]
+
+        let index = PhotoReviewSessionPaginator.initialTargetIndex(
+            assetIdentifiers: ids,
+            reviewedAssetIdentifiers: reviewed,
+            savedAssetIdentifier: "saved-70",
+            prefersFirstUnreviewedBeforeSavedProgress: true
+        )
+
+        #expect(index == 4)
+    }
+
+    @Test func reviewSessionInitialTargetUsesSavedProgressWhenNoNewPhotosExist() async throws {
+        let ids = ["reviewed-2", "reviewed-1", "reviewed-0", "saved-70", "unreviewed-71"]
+        let reviewed: Set<String> = ["reviewed-2", "reviewed-1", "reviewed-0"]
+
+        let index = PhotoReviewSessionPaginator.initialTargetIndex(
+            assetIdentifiers: ids,
+            reviewedAssetIdentifiers: reviewed,
+            savedAssetIdentifier: "saved-70",
+            prefersFirstUnreviewedBeforeSavedProgress: true
+        )
+
+        #expect(index == 3)
     }
 
     @Test func reviewSessionInitialTargetContinuesAfterSavedProgressWhenNoEarlierUnreviewedExists() async throws {
@@ -1706,6 +1782,56 @@ struct PhotoDeleteTests {
         )
 
         #expect(index == 3)
+    }
+
+    @Test func similarPhotoGroupingUsesBurstIdentifierForTwoItemGroups() async throws {
+        let date = Date(timeIntervalSince1970: 1_000)
+        let groups = DataManager.similarPhotoIdentifierGroups(from: [
+            similarFingerprint("burst-a", date: date, burstIdentifier: "burst-1"),
+            similarFingerprint("burst-b", date: date.addingTimeInterval(30), burstIdentifier: "burst-1")
+        ])
+
+        #expect(groups == [["burst-a", "burst-b"]])
+    }
+
+    @Test func similarPhotoGroupingRejectsLooseTimeOnlyMatches() async throws {
+        let date = Date(timeIntervalSince1970: 1_000)
+        let groups = DataManager.similarPhotoIdentifierGroups(from: [
+            similarFingerprint("a", date: date),
+            similarFingerprint("b", date: date.addingTimeInterval(45)),
+            similarFingerprint("c", date: date.addingTimeInterval(90))
+        ])
+
+        #expect(groups.isEmpty)
+    }
+
+    @Test func similarPhotoGroupingAcceptsTightSameDimensionSequence() async throws {
+        let date = Date(timeIntervalSince1970: 1_000)
+        let groups = DataManager.similarPhotoIdentifierGroups(from: [
+            similarFingerprint("a", date: date),
+            similarFingerprint("b", date: date.addingTimeInterval(6)),
+            similarFingerprint("c", date: date.addingTimeInterval(12))
+        ])
+
+        #expect(groups == [["a", "b", "c"]])
+    }
+
+    @Test func similarPhotoGroupingSeparatesDifferentDimensions() async throws {
+        let date = Date(timeIntervalSince1970: 1_000)
+        let groups = DataManager.similarPhotoIdentifierGroups(from: [
+            similarFingerprint("a", date: date, width: 4_032, height: 3_024),
+            similarFingerprint("b", date: date.addingTimeInterval(6), width: 3_024, height: 4_032),
+            similarFingerprint("c", date: date.addingTimeInterval(12), width: 4_032, height: 3_024)
+        ])
+
+        #expect(groups.isEmpty)
+    }
+
+    @Test func videoPlaybackProgressMapperClampsDragLocations() async throws {
+        #expect(VideoPlaybackProgressMapper.progress(locationX: -12, width: 120) == 0)
+        #expect(VideoPlaybackProgressMapper.progress(locationX: 60, width: 120) == 0.5)
+        #expect(VideoPlaybackProgressMapper.progress(locationX: 180, width: 120) == 1)
+        #expect(VideoPlaybackProgressMapper.progress(locationX: 60, width: 0) == 0)
     }
 
     @Test func visibleListPaginationFiltersBeforePagingAndClampsLimit() async throws {
@@ -1787,6 +1913,22 @@ struct PhotoDeleteTests {
             videoCount: 0,
             reviewedCount: reviewedCount,
             estimatedSizeMB: 0
+        )
+    }
+
+    private func similarFingerprint(
+        _ identifier: String,
+        date: Date,
+        width: Int = 4_032,
+        height: Int = 3_024,
+        burstIdentifier: String? = nil
+    ) -> SimilarPhotoAssetFingerprint {
+        SimilarPhotoAssetFingerprint(
+            identifier: identifier,
+            creationDate: date,
+            pixelWidth: width,
+            pixelHeight: height,
+            burstIdentifier: burstIdentifier
         )
     }
 

@@ -187,6 +187,7 @@ struct AdvancedView: View {
             dataManager.photoLibraryManager.hasPhotoLibraryAccess &&
             (
                 dataManager.isPreparingLibrary ||
+                dataManager.isRestoringLibrarySnapshot ||
                 dataManager.photoLibraryManager.isLoading ||
                 !dataManager.photoLibraryManager.hasLoadedPhotoLibrary
             )
@@ -1499,7 +1500,8 @@ private struct AdvancedAssetListView: View {
         .sheet(item: $previewAsset) { item in
             AdvancedAssetPreviewView(
                 asset: item.asset,
-                photoLibraryManager: dataManager.photoLibraryManager
+                photoLibraryManager: dataManager.photoLibraryManager,
+                assets: item.assets
             )
         }
         .alert(L10n.string("iCloud 视频"), isPresented: $showingICloudVideoInfo) {
@@ -2001,7 +2003,8 @@ private struct AdvancedImageCompressionView: View {
         .sheet(item: $previewAsset) { item in
             AdvancedAssetPreviewView(
                 asset: item.asset,
-                photoLibraryManager: dataManager.photoLibraryManager
+                photoLibraryManager: dataManager.photoLibraryManager,
+                assets: item.assets
             )
         }
         .sheet(isPresented: $showingCompressionComparison) {
@@ -4958,7 +4961,7 @@ private struct AdvancedSimilarPhotoGroupsView: View {
                                     selectedAssetIDs: selectedAssetIDs,
                                     onSelectRecommended: { selectRecommended(in: group) },
                                     onToggleAsset: toggleSelection,
-                                    onPreview: { previewAsset = AdvancedPreviewAsset(asset: $0) }
+                                    onPreview: { previewAsset = AdvancedPreviewAsset(asset: $0, assets: group.assets) }
                                 )
                                 .onAppear {
                                     showMoreGroupsIfNeeded(currentGroup: group)
@@ -5001,7 +5004,8 @@ private struct AdvancedSimilarPhotoGroupsView: View {
         .sheet(item: $previewAsset) { item in
             AdvancedAssetPreviewView(
                 asset: item.asset,
-                photoLibraryManager: dataManager.photoLibraryManager
+                photoLibraryManager: dataManager.photoLibraryManager,
+                assets: item.assets
             )
         }
         .task {
@@ -5097,6 +5101,12 @@ private struct AdvancedSimilarPhotoGroupsView: View {
     }
 
     private func isLikelyBurst(_ group: AdvancedSimilarPhotoGroup) -> Bool {
+        guard group.assets.count >= 2 else { return false }
+        let burstIDs = Set(group.assets.compactMap(\.burstIdentifier).filter { !$0.isEmpty })
+        if burstIDs.count == 1, burstIDs.first != nil {
+            return true
+        }
+
         guard group.assets.count >= 3 else { return false }
         let dates = group.assets.compactMap(\.creationDate).sorted()
         guard let first = dates.first, let last = dates.last else { return false }
@@ -5475,13 +5485,23 @@ private struct AdvancedAssetThumbnail: View {
 
 private struct AdvancedAssetPreviewView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.displayScale) private var displayScale
     let asset: PHAsset
     let photoLibraryManager: PhotoLibraryManager
+    let assets: [PHAsset]
 
-    @State private var image: UIImage?
-    @State private var isLoading = true
-    @State private var requestID: PHImageRequestID?
+    @State private var selectedAssetID: String
+
+    init(
+        asset: PHAsset,
+        photoLibraryManager: PhotoLibraryManager,
+        assets: [PHAsset] = []
+    ) {
+        self.asset = asset
+        self.photoLibraryManager = photoLibraryManager
+        let uniqueAssets = Self.previewAssets(selectedAsset: asset, assets: assets)
+        self.assets = uniqueAssets
+        _selectedAssetID = State(initialValue: asset.localIdentifier)
+    }
 
     var body: some View {
         NavigationStack {
@@ -5489,38 +5509,28 @@ private struct AdvancedAssetPreviewView: View {
                 ZStack {
                     PhotoDeleteStyle.background.ignoresSafeArea()
 
-                    if asset.mediaType == .video {
-                        PhotoAssetVideoPlayerView(
-                            asset: asset,
-                            photoLibraryManager: photoLibraryManager
-                        )
-                    } else if let image {
-                        ZoomablePhotoPreview(image: image)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else {
-                        VStack(spacing: 12) {
-                            if isLoading {
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: PhotoDeleteStyle.accent))
-                            } else {
-                                Image(systemName: "photo")
-                                    .font(.system(size: 36, weight: .medium))
-                                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                    if assets.count > 1 {
+                        TabView(selection: $selectedAssetID) {
+                            ForEach(assets, id: \.localIdentifier) { asset in
+                                AdvancedAssetPreviewPage(
+                                    asset: asset,
+                                    photoLibraryManager: photoLibraryManager,
+                                    viewportSize: geometry.size
+                                )
+                                .tag(asset.localIdentifier)
                             }
-
-                            Text(isLoading ? L10n.string("正在读取照片") : L10n.string("无法读取这张照片"))
-                                .font(.system(size: 15, weight: .medium))
-                                .foregroundColor(PhotoDeleteStyle.secondaryText)
                         }
-                    }
-                }
-                .onAppear {
-                    if asset.mediaType != .video {
-                        loadImage(in: geometry.size)
+                        .tabViewStyle(.page(indexDisplayMode: .automatic))
+                    } else {
+                        AdvancedAssetPreviewPage(
+                            asset: selectedAsset,
+                            photoLibraryManager: photoLibraryManager,
+                            viewportSize: geometry.size
+                        )
                     }
                 }
             }
-            .navigationTitle(asset.mediaType == .video ? L10n.string("视频预览") : L10n.string("照片预览"))
+            .navigationTitle(selectedAsset.mediaType == .video ? L10n.string("视频预览") : L10n.string("照片预览"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -5531,15 +5541,76 @@ private struct AdvancedAssetPreviewView: View {
                 }
             }
         }
+    }
+
+    private var selectedAsset: PHAsset {
+        assets.first { $0.localIdentifier == selectedAssetID } ?? asset
+    }
+
+    private static func previewAssets(selectedAsset: PHAsset, assets: [PHAsset]) -> [PHAsset] {
+        var seenIDs: Set<String> = []
+        let source = assets.isEmpty ? [selectedAsset] : assets
+        var ordered = source.filter { asset in
+            seenIDs.insert(asset.localIdentifier).inserted
+        }
+        if !seenIDs.contains(selectedAsset.localIdentifier) {
+            ordered.insert(selectedAsset, at: 0)
+        }
+        return ordered
+    }
+}
+
+private struct AdvancedAssetPreviewPage: View {
+    @Environment(\.displayScale) private var displayScale
+    let asset: PHAsset
+    let photoLibraryManager: PhotoLibraryManager
+    let viewportSize: CGSize
+
+    @State private var image: UIImage?
+    @State private var isLoading = true
+    @State private var requestID: PHImageRequestID?
+
+    var body: some View {
+        ZStack {
+            if asset.mediaType == .video {
+                PhotoAssetVideoPlayerView(
+                    asset: asset,
+                    photoLibraryManager: photoLibraryManager
+                )
+            } else if let image {
+                ZoomablePhotoPreview(image: image)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                VStack(spacing: 12) {
+                    if isLoading {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: PhotoDeleteStyle.accent))
+                    } else {
+                        Image(systemName: "photo")
+                            .font(.system(size: 36, weight: .medium))
+                            .foregroundColor(PhotoDeleteStyle.secondaryText)
+                    }
+
+                    Text(isLoading ? L10n.string("正在读取照片") : L10n.string("无法读取这张照片"))
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(PhotoDeleteStyle.secondaryText)
+                }
+            }
+        }
+        .onAppear {
+            if asset.mediaType != .video {
+                loadImage()
+            }
+        }
         .onDisappear {
             photoLibraryManager.cancelImageRequest(requestID)
+            requestID = nil
         }
     }
 
-    private func loadImage(in size: CGSize) {
+    private func loadImage() {
         guard requestID == nil, image == nil else { return }
-        let targetSize = photoPreviewTargetSize(for: asset, viewport: size, displayScale: displayScale)
-
+        let targetSize = photoPreviewTargetSize(for: asset, viewport: viewportSize, displayScale: displayScale)
         requestID = photoLibraryManager.loadHighQualityPreview(
             for: asset,
             size: targetSize,
@@ -5814,9 +5885,15 @@ private enum AdvancedAssetListMode {
 
 private struct AdvancedPreviewAsset: Identifiable {
     let asset: PHAsset
+    let assets: [PHAsset]
+
+    init(asset: PHAsset, assets: [PHAsset] = []) {
+        self.asset = asset
+        self.assets = assets
+    }
 
     var id: String {
-        asset.localIdentifier
+        ([asset.localIdentifier] + assets.map(\.localIdentifier)).joined(separator: "|")
     }
 }
 

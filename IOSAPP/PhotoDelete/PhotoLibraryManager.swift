@@ -22,6 +22,60 @@ struct PhotoLibraryLivePhotoResult {
     let isFinal: Bool
 }
 
+struct PhotoLibraryAssetListSignature: Equatable {
+    let count: Int
+    let firstIdentifier: String?
+    let lastIdentifier: String?
+
+    init(identifiers: [String]) {
+        self.count = identifiers.count
+        self.firstIdentifier = identifiers.first
+        self.lastIdentifier = identifiers.last
+    }
+
+    init(count: Int, firstIdentifier: String?, lastIdentifier: String?) {
+        self.count = count
+        self.firstIdentifier = firstIdentifier
+        self.lastIdentifier = lastIdentifier
+    }
+}
+
+struct PhotoLibraryRefreshSignature: Equatable {
+    let allPhotos: PhotoLibraryAssetListSignature
+    let videos: PhotoLibraryAssetListSignature
+    let favorites: PhotoLibraryAssetListSignature
+    let screenshots: PhotoLibraryAssetListSignature
+    let livePhotos: PhotoLibraryAssetListSignature
+
+    init(
+        allPhotoIDs: [String],
+        videoIDs: [String],
+        favoriteIDs: [String],
+        screenshotIDs: [String],
+        livePhotoIDs: [String]
+    ) {
+        self.allPhotos = PhotoLibraryAssetListSignature(identifiers: allPhotoIDs)
+        self.videos = PhotoLibraryAssetListSignature(identifiers: videoIDs)
+        self.favorites = PhotoLibraryAssetListSignature(identifiers: favoriteIDs)
+        self.screenshots = PhotoLibraryAssetListSignature(identifiers: screenshotIDs)
+        self.livePhotos = PhotoLibraryAssetListSignature(identifiers: livePhotoIDs)
+    }
+
+    init(
+        allPhotos: PhotoLibraryAssetListSignature,
+        videos: PhotoLibraryAssetListSignature,
+        favorites: PhotoLibraryAssetListSignature,
+        screenshots: PhotoLibraryAssetListSignature,
+        livePhotos: PhotoLibraryAssetListSignature
+    ) {
+        self.allPhotos = allPhotos
+        self.videos = videos
+        self.favorites = favorites
+        self.screenshots = screenshots
+        self.livePhotos = livePhotos
+    }
+}
+
 enum VideoCompressionQuality: String, CaseIterable, Identifiable {
     case high
     case balanced
@@ -637,20 +691,18 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             return
         }
 
-        let currentAllPhotoIDs = allPhotos.map(\.localIdentifier)
-        let currentVideoIDs = videos.map(\.localIdentifier)
-        let currentFavoriteIDs = favorites.map(\.localIdentifier)
-        let currentScreenshotIDs = screenshots.map(\.localIdentifier)
-        let currentLivePhotoIDs = livePhotos.map(\.localIdentifier)
+        let currentSignature = PhotoLibraryRefreshSignature(
+            allPhotoIDs: allPhotos.map(\.localIdentifier),
+            videoIDs: videos.map(\.localIdentifier),
+            favoriteIDs: favorites.map(\.localIdentifier),
+            screenshotIDs: screenshots.map(\.localIdentifier),
+            livePhotoIDs: livePhotos.map(\.localIdentifier)
+        )
 
         DispatchQueue.global(qos: .utility).async { [weak self] in
             guard let self else { return }
-            let identifiersChanged =
-                self.assetIdentifiers(from: PHAsset.fetchAssets(with: self.defaultPhotoFetchOptions())) != currentAllPhotoIDs ||
-                self.assetIdentifiers(from: self.fetchAssets(mediaType: .video)) != currentVideoIDs ||
-                self.assetIdentifiers(from: self.fetchFavoriteAssets()) != currentFavoriteIDs ||
-                self.assetIdentifiers(from: self.fetchSmartAlbumAssets(.smartAlbumScreenshots)) != currentScreenshotIDs ||
-                self.assetIdentifiers(from: self.fetchSmartAlbumAssets(.smartAlbumLivePhotos)) != currentLivePhotoIDs
+            let latestSignature = self.currentPhotoLibraryRefreshSignature()
+            let identifiersChanged = latestSignature != currentSignature
 
             DispatchQueue.main.async {
                 if identifiersChanged {
@@ -662,6 +714,25 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                 }
             }
         }
+    }
+
+    private func currentPhotoLibraryRefreshSignature() -> PhotoLibraryRefreshSignature {
+        PhotoLibraryRefreshSignature(
+            allPhotos: assetListSignature(from: PHAsset.fetchAssets(with: defaultPhotoFetchOptions())),
+            videos: assetListSignature(from: fetchAssets(mediaType: .video)),
+            favorites: assetListSignature(from: fetchFavoriteAssets()),
+            screenshots: assetListSignature(from: fetchSmartAlbumAssets(.smartAlbumScreenshots)),
+            livePhotos: assetListSignature(from: fetchSmartAlbumAssets(.smartAlbumLivePhotos))
+        )
+    }
+
+    private func assetListSignature(from fetchResult: PHFetchResult<PHAsset>) -> PhotoLibraryAssetListSignature {
+        let count = fetchResult.count
+        return PhotoLibraryAssetListSignature(
+            count: count,
+            firstIdentifier: count > 0 ? fetchResult.object(at: 0).localIdentifier : nil,
+            lastIdentifier: count > 1 ? fetchResult.object(at: count - 1).localIdentifier : (count == 1 ? fetchResult.object(at: 0).localIdentifier : nil)
+        )
     }
 
     func loadPhotos(preserveExistingData: Bool = false, completion: (() -> Void)? = nil) {
