@@ -27,6 +27,7 @@ struct PhotoDeleteApp: App {
             ContentView()
                 .environmentObject(purchaseManager)
                 .environment(\.locale, selectedLanguage.locale)
+                .modifier(AppLayoutDirectionModifier(language: selectedLanguage))
                 .environment(\.photoDeleteTheme, selectedTheme)
                 .tint(selectedTheme.navigationTint)
                 .preferredColorScheme(selectedAppearance.colorScheme)
@@ -45,6 +46,18 @@ struct PhotoDeleteApp: App {
     private var selectedTheme: PhotoDeleteTheme {
         guard purchaseManager.isSupporter else { return .defaultTheme }
         return PhotoDeleteTheme.normalized(appThemeValue)
+    }
+}
+
+private struct AppLayoutDirectionModifier: ViewModifier {
+    let language: AppLanguage
+
+    func body(content: Content) -> some View {
+        if language == .system {
+            content
+        } else {
+            content.environment(\.layoutDirection, language.isRightToLeft ? .rightToLeft : .leftToRight)
+        }
     }
 }
 
@@ -75,6 +88,10 @@ private enum PhotoDeleteUITestDefaults {
             forKey: AppConstants.hasSeenIntroKey,
             defaults: defaults
         )
+
+        if environment["PHOTO_DELETE_UI_TEST_SUPPORTER_TRIAL_ACTIVE"] == "1" {
+            defaults.set(Date(), forKey: AppConstants.supporterTrialStartDateKey)
+        }
     }
 
     private static func reset(_ defaults: UserDefaults) {
@@ -89,6 +106,7 @@ private enum PhotoDeleteUITestDefaults {
             AppConstants.upSwipeActionKey,
             AppConstants.gestureDefaultMigrationKey,
             AppConstants.reviewMediaAutoPlayKey,
+            AppConstants.reviewLivePhotoAutoPlayKey,
             AppConstants.reviewVideoMutedKey,
             AppConstants.reviewModeKey,
             AppConstants.gestureUpdateNoticePendingKey,
@@ -99,7 +117,10 @@ private enum PhotoDeleteUITestDefaults {
             AppConstants.randomReviewSessionsKey,
             AppConstants.customAlbumOrderKey,
             AppConstants.appAppearanceKey,
-            AppConstants.appThemeKey
+            AppConstants.appThemeKey,
+            AppConstants.supporterEntitlementKey,
+            AppConstants.supporterPurchaseDateKey,
+            AppConstants.supporterTrialStartDateKey
         ].forEach(defaults.removeObject)
     }
 

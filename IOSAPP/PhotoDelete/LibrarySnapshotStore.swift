@@ -50,6 +50,72 @@ struct PhotoLibrarySnapshot: Codable {
     }
 }
 
+struct PhotoLibraryCachedCounts: Equatable {
+    let totalPhotos: Int
+    let videos: Int
+    let screenshots: Int
+    let livePhotos: Int
+    let favorites: Int
+
+    init(
+        totalPhotos: Int,
+        videos: Int,
+        screenshots: Int,
+        livePhotos: Int,
+        favorites: Int
+    ) {
+        self.totalPhotos = totalPhotos
+        self.videos = videos
+        self.screenshots = screenshots
+        self.livePhotos = livePhotos
+        self.favorites = favorites
+    }
+
+    init(snapshot: PhotoLibrarySnapshot) {
+        self.init(
+            totalPhotos: snapshot.allPhotoIDs.count,
+            videos: snapshot.videoIDs.count,
+            screenshots: snapshot.screenshotIDs.count,
+            livePhotos: snapshot.livePhotoIDs.count,
+            favorites: snapshot.favoriteIDs.count
+        )
+    }
+}
+
+enum PhotoLibraryDisplayCountResolver {
+    static func count(current: Int, cached: Int?, hasLoadedPhotoLibrary: Bool) -> Int {
+        if hasLoadedPhotoLibrary {
+            return current
+        }
+
+        return cached ?? 0
+    }
+}
+
+struct PhotoLibrarySnapshotRestoreDecision: Equatable {
+    let shouldRestore: Bool
+    let shouldRefreshAfterRestore: Bool
+}
+
+enum PhotoLibrarySnapshotRestorePolicy {
+    static func decision(
+        cachedIdentifierCount: Int,
+        restoredIdentifierCount: Int,
+        currentLibraryCount: Int
+    ) -> PhotoLibrarySnapshotRestoreDecision {
+        let shouldRestore = cachedIdentifierCount == 0
+            ? currentLibraryCount == 0
+            : restoredIdentifierCount > 0
+        let shouldRefreshAfterRestore = cachedIdentifierCount != currentLibraryCount ||
+            restoredIdentifierCount != cachedIdentifierCount
+
+        return PhotoLibrarySnapshotRestoreDecision(
+            shouldRestore: shouldRestore,
+            shouldRefreshAfterRestore: shouldRefreshAfterRestore
+        )
+    }
+}
+
 struct CachedAlbumRecord: Codable {
     let id: String
     let title: String

@@ -56,6 +56,250 @@ final class PhotoDeleteUITests: XCTestCase {
     }
 
     @MainActor
+    func testSeededAlbumsTabAndReviewAlbumFilingShortcut() throws {
+        installPhotoLibraryInterruptionMonitor(allowDeletionConfirmation: true)
+
+        let app = makeApp(completedOnboarding: true, seedLibrary: true)
+        app.launch()
+        _ = allowFullPhotoLibraryAccessIfNeeded(app: app)
+        dismissMarketingSystemPrompts(app: app, allowDeletionConfirmation: true)
+
+        if app.state != .runningForeground {
+            app.activate()
+        }
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10))
+        if !waitForHomeReady(in: app, language: "zh-Hans", timeout: 30) {
+            app.terminate()
+            app.launch()
+            _ = allowFullPhotoLibraryAccessIfNeeded(app: app)
+            dismissMarketingSystemPrompts(app: app, allowDeletionConfirmation: true)
+        }
+        XCTAssertTrue(waitForHomeReady(in: app, language: "zh-Hans", timeout: 30))
+
+        openAlbumsTab(in: app)
+        XCTAssertTrue(app.staticTexts["旅行照片"].waitForExistence(timeout: 60))
+
+        openOrganizeTab(in: app)
+        guard let startCleanupButton = waitForFirstExistingButton(
+            in: app,
+            labels: ["开始整理", "整理全部照片"],
+            timeout: 30
+        ) else {
+            XCTFail("Expected a review entry button after seeded library load")
+            return
+        }
+        startCleanupButton.tap()
+
+        let doneButton = firstExistingButton(in: app, labels: ["完成"])
+        XCTAssertTrue(doneButton.waitForExistence(timeout: 30))
+
+        let dismissHintButton = app.buttons["知道了"]
+        if dismissHintButton.exists, dismissHintButton.isHittable {
+            dismissHintButton.tap()
+        }
+
+        guard let albumShortcutButton = waitForHittableButton(
+            in: app,
+            label: "归类到 宠物照片",
+            timeout: 15
+        ) else {
+            XCTFail("Expected a hittable 宠物照片 album shortcut")
+            return
+        }
+        albumShortcutButton.tap()
+
+        XCTAssertNotNil(waitForAnyElementLabelContaining(in: app, substring: "已归类到 宠物照片", timeout: 10))
+
+        openAlbumsTab(in: app)
+        XCTAssertNotNil(waitForStaticTextLabel(in: app, label: "宠物照片", timeout: 10))
+        guard let petAlbumButton = waitForHittableButton(in: app, label: "宠物照片、3 张照片", timeout: 10) else {
+            XCTFail("Expected 宠物照片 album to include the filed photo")
+            return
+        }
+        petAlbumButton.tap()
+
+        let reviewCard = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == %@", "review-photo-card"))
+            .firstMatch
+        XCTAssertTrue(reviewCard.waitForExistence(timeout: 15))
+        XCTAssertFalse(app.staticTexts["整理完成！"].waitForExistence(timeout: 1))
+    }
+
+    @MainActor
+    func testReviewAlbumShortcutsLoadWithoutOpeningAlbumsTab() throws {
+        installPhotoLibraryInterruptionMonitor(allowDeletionConfirmation: true)
+
+        let app = makeApp(completedOnboarding: true, seedLibrary: true)
+        app.launch()
+        _ = allowFullPhotoLibraryAccessIfNeeded(app: app)
+
+        if app.state != .runningForeground {
+            app.activate()
+        }
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10))
+        if !waitForHomeReady(in: app, language: "zh-Hans", timeout: 30) {
+            app.terminate()
+            app.launch()
+            _ = allowFullPhotoLibraryAccessIfNeeded(app: app)
+        }
+        XCTAssertTrue(waitForHomeReady(in: app, language: "zh-Hans", timeout: 30))
+
+        openOrganizeTab(in: app)
+        guard let startCleanupButton = waitForFirstExistingButton(
+            in: app,
+            labels: ["开始整理", "Start Cleanup", "整理全部照片", "Organize All Photos"],
+            timeout: 30
+        ) else {
+            XCTFail("Expected a review entry button after seeded library load")
+            return
+        }
+        startCleanupButton.tap()
+
+        let doneButton = firstExistingButton(in: app, labels: ["完成"])
+        XCTAssertTrue(doneButton.waitForExistence(timeout: 30))
+
+        let dismissHintButton = app.buttons["知道了"]
+        if dismissHintButton.exists, dismissHintButton.isHittable {
+            dismissHintButton.tap()
+        }
+
+        let albumShortcutButton = waitForHittableButton(in: app, label: "归类到 旅行照片", timeout: 15)
+        XCTAssertNotNil(albumShortcutButton)
+    }
+
+    @MainActor
+    func testSimilarPhotoPreviewCanMarkCurrentAssetForDeletion() throws {
+        installPhotoLibraryInterruptionMonitor(allowDeletionConfirmation: true)
+
+        let app = makeApp(completedOnboarding: true, seedLibrary: true, supporterTrialActive: true)
+        app.launch()
+        _ = allowFullPhotoLibraryAccessIfNeeded(app: app)
+
+        if app.state != .runningForeground {
+            app.activate()
+        }
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10))
+        if !waitForHomeReady(in: app, language: "zh-Hans", timeout: 30) {
+            app.terminate()
+            app.launch()
+            _ = allowFullPhotoLibraryAccessIfNeeded(app: app)
+        }
+        XCTAssertTrue(waitForHomeReady(in: app, language: "zh-Hans", timeout: 30))
+
+        openAlbumsTab(in: app)
+        XCTAssertTrue(app.staticTexts["旅行照片"].waitForExistence(timeout: 60))
+
+        openAdvancedTab(in: app)
+        guard let similarPhotosButton = waitForButtonLabelPrefix(
+            in: app,
+            prefix: "相似照片",
+            timeout: 60,
+            excluding: "0 项"
+        ) else {
+            XCTFail("Expected a non-empty unlocked similar photos cleanup entry")
+            return
+        }
+        similarPhotosButton.tap()
+
+        XCTAssertTrue(app.staticTexts["相似照片"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["保留首张"].waitForExistence(timeout: 10))
+        guard let previewButton = waitForHittableButton(in: app, label: "预览", timeout: 30) else {
+            XCTFail("Expected a similar-photo group preview button")
+            return
+        }
+        previewButton.tap()
+
+        let selectionToggleByID = app.descendants(matching: .any)["advanced-preview-delete-selection-toggle"]
+        let selectionToggleByLabel = app.descendants(matching: .any)["加入待删除"]
+        XCTAssertTrue(
+            selectionToggleByID.waitForExistence(timeout: 10) ||
+                selectionToggleByLabel.waitForExistence(timeout: 2)
+        )
+        XCTAssertNotNil(waitForAnyElementLabelContaining(in: app, substring: "1 /", timeout: 5))
+
+        let selectionToggle = selectionToggleByID.exists ? selectionToggleByID : selectionToggleByLabel
+        selectionToggle.tap()
+        XCTAssertTrue(
+            app.staticTexts["已加入待删除"].waitForExistence(timeout: 5) ||
+                app.descendants(matching: .any)
+                    .matching(NSPredicate(format: "label BEGINSWITH %@", "已加入待删除"))
+                    .firstMatch.exists
+        )
+    }
+
+    @MainActor
+    func testInlineVideoScrubberDoesNotBlockPlaybackControlsOrCardSwipe() throws {
+        installPhotoLibraryInterruptionMonitor(allowDeletionConfirmation: true)
+
+        let app = makeApp(completedOnboarding: true, seedLibrary: true)
+        app.launch()
+        _ = allowFullPhotoLibraryAccessIfNeeded(app: app)
+
+        if app.state != .runningForeground {
+            app.activate()
+        }
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10))
+        if !waitForHomeReady(in: app, language: "zh-Hans", timeout: 30) {
+            app.terminate()
+            app.launch()
+            _ = allowFullPhotoLibraryAccessIfNeeded(app: app)
+        }
+        XCTAssertTrue(waitForHomeReady(in: app, language: "zh-Hans", timeout: 30))
+
+        openOrganizeTab(in: app)
+        guard let videosButton = waitForButtonLabelPrefix(
+            in: app,
+            prefix: "视频",
+            timeout: 30
+        ) else {
+            XCTFail("Expected a videos entry after seeded library load")
+            return
+        }
+        videosButton.tap()
+
+        let doneButton = firstExistingButton(in: app, labels: ["完成"])
+        XCTAssertTrue(doneButton.waitForExistence(timeout: 30))
+
+        let dismissHintButton = app.buttons["知道了"]
+        if dismissHintButton.exists, dismissHintButton.isHittable {
+            dismissHintButton.tap()
+        }
+
+        guard let videoPlayer = waitForInlineVideoPlayer(in: app, timeout: 20) else {
+            XCTFail("Expected seeded video to appear in review")
+            return
+        }
+
+        app.coordinate(withNormalizedOffset: normalizedOffset(for: videoPlayer, dx: 0.5, dy: 0.5, in: app)).tap()
+        let playbackButton = app.buttons["video-playback-toggle-button"]
+        XCTAssertTrue(playbackButton.waitForExistence(timeout: 5))
+        let playButton = app.buttons["播放视频"]
+        if playButton.exists, playButton.isHittable {
+            playButton.tap()
+        }
+
+        let progressSlider = app.sliders["video-playback-slider"]
+        XCTAssertTrue(progressSlider.waitForExistence(timeout: 5))
+        let scrubStart = progressSlider.coordinate(withNormalizedOffset: CGVector(dx: 0.18, dy: 0.5))
+        let scrubEnd = progressSlider.coordinate(withNormalizedOffset: CGVector(dx: 0.36, dy: 0.5))
+        scrubStart.press(forDuration: 0.15, thenDragTo: scrubEnd)
+        XCTAssertTrue(
+            waitForElementToDisappear(playbackButton, timeout: 5),
+            "Playback controls should auto-hide after scrubbing when the video resumes playback."
+        )
+
+        let leftStart = videoPlayer.coordinate(withNormalizedOffset: CGVector(dx: 0.78, dy: 0.48))
+        let leftEnd = videoPlayer.coordinate(withNormalizedOffset: CGVector(dx: 0.18, dy: 0.48))
+        leftStart.press(forDuration: 0.15, thenDragTo: leftEnd)
+
+        XCTAssertTrue(
+            app.staticTexts["已加入待删除"].waitForExistence(timeout: 5) ||
+                app.staticTexts["待删除 1 张"].waitForExistence(timeout: 2),
+            "Horizontal swipe from the video body should still reach the review card."
+        )
+    }
+
+    @MainActor
     func testSettingsTabShowsCoreControls() throws {
         let app = makeApp(completedOnboarding: true)
         app.launch()
@@ -85,6 +329,35 @@ final class PhotoDeleteUITests: XCTestCase {
     }
 
     @MainActor
+    func testGestureSettingsShowsHapticFeedbackToggle() throws {
+        let app = makeApp(completedOnboarding: true)
+        app.launch()
+
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10))
+        openSettingsTab(in: app)
+
+        var gestureSettingsButton = waitForHittableButtonLabelContaining(in: app, substring: "手势与播放", timeout: 2)
+        for _ in 0..<3 where gestureSettingsButton == nil {
+            app.swipeUp()
+            gestureSettingsButton = waitForHittableButtonLabelContaining(in: app, substring: "手势与播放", timeout: 2)
+        }
+        guard let gestureSettingsButton else {
+            XCTFail("Expected gesture settings row")
+            return
+        }
+        gestureSettingsButton.tap()
+
+        XCTAssertTrue(app.navigationBars["手势与播放"].waitForExistence(timeout: 3))
+        var hapticFeedbackTitle = waitForStaticTextLabel(in: app, label: "触感反馈", timeout: 2)
+        for _ in 0..<3 where hapticFeedbackTitle == nil {
+            app.swipeUp()
+            hapticFeedbackTitle = waitForStaticTextLabel(in: app, label: "触感反馈", timeout: 2)
+        }
+        XCTAssertNotNil(hapticFeedbackTitle)
+        XCTAssertTrue(app.staticTexts["滑动、撤销和归类时提供轻微反馈"].exists)
+    }
+
+    @MainActor
     func testSettingsKeepsWeChatOutOfFeedbackSectionOutsideSimplifiedChinese() throws {
         let app = makeApp(completedOnboarding: true, appLanguage: "en")
         app.launch()
@@ -100,6 +373,45 @@ final class PhotoDeleteUITests: XCTestCase {
     }
 
     @MainActor
+    func testAdvancedTabUpdatesAfterLanguageChangeInSettings() throws {
+        let app = makeApp(completedOnboarding: true)
+        app.launch()
+
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10))
+        openSettingsTab(in: app)
+
+        var languageButton = waitForHittableButtonLabelContaining(in: app, substring: "语言", timeout: 2) ??
+            waitForHittableButtonLabelContaining(in: app, substring: "Language", timeout: 2)
+        for _ in 0..<3 where languageButton == nil {
+            app.swipeUp()
+            languageButton = waitForHittableButtonLabelContaining(in: app, substring: "语言", timeout: 2) ??
+                waitForHittableButtonLabelContaining(in: app, substring: "Language", timeout: 2)
+        }
+        guard let languageButton else {
+            XCTFail("Expected language settings row")
+            return
+        }
+        languageButton.tap()
+
+        guard let englishButton = waitForHittableButton(in: app, label: "English", timeout: 5) else {
+            XCTFail("Expected English language option")
+            return
+        }
+        englishButton.tap()
+
+        guard let doneButton = waitForFirstExistingButton(in: app, labels: ["Done", "完成"], timeout: 5) else {
+            XCTFail("Expected language settings done button")
+            return
+        }
+        doneButton.tap()
+
+        openAdvancedTab(in: app)
+
+        XCTAssertTrue(app.staticTexts["Focused Cleanup"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["高效清理"].exists)
+    }
+
+    @MainActor
     func testMarketingCaptureLatestUI() throws {
         let environment = ProcessInfo.processInfo.environment
         let captureDirectoryValue = environment["PHOTO_DELETE_MARKETING_CAPTURE_DIR"] ??
@@ -112,7 +424,7 @@ final class PhotoDeleteUITests: XCTestCase {
             environment["TEST_RUNNER_PHOTO_DELETE_MARKETING_APP_LANGUAGE"] ??
             "zh-Hans"
 
-        installPhotoLibraryInterruptionMonitor()
+        installPhotoLibraryInterruptionMonitor(allowDeletionConfirmation: true)
 
         let outputDirectory = URL(fileURLWithPath: captureDirectory, isDirectory: true)
         try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
@@ -180,7 +492,8 @@ final class PhotoDeleteUITests: XCTestCase {
     private func makeApp(
         completedOnboarding: Bool,
         appLanguage: String = "zh-Hans",
-        seedLibrary: Bool = false
+        seedLibrary: Bool = false,
+        supporterTrialActive: Bool = false
     ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment = [
@@ -189,9 +502,16 @@ final class PhotoDeleteUITests: XCTestCase {
             AppLaunchEnvironmentKey.appAppearance: "light",
             AppLaunchEnvironmentKey.seedLibrary: seedLibrary ? "1" : "0",
             AppLaunchEnvironmentKey.hasCompletedOnboarding: completedOnboarding ? "1" : "0",
-            AppLaunchEnvironmentKey.hasSeenIntro: completedOnboarding ? "1" : "0"
+            AppLaunchEnvironmentKey.hasSeenIntro: completedOnboarding ? "1" : "0",
+            AppLaunchEnvironmentKey.supporterTrialActive: supporterTrialActive ? "1" : "0"
         ]
         return app
+    }
+
+    private func waitForElementToDisappear(_ element: XCUIElement, timeout: TimeInterval) -> Bool {
+        let predicate = NSPredicate(format: "exists == false")
+        let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
+        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
     }
 
     @MainActor
@@ -205,14 +525,21 @@ final class PhotoDeleteUITests: XCTestCase {
     }
 
     @MainActor
+    private func openAdvancedTab(in app: XCUIApplication) {
+        tapTabItem(in: app, labels: ["进阶", "Advanced"], fallbackOffset: CGVector(dx: 0.63, dy: 0.96))
+    }
+
+    @MainActor
     private func openAlbumsTab(in app: XCUIApplication) {
-        tapTabItem(in: app, labels: ["相册", "Albums"], fallbackOffset: CGVector(dx: 0.38, dy: 0.96))
+        returnToTabRootIfNeeded(in: app)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.38, dy: 0.96)).tap()
     }
 
     @MainActor
     private func tapTabItem(in app: XCUIApplication, labels: [String], fallbackOffset: CGVector) {
         for label in labels {
-            let tabBarButton = app.tabBars.buttons.matching(identifier: label).firstMatch
+            let predicate = NSPredicate(format: "label == %@ OR identifier == %@", label, label)
+            let tabBarButton = app.tabBars.buttons.matching(predicate).firstMatch
             if tabBarButton.waitForExistence(timeout: 1), tabBarButton.isHittable {
                 tapHittableElement(tabBarButton)
                 return
@@ -220,7 +547,8 @@ final class PhotoDeleteUITests: XCTestCase {
         }
 
         for label in labels {
-            let button = app.buttons.matching(identifier: label).firstMatch
+            let predicate = NSPredicate(format: "label == %@ OR identifier == %@", label, label)
+            let button = app.buttons.matching(predicate).firstMatch
             if button.waitForExistence(timeout: 1), button.isHittable {
                 tapHittableElement(button)
                 return
@@ -228,7 +556,8 @@ final class PhotoDeleteUITests: XCTestCase {
         }
 
         for label in labels {
-            let element = app.descendants(matching: .any).matching(identifier: label).firstMatch
+            let predicate = NSPredicate(format: "label == %@ OR identifier == %@", label, label)
+            let element = app.descendants(matching: .any).matching(predicate).firstMatch
             if element.waitForExistence(timeout: 1), element.isHittable {
                 tapHittableElement(element)
                 return
@@ -236,6 +565,15 @@ final class PhotoDeleteUITests: XCTestCase {
         }
 
         app.coordinate(withNormalizedOffset: fallbackOffset).tap()
+    }
+
+    @MainActor
+    private func returnToTabRootIfNeeded(in app: XCUIApplication) {
+        let backButton = app.buttons.matching(
+            NSPredicate(format: "label == %@ OR identifier == %@", "向左", "arrow.left")
+        ).firstMatch
+        guard backButton.waitForExistence(timeout: 1), backButton.isHittable else { return }
+        tapHittableElement(backButton)
     }
 
     @MainActor
@@ -248,6 +586,18 @@ final class PhotoDeleteUITests: XCTestCase {
         let startCoordinate = app.coordinate(withNormalizedOffset: start)
         let endCoordinate = app.coordinate(withNormalizedOffset: end)
         startCoordinate.press(forDuration: 0.15, thenDragTo: endCoordinate)
+    }
+
+    @MainActor
+    private func normalizedOffset(for element: XCUIElement, dx: CGFloat, dy: CGFloat, in app: XCUIApplication) -> CGVector {
+        let frame = element.frame
+        guard app.frame.width > 0, app.frame.height > 0 else {
+            return CGVector(dx: dx, dy: dy)
+        }
+        return CGVector(
+            dx: (frame.minX + frame.width * dx) / app.frame.width,
+            dy: (frame.minY + frame.height * dy) / app.frame.height
+        )
     }
 
     @MainActor
@@ -314,6 +664,160 @@ final class PhotoDeleteUITests: XCTestCase {
     }
 
     @MainActor
+    private func waitForHittableButton(in app: XCUIApplication, label: String, timeout: TimeInterval) -> XCUIElement? {
+        let deadline = Date().addingTimeInterval(timeout)
+        let predicate = NSPredicate(format: "label == %@", label)
+        while Date() < deadline {
+            let buttons = app.buttons.matching(predicate).allElementsBoundByIndex
+            if let button = buttons.first(where: { $0.exists && $0.isHittable }) {
+                return button
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+        return nil
+    }
+
+    @MainActor
+    private func waitForHittableButtonLabelContaining(in app: XCUIApplication, substring: String, timeout: TimeInterval) -> XCUIElement? {
+        let deadline = Date().addingTimeInterval(timeout)
+        let predicate = NSPredicate(format: "label CONTAINS %@", substring)
+        while Date() < deadline {
+            let buttons = app.buttons.matching(predicate).allElementsBoundByIndex
+            if let button = buttons.first(where: { $0.exists && $0.isHittable }) {
+                return button
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+        return nil
+    }
+
+    @MainActor
+    private func waitForStaticTextLabel(in app: XCUIApplication, label: String, timeout: TimeInterval) -> XCUIElement? {
+        let deadline = Date().addingTimeInterval(timeout)
+        let predicate = NSPredicate(format: "label == %@", label)
+        while Date() < deadline {
+            let texts = app.staticTexts.matching(predicate).allElementsBoundByIndex
+            if let text = texts.first(where: { $0.exists }) {
+                return text
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+        return nil
+    }
+
+    @MainActor
+    private func waitForStaticTextLabelPrefix(in app: XCUIApplication, prefix: String, timeout: TimeInterval) -> XCUIElement? {
+        let deadline = Date().addingTimeInterval(timeout)
+        let predicate = NSPredicate(format: "label BEGINSWITH %@", prefix)
+        while Date() < deadline {
+            let texts = app.staticTexts.matching(predicate).allElementsBoundByIndex
+            if let text = texts.first(where: { $0.exists }) {
+                return text
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+        return nil
+    }
+
+    @MainActor
+    private func waitForAnyElementLabelContaining(in app: XCUIApplication, substring: String, timeout: TimeInterval) -> XCUIElement? {
+        let deadline = Date().addingTimeInterval(timeout)
+        let predicate = NSPredicate(format: "label CONTAINS %@", substring)
+        while Date() < deadline {
+            let elements = app.descendants(matching: .any).matching(predicate).allElementsBoundByIndex
+            if let element = elements.first(where: { $0.exists }) {
+                return element
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+        return nil
+    }
+
+    @MainActor
+    private func waitForButtonLabel(in app: XCUIApplication, label: String, timeout: TimeInterval) -> XCUIElement? {
+        let deadline = Date().addingTimeInterval(timeout)
+        let predicate = NSPredicate(format: "label == %@", label)
+        while Date() < deadline {
+            let buttons = app.buttons.matching(predicate).allElementsBoundByIndex
+            if let button = buttons.first(where: { $0.exists }) {
+                return button
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+        return nil
+    }
+
+    @MainActor
+    private func waitForButtonLabelPrefix(
+        in app: XCUIApplication,
+        prefix: String,
+        timeout: TimeInterval,
+        excluding excludedLabelFragment: String? = nil
+    ) -> XCUIElement? {
+        let deadline = Date().addingTimeInterval(timeout)
+        let predicate = NSPredicate(format: "label BEGINSWITH %@", prefix)
+        var swipeAttempts = 0
+
+        while Date() < deadline {
+            let buttons = app.buttons.matching(predicate).allElementsBoundByIndex
+            if let button = buttons.first(where: { button in
+                guard button.exists && button.isHittable else { return false }
+                if let excludedLabelFragment {
+                    return !button.label.contains(excludedLabelFragment)
+                }
+                return true
+            }) {
+                return button
+            }
+
+            if swipeAttempts < 4 {
+                app.swipeUp()
+                swipeAttempts += 1
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+        }
+
+        return nil
+    }
+
+    @MainActor
+    private func waitForInlineVideoPlayer(in app: XCUIApplication, timeout: TimeInterval) -> XCUIElement? {
+        let deadline = Date().addingTimeInterval(timeout)
+        let videoPlayer = app.descendants(matching: .any)["photo-asset-video-player"]
+        let skipButton = firstExistingButton(in: app, labels: ["跳过", "Skip"])
+
+        while Date() < deadline {
+            if videoPlayer.exists {
+                return videoPlayer
+            }
+
+            if skipButton.exists, skipButton.isHittable {
+                skipButton.tap()
+                RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+            } else {
+                RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+            }
+        }
+
+        return videoPlayer.exists ? videoPlayer : nil
+    }
+
+    @MainActor
+    private func waitForFirstExistingButton(in app: XCUIApplication, labels: [String], timeout: TimeInterval) -> XCUIElement? {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            for label in labels {
+                let button = app.buttons[label]
+                if button.exists {
+                    return button
+                }
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+        return nil
+    }
+
+    @MainActor
     private func allowFullPhotoLibraryAccessIfNeeded(app: XCUIApplication) -> Bool {
         let didInteract = tapFirstExistingButton(in: app, labels: ["继续", "Continue"], timeout: 3)
         if didInteract {
@@ -337,7 +841,7 @@ final class PhotoDeleteUITests: XCTestCase {
             sleep(1)
             return true
         }
-        if tapFirstExistingButton(in: springboard, labels: writeLabels + ["删除", "Delete"], timeout: 2) {
+        if tapFirstExistingButton(in: springboard, labels: writeLabels, timeout: 2) {
             sleep(1)
             return true
         }
@@ -346,18 +850,19 @@ final class PhotoDeleteUITests: XCTestCase {
     }
 
     @MainActor
-    private func dismissMarketingSystemPrompts(app: XCUIApplication) {
-        let labels = [
+    private func dismissMarketingSystemPrompts(app: XCUIApplication, allowDeletionConfirmation: Bool = false) {
+        var labels = [
             "允许完全访问",
             "允许访问所有照片",
             "允许",
             "允许删除",
-            "删除",
             "Allow Full Access",
             "Allow Full Access to Photos",
-            "Allow",
-            "Delete"
+            "Allow"
         ]
+        if allowDeletionConfirmation {
+            labels += ["删除", "Delete"]
+        }
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
 
         for _ in 0..<5 {
@@ -368,19 +873,20 @@ final class PhotoDeleteUITests: XCTestCase {
         }
     }
 
-    private func installPhotoLibraryInterruptionMonitor() {
+    private func installPhotoLibraryInterruptionMonitor(allowDeletionConfirmation: Bool = false) {
         addUIInterruptionMonitor(withDescription: "Photo library access") { alert in
-            let labels = [
+            var labels = [
                 "允许完全访问",
                 "允许访问所有照片",
                 "允许",
                 "允许删除",
-                "删除",
                 "Allow Full Access",
                 "Allow Full Access to Photos",
-                "Allow",
-                "Delete"
+                "Allow"
             ]
+            if allowDeletionConfirmation {
+                labels += ["删除", "Delete"]
+            }
             for label in labels {
                 let button = alert.buttons[label]
                 if button.exists {
@@ -389,7 +895,10 @@ final class PhotoDeleteUITests: XCTestCase {
                 }
             }
 
-            let denyLabels = ["不允许", "Don’t Allow", "Don't Allow", "取消", "Cancel"]
+            var denyLabels = ["不允许", "Don’t Allow", "Don't Allow", "取消", "Cancel"]
+            if !allowDeletionConfirmation {
+                denyLabels += ["删除", "Delete"]
+            }
             for button in alert.buttons.allElementsBoundByIndex {
                 let label = button.label
                 guard button.exists, !label.isEmpty, !denyLabels.contains(label) else { continue }
@@ -403,12 +912,11 @@ final class PhotoDeleteUITests: XCTestCase {
 
     @MainActor
     private func tapFirstExistingButton(in app: XCUIApplication, labels: [String], timeout: TimeInterval) -> Bool {
-        for label in labels {
-            let button = app.buttons[label]
-            if button.waitForExistence(timeout: timeout) {
-                button.tap()
-                return true
-            }
+        let predicate = NSPredicate(format: "label IN %@ OR identifier IN %@", labels, labels)
+        let button = app.buttons.matching(predicate).firstMatch
+        if button.waitForExistence(timeout: timeout) {
+            button.tap()
+            return true
         }
         return false
     }
@@ -438,4 +946,5 @@ private enum AppLaunchEnvironmentKey {
     static let seedLibrary = "PHOTO_DELETE_UI_TEST_SEED_LIBRARY"
     static let hasCompletedOnboarding = "PHOTO_DELETE_UI_TEST_HAS_COMPLETED_ONBOARDING"
     static let hasSeenIntro = "PHOTO_DELETE_UI_TEST_HAS_SEEN_INTRO"
+    static let supporterTrialActive = "PHOTO_DELETE_UI_TEST_SUPPORTER_TRIAL_ACTIVE"
 }

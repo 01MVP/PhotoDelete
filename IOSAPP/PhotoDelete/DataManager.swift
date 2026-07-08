@@ -61,6 +61,21 @@ struct SimilarPhotoAssetFingerprint: Equatable {
     }
 }
 
+enum PhotoLibraryStartupRefreshTiming {
+    static let restoredSnapshotProgressDelay: TimeInterval = 1.2
+}
+
+enum AlbumLoadNeededPolicy {
+    static func shouldLoad(
+        hasLoadedAlbums: Bool,
+        hasLoadedAlbumMembership: Bool,
+        isFetchingAlbums: Bool
+    ) -> Bool {
+        guard !isFetchingAlbums else { return false }
+        return !hasLoadedAlbums || !hasLoadedAlbumMembership
+    }
+}
+
 class DataManager: ObservableObject {
     @Published var organizeStats = OrganizeStats()
 
@@ -81,6 +96,8 @@ class DataManager: ObservableObject {
     @Published var userAlbums: [AlbumInfo] = []
     @Published var isLoadingAlbums = false
     @Published var albumLoadingProgress: Double = 0
+    @Published private(set) var albumMemberAssetIDs: Set<String> = []
+    @Published private(set) var hasLoadedAlbumMembership = false
     @Published private(set) var cleanupStatsRevision = UUID()
     @Published private(set) var videoCompressionHistoryRevision = UUID()
     @Published private(set) var imageCompressionHistoryRevision = UUID()
@@ -111,6 +128,7 @@ class DataManager: ObservableObject {
     private var isFetchingAlbums = false
     private var pendingAlbumRefresh = false
     private var pendingAlbumRefreshShouldShowLoading = false
+    private var albumMembershipCountsByAssetID: [String: Int] = [:]
     private var timeGroupCache: [TimeGroup: [PHAsset]] = [:]
     private var historicalTodayCache: [PHAsset] = []
     private var historicalTodayCacheReferenceDay: Date?
@@ -179,11 +197,11 @@ class DataManager: ObservableObject {
         let imageCompressionItemCount: Int
     }
 
-    private static let similarPhotoTemporalMaxGap: TimeInterval = 18
-    private static let similarPhotoTemporalMaxClusterSpan: TimeInterval = 45
-    private static let similarPhotoAspectTolerance = 0.018
-    private static let similarPhotoDimensionRelativeTolerance = 0.08
-    private static let similarPhotoMinimumTemporalGroupSize = 3
+    private static let similarPhotoTemporalMaxGap: TimeInterval = 5
+    private static let similarPhotoTemporalMaxClusterSpan: TimeInterval = 14
+    private static let similarPhotoAspectTolerance = 0.008
+    private static let similarPhotoDimensionRelativeTolerance = 0.025
+    private static let similarPhotoMinimumTemporalGroupSize = 2
 
     private struct DaySummaryAccumulator {
         var photoCount = 0
@@ -345,8 +363,11 @@ class DataManager: ObservableObject {
                 return
             }
 
-            self.refreshDerivedLibraryData()
+            self.refreshDerivedLibraryData(
+                progressRefreshDelay: PhotoLibraryStartupRefreshTiming.restoredSnapshotProgressDelay
+            )
             _ = self.restoreCachedAlbums()
+            self.loadAlbums(showLoading: false)
 
             self.photoLibraryManager.refreshPhotoLibraryIfNeeded { [weak self] didRefreshLibrary in
                 guard let self else { return }
@@ -354,6 +375,7 @@ class DataManager: ObservableObject {
                     self.refreshDerivedLibraryData()
                     self.suppressNextDerivedLibraryRefresh = true
                     self.hasLoadedAlbums = false
+                    self.loadAlbums(showLoading: false)
                 } else {
                     self.updateStats()
                 }
@@ -837,11 +859,11 @@ class DataManager: ObservableObject {
         UIApplication.shared.endBackgroundTask(taskID)
     }
 
-    private func refreshDerivedLibraryData() {
+    private func refreshDerivedLibraryData(progressRefreshDelay: TimeInterval = 0) {
         pruneReviewedAssetIDs()
         restorePendingCandidatesFromSavedIDs()
         prunePendingCandidates()
-        loadTimeGroups()
+        loadTimeGroups(delay: progressRefreshDelay)
         updateStats()
     }
 
@@ -869,6 +891,7 @@ class DataManager: ObservableObject {
         pendingAdvancedCleanupQueueRefresh = false
         systemAlbums = []
         userAlbums = []
+        resetAlbumMembershipState()
         albumSnapshotStore.clear()
         deleteCandidates.removeAll()
         favoriteCandidates.removeAll()
@@ -1035,6 +1058,8 @@ class DataManager: ObservableObject {
         switch category {
         case .all:
             return photoLibraryManager.allPhotos
+        case .unclassified:
+            return getUnclassifiedPhotos()
         case .videos:
             return photoLibraryManager.videos
         case .screenshots:
@@ -1044,6 +1069,17 @@ class DataManager: ObservableObject {
         case .favorites:
             return photoLibraryManager.favorites
         }
+    }
+
+    func getUnclassifiedPhotos() -> [PHAsset] {
+        guard hasLoadedAlbumMembership else { return [] }
+        return photoLibraryManager.allPhotos.filter { asset in
+            !albumMemberAssetIDs.contains(asset.localIdentifier)
+        }
+    }
+
+    var unclassifiedPhotosCount: Int {
+        getUnclassifiedPhotos().count
     }
 
     func getPhotosForRandomReviewScope(_ scope: PhotoRandomReviewScope) -> [PHAsset] {
@@ -1959,9 +1995,9 @@ class DataManager: ObservableObject {
     }
 
     // MARK: - 时间组数据加载
-    func loadTimeGroups() {
+    func loadTimeGroups(delay: TimeInterval = 0) {
         guard photoLibraryManager.hasPhotoLibraryAccess else { return }
-        scheduleProgressRefresh(delay: 0)
+        scheduleProgressRefresh(delay: delay)
     }
 
     func loadLocationGroups(force: Bool = false) {
@@ -2512,12 +2548,18 @@ class DataManager: ObservableObject {
 
     // MARK: - 相册数据加载
     func loadAlbumsIfNeeded() {
-        guard !hasLoadedAlbums, !isFetchingAlbums else { return }
-        if restoreCachedAlbums() {
+        guard AlbumLoadNeededPolicy.shouldLoad(
+            hasLoadedAlbums: hasLoadedAlbums,
+            hasLoadedAlbumMembership: hasLoadedAlbumMembership,
+            isFetchingAlbums: isFetchingAlbums
+        ) else { return }
+
+        if !hasLoadedAlbums, restoreCachedAlbums() {
             loadAlbums(showLoading: false)
             return
         }
-        loadAlbums(showLoading: true)
+
+        loadAlbums(showLoading: !hasLoadedAlbums)
     }
 
     func refreshAlbumsFromLibrary(showLoading: Bool = false) {
@@ -2532,6 +2574,7 @@ class DataManager: ObservableObject {
             pendingAlbumRefresh = false
             pendingAlbumRefreshShouldShowLoading = false
             albumLoadingProgress = 0
+            resetAlbumMembershipState()
             return
         }
 
@@ -2556,6 +2599,7 @@ class DataManager: ObservableObject {
 
             var systemAlbums: [AlbumInfo] = []
             var userAlbums: [AlbumInfo] = []
+            var albumMembershipCountsByAssetID: [String: Int] = [:]
 
             // 系统相册
             let smartAlbumTypes: [PHAssetCollectionSubtype] = [
@@ -2613,13 +2657,18 @@ class DataManager: ObservableObject {
 
             // 用户创建的相册
             userCollections.enumerateObjects { collection, _, _ in
-                userAlbums.append(self.makeUserAlbumInfo(from: collection))
+                let albumData = self.makeUserAlbumInfoAndAssetIdentifiers(from: collection)
+                userAlbums.append(albumData.albumInfo)
+                for identifier in albumData.assetIdentifiers {
+                    albumMembershipCountsByAssetID[identifier, default: 0] += 1
+                }
                 publishProgress()
             }
 
             DispatchQueue.main.async {
                 self.systemAlbums = systemAlbums
                 self.userAlbums = userAlbums
+                self.setAlbumMembershipCounts(albumMembershipCountsByAssetID)
                 self.hasLoadedAlbums = true
                 self.isFetchingAlbums = false
                 self.albumLoadingProgress = 1
@@ -2643,6 +2692,7 @@ class DataManager: ObservableObject {
         let restoredUserAlbums = snapshot.userAlbums.compactMap(restoreAlbumInfo)
         systemAlbums = restoredSystemAlbums
         userAlbums = restoredUserAlbums
+        resetAlbumMembershipState()
         hasLoadedAlbums = true
         isLoadingAlbums = false
         isFetchingAlbums = false
@@ -2678,15 +2728,58 @@ class DataManager: ObservableObject {
     }
 
     private func makeUserAlbumInfo(from collection: PHAssetCollection) -> AlbumInfo {
+        makeUserAlbumInfoAndAssetIdentifiers(from: collection).albumInfo
+    }
+
+    private func makeUserAlbumInfoAndAssetIdentifiers(from collection: PHAssetCollection) -> (albumInfo: AlbumInfo, assetIdentifiers: [String]) {
         let fetchOptions = PHFetchOptions()
         fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
         let assets = PHAsset.fetchAssets(in: collection, options: fetchOptions)
-        return AlbumInfo(
-            assetCollection: collection,
-            type: .userCreated,
-            photosCount: assets.count,
-            thumbnailAsset: assets.firstObject
+        var assetIdentifiers: [String] = []
+        assetIdentifiers.reserveCapacity(assets.count)
+        assets.enumerateObjects { asset, _, _ in
+            assetIdentifiers.append(asset.localIdentifier)
+        }
+
+        return (
+            AlbumInfo(
+                assetCollection: collection,
+                type: .userCreated,
+                photosCount: assets.count,
+                thumbnailAsset: assets.firstObject
+            ),
+            assetIdentifiers
         )
+    }
+
+    private func setAlbumMembershipCounts(_ counts: [String: Int]) {
+        albumMembershipCountsByAssetID = counts.filter { $0.value > 0 }
+        albumMemberAssetIDs = Set(albumMembershipCountsByAssetID.keys)
+        hasLoadedAlbumMembership = true
+    }
+
+    private func resetAlbumMembershipState() {
+        albumMembershipCountsByAssetID = [:]
+        albumMemberAssetIDs = []
+        hasLoadedAlbumMembership = false
+    }
+
+    private func recordAlbumMembershipAdded(for assetIdentifier: String) {
+        albumMembershipCountsByAssetID[assetIdentifier, default: 0] += 1
+        albumMemberAssetIDs.insert(assetIdentifier)
+    }
+
+    private func recordAlbumMembershipRemoved(for assetIdentifiers: [String]) {
+        guard !assetIdentifiers.isEmpty else { return }
+        for identifier in assetIdentifiers {
+            let nextCount = max((albumMembershipCountsByAssetID[identifier] ?? 0) - 1, 0)
+            if nextCount > 0 {
+                albumMembershipCountsByAssetID[identifier] = nextCount
+            } else {
+                albumMembershipCountsByAssetID.removeValue(forKey: identifier)
+            }
+        }
+        albumMemberAssetIDs = Set(albumMembershipCountsByAssetID.keys)
     }
 
     private func saveAlbumSnapshot() {
@@ -2816,6 +2909,10 @@ class DataManager: ObservableObject {
             .map(\.element)
     }
 
+    static func customAlbumOrderByPrepending(_ albumID: String, to order: [String]) -> [String] {
+        [albumID] + order.filter { $0 != albumID }
+    }
+
     static func decodeCustomAlbumOrder(_ value: String?) -> [String] {
         guard let value,
               let data = value.data(using: .utf8),
@@ -2835,6 +2932,11 @@ class DataManager: ObservableObject {
         return refreshUserAlbumIfAvailable(id: albumInfo.id)
     }
 
+    func cachedUserAlbumInfo(for albumInfo: AlbumInfo) -> AlbumInfo? {
+        guard albumInfo.type == .userCreated else { return albumInfo }
+        return userAlbums.first { $0.id == albumInfo.id }
+    }
+
     func currentUserAlbumInfo(for album: PHAssetCollection) -> AlbumInfo? {
         refreshUserAlbumIfAvailable(id: album.localIdentifier)
     }
@@ -2848,6 +2950,8 @@ class DataManager: ObservableObject {
         guard let collection = collections.firstObject else { return }
 
         upsertUserAlbum(makeUserAlbumInfo(from: collection))
+        let orderBasis = customAlbumOrder.isEmpty ? userAlbums.map(\.id) : customAlbumOrder
+        saveCustomAlbumOrder(Self.customAlbumOrderByPrepending(identifier, to: orderBasis))
         hasLoadedAlbums = true
         saveAlbumSnapshot()
     }
@@ -2902,12 +3006,14 @@ class DataManager: ObservableObject {
     }
 
     func deleteUserAlbum(_ album: PHAssetCollection, completion: @escaping (Bool) -> Void) {
+        let removedAssetIdentifiers = makeUserAlbumInfoAndAssetIdentifiers(from: album).assetIdentifiers
         photoLibraryManager.deleteAlbum(album) { success, error in
             if let error {
                 dataManagerLogger.error("Failed to delete album: \(error.localizedDescription, privacy: .public)")
             }
             if success {
                 self.removeUserAlbum(id: album.localIdentifier)
+                self.recordAlbumMembershipRemoved(for: removedAssetIdentifiers)
             } else {
                 self.refreshAlbumsFromLibrary(showLoading: false)
             }
@@ -2916,9 +3022,6 @@ class DataManager: ObservableObject {
     }
 
     func recordAddedPhotoToAlbum(_ asset: PHAsset, albumID: String) {
-        if refreshUserAlbumFromLibrary(id: albumID) {
-            return
-        }
         updateUserAlbumCount(id: albumID, delta: 1, replacementThumbnail: asset)
     }
 
@@ -2930,6 +3033,16 @@ class DataManager: ObservableObject {
         }
 
         updateUserAlbumCount(id: albumID, delta: -deletedAssets.count, replacementThumbnail: nil)
+    }
+
+    func recordRemovedPhotosFromAlbum(albumID: String?, removedAssets: [PHAsset]) {
+        guard let albumID, !removedAssets.isEmpty else { return }
+
+        if refreshUserAlbumFromLibrary(id: albumID) {
+            return
+        }
+
+        updateUserAlbumCount(id: albumID, delta: -removedAssets.count, replacementThumbnail: nil)
     }
 
     @discardableResult
@@ -2982,13 +3095,27 @@ class DataManager: ObservableObject {
     }
 
     // MARK: - 相册照片操作
-    func addPhotoToAlbum(_ asset: PHAsset, album: PHAssetCollection, completion: @escaping (Bool) -> Void) {
-        photoLibraryManager.addPhotosToAlbum([asset], album: album) { success, error in
+    func addPhotoToAlbum(_ asset: PHAsset, album: PHAssetCollection, completion: @escaping (Bool, Bool) -> Void) {
+        photoLibraryManager.addPhotosToAlbum([asset], album: album) { success, insertedCount, error in
             if let error = error {
                 dataManagerLogger.error("Failed to add photo to album: \(error.localizedDescription, privacy: .public)")
             }
-            if success {
+            if success, insertedCount > 0 {
                 self.recordAddedPhotoToAlbum(asset, albumID: album.localIdentifier)
+                self.recordAlbumMembershipAdded(for: asset.localIdentifier)
+            }
+            completion(success, insertedCount > 0)
+        }
+    }
+
+    func removePhotoFromAlbum(_ asset: PHAsset, album: PHAssetCollection, completion: @escaping (Bool) -> Void) {
+        photoLibraryManager.removePhotosFromAlbum([asset], album: album) { success, error in
+            if let error {
+                dataManagerLogger.error("Failed to remove photo from album: \(error.localizedDescription, privacy: .public)")
+            }
+            if success {
+                self.recordRemovedPhotosFromAlbum(albumID: album.localIdentifier, removedAssets: [asset])
+                self.recordAlbumMembershipRemoved(for: [asset.localIdentifier])
             }
             completion(success)
         }

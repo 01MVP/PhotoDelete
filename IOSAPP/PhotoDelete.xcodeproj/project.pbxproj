@@ -204,7 +204,51 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				Base,
+				ar,
+				bn,
+				ca,
+				cs,
+				da,
+				de,
+				el,
 				en,
+				es,
+				"es-MX",
+				fi,
+				fr,
+				"fr-CA",
+				gu,
+				he,
+				hi,
+				hr,
+				hu,
+				id,
+				it,
+				ja,
+				kn,
+				ko,
+				ms,
+				ml,
+				mr,
+				nl,
+				no,
+				or,
+				pa,
+				pl,
+				"pt-BR",
+				"pt-PT",
+				ro,
+				ru,
+				sk,
+				sl,
+				sv,
+				ta,
+				te,
+				th,
+				tr,
+				uk,
+				ur,
+				vi,
 				"zh-Hans",
 				"zh-Hant",
 			);
@@ -418,7 +462,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.6;
+				MARKETING_VERSION = 1.8;
 				PRODUCT_BUNDLE_IDENTIFIER = com.01mvp.photodelete;
 				PRODUCT_NAME = PhotoDelete;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -442,7 +486,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.6;
+				MARKETING_VERSION = 1.8;
 				PRODUCT_BUNDLE_IDENTIFIER = com.01mvp.photodelete;
 				PRODUCT_NAME = PhotoDelete;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -460,7 +504,7 @@
 				DEVELOPMENT_TEAM = PCJ84YD7HQ;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
-				MARKETING_VERSION = 1.6;
+				MARKETING_VERSION = 1.8;
 				PRODUCT_BUNDLE_IDENTIFIER = com.01mvp.photodelete.tests;
 				PRODUCT_NAME = PhotoDeleteTests;
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -479,7 +523,7 @@
 				DEVELOPMENT_TEAM = PCJ84YD7HQ;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
-				MARKETING_VERSION = 1.6;
+				MARKETING_VERSION = 1.8;
 				PRODUCT_BUNDLE_IDENTIFIER = com.01mvp.photodelete.tests;
 				PRODUCT_NAME = PhotoDeleteTests;
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -496,7 +540,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = PCJ84YD7HQ;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.6;
+				MARKETING_VERSION = 1.8;
 				PRODUCT_BUNDLE_IDENTIFIER = com.01mvp.photodelete.uitests;
 				PRODUCT_NAME = PhotoDeleteUITests;
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -513,7 +557,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = PCJ84YD7HQ;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.6;
+				MARKETING_VERSION = 1.8;
 				PRODUCT_BUNDLE_IDENTIFIER = com.01mvp.photodelete.uitests;
 				PRODUCT_NAME = PhotoDeleteUITests;
 				SWIFT_EMIT_LOC_STRINGS = NO;

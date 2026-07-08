@@ -5,7 +5,25 @@
       "comment": "Bundle display name",
       "extractionState": "manual",
       "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OnePhoto"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OnePhoto"
+          }
+        },
         "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OnePhoto"
+          }
+        },
+        "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "OnePhoto"
@@ -29,7 +47,25 @@
       "comment": "Bundle name",
       "extractionState": "extracted_with_value",
       "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OnePhoto"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OnePhoto"
+          }
+        },
         "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OnePhoto"
+          }
+        },
+        "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "OnePhoto"
@@ -53,10 +89,28 @@
       "comment": "Privacy - Photo Library Additions Usage Description",
       "extractionState": "extracted_with_value",
       "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يحتاج OnePhoto إلى إذن لتمييز الصور كمفضلة وإضافتها إلى الألبومات وحفظ نسخ مضغوطة وتطبيق التغييرات بعد تأكيدك."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OnePhoto benötigt die Berechtigung, um Fotos als Favoriten zu markieren, zu Alben hinzuzufügen, komprimierte Kopien zu sichern und Änderungen nach Ihrer Bestätigung anzuwenden."
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "OnePhoto needs permission to favorite photos, add them to albums, save compressed copies, and apply changes after you confirm."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OnePhotoは、写真をお気に入りに追加し、アルバムへ追加し、圧縮コピーを保存し、確認後に変更を適用するために権限が必要です。"
           }
         },
         "zh-Hans": {
@@ -77,10 +131,28 @@
       "comment": "Privacy - Photo Library Usage Description",
       "extractionState": "extracted_with_value",
       "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يحتاج OnePhoto إلى الوصول إلى مكتبة الصور لقراءة الصور المحددة وتنظيمها وتمييزها كمفضلة وحذفها بعد تأكيدك. لا نرفع صورك أو نشاركها مطلقًا."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OnePhoto benötigt Zugriff auf Ihre Fotomediathek, um ausgewählte Fotos nach Ihrer Bestätigung zu lesen, zu organisieren, als Favoriten zu markieren und zu löschen. Wir laden Ihre Fotos niemals hoch und teilen sie nicht."
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "OnePhoto needs access to read, organize, favorite, and delete selected photos after you confirm. We never upload or share your photos."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OnePhotoは、確認後に選択した写真を読み込み、整理し、お気に入りに追加し、削除するために写真ライブラリへのアクセスが必要です。写真をアップロードしたり共有したりすることはありません。"
           }
         },
         "zh-Hans": {

@@ -15,6 +15,7 @@ struct AdvancedView: View {
     @EnvironmentObject var dataManager: DataManager
     @EnvironmentObject var purchaseManager: PurchaseManager
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @AppStorage(AppConstants.appLanguageKey) private var appLanguageValue = AppLanguage.system.rawValue
     @State private var selectedScope: AdvancedTimeScope = .month
     @State private var selectedPeriodDate = Date()
     @State private var dashboardSnapshot = AdvancedLibrarySnapshot.demo(referenceDate: Date())
@@ -47,6 +48,8 @@ struct AdvancedView: View {
     }
 
     var body: some View {
+        let _ = appLanguageValue
+
         NavigationStack {
             advancedRootContent
                 .navigationTitle(L10n.string("进阶"))
@@ -1310,6 +1313,20 @@ private struct AdvancedPeriodListRow: View {
     }
 }
 
+private struct AdvancedFilteredAssetSnapshot {
+    let assets: [PHAsset]
+    let visibleAssets: [PHAsset]
+    let videoAssets: [PHAsset]
+    let totalSizeMB: Double
+    let loadedReliableVideoSizeCount: Int
+    let iCloudVideoCount: Int
+    let hasMoreAssets: Bool
+
+    var hasUnresolvedVideoSizes: Bool {
+        !videoAssets.isEmpty && loadedReliableVideoSizeCount < videoAssets.count
+    }
+}
+
 private struct AdvancedAssetListView: View {
     @EnvironmentObject var dataManager: DataManager
     let mode: AdvancedAssetListMode
@@ -1333,60 +1350,7 @@ private struct AdvancedAssetListView: View {
     private let videoSizeUpdateBatchSize = 8
 
     private var selectedAssets: [PHAsset] {
-        filteredAssets.filter { selectedAssetIDs.contains($0.localIdentifier) }
-    }
-
-    private var filteredAssets: [PHAsset] {
-        guard selectedFilter != .all else { return orderedAssets }
-        return orderedAssets.filter { matches(asset: $0, filter: selectedFilter) }
-    }
-
-    private var visibleFilteredAssets: [PHAsset] {
-        VisibleListPagination.visibleItems(filteredAssets, limit: visibleAssetLimit)
-    }
-
-    private var hasMoreFilteredAssets: Bool {
-        VisibleListPagination.hasMore(totalCount: filteredAssets.count, limit: visibleAssetLimit)
-    }
-
-    private var filteredVideoAssets: [PHAsset] {
-        filteredAssets.filter { $0.mediaType == .video }
-    }
-
-    private var filteredTotalSizeMB: Double {
-        filteredAssets.reduce(0) { partial, asset in
-            if asset.mediaType == .video {
-                return partial + (reliableVideoSizeMB(for: asset) ?? dataManager.estimatedSizeMB(for: asset))
-            }
-            return partial + dataManager.estimatedSizeMB(for: asset)
-        }
-    }
-
-    private var isAllFilteredSelected: Bool {
-        !filteredAssets.isEmpty &&
-            filteredAssets.allSatisfy { selectedAssetIDs.contains($0.localIdentifier) }
-    }
-
-    private var loadedReliableVideoSizeCount: Int {
-        filteredVideoAssets.reduce(0) { partial, asset in
-            reliableVideoSizeMB(for: asset) == nil ? partial : partial + 1
-        }
-    }
-
-    private var loadedVideoSizeCount: Int {
-        filteredVideoAssets.reduce(0) { partial, asset in
-            videoSizeEstimatesByAssetID[asset.localIdentifier] == nil ? partial : partial + 1
-        }
-    }
-
-    private var iCloudVideoCount: Int {
-        filteredVideoAssets.reduce(0) { partial, asset in
-            videoSizeEstimatesByAssetID[asset.localIdentifier]?.source == .iCloud ? partial + 1 : partial
-        }
-    }
-
-    private var hasUnresolvedVideoSizes: Bool {
-        !filteredVideoAssets.isEmpty && loadedReliableVideoSizeCount < filteredVideoAssets.count
+        makeFilteredAssetSnapshot().assets.filter { selectedAssetIDs.contains($0.localIdentifier) }
     }
 
     private var prefersSizeFirstOrder: Bool {
@@ -1399,10 +1363,42 @@ private struct AdvancedAssetListView: View {
     }
 
     private var videoSizeLoadTargets: [PHAsset] {
-        return visibleFilteredAssets.filter { $0.mediaType == .video }
+        makeFilteredAssetSnapshot().visibleAssets.filter { $0.mediaType == .video }
+    }
+
+    private func makeFilteredAssetSnapshot() -> AdvancedFilteredAssetSnapshot {
+        let filteredAssets = filteredAssetCandidates()
+        let visibleAssets = VisibleListPagination.visibleItems(filteredAssets, limit: visibleAssetLimit)
+        let videoAssets = filteredAssets.filter { $0.mediaType == .video }
+        let totalSizeMB = filteredAssets.reduce(0) { partial, asset in
+            partial + displaySizeMB(for: asset)
+        }
+        let loadedReliableVideoSizeCount = videoAssets.reduce(0) { partial, asset in
+            reliableVideoSizeMB(for: asset) == nil ? partial : partial + 1
+        }
+        let iCloudVideoCount = videoAssets.reduce(0) { partial, asset in
+            videoSizeEstimatesByAssetID[asset.localIdentifier]?.source == .iCloud ? partial + 1 : partial
+        }
+
+        return AdvancedFilteredAssetSnapshot(
+            assets: filteredAssets,
+            visibleAssets: visibleAssets,
+            videoAssets: videoAssets,
+            totalSizeMB: totalSizeMB,
+            loadedReliableVideoSizeCount: loadedReliableVideoSizeCount,
+            iCloudVideoCount: iCloudVideoCount,
+            hasMoreAssets: VisibleListPagination.hasMore(totalCount: filteredAssets.count, limit: visibleAssetLimit)
+        )
+    }
+
+    private func filteredAssetCandidates() -> [PHAsset] {
+        guard selectedFilter != .all else { return orderedAssets }
+        return orderedAssets.filter { matches(asset: $0, filter: selectedFilter) }
     }
 
     var body: some View {
+        let snapshot = makeFilteredAssetSnapshot()
+
         ZStack {
             PhotoDeleteScreenBackground()
 
@@ -1414,15 +1410,15 @@ private struct AdvancedAssetListView: View {
                     }
 
                     AdvancedAssetListSummaryCard(
-                        title: summaryTitle,
-                        subtitle: summarySubtitle,
-                        buttonTitle: isAllFilteredSelected ? L10n.string("取消") : L10n.string("全选"),
+                        title: summaryTitle(for: snapshot),
+                        subtitle: summarySubtitle(for: snapshot),
+                        buttonTitle: isAllFilteredSelected(in: snapshot) ? L10n.string("取消") : L10n.string("全选"),
                         action: toggleBulkSelection
                     )
 
-                    if !isLoadingAssets, !isLoadingVideoSizes, iCloudVideoCount > 0 {
+                    if !isLoadingAssets, !isLoadingVideoSizes, snapshot.iCloudVideoCount > 0 {
                         AdvancedVideoCompressionICloudInfoCard(
-                            count: iCloudVideoCount,
+                            count: snapshot.iCloudVideoCount,
                             subtitle: L10n.string("预览或处理时会下载原片。"),
                             action: showICloudVideoInfo
                         )
@@ -1439,7 +1435,7 @@ private struct AdvancedAssetListView: View {
                             title: L10n.string("没有可整理的内容"),
                             subtitle: L10n.string("当前照片库里暂时没有符合这个入口的项目。")
                         )
-                    } else if filteredAssets.isEmpty {
+                    } else if snapshot.assets.isEmpty {
                         AdvancedEmptyState(
                             icon: mode.icon,
                             title: L10n.string("当前筛选没有内容"),
@@ -1447,7 +1443,7 @@ private struct AdvancedAssetListView: View {
                         )
                     } else {
                         LazyVStack(spacing: 9) {
-                            ForEach(visibleFilteredAssets, id: \.localIdentifier) { asset in
+                            ForEach(snapshot.visibleAssets, id: \.localIdentifier) { asset in
                                 AdvancedAssetRow(
                                     asset: asset,
                                     photoLibraryManager: dataManager.photoLibraryManager,
@@ -1465,7 +1461,7 @@ private struct AdvancedAssetListView: View {
                             }
                         }
 
-                        if hasMoreFilteredAssets {
+                        if snapshot.hasMoreAssets {
                             Text(L10n.string("继续向下滚动加载更多"))
                                 .font(.system(size: 12, weight: .medium))
                                 .foregroundColor(PhotoDeleteStyle.secondaryText)
@@ -1501,7 +1497,8 @@ private struct AdvancedAssetListView: View {
             AdvancedAssetPreviewView(
                 asset: item.asset,
                 photoLibraryManager: dataManager.photoLibraryManager,
-                assets: item.assets
+                assets: item.assets,
+                selectedAssetIDs: $selectedAssetIDs
             )
         }
         .alert(L10n.string("iCloud 视频"), isPresented: $showingICloudVideoInfo) {
@@ -1522,39 +1519,44 @@ private struct AdvancedAssetListView: View {
         }
     }
 
-    private var summaryTitle: String {
+    private func summaryTitle(for snapshot: AdvancedFilteredAssetSnapshot) -> String {
         switch mode {
         case .cleanup(.largeFiles):
-            return String(format: L10n.string("共 %lld 个大文件"), Int64(filteredAssets.count))
+            return String(format: L10n.string("共 %lld 个大文件"), Int64(snapshot.assets.count))
         case .cleanup(.imageCompression):
-            return String(format: L10n.string("共 %lld 张可压缩图片"), Int64(filteredAssets.count))
+            return String(format: L10n.string("共 %lld 张可压缩图片"), Int64(snapshot.assets.count))
         case .cleanup(.videoCompression):
-            return String(format: L10n.string("共 %lld 个可压缩视频"), Int64(filteredAssets.count))
+            return String(format: L10n.string("共 %lld 个可压缩视频"), Int64(snapshot.assets.count))
         case .cleanup(.videos):
-            return String(format: L10n.string("共 %lld 个视频"), Int64(filteredAssets.count))
+            return String(format: L10n.string("共 %lld 个视频"), Int64(snapshot.assets.count))
         case .cleanup(.similarPhotos):
-            return String(format: L10n.string("共 %lld 张相似照片"), Int64(filteredAssets.count))
+            return String(format: L10n.string("共 %lld 张相似照片"), Int64(snapshot.assets.count))
         }
     }
 
-    private var summarySubtitle: String {
+    private func summarySubtitle(for snapshot: AdvancedFilteredAssetSnapshot) -> String {
         switch mode {
         case .cleanup(.largeFiles):
-            if hasUnresolvedVideoSizes {
-                return String(format: L10n.string("部分视频大小会在处理时确认，已知约 %@。"), CleanupStatsFormatter.space(filteredTotalSizeMB))
+            if snapshot.hasUnresolvedVideoSizes {
+                return String(format: L10n.string("部分视频大小会在处理时确认，已知约 %@。"), CleanupStatsFormatter.space(snapshot.totalSizeMB))
             }
-            return String(format: L10n.string("按占用空间从大到小排序，合计约 %@。"), CleanupStatsFormatter.space(filteredTotalSizeMB))
+            return String(format: L10n.string("按占用空间从大到小排序，合计约 %@。"), CleanupStatsFormatter.space(snapshot.totalSizeMB))
         case .cleanup(.imageCompression):
-            return String(format: L10n.string("选择要压缩的图片，合计约 %@。"), CleanupStatsFormatter.space(filteredTotalSizeMB))
+            return String(format: L10n.string("选择要压缩的图片，合计约 %@。"), CleanupStatsFormatter.space(snapshot.totalSizeMB))
         case .cleanup(.videoCompression):
-            return String(format: L10n.string("选择要压缩的视频，合计约 %@。"), CleanupStatsFormatter.space(filteredTotalSizeMB))
+            return String(format: L10n.string("选择要压缩的视频，合计约 %@。"), CleanupStatsFormatter.space(snapshot.totalSizeMB))
         case .cleanup(.videos):
-            if hasUnresolvedVideoSizes {
-                return String(format: L10n.string("已读取 %lld/%lld 个视频大小，已知约 %@。"), Int64(loadedReliableVideoSizeCount), Int64(filteredVideoAssets.count), CleanupStatsFormatter.space(filteredTotalSizeMB))
+            if snapshot.hasUnresolvedVideoSizes {
+                return String(
+                    format: L10n.string("已读取 %lld/%lld 个视频大小，已知约 %@。"),
+                    Int64(snapshot.loadedReliableVideoSizeCount),
+                    Int64(snapshot.videoAssets.count),
+                    CleanupStatsFormatter.space(snapshot.totalSizeMB)
+                )
             }
-            return String(format: L10n.string("按视频占用优先处理，合计约 %@。"), CleanupStatsFormatter.space(filteredTotalSizeMB))
+            return String(format: L10n.string("按视频占用优先处理，合计约 %@。"), CleanupStatsFormatter.space(snapshot.totalSizeMB))
         case .cleanup(.similarPhotos):
-            return String(format: L10n.string("建议优先处理相似组，合计约 %@。"), CleanupStatsFormatter.space(filteredTotalSizeMB))
+            return String(format: L10n.string("建议优先处理相似组，合计约 %@。"), CleanupStatsFormatter.space(snapshot.totalSizeMB))
         }
     }
 
@@ -1776,9 +1778,10 @@ private struct AdvancedAssetListView: View {
     }
 
     private func showMoreAssets() {
+        let snapshot = makeFilteredAssetSnapshot()
         withAnimation(.easeInOut(duration: 0.18)) {
             visibleAssetLimit = VisibleListPagination.advancedLimit(
-                totalCount: filteredAssets.count,
+                totalCount: snapshot.assets.count,
                 currentLimit: visibleAssetLimit,
                 step: assetLimitStep
             )
@@ -1787,9 +1790,10 @@ private struct AdvancedAssetListView: View {
     }
 
     private func showMoreAssetsIfNeeded(currentAsset asset: PHAsset) {
-        guard hasMoreFilteredAssets,
-              let index = visibleFilteredAssets.firstIndex(where: { $0.localIdentifier == asset.localIdentifier }),
-              index >= max(visibleFilteredAssets.count - 6, 0) else {
+        let snapshot = makeFilteredAssetSnapshot()
+        guard snapshot.hasMoreAssets,
+              let index = snapshot.visibleAssets.firstIndex(where: { $0.localIdentifier == asset.localIdentifier }),
+              index >= max(snapshot.visibleAssets.count - 6, 0) else {
             return
         }
         showMoreAssets()
@@ -1811,8 +1815,9 @@ private struct AdvancedAssetListView: View {
 
     private func toggleBulkSelection() {
         HapticManager.impact(.light)
-        let visibleIDs = Set(filteredAssets.map(\.localIdentifier))
-        if isAllFilteredSelected {
+        let snapshot = makeFilteredAssetSnapshot()
+        let visibleIDs = Set(snapshot.assets.map(\.localIdentifier))
+        if isAllFilteredSelected(in: snapshot) {
             selectedAssetIDs.subtract(visibleIDs)
         } else {
             selectedAssetIDs.formUnion(visibleIDs)
@@ -1840,8 +1845,13 @@ private struct AdvancedAssetListView: View {
     }
 
     private func pruneSelectionToFilteredAssets() {
-        let visibleIDs = Set(filteredAssets.map(\.localIdentifier))
+        let visibleIDs = Set(makeFilteredAssetSnapshot().assets.map(\.localIdentifier))
         selectedAssetIDs = selectedAssetIDs.filter { visibleIDs.contains($0) }
+    }
+
+    private func isAllFilteredSelected(in snapshot: AdvancedFilteredAssetSnapshot) -> Bool {
+        !snapshot.assets.isEmpty &&
+            snapshot.assets.allSatisfy { selectedAssetIDs.contains($0.localIdentifier) }
     }
 }
 
@@ -2004,7 +2014,8 @@ private struct AdvancedImageCompressionView: View {
             AdvancedAssetPreviewView(
                 asset: item.asset,
                 photoLibraryManager: dataManager.photoLibraryManager,
-                assets: item.assets
+                assets: item.assets,
+                selectedAssetIDs: $selectedAssetIDs
             )
         }
         .sheet(isPresented: $showingCompressionComparison) {
@@ -4895,6 +4906,13 @@ private struct AdvancedVideoCompressionActionBar: View {
     }
 }
 
+private struct AdvancedSimilarGroupSnapshot {
+    let groups: [AdvancedSimilarPhotoGroup]
+    let visibleGroups: [AdvancedSimilarPhotoGroup]
+    let suggestedDeleteCount: Int
+    let hasMoreGroups: Bool
+}
+
 private struct AdvancedSimilarPhotoGroupsView: View {
     @EnvironmentObject var dataManager: DataManager
     @State private var groups: [AdvancedSimilarPhotoGroup] = []
@@ -4906,23 +4924,23 @@ private struct AdvancedSimilarPhotoGroupsView: View {
 
     private let groupLimitStep = 24
 
-    private var filteredGroups: [AdvancedSimilarPhotoGroup] {
-        groups.filter { matches(group: $0, filter: selectedFilter) }
-    }
-
-    private var visibleFilteredGroups: [AdvancedSimilarPhotoGroup] {
-        VisibleListPagination.visibleItems(filteredGroups, limit: visibleGroupLimit)
-    }
-
-    private var hasMoreFilteredGroups: Bool {
-        VisibleListPagination.hasMore(totalCount: filteredGroups.count, limit: visibleGroupLimit)
-    }
-
     private var selectedAssets: [PHAsset] {
-        filteredGroups.flatMap(\.assets).filter { selectedAssetIDs.contains($0.localIdentifier) }
+        makeGroupSnapshot().groups.flatMap(\.assets).filter { selectedAssetIDs.contains($0.localIdentifier) }
+    }
+
+    private func makeGroupSnapshot() -> AdvancedSimilarGroupSnapshot {
+        let filteredGroups = groups.filter { matches(group: $0, filter: selectedFilter) }
+        return AdvancedSimilarGroupSnapshot(
+            groups: filteredGroups,
+            visibleGroups: VisibleListPagination.visibleItems(filteredGroups, limit: visibleGroupLimit),
+            suggestedDeleteCount: filteredGroups.reduce(0) { $0 + $1.suggestedDeleteCount },
+            hasMoreGroups: VisibleListPagination.hasMore(totalCount: filteredGroups.count, limit: visibleGroupLimit)
+        )
     }
 
     var body: some View {
+        let snapshot = makeGroupSnapshot()
+
         ZStack {
             PhotoDeleteScreenBackground()
 
@@ -4931,10 +4949,10 @@ private struct AdvancedSimilarPhotoGroupsView: View {
                     AdvancedFilterPills(kind: .similarPhotos, selection: $selectedFilter)
 
                     AdvancedAssetListSummaryCard(
-                        title: String(format: L10n.string("发现 %lld 组相似照片"), Int64(filteredGroups.count)),
+                        title: String(format: L10n.string("发现 %lld 组相似照片"), Int64(snapshot.groups.count)),
                         subtitle: String(
                             format: L10n.string("预计可减少 %lld 张，逐组确认更稳妥。"),
-                            Int64(filteredGroups.reduce(0) { $0 + $1.suggestedDeleteCount })
+                            Int64(snapshot.suggestedDeleteCount)
                         ),
                         buttonTitle: selectedAssetIDs.isEmpty ? L10n.string("建议选择") : L10n.string("取消"),
                         action: toggleRecommendedSelection
@@ -4946,7 +4964,7 @@ private struct AdvancedSimilarPhotoGroupsView: View {
                             title: L10n.string("暂未发现相似照片"),
                             subtitle: L10n.string("会把拍摄时间接近的照片放在一起，方便逐组确认。")
                         )
-                    } else if filteredGroups.isEmpty {
+                    } else if snapshot.groups.isEmpty {
                         AdvancedEmptyState(
                             icon: AdvancedCleanupKind.similarPhotos.icon,
                             title: L10n.string("当前筛选没有内容"),
@@ -4954,12 +4972,16 @@ private struct AdvancedSimilarPhotoGroupsView: View {
                         )
                     } else {
                         LazyVStack(spacing: 10) {
-                            ForEach(visibleFilteredGroups) { group in
+                            ForEach(snapshot.visibleGroups) { group in
                                 AdvancedSimilarPhotoGroupCard(
                                     group: group,
                                     photoLibraryManager: dataManager.photoLibraryManager,
                                     selectedAssetIDs: selectedAssetIDs,
                                     onSelectRecommended: { selectRecommended(in: group) },
+                                    onPreviewGroup: {
+                                        guard let firstAsset = group.assets.first else { return }
+                                        previewAsset = AdvancedPreviewAsset(asset: firstAsset, assets: group.assets)
+                                    },
                                     onToggleAsset: toggleSelection,
                                     onPreview: { previewAsset = AdvancedPreviewAsset(asset: $0, assets: group.assets) }
                                 )
@@ -4969,7 +4991,7 @@ private struct AdvancedSimilarPhotoGroupsView: View {
                             }
                         }
 
-                        if hasMoreFilteredGroups {
+                        if snapshot.hasMoreGroups {
                             Text(L10n.string("继续向下滚动加载更多"))
                                 .font(.system(size: 12, weight: .medium))
                                 .foregroundColor(PhotoDeleteStyle.secondaryText)
@@ -5005,7 +5027,8 @@ private struct AdvancedSimilarPhotoGroupsView: View {
             AdvancedAssetPreviewView(
                 asset: item.asset,
                 photoLibraryManager: dataManager.photoLibraryManager,
-                assets: item.assets
+                assets: item.assets,
+                selectedAssetIDs: $selectedAssetIDs
             )
         }
         .task {
@@ -5020,17 +5043,20 @@ private struct AdvancedSimilarPhotoGroupsView: View {
     private func toggleRecommendedSelection() {
         HapticManager.impact(.light)
         if selectedAssetIDs.isEmpty {
-            selectedAssetIDs = Set(visibleFilteredGroups.flatMap { $0.assets.dropFirst().map(\.localIdentifier) })
+            selectedAssetIDs = Set(makeGroupSnapshot().visibleGroups.flatMap { $0.assets.dropFirst().map(\.localIdentifier) })
         } else {
             selectedAssetIDs.removeAll()
         }
     }
 
     private func selectRecommended(in group: AdvancedSimilarPhotoGroup) {
+        let updatedSelection = AdvancedSimilarPhotoRecommendedSelection.toggledSelection(
+            current: selectedAssetIDs,
+            groupAssetIDs: group.assets.map(\.localIdentifier)
+        )
+        guard updatedSelection != selectedAssetIDs else { return }
         HapticManager.impact(.light)
-        for asset in group.assets.dropFirst() {
-            selectedAssetIDs.insert(asset.localIdentifier)
-        }
+        selectedAssetIDs = updatedSelection
     }
 
     private func toggleSelection(_ asset: PHAsset) {
@@ -5066,9 +5092,10 @@ private struct AdvancedSimilarPhotoGroupsView: View {
     }
 
     private func showMoreGroups() {
+        let snapshot = makeGroupSnapshot()
         withAnimation(.easeInOut(duration: 0.18)) {
             visibleGroupLimit = VisibleListPagination.advancedLimit(
-                totalCount: filteredGroups.count,
+                totalCount: snapshot.groups.count,
                 currentLimit: visibleGroupLimit,
                 step: groupLimitStep
             )
@@ -5076,9 +5103,10 @@ private struct AdvancedSimilarPhotoGroupsView: View {
     }
 
     private func showMoreGroupsIfNeeded(currentGroup group: AdvancedSimilarPhotoGroup) {
-        guard hasMoreFilteredGroups,
-              let index = visibleFilteredGroups.firstIndex(where: { $0.id == group.id }),
-              index >= max(visibleFilteredGroups.count - 4, 0) else {
+        let snapshot = makeGroupSnapshot()
+        guard snapshot.hasMoreGroups,
+              let index = snapshot.visibleGroups.firstIndex(where: { $0.id == group.id }),
+              index >= max(snapshot.visibleGroups.count - 4, 0) else {
             return
         }
         showMoreGroups()
@@ -5114,8 +5142,23 @@ private struct AdvancedSimilarPhotoGroupsView: View {
     }
 
     private func pruneSelectionToFilteredGroups() {
-        let visibleIDs = Set(filteredGroups.flatMap { $0.assets.map(\.localIdentifier) })
+        let visibleIDs = Set(makeGroupSnapshot().groups.flatMap { $0.assets.map(\.localIdentifier) })
         selectedAssetIDs = selectedAssetIDs.filter { visibleIDs.contains($0) }
+    }
+}
+
+enum AdvancedSimilarPhotoRecommendedSelection {
+    static func toggledSelection(current selectedAssetIDs: Set<String>, groupAssetIDs: [String]) -> Set<String> {
+        let recommendedAssetIDs = Set(groupAssetIDs.dropFirst())
+        guard !recommendedAssetIDs.isEmpty else { return selectedAssetIDs }
+
+        var updatedSelection = selectedAssetIDs
+        if recommendedAssetIDs.isSubset(of: selectedAssetIDs) {
+            updatedSelection.subtract(recommendedAssetIDs)
+        } else {
+            updatedSelection.formUnion(recommendedAssetIDs)
+        }
+        return updatedSelection
     }
 }
 
@@ -5124,6 +5167,7 @@ private struct AdvancedSimilarPhotoGroupCard: View {
     let photoLibraryManager: PhotoLibraryManager
     let selectedAssetIDs: Set<String>
     let onSelectRecommended: () -> Void
+    let onPreviewGroup: () -> Void
     let onToggleAsset: (PHAsset) -> Void
     let onPreview: (PHAsset) -> Void
 
@@ -5135,29 +5179,29 @@ private struct AdvancedSimilarPhotoGroupCard: View {
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundColor(PhotoDeleteStyle.primaryText)
 
-                    Text(String(format: L10n.string("%lld 张相近候选 · 可节省 %@"), Int64(group.assets.count), group.formattedEstimatedSpace))
+                    Text(String(format: L10n.string("%lld 张相近候选"), Int64(group.assets.count)))
                         .font(.system(size: 12, weight: .regular))
                         .foregroundColor(PhotoDeleteStyle.secondaryText)
                 }
 
                 Spacer()
 
-                Button(action: onSelectRecommended) {
-                    Text(L10n.string("保留首张，选择其余"))
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(PhotoDeleteStyle.positive)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 6)
-                        .background(
-                            Capsule(style: .continuous)
-                                .fill(PhotoDeleteStyle.positive.opacity(0.14))
-                        )
-                        .photoDeleteMinimumTapTarget()
+                HStack(spacing: 8) {
+                    AdvancedSimilarPhotoGroupActionButton(
+                        title: L10n.string("预览"),
+                        systemImage: "rectangle.stack",
+                        tint: PhotoDeleteStyle.accent,
+                        action: onPreviewGroup
+                    )
+
+                    AdvancedSimilarPhotoGroupActionButton(
+                        title: L10n.string("保留首张"),
+                        systemImage: "checkmark.circle.fill",
+                        tint: PhotoDeleteStyle.positive,
+                        action: onSelectRecommended
+                    )
+                    .accessibilityHint(Text(L10n.string("选择除首张外的相似照片；再次点击可取消选择。")))
                 }
-                .buttonStyle(.plain)
-                .accessibilityHint(Text(L10n.string("选择除首张外的相似照片，稍后统一确认删除。")))
             }
 
             ScrollView(.horizontal) {
@@ -5209,6 +5253,30 @@ private struct AdvancedAssetListSummaryCard: View {
         }
         .padding(14)
         .photoDeleteCard()
+    }
+}
+
+private struct AdvancedSimilarPhotoGroupActionButton: View {
+    let title: String
+    let systemImage: String
+    let tint: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(tint)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+                .padding(.horizontal, 10)
+                .frame(minHeight: 44)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(tint.opacity(0.14))
+                )
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -5393,18 +5461,10 @@ private struct AdvancedSelectableThumbnail: View {
             .buttonStyle(.plain)
             .accessibilityLabel(asset.mediaType == .video ? L10n.string("视频预览") : L10n.string("照片预览"))
 
-            Button(action: onToggleSelection) {
-                Label(isSelected ? L10n.string("取消选择") : L10n.string("选择"), systemImage: isSelected ? "checkmark.circle.fill" : "circle")
-                    .labelStyle(.iconOnly)
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(isSelected ? PhotoDeleteStyle.accent : Color.white.opacity(0.84))
-                    .shadow(color: .black.opacity(0.35), radius: 5, x: 0, y: 2)
-                    .frame(width: 32, height: 32)
-                    .photoDeleteMinimumTapTarget()
-            }
-            .buttonStyle(.plain)
-            .accessibilityValue(Text(isSelected ? L10n.string("已选") : L10n.string("未选择")))
-            .accessibilityAddTraits(isSelected ? .isSelected : [])
+            AdvancedSelectableThumbnailSelectionButton(
+                isSelected: isSelected,
+                action: onToggleSelection
+            )
 
             if showsRecommendedBadge {
                 Text(L10n.string("保留"))
@@ -5418,6 +5478,74 @@ private struct AdvancedSelectableThumbnail: View {
             }
         }
         .frame(width: 66, height: 66)
+    }
+}
+
+private struct AdvancedSelectableThumbnailSelectionButton: View {
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            ZStack(alignment: .topTrailing) {
+                Color.clear
+                    .frame(width: 44, height: 44)
+
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: AdvancedSelectableThumbnailSelectionButtonStyle.iconSize, weight: .semibold))
+                    .foregroundColor(
+                        isSelected
+                            ? PhotoDeleteStyle.accent.opacity(AdvancedSelectableThumbnailSelectionButtonStyle.selectedIconOpacity)
+                            : Color.white.opacity(AdvancedSelectableThumbnailSelectionButtonStyle.unselectedIconOpacity)
+                    )
+                    .frame(
+                        width: AdvancedSelectableThumbnailSelectionButtonStyle.visualSize,
+                        height: AdvancedSelectableThumbnailSelectionButtonStyle.visualSize
+                    )
+                    .background(
+                        Circle()
+                            .fill(PhotoDeleteStyle.background.opacity(AdvancedSelectableThumbnailSelectionButtonStyle.backgroundOpacity(isSelected: isSelected)))
+                    )
+                    .overlay(
+                        Circle()
+                            .stroke(Color.white.opacity(AdvancedSelectableThumbnailSelectionButtonStyle.strokeOpacity(isSelected: isSelected)), lineWidth: 1)
+                    )
+                    .shadow(
+                        color: .black.opacity(AdvancedSelectableThumbnailSelectionButtonStyle.shadowOpacity),
+                        radius: AdvancedSelectableThumbnailSelectionButtonStyle.shadowRadius,
+                        x: 0,
+                        y: 1
+                    )
+                    .padding(4)
+            }
+        }
+        .buttonStyle(.plain)
+        .frame(width: 44, height: 44, alignment: .topTrailing)
+        .contentShape(Rectangle())
+        .accessibilityLabel(isSelected ? L10n.string("取消选择") : L10n.string("选择"))
+        .accessibilityValue(Text(isSelected ? L10n.string("已选") : L10n.string("未选择")))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+enum AdvancedSelectableThumbnailSelectionButtonStyle {
+    static let iconSize: CGFloat = 20
+    static let visualSize: CGFloat = 28
+    static let selectedIconOpacity = 0.78
+    static let unselectedIconOpacity = 0.62
+    static let selectedBackgroundOpacity = 0.48
+    static let unselectedBackgroundOpacity = 0.24
+    static let selectedStrokeOpacity = 0.16
+    static let unselectedStrokeOpacity = 0.18
+    static let shadowOpacity = 0.14
+    static let shadowRadius: CGFloat = 3
+
+    static func backgroundOpacity(isSelected: Bool) -> Double {
+        isSelected ? selectedBackgroundOpacity : unselectedBackgroundOpacity
+    }
+
+    static func strokeOpacity(isSelected: Bool) -> Double {
+        isSelected ? selectedStrokeOpacity : unselectedStrokeOpacity
     }
 }
 
@@ -5488,18 +5616,21 @@ private struct AdvancedAssetPreviewView: View {
     let asset: PHAsset
     let photoLibraryManager: PhotoLibraryManager
     let assets: [PHAsset]
+    let selectedAssetIDs: Binding<Set<String>>?
 
     @State private var selectedAssetID: String
 
     init(
         asset: PHAsset,
         photoLibraryManager: PhotoLibraryManager,
-        assets: [PHAsset] = []
+        assets: [PHAsset] = [],
+        selectedAssetIDs: Binding<Set<String>>? = nil
     ) {
         self.asset = asset
         self.photoLibraryManager = photoLibraryManager
         let uniqueAssets = Self.previewAssets(selectedAsset: asset, assets: assets)
         self.assets = uniqueAssets
+        self.selectedAssetIDs = selectedAssetIDs
         _selectedAssetID = State(initialValue: asset.localIdentifier)
     }
 
@@ -5520,13 +5651,21 @@ private struct AdvancedAssetPreviewView: View {
                                 .tag(asset.localIdentifier)
                             }
                         }
-                        .tabViewStyle(.page(indexDisplayMode: .automatic))
+                        .tabViewStyle(.page(indexDisplayMode: .never))
                     } else {
                         AdvancedAssetPreviewPage(
                             asset: selectedAsset,
                             photoLibraryManager: photoLibraryManager,
                             viewportSize: geometry.size
                         )
+                    }
+
+                    if assets.count > 1 {
+                        previewPagingOverlay
+                    }
+
+                    if selectedAssetIDs != nil {
+                        previewSelectionOverlay
                     }
                 }
             }
@@ -5547,6 +5686,143 @@ private struct AdvancedAssetPreviewView: View {
         assets.first { $0.localIdentifier == selectedAssetID } ?? asset
     }
 
+    private var assetIdentifiers: [String] {
+        assets.map(\.localIdentifier)
+    }
+
+    private var previewPositionText: String? {
+        AdvancedPreviewPaging.positionText(
+            selectedIdentifier: selectedAssetID,
+            identifiers: assetIdentifiers
+        )
+    }
+
+    private var canSelectPreviousPreviewAsset: Bool {
+        AdvancedPreviewPaging.adjacentIdentifier(
+            selectedIdentifier: selectedAssetID,
+            identifiers: assetIdentifiers,
+            direction: .previous
+        ) != nil
+    }
+
+    private var canSelectNextPreviewAsset: Bool {
+        AdvancedPreviewPaging.adjacentIdentifier(
+            selectedIdentifier: selectedAssetID,
+            identifiers: assetIdentifiers,
+            direction: .next
+        ) != nil
+    }
+
+    private var isSelectedForDeletion: Bool {
+        selectedAssetIDs?.wrappedValue.contains(selectedAssetID) ?? false
+    }
+
+    private var previewSelectionOverlay: some View {
+        HStack {
+            Spacer()
+
+            Button(action: toggleSelectedPreviewAsset) {
+                Label(
+                    isSelectedForDeletion ? L10n.string("已加入待删除") : L10n.string("加入待删除"),
+                    systemImage: isSelectedForDeletion ? "checkmark.circle.fill" : "square"
+                )
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(.white)
+                .padding(.horizontal, 14)
+                .frame(minHeight: 46)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(Color.black.opacity(0.66))
+                )
+                .overlay(
+                    Capsule(style: .continuous)
+                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(isSelectedForDeletion ? L10n.string("已加入待删除") : L10n.string("加入待删除")))
+            .accessibilityIdentifier("advanced-preview-delete-selection-toggle")
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 28)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+        .zIndex(3)
+    }
+
+    private var previewPagingOverlay: some View {
+        ZStack {
+            VStack {
+                if let previewPositionText {
+                    HStack {
+                        Spacer()
+
+                        Text(previewPositionText)
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 11)
+                            .padding(.vertical, 6)
+                            .background(Capsule(style: .continuous).fill(Color.black.opacity(0.54)))
+                            .accessibilityLabel(Text("\(L10n.string("位置")) \(previewPositionText)"))
+                    }
+                    .padding(.top, 12)
+                    .padding(.trailing, 16)
+                }
+
+                Spacer()
+            }
+            .allowsHitTesting(false)
+
+            HStack {
+                AdvancedPreviewPagingButton(
+                    systemImage: "chevron.left",
+                    accessibilityLabel: L10n.string("上一张"),
+                    isDisabled: !canSelectPreviousPreviewAsset
+                ) {
+                    selectPreviewAsset(.previous)
+                }
+
+                Spacer()
+
+                AdvancedPreviewPagingButton(
+                    systemImage: "chevron.right",
+                    accessibilityLabel: L10n.string("下一张"),
+                    isDisabled: !canSelectNextPreviewAsset
+                ) {
+                    selectPreviewAsset(.next)
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+    }
+
+    private func selectPreviewAsset(_ direction: AdvancedPreviewPagingDirection) {
+        guard let nextIdentifier = AdvancedPreviewPaging.adjacentIdentifier(
+            selectedIdentifier: selectedAssetID,
+            identifiers: assetIdentifiers,
+            direction: direction
+        ) else {
+            return
+        }
+
+        withAnimation(.easeInOut(duration: 0.18)) {
+            selectedAssetID = nextIdentifier
+        }
+    }
+
+    private func toggleSelectedPreviewAsset() {
+        guard let selectedAssetIDs else { return }
+
+        HapticManager.impact(.light)
+        var ids = selectedAssetIDs.wrappedValue
+        if ids.contains(selectedAssetID) {
+            ids.remove(selectedAssetID)
+        } else {
+            ids.insert(selectedAssetID)
+        }
+        selectedAssetIDs.wrappedValue = ids
+    }
+
     private static func previewAssets(selectedAsset: PHAsset, assets: [PHAsset]) -> [PHAsset] {
         var seenIDs: Set<String> = []
         let source = assets.isEmpty ? [selectedAsset] : assets
@@ -5557,6 +5833,69 @@ private struct AdvancedAssetPreviewView: View {
             ordered.insert(selectedAsset, at: 0)
         }
         return ordered
+    }
+}
+
+enum AdvancedPreviewPagingDirection {
+    case previous
+    case next
+}
+
+enum AdvancedPreviewPaging {
+    static func selectedIndex(selectedIdentifier: String, identifiers: [String]) -> Int {
+        identifiers.firstIndex(of: selectedIdentifier) ?? 0
+    }
+
+    static func positionText(selectedIdentifier: String, identifiers: [String]) -> String? {
+        guard identifiers.count > 1 else { return nil }
+        let index = selectedIndex(selectedIdentifier: selectedIdentifier, identifiers: identifiers)
+        return "\(index + 1) / \(identifiers.count)"
+    }
+
+    static func adjacentIdentifier(
+        selectedIdentifier: String,
+        identifiers: [String],
+        direction: AdvancedPreviewPagingDirection
+    ) -> String? {
+        guard identifiers.count > 1 else { return nil }
+        let index = selectedIndex(selectedIdentifier: selectedIdentifier, identifiers: identifiers)
+
+        switch direction {
+        case .previous:
+            guard index > 0 else { return nil }
+            return identifiers[index - 1]
+        case .next:
+            guard index < identifiers.count - 1 else { return nil }
+            return identifiers[index + 1]
+        }
+    }
+}
+
+private struct AdvancedPreviewPagingButton: View {
+    let systemImage: String
+    let accessibilityLabel: String
+    let isDisabled: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 18, weight: .bold))
+                .foregroundColor(.white)
+                .frame(width: 46, height: 58)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(Color.black.opacity(0.42))
+                )
+                .overlay(
+                    Capsule(style: .continuous)
+                        .stroke(Color.white.opacity(0.16), lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.25 : 1)
+        .accessibilityLabel(accessibilityLabel)
     }
 }
 

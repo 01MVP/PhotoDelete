@@ -13,6 +13,270 @@ import PhotosUI
 import UIKit
 #endif
 
+enum InlineVideoScrubGestureRegion {
+    static func contains(
+        startLocation: CGPoint,
+        cardSize: CGSize,
+        isVideoPlaying: Bool,
+        reservedBottomHeight: CGFloat
+    ) -> Bool {
+        guard isVideoPlaying,
+              cardSize.width > 0,
+              cardSize.height > 0,
+              reservedBottomHeight > 0 else {
+            return false
+        }
+
+        let reservedHeight = min(reservedBottomHeight, cardSize.height)
+        return startLocation.y >= cardSize.height - reservedHeight
+    }
+}
+
+enum InlineVideoCardHitRegion {
+    static let cornerRadius: CGFloat = 20
+
+    static func contains(point: CGPoint, cardSize: CGSize) -> Bool {
+        guard cardSize.width > 0, cardSize.height > 0 else { return false }
+        return CGRect(origin: .zero, size: cardSize).contains(point)
+    }
+}
+
+enum InlineVideoCardGestureRouting {
+    static func shouldReserveForVideoScrubber(
+        startLocation: CGPoint,
+        cardSize: CGSize,
+        isVideoPlaying: Bool,
+        reservedBottomHeight: CGFloat,
+        isCurrentVideoScrubbing _: Bool,
+        isScrubGestureActive: Bool
+    ) -> Bool {
+        if isScrubGestureActive { return true }
+        return InlineVideoScrubGestureRegion.contains(
+            startLocation: startLocation,
+            cardSize: cardSize,
+            isVideoPlaying: isVideoPlaying,
+            reservedBottomHeight: reservedBottomHeight
+        )
+    }
+}
+
+enum PhotoReviewSourceReadiness {
+    static func isWaiting(
+        selectedCategory: PhotoCategory?,
+        selectedLocationGroupID: String?,
+        hasLoadedAllCategoryPhotos: Bool,
+        isPhotoLibraryLoading: Bool,
+        isPreparingLibrary: Bool,
+        isRestoringLibrarySnapshot: Bool,
+        isLoadingLocationGroups: Bool,
+        isResolvingLocationTitles: Bool,
+        isLoadingAdvancedCleanupQueues: Bool,
+        hasLoadedAlbumMembership: Bool,
+        isLoadingAlbums: Bool
+    ) -> Bool {
+        let isLoadingBaseLibrary = isPhotoLibraryLoading || isPreparingLibrary || isRestoringLibrarySnapshot
+        if selectedCategory == .all, hasLoadedAllCategoryPhotos {
+            return selectedLocationGroupID != nil && (isLoadingLocationGroups || isResolvingLocationTitles)
+        }
+        if selectedCategory == .unclassified {
+            return isLoadingBaseLibrary || !hasLoadedAlbumMembership || isLoadingAlbums
+        }
+
+        return isLoadingBaseLibrary ||
+            (selectedLocationGroupID != nil && (isLoadingLocationGroups || isResolvingLocationTitles)) ||
+            isLoadingAdvancedCleanupQueues
+    }
+}
+
+enum AlbumShortcutVisibility {
+    static func shouldShow(
+        isAlbumMode: Bool,
+        canPerformPhotoAction: Bool,
+        shouldKeepStableDuringFiling: Bool = false,
+        albumCount: Int
+    ) -> Bool {
+        !isAlbumMode && (canPerformPhotoAction || shouldKeepStableDuringFiling) && albumCount > 0
+    }
+}
+
+enum AlbumShortcutLayout {
+    static let twoRowThreshold = 4
+    static let buttonWidth: CGFloat = 102
+    static let buttonTitleWidth: CGFloat = 82
+    static let buttonHitHeight: CGFloat = 44
+    static let buttonVisualHeight: CGFloat = 36
+    static let horizontalSpacing: CGFloat = 7
+    static let rowSpacing: CGFloat = 0
+
+    static func usesTwoRows(albumCount: Int) -> Bool {
+        albumCount >= twoRowThreshold
+    }
+
+    static func stripHeight(albumCount: Int) -> CGFloat {
+        usesTwoRows(albumCount: albumCount)
+            ? buttonHitHeight * 2 + rowSpacing
+            : buttonHitHeight
+    }
+}
+
+enum AlbumShortcutEligibility {
+    static func shouldInclude(type: AlbumType, hasAssetCollection: Bool, canAddContent: Bool) -> Bool {
+        type == .userCreated && hasAssetCollection && canAddContent
+    }
+
+    static func canFile(into album: AlbumInfo) -> Bool {
+        shouldInclude(
+            type: album.type,
+            hasAssetCollection: album.assetCollection != nil,
+            canAddContent: album.assetCollection?.canPerform(.addContent) == true
+        )
+    }
+
+    static func filteredAlbums(_ albums: [AlbumInfo]) -> [AlbumInfo] {
+        albums.filter(canFile)
+    }
+}
+
+enum AlbumReviewDownSwipeBehavior: Equatable {
+    case returnToList
+    case removeFromAlbum
+
+    static func resolve(
+        isAlbumMode: Bool,
+        albumType: AlbumType?,
+        hasAssetCollection: Bool,
+        canRemoveContent: Bool
+    ) -> AlbumReviewDownSwipeBehavior {
+        guard isAlbumMode,
+              albumType == .userCreated,
+              hasAssetCollection,
+              canRemoveContent else {
+            return .returnToList
+        }
+        return .removeFromAlbum
+    }
+
+    var icon: String {
+        switch self {
+        case .returnToList:
+            return "arrow.down"
+        case .removeFromAlbum:
+            return "rectangle.stack.badge.minus"
+        }
+    }
+
+    var detailTitle: String {
+        switch self {
+        case .returnToList:
+            return L10n.string("返回列表")
+        case .removeFromAlbum:
+            return L10n.string("移出相册，不删除照片")
+        }
+    }
+
+    var feedbackTitle: String {
+        switch self {
+        case .returnToList:
+            return L10n.string("下滑返回列表")
+        case .removeFromAlbum:
+            return L10n.string("下滑移出相册")
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .returnToList:
+            return PhotoDeleteStyle.accent
+        case .removeFromAlbum:
+            return PhotoDeleteStyle.warning
+        }
+    }
+}
+
+enum PhotoSwipeDragFeedbackHintPlacement: Equatable {
+    case center
+    case top
+    case bottom
+
+    static func placement(for direction: SwipePhotoView.SwipeDirection) -> PhotoSwipeDragFeedbackHintPlacement {
+        switch direction {
+        case .left, .right:
+            return .center
+        case .up:
+            return .top
+        case .down:
+            return .top
+        }
+    }
+}
+
+enum PhotoReviewSessionReviewedStatePolicy {
+    static func usesPersistedReviewedState(isAlbumMode: Bool) -> Bool {
+        !isAlbumMode
+    }
+
+    static func reviewedAssetIdentifiers(
+        isAlbumMode: Bool,
+        persistedReviewedAssetIdentifiers: Set<String>
+    ) -> Set<String> {
+        usesPersistedReviewedState(isAlbumMode: isAlbumMode) ? persistedReviewedAssetIdentifiers : []
+    }
+
+    static func reviewedCount(isAlbumMode: Bool, persistedReviewedCount: Int) -> Int {
+        usesPersistedReviewedState(isAlbumMode: isAlbumMode) ? persistedReviewedCount : 0
+    }
+
+    static func shouldShowCompletionAfterRefresh(
+        isAlbumMode: Bool,
+        hasPhotos: Bool,
+        firstUnreviewedIndex: Int?
+    ) -> Bool {
+        usesPersistedReviewedState(isAlbumMode: isAlbumMode) && hasPhotos && firstUnreviewedIndex == nil
+    }
+}
+
+enum AlbumShortcutScrollRestoreReason {
+    case appear
+    case albumsChanged
+    case currentPhotoChanged
+}
+
+enum AlbumShortcutScrollRestorationPolicy {
+    static func shouldRestore(anchorID: String?, reason: AlbumShortcutScrollRestoreReason) -> Bool {
+        guard anchorID != nil else { return false }
+
+        switch reason {
+        case .appear, .albumsChanged:
+            return true
+        case .currentPhotoChanged:
+            return false
+        }
+    }
+}
+
+enum AlbumShortcutFilingCounter {
+    static func increment(_ counts: [String: Int], albumID: String) -> [String: Int] {
+        var updatedCounts = counts
+        updatedCounts[albumID, default: 0] += 1
+        return updatedCounts
+    }
+
+    static func decrement(_ counts: [String: Int], albumID: String) -> [String: Int] {
+        var updatedCounts = counts
+        let nextCount = max((updatedCounts[albumID] ?? 0) - 1, 0)
+        if nextCount > 0 {
+            updatedCounts[albumID] = nextCount
+        } else {
+            updatedCounts.removeValue(forKey: albumID)
+        }
+        return updatedCounts
+    }
+
+    static func isFiling(_ counts: [String: Int], albumID: String) -> Bool {
+        (counts[albumID] ?? 0) > 0
+    }
+}
+
 struct SwipePhotoView: View {
     @EnvironmentObject var dataManager: DataManager
     @Environment(\.dismiss) private var dismiss
@@ -22,13 +286,14 @@ struct SwipePhotoView: View {
     @AppStorage(AppConstants.leftSwipeActionKey) private var leftSwipeActionValue = SwipeGesturePreset.standard.leftAction.rawValue
     @AppStorage(AppConstants.rightSwipeActionKey) private var rightSwipeActionValue = SwipeGesturePreset.standard.rightAction.rawValue
     @AppStorage(AppConstants.upSwipeActionKey) private var upSwipeActionValue = SwipeGesturePreset.standard.upAction.rawValue
-    @AppStorage(AppConstants.reviewMediaAutoPlayKey) private var reviewMediaAutoPlay = true
+    @AppStorage(AppConstants.reviewVideoAutoPlayKey) private var reviewVideoAutoPlay = true
+    @AppStorage(AppConstants.reviewLivePhotoAutoPlayKey) private var reviewLivePhotoAutoPlay = false
     @AppStorage(AppConstants.reviewVideoMutedKey) private var defaultReviewVideoMuted = true
     @AppStorage(AppConstants.reviewModeKey) private var reviewModeValue = PhotoReviewMode.card.rawValue
     @AppStorage(AppConstants.hasSeenReviewModeHintKey) private var hasSeenReviewModeHint = false
     @AppStorage(AppConstants.hasSeenAlbumShortcutHintKey) private var hasSeenAlbumShortcutHint = false
+    @AppStorage(AppConstants.hasSeenAlbumDownSwipeHintKey) private var hasSeenAlbumDownSwipeHint = false
     @AppStorage(AppConstants.hasSeenDeleteButtonTipKey) private var hasSeenDeleteButtonTip = false
-    @AppStorage(AppConstants.gestureUpdateNoticePendingKey) private var gestureUpdateNoticePending = false
 
     let selectedCategory: PhotoCategory?
     let selectedTimeGroup: String?
@@ -67,18 +332,25 @@ struct SwipePhotoView: View {
     @State private var showDeleteButtonTip = false
     @State private var sessionDeleteActionCount = 0
     @State private var albumFilingAssetIDs: Set<String> = []
+    @State private var albumRemovalAssetIDs: Set<String> = []
     @State private var recentlyFiledAlbumAssetIDs: Set<String> = []
+    @State private var albumShortcutFilingCounts: [String: Int] = [:]
+    @State private var albumShortcutSuccessTokens: [String: UUID] = [:]
+    @State private var pendingAlbumFilingUndoKeys: Set<String> = []
+    @State private var completedAlbumFilingKeys: Set<String> = []
     @State private var currentAlbumInfo: AlbumInfo?
     @State private var sessionVideoMuted = true
     @State private var didApplySessionPlaybackPreference = false
     @State private var cardTransitionDirection = CardBrowseTransitionDirection.none
     @State private var hasPreparedSwipeCommit = false
     @State private var isScrubbingInlineVideo = false
+    @State private var isInlineVideoScrubGestureActive = false
+    @State private var inlineVideoControlsRevealToken: UUID?
     @State private var browserModeRefreshToken = UUID()
+    @State private var albumShortcutScrollAnchorID: String?
 
     private let reviewModeHintThreshold = 5
     private let deleteButtonTipThreshold = 3
-    private let albumShortcutTwoRowThreshold = 4
     private enum SwipeMotion {
         static let minimumDragDistance: CGFloat = 4
         static let previewStartDistance: CGFloat = 14
@@ -91,6 +363,7 @@ struct SwipePhotoView: View {
         static let actionDragLimit: CGFloat = 210
         static let actionDragResistance: CGFloat = 0.34
         static let maxCardTiltDegrees: CGFloat = 4
+        static let inlineVideoScrubberReservedHeight: CGFloat = 78
     }
     private static let countFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
@@ -128,6 +401,7 @@ struct SwipePhotoView: View {
         case delete(PHAsset, originalIndex: Int, wasReviewed: Bool)
         case favorite(PHAsset, originalIndex: Int, wasReviewed: Bool)
         case skip(PHAsset, originalIndex: Int, wasReviewed: Bool)
+        case fileToAlbum(PHAsset, album: PHAssetCollection, albumID: String, originalIndex: Int, wasReviewed: Bool, filingKey: String)
     }
 
     private struct PendingSwipeMutation {
@@ -203,6 +477,10 @@ struct SwipePhotoView: View {
         return selectedAlbumInfo != nil
     }
 
+    private var usesPersistedReviewedStateForSession: Bool {
+        PhotoReviewSessionReviewedStatePolicy.usesPersistedReviewedState(isAlbumMode: isAlbumMode)
+    }
+
     private var shouldPageSessionPhotos: Bool {
         selectedAdvancedCleanup == nil
     }
@@ -226,6 +504,25 @@ struct SwipePhotoView: View {
         return isAssetBeingFiledToAlbum(asset)
     }
 
+    private var isCurrentPhotoBeingRemovedFromAlbum: Bool {
+        guard let asset = currentRealPhoto else { return false }
+        return isAssetBeingRemovedFromAlbum(asset)
+    }
+
+    private var isCurrentPhotoRecentlyFiled: Bool {
+        guard let asset = currentRealPhoto else { return false }
+        return isAssetFiledToAlbum(asset)
+    }
+
+    private var albumReviewDownSwipeBehavior: AlbumReviewDownSwipeBehavior {
+        AlbumReviewDownSwipeBehavior.resolve(
+            isAlbumMode: isAlbumMode,
+            albumType: activeAlbumInfo?.type,
+            hasAssetCollection: activeAlbumInfo?.assetCollection != nil,
+            canRemoveContent: activeAlbumInfo?.assetCollection?.canPerform(.removeContent) == true
+        )
+    }
+
     private var reviewVideoMuted: Bool {
         didApplySessionPlaybackPreference ? sessionVideoMuted : defaultReviewVideoMuted
     }
@@ -247,15 +544,19 @@ struct SwipePhotoView: View {
         if manuallyStoppedVideoAssetID == asset.localIdentifier {
             return false
         }
-        return reviewMediaAutoPlay &&
+        return reviewVideoAutoPlay &&
             !isAssetQueuedForDelete(asset) &&
             !isAssetQueuedForFavorite(asset) &&
             !isAssetBeingFiledToAlbum(asset) &&
+            !isAssetBeingRemovedFromAlbum(asset) &&
             !isAssetFiledToAlbum(asset)
     }
 
     private var canPerformPhotoAction: Bool {
-        currentRealPhoto != nil && !showCompletionMessage && !isCurrentPhotoBeingFiled
+        currentRealPhoto != nil &&
+            !showCompletionMessage &&
+            !isCurrentPhotoBeingFiled &&
+            !isCurrentPhotoBeingRemovedFromAlbum
     }
 
     private var reviewMode: PhotoReviewMode {
@@ -294,13 +595,24 @@ struct SwipePhotoView: View {
                     }
 
                     if let feedbackToast {
+                        let usesBottomPlacement = feedbackToast.showsUndo
                         PhotoDeleteToastView(toast: feedbackToast) {
                             handleUndoAction()
                             resetCardPosition()
                         }
                         .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
-                        .padding(.bottom, usesSidebar ? 24 : portraitToastBottomPadding)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .padding(.top, usesBottomPlacement ? 0 : (usesSidebar ? 24 : 88))
+                        .padding(.bottom, usesBottomPlacement ? (usesSidebar ? 24 : portraitToastBottomPadding) : 0)
+                        .frame(
+                            maxWidth: .infinity,
+                            maxHeight: .infinity,
+                            alignment: usesBottomPlacement ? .bottom : .top
+                        )
+                        .allowsHitTesting(usesBottomPlacement)
+                        .transition(
+                            .move(edge: usesBottomPlacement ? .bottom : .top)
+                                .combined(with: .opacity)
+                        )
                     }
                 }
             }
@@ -350,6 +662,7 @@ struct SwipePhotoView: View {
         .onAppear {
             applySessionPlaybackPreferenceIfNeeded()
             syncPendingOperationCounts()
+            loadAlbumShortcutsIfNeeded()
             if selectedLocationGroupID != nil {
                 dataManager.loadLocationGroups()
             }
@@ -368,6 +681,14 @@ struct SwipePhotoView: View {
         }
         .onChange(of: dataManager.photoLibraryManager.allPhotos.count) { _ in
             refreshSessionForSourceChangeIfNeeded()
+        }
+        .onChange(of: unclassifiedSourceRefreshToken) { _ in
+            guard selectedCategory == .unclassified else { return }
+            refreshSessionForSourceChangeIfNeeded(force: true)
+        }
+        .onChange(of: dataManager.photoLibraryManager.hasPhotoLibraryAccess) { hasAccess in
+            guard hasAccess else { return }
+            loadAlbumShortcutsIfNeeded()
         }
         .onChange(of: dataManager.advancedCleanupQueuesRevision) { _ in
             guard selectedAdvancedCleanup != nil else { return }
@@ -492,20 +813,6 @@ struct SwipePhotoView: View {
                             completionOverlay
                         }
 
-                        if shouldShowGestureUpdateNotice && !showCompletionMessage {
-                            VStack {
-                                GestureUpdateNoticeBanner(
-                                    onAdjust: openGestureSettingsFromNotice,
-                                    onDismiss: acknowledgeGestureUpdateNotice
-                                )
-                                .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
-                                .padding(.top, 14)
-                                .transition(.move(edge: .top).combined(with: .opacity))
-
-                                Spacer(minLength: 0)
-                            }
-                            .zIndex(2)
-                        }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if shouldShowInitialPreparingState {
@@ -601,6 +908,7 @@ struct SwipePhotoView: View {
 
     private func cardPhotoArea(asset: PHAsset, in containerSize: CGSize) -> some View {
         let cardSize = photoCardSize(in: containerSize)
+        let isInlineVideoPlaying = shouldPlayVideo(for: asset)
 
         return ZStack {
             SwipePhotoCardFrame(
@@ -609,15 +917,17 @@ struct SwipePhotoView: View {
                 isInDeleteCandidates: isAssetQueuedForDelete(asset),
                 isInFavoriteCandidates: isAssetQueuedForFavorite(asset),
                 isBeingFiledToAlbum: isAssetBeingFiledToAlbum(asset),
+                isBeingRemovedFromAlbum: isAssetBeingRemovedFromAlbum(asset),
                 isFiledToAlbum: isAssetFiledToAlbum(asset),
-                isVideoPlaying: shouldPlayVideo(for: asset),
-                allowsLivePhotoPlayback: reviewMediaAutoPlay,
+                isVideoPlaying: isInlineVideoPlaying,
+                allowsLivePhotoPlayback: reviewLivePhotoAutoPlay,
                 videoMuted: reviewVideoMuted,
                 memoryCaption: memoryCaption(for: asset),
                 metadataSummary: metadataSummary(for: asset),
                 displaySize: cardSize,
                 targetSize: imageTargetSize(for: cardSize),
                 isScrubbingVideo: $isScrubbingInlineVideo,
+                playbackControlsRevealToken: inlineVideoControlsRevealToken,
                 onStopVideoPlayback: {
                     stopInlineVideoPlayback(rememberManualStopFor: asset)
                 }
@@ -626,11 +936,14 @@ struct SwipePhotoView: View {
             .transition(cardBrowseTransition)
             .overlay {
                 if let feedback = dragFeedback(for: dragOffset) {
-                    PhotoSwipeDragFeedbackView(feedback: feedback)
+                    PhotoSwipeDragFeedbackView(
+                        feedback: feedback,
+                        downSwipeBehavior: albumReviewDownSwipeBehavior
+                    )
                         .allowsHitTesting(false)
                 }
             }
-            .overlay(alignment: .bottomTrailing) {
+            .overlay(alignment: isInlineVideoPlaying ? .topTrailing : .bottomTrailing) {
                 if shouldShowSessionMuteButton {
                     SessionMuteToggleButton(isMuted: reviewVideoMuted, action: toggleSessionVideoMuted)
                         .padding(12)
@@ -639,9 +952,14 @@ struct SwipePhotoView: View {
             }
             .rotationEffect(cardRotationAngle(for: dragOffset, in: cardSize), anchor: .bottom)
             .offset(dragOffset)
-            .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .highPriorityGesture(createDragGesture())
-            .photoDeleteSimultaneousTapGesture(enabled: inlinePlayingVideoAssetID != asset.localIdentifier) {
+            .contentShape(
+                RoundedRectangle(cornerRadius: InlineVideoCardHitRegion.cornerRadius, style: .continuous)
+            )
+            .simultaneousGesture(createDragGesture(in: cardSize), including: .gesture)
+            .photoDeleteSimultaneousTapGesture(enabled: isInlineVideoPlaying) {
+                revealInlineVideoPlaybackControls()
+            }
+            .photoDeleteSimultaneousTapGesture(enabled: !isInlineVideoPlaying) {
                 openAssetPreview(asset)
             }
             .accessibilityAction(named: Text(L10n.string("加入待删除"))) {
@@ -732,7 +1050,7 @@ struct SwipePhotoView: View {
                 assets: sessionPhotos,
                 photoLibraryManager: dataManager.photoLibraryManager,
                 currentIndex: currentPhotoIndex,
-                reviewedAssetIDs: dataManager.reviewedAssetIDs,
+                reviewedAssetIDs: usesPersistedReviewedStateForSession ? dataManager.reviewedAssetIDs : [],
                 pendingReviewedAssetIDs: browserPendingReviewedAssetIDs,
                 deleteCandidateIDs: browserDeleteCandidateIDs,
                 favoriteCandidateIDs: browserFavoriteCandidateIDs,
@@ -774,7 +1092,12 @@ struct SwipePhotoView: View {
         } else {
             manuallyStoppedVideoAssetID = nil
             inlinePlayingVideoAssetID = assetID
+            revealInlineVideoPlaybackControls()
         }
+    }
+
+    private func revealInlineVideoPlaybackControls() {
+        inlineVideoControlsRevealToken = UUID()
     }
 
     private func stopInlineVideoPlayback(rememberManualStopFor asset: PHAsset? = nil) {
@@ -958,6 +1281,15 @@ struct SwipePhotoView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
             albumShortcutStrip(horizontalPadding: PhotoDeleteStyle.screenHorizontalPadding)
+            if shouldShowAlbumDownSwipeHint {
+                ReviewTipBanner(
+                    icon: "rectangle.stack.badge.minus",
+                    message: L10n.string("下滑可移出当前相册，不会删除照片"),
+                    onDismiss: acknowledgeAlbumDownSwipeHint
+                )
+                .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
             if showDeleteButtonTip && canPerformPhotoAction {
                 ReviewTipBanner(
                     icon: "trash",
@@ -1127,10 +1459,10 @@ struct SwipePhotoView: View {
                     )
                 }
                 GestureGuideRow(
-                    icon: "arrow.down",
+                    icon: albumReviewDownSwipeBehavior.icon,
                     title: L10n.string("下滑"),
-                    detail: L10n.string("返回列表"),
-                    color: PhotoDeleteStyle.accent
+                    detail: albumReviewDownSwipeBehavior.detailTitle,
+                    color: albumReviewDownSwipeBehavior.tint
                 )
             }
         }
@@ -1140,42 +1472,59 @@ struct SwipePhotoView: View {
 
     @ViewBuilder
     private func albumShortcutStrip(horizontalPadding: CGFloat) -> some View {
-        if !isAlbumMode && canPerformPhotoAction && !albumShortcutAlbums.isEmpty {
+        if shouldShowAlbumShortcutStrip {
             let rows = albumShortcutRows
             let usesTwoRows = albumShortcutUsesTwoRows
 
             HStack(spacing: 8) {
-                ScrollView(.horizontal) {
-                    Group {
-                        if usesTwoRows {
-                            VStack(alignment: .leading, spacing: 7) {
-                                albumShortcutRow(albums: rows.top)
-                                albumShortcutRow(albums: rows.bottom)
-                            }
-                        } else {
-                            albumShortcutRow(albums: rows.top)
-                        }
+                ScrollViewReader { proxy in
+                    ScrollView(.horizontal) {
+                        albumShortcutRowsView(rows: rows, usesTwoRows: usesTwoRows)
+                            .fixedSize(horizontal: true, vertical: false)
                     }
-                    .padding(.vertical, 2)
+                    .scrollIndicators(.hidden)
+                    .onAppear {
+                        restoreAlbumShortcutScrollPosition(using: proxy, reason: .appear)
+                    }
+                    .onChange(of: currentPhotoIndex) { _ in
+                        restoreAlbumShortcutScrollPosition(using: proxy, reason: .currentPhotoChanged)
+                    }
+                    .onChange(of: albumShortcutAlbums.map(\.id)) { _ in
+                        restoreAlbumShortcutScrollPosition(using: proxy, reason: .albumsChanged)
+                    }
                 }
-                .scrollIndicators(.hidden)
-                .mask(
-                    LinearGradient(
-                        stops: [
-                            .init(color: .clear, location: 0),
-                            .init(color: .black, location: 0.05),
-                            .init(color: .black, location: 0.94),
-                            .init(color: .clear, location: 1)
-                        ],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .overlay(
+                    HStack(spacing: 0) {
+                        LinearGradient(
+                            colors: [
+                                PhotoDeleteStyle.background.opacity(0.92),
+                                PhotoDeleteStyle.background.opacity(0)
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                        .frame(width: 14)
+
+                        Spacer(minLength: 0)
+
+                        LinearGradient(
+                            colors: [
+                                PhotoDeleteStyle.background.opacity(0),
+                                PhotoDeleteStyle.background.opacity(0.92)
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                        .frame(width: 14)
+                    }
+                    .allowsHitTesting(false)
                 )
 
                 AlbumShortcutManageButton(action: openAlbumsTab)
             }
             .padding(.horizontal, horizontalPadding)
-            .frame(height: usesTwoRows ? 67 : 34)
+            .frame(height: AlbumShortcutLayout.stripHeight(albumCount: albumShortcutAlbums.count))
             .onAppear {
                 revealAlbumShortcutHintIfNeeded()
             }
@@ -1187,28 +1536,72 @@ struct SwipePhotoView: View {
 
     private var shouldShowAlbumShortcutGuidance: Bool {
         showAlbumShortcutHint &&
-            !isAlbumMode &&
-            canPerformPhotoAction &&
-            !albumShortcutAlbums.isEmpty
+            shouldShowAlbumShortcutStrip
+    }
+
+    private var shouldShowAlbumDownSwipeHint: Bool {
+        !hasSeenAlbumDownSwipeHint &&
+            albumReviewDownSwipeBehavior == .removeFromAlbum &&
+            canPerformPhotoAction
     }
 
     private func albumShortcutRow(albums: [AlbumInfo]) -> some View {
-        HStack(spacing: 7) {
+        HStack(spacing: AlbumShortcutLayout.horizontalSpacing) {
             albumShortcutRowContent(albums: albums)
+        }
+    }
+
+    private func albumShortcutRowsView(
+        rows: (top: [AlbumInfo], bottom: [AlbumInfo]),
+        usesTwoRows: Bool
+    ) -> some View {
+        Group {
+            if usesTwoRows {
+                VStack(alignment: .leading, spacing: AlbumShortcutLayout.rowSpacing) {
+                    albumShortcutRow(albums: rows.top)
+                    albumShortcutRow(albums: rows.bottom)
+                }
+            } else {
+                albumShortcutRow(albums: rows.top)
+            }
+        }
+    }
+
+    private func restoreAlbumShortcutScrollPosition(
+        using proxy: ScrollViewProxy,
+        reason: AlbumShortcutScrollRestoreReason
+    ) {
+        guard AlbumShortcutScrollRestorationPolicy.shouldRestore(
+            anchorID: albumShortcutScrollAnchorID,
+            reason: reason
+        ),
+              let albumShortcutScrollAnchorID else {
+            return
+        }
+
+        DispatchQueue.main.async {
+            withAnimation(.easeOut(duration: 0.18)) {
+                proxy.scrollTo(albumShortcutScrollAnchorID, anchor: .center)
+            }
         }
     }
 
     @ViewBuilder
     private func albumShortcutRowContent(albums: [AlbumInfo]) -> some View {
         ForEach(albums) { albumInfo in
-            AlbumMicroButton(title: albumInfo.title) {
+            AlbumMicroButton(
+                title: albumInfo.title,
+                isFiling: AlbumShortcutFilingCounter.isFiling(albumShortcutFilingCounts, albumID: albumInfo.id),
+                isRecentlyFiled: albumShortcutSuccessTokens[albumInfo.id] != nil
+            ) {
                 handleAddToAlbum(albumInfo)
             }
+            .id(albumInfo.id)
         }
     }
 
     private var albumShortcutUsesTwoRows: Bool {
-        albumShortcutAlbums.count > albumShortcutTwoRowThreshold
+        AlbumShortcutLayout.usesTwoRows(albumCount: albumShortcutAlbums.count)
     }
 
     private var actionToolbar: some View {
@@ -1271,18 +1664,25 @@ struct SwipePhotoView: View {
         !didInitializeSession &&
             sessionPhotos.isEmpty &&
             !dataManager.isPreparingLibrary &&
-            dataManager.photoLibraryManager.isLoading &&
-            !dataManager.photoLibraryManager.hasLoadedPhotoLibrary
-    }
-
-    private var shouldShowGestureUpdateNotice: Bool {
-        gestureUpdateNoticePending &&
-            currentRealPhoto != nil &&
-            !showCompletionMessage
+            (
+                dataManager.photoLibraryManager.isLoading &&
+                    !dataManager.photoLibraryManager.hasLoadedPhotoLibrary ||
+                    isWaitingForAlbumMembershipSource
+            )
     }
 
     private var activeLibraryLoadingProgress: Double {
-        min(max(dataManager.photoLibraryManager.loadingProgress, 0), 1)
+        if isWaitingForAlbumMembershipSource {
+            guard dataManager.isLoadingAlbums else { return 0 }
+            return min(max(dataManager.albumLoadingProgress, 0), 1)
+        }
+        return min(max(dataManager.photoLibraryManager.loadingProgress, 0), 1)
+    }
+
+    private var isWaitingForAlbumMembershipSource: Bool {
+        selectedCategory == .unclassified &&
+            dataManager.photoLibraryManager.hasPhotoLibraryAccess &&
+            !dataManager.hasLoadedAlbumMembership
     }
 
     private var progressSubtitle: String {
@@ -1329,10 +1729,13 @@ struct SwipePhotoView: View {
 
     private var portraitToastBottomPadding: CGFloat {
         var padding: CGFloat = 100
-        if !isAlbumMode && canPerformPhotoAction && !albumShortcutAlbums.isEmpty {
+        if shouldShowAlbumShortcutStrip {
             padding = albumShortcutUsesTwoRows ? 160 : 128
         }
         if shouldShowAlbumShortcutGuidance {
+            padding += 70
+        }
+        if shouldShowAlbumDownSwipeHint {
             padding += 70
         }
         if showDeleteButtonTip && canPerformPhotoAction {
@@ -1360,7 +1763,54 @@ struct SwipePhotoView: View {
     }
 
     private var albumShortcutAlbums: [AlbumInfo] {
-        dataManager.getUserAlbumsSortedByCustomOrder()
+        AlbumShortcutEligibility.filteredAlbums(dataManager.getUserAlbumsSortedByCustomOrder())
+    }
+
+    private func loadAlbumShortcutsIfNeeded() {
+        guard !isAlbumMode else { return }
+        dataManager.loadAlbumsIfNeeded()
+    }
+
+    private func showAlbumShortcutSuccess(for albumID: String) {
+        let token = UUID()
+        albumShortcutSuccessTokens[albumID] = token
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
+            guard self.albumShortcutSuccessTokens[albumID] == token else { return }
+            self.albumShortcutSuccessTokens.removeValue(forKey: albumID)
+        }
+    }
+
+    private func albumFilingKey(assetID: String, albumID: String) -> String {
+        "\(assetID)|\(albumID)"
+    }
+
+    private func finishAlbumFilingState(assetID: String, albumID: String) {
+        albumFilingAssetIDs.remove(assetID)
+        albumShortcutFilingCounts = AlbumShortcutFilingCounter.decrement(
+            albumShortcutFilingCounts,
+            albumID: albumID
+        )
+    }
+
+    private func removeAlbumFilingAction(filingKey: String) {
+        guard let index = actionHistory.lastIndex(where: { action in
+            if case .fileToAlbum(_, album: _, albumID: _, originalIndex: _, wasReviewed: _, filingKey: let actionFilingKey) = action {
+                return actionFilingKey == filingKey
+            }
+            return false
+        }) else { return }
+
+        actionHistory.remove(at: index)
+    }
+
+    private var shouldShowAlbumShortcutStrip: Bool {
+        AlbumShortcutVisibility.shouldShow(
+            isAlbumMode: isAlbumMode,
+            canPerformPhotoAction: canPerformPhotoAction,
+            shouldKeepStableDuringFiling: isCurrentPhotoBeingFiled || isCurrentPhotoRecentlyFiled,
+            albumCount: albumShortcutAlbums.count
+        )
     }
 
     private var hasUnreviewedPhotos: Bool {
@@ -1417,11 +1867,28 @@ struct SwipePhotoView: View {
     }
 
     private var isWaitingForSourceData: Bool {
-        dataManager.photoLibraryManager.isLoading ||
-            dataManager.isPreparingLibrary ||
-            dataManager.isRestoringLibrarySnapshot ||
-            (selectedLocationGroupID != nil && (dataManager.isLoadingLocationGroups || dataManager.isResolvingLocationTitles)) ||
-            dataManager.isLoadingAdvancedCleanupQueues
+        PhotoReviewSourceReadiness.isWaiting(
+            selectedCategory: selectedCategory,
+            selectedLocationGroupID: selectedLocationGroupID,
+            hasLoadedAllCategoryPhotos: !dataManager.photoLibraryManager.allPhotos.isEmpty,
+            isPhotoLibraryLoading: dataManager.photoLibraryManager.isLoading,
+            isPreparingLibrary: dataManager.isPreparingLibrary,
+            isRestoringLibrarySnapshot: dataManager.isRestoringLibrarySnapshot,
+            isLoadingLocationGroups: dataManager.isLoadingLocationGroups,
+            isResolvingLocationTitles: dataManager.isResolvingLocationTitles,
+            isLoadingAdvancedCleanupQueues: dataManager.isLoadingAdvancedCleanupQueues,
+            hasLoadedAlbumMembership: dataManager.hasLoadedAlbumMembership,
+            isLoadingAlbums: dataManager.isLoadingAlbums
+        )
+    }
+
+    private var unclassifiedSourceRefreshToken: String {
+        guard selectedCategory == .unclassified else { return "" }
+        return [
+            dataManager.hasLoadedAlbumMembership ? "1" : "0",
+            String(dataManager.albumMemberAssetIDs.count),
+            String(dataManager.unclassifiedPhotosCount)
+        ].joined(separator: "|")
     }
 
     private func refreshSessionForSourceChangeIfNeeded(force: Bool = false) {
@@ -1466,20 +1933,33 @@ struct SwipePhotoView: View {
             self.inlinePlayingVideoAssetID = nil
         }
 
-        sessionReviewedCount = dataManager.reviewedCount(in: fullPhotos)
-        let firstUnreviewedIndex = fullPhotos.firstIndex(where: { !dataManager.isReviewed($0) })
+        let reviewedAssetIdentifiers = PhotoReviewSessionReviewedStatePolicy.reviewedAssetIdentifiers(
+            isAlbumMode: isAlbumMode,
+            persistedReviewedAssetIdentifiers: dataManager.reviewedAssetIDs
+        )
+        sessionReviewedCount = PhotoReviewSessionReviewedStatePolicy.reviewedCount(
+            isAlbumMode: isAlbumMode,
+            persistedReviewedCount: dataManager.reviewedCount(in: fullPhotos)
+        )
+        let firstUnreviewedIndex = fullPhotos.firstIndex { asset in
+            !reviewedAssetIdentifiers.contains(asset.localIdentifier)
+        }
         let targetIndex: Int
         if didInitializeSession {
             targetIndex = min(currentPhotoIndex, max(fullPhotos.count - 1, 0))
         } else {
             targetIndex = PhotoReviewSessionPaginator.initialTargetIndex(
                 assetIdentifiers: fullPhotos.map(\.localIdentifier),
-                reviewedAssetIdentifiers: dataManager.reviewedAssetIDs,
+                reviewedAssetIdentifiers: reviewedAssetIdentifiers,
                 savedAssetIdentifier: restoredSessionProgressAssetID,
                 prefersFirstUnreviewedBeforeSavedProgress: shouldPrioritizeNewPhotosBeforeSavedProgress
             )
         }
-        showCompletionMessage = !fullPhotos.isEmpty && firstUnreviewedIndex == nil
+        showCompletionMessage = PhotoReviewSessionReviewedStatePolicy.shouldShowCompletionAfterRefresh(
+            isAlbumMode: isAlbumMode,
+            hasPhotos: !fullPhotos.isEmpty,
+            firstUnreviewedIndex: firstUnreviewedIndex
+        )
 
         let loadedCount = loadedSessionCount(totalCount: fullPhotos.count, targetIndex: targetIndex)
         loadedSessionPhotoCount = loadedCount
@@ -1714,6 +2194,11 @@ struct SwipePhotoView: View {
         dismissAlbumShortcutHint(markSeen: true)
     }
 
+    private func acknowledgeAlbumDownSwipeHint() {
+        hasSeenAlbumDownSwipeHint = true
+        HapticManager.impact(.light)
+    }
+
     private func dismissAlbumShortcutHint(markSeen: Bool = false) {
         if markSeen {
             hasSeenAlbumShortcutHint = true
@@ -1755,18 +2240,27 @@ struct SwipePhotoView: View {
         )
     }
 
-    private func createDragGesture() -> some Gesture {
+    private func createDragGesture(in cardSize: CGSize) -> some Gesture {
         DragGesture(minimumDistance: SwipeMotion.minimumDragDistance)
             .onChanged { value in
-                guard !isScrubbingInlineVideo else {
+                guard !shouldReserveInlineVideoScrubGesture(value: value, cardSize: cardSize) else {
+                    isInlineVideoScrubGestureActive = true
                     dragOffset = .zero
                     return
                 }
+                isInlineVideoScrubGestureActive = false
                 dragOffset = visualDragOffset(for: value.translation)
                 updateSwipeCommitFeedback(for: value.translation)
             }
             .onEnded { value in
-                guard !isScrubbingInlineVideo else {
+                let shouldReserveScrubGesture = shouldReserveInlineVideoScrubGesture(
+                    value: value,
+                    cardSize: cardSize,
+                    isScrubGestureActive: isInlineVideoScrubGestureActive
+                )
+                isInlineVideoScrubGestureActive = false
+
+                guard !shouldReserveScrubGesture else {
                     resetCardPosition()
                     return
                 }
@@ -1775,6 +2269,21 @@ struct SwipePhotoView: View {
                     predictedEndTranslation: value.predictedEndTranslation
                 )
             }
+    }
+
+    private func shouldReserveInlineVideoScrubGesture(
+        value: DragGesture.Value,
+        cardSize: CGSize,
+        isScrubGestureActive: Bool = false
+    ) -> Bool {
+        InlineVideoCardGestureRouting.shouldReserveForVideoScrubber(
+            startLocation: value.startLocation,
+            cardSize: cardSize,
+            isVideoPlaying: currentRealPhoto.map(shouldPlayVideo(for:)) ?? false,
+            reservedBottomHeight: SwipeMotion.inlineVideoScrubberReservedHeight,
+            isCurrentVideoScrubbing: isScrubbingInlineVideo,
+            isScrubGestureActive: isScrubGestureActive
+        )
     }
 
     private func visualDragOffset(for translation: CGSize) -> CGSize {
@@ -1964,7 +2473,11 @@ struct SwipePhotoView: View {
         case .next:
             browseToNextPhoto(reviewing: asset)
         case .close:
-            handleFinishAction()
+            if albumReviewDownSwipeBehavior == .removeFromAlbum {
+                handleRemoveFromActiveAlbum(asset)
+            } else {
+                handleFinishAction()
+            }
         case .delete:
             markDeleteCandidate(asset)
             moveToNextPhoto()
@@ -2128,7 +2641,7 @@ struct SwipePhotoView: View {
     }
 
     private var shouldPrioritizeNewPhotosBeforeSavedProgress: Bool {
-        selectedCategory == .all && randomReviewScope == nil
+        (selectedCategory == .all || selectedCategory == .unclassified) && randomReviewScope == nil
     }
 
     private func scheduleSessionProgressSave() {
@@ -2248,13 +2761,17 @@ struct SwipePhotoView: View {
         albumFilingAssetIDs.contains(asset.localIdentifier)
     }
 
+    private func isAssetBeingRemovedFromAlbum(_ asset: PHAsset) -> Bool {
+        albumRemovalAssetIDs.contains(asset.localIdentifier)
+    }
+
     private func isAssetFiledToAlbum(_ asset: PHAsset) -> Bool {
         recentlyFiledAlbumAssetIDs.contains(asset.localIdentifier)
     }
 
     private func isAssetLocallyReviewed(_ asset: PHAsset) -> Bool {
         pendingSwipeMutations[asset.localIdentifier] != nil ||
-            dataManager.isReviewed(asset) ||
+            (usesPersistedReviewedStateForSession && dataManager.isReviewed(asset)) ||
             dataManager.isInDeleteCandidates(asset) ||
             dataManager.isInFavoriteCandidates(asset)
     }
@@ -2318,6 +2835,30 @@ struct SwipePhotoView: View {
             dataManager.restoreReviewedState(asset, wasReviewed: wasReviewed)
             restoreSessionReviewedCount(wasReviewed: wasReviewed)
             restorePhotoPosition(asset, preferredIndex: originalIndex)
+        case .fileToAlbum(
+            let asset,
+            album: let album,
+            albumID: let albumID,
+            originalIndex: let originalIndex,
+            wasReviewed: let wasReviewed,
+            filingKey: let filingKey
+        ):
+            pendingAlbumFilingUndoKeys.insert(filingKey)
+            albumShortcutSuccessTokens.removeValue(forKey: albumID)
+            finishAlbumFilingState(assetID: asset.localIdentifier, albumID: albumID)
+            dataManager.restoreReviewedState(asset, wasReviewed: wasReviewed)
+            restoreSessionReviewedCount(wasReviewed: wasReviewed)
+            restorePhotoPosition(asset, preferredIndex: originalIndex)
+            if completedAlbumFilingKeys.remove(filingKey) != nil {
+                dataManager.removePhotoFromAlbum(asset, album: album) { success in
+                    DispatchQueue.main.async {
+                        self.pendingAlbumFilingUndoKeys.remove(filingKey)
+                        if !success {
+                            self.showFeedback(L10n.string("移出失败，请再试一次"), icon: "exclamationmark.triangle", style: .warning)
+                        }
+                    }
+                }
+            }
         }
         HapticManager.notify(.success)
         showFeedback(L10n.string("已撤销上一步"), icon: "arrow.uturn.backward", style: .positive)
@@ -2418,8 +2959,12 @@ struct SwipePhotoView: View {
             showFeedback(L10n.string("无法归类到这个相册"), icon: "exclamationmark.triangle", style: .warning)
             return
         }
-        guard let currentAlbumInfo = dataManager.currentUserAlbumInfo(for: albumInfo) else {
+        guard let currentAlbumInfo = dataManager.cachedUserAlbumInfo(for: albumInfo) else {
             showFeedback(L10n.string("这个相册已不存在，列表已更新"), icon: "arrow.clockwise", style: .warning)
+            return
+        }
+        guard AlbumShortcutEligibility.canFile(into: currentAlbumInfo) else {
+            showFeedback(L10n.string("无法归类到这个相册"), icon: "exclamationmark.triangle", style: .warning)
             return
         }
         guard let assetCollection = currentAlbumInfo.assetCollection else {
@@ -2430,30 +2975,66 @@ struct SwipePhotoView: View {
         let assetID = asset.localIdentifier
         guard !albumFilingAssetIDs.contains(assetID) else { return }
 
+        let originalIndex = currentPhotoIndex
+        let filingKey = albumFilingKey(assetID: assetID, albumID: currentAlbumInfo.id)
         albumFilingAssetIDs.insert(assetID)
         recentlyFiledAlbumAssetIDs.remove(assetID)
+        albumShortcutFilingCounts = AlbumShortcutFilingCounter.increment(
+            albumShortcutFilingCounts,
+            albumID: currentAlbumInfo.id
+        )
+        albumShortcutSuccessTokens.removeValue(forKey: currentAlbumInfo.id)
+        pendingAlbumFilingUndoKeys.remove(filingKey)
+        completedAlbumFilingKeys.remove(filingKey)
+        albumShortcutScrollAnchorID = currentAlbumInfo.id
 
         let wasReviewed = dataManager.markReviewed(asset)
         recordSessionReviewedChange(wasReviewed: wasReviewed)
+        actionHistory.append(.fileToAlbum(
+            asset,
+            album: assetCollection,
+            albumID: currentAlbumInfo.id,
+            originalIndex: originalIndex,
+            wasReviewed: wasReviewed,
+            filingKey: filingKey
+        ))
         HapticManager.impact(.light)
-        showFeedback(L10n.string("正在归类到 \(currentAlbumInfo.title)"), icon: "tray.and.arrow.down", style: .neutral, duration: 1.0)
-        dataManager.addPhotoToAlbum(asset, album: assetCollection) { success in
+        resetCardPosition()
+        moveToNextPhoto()
+
+        dataManager.addPhotoToAlbum(asset, album: assetCollection) { success, didInsert in
             DispatchQueue.main.async {
-                self.albumFilingAssetIDs.remove(assetID)
-                if success {
-                    self.recentlyFiledAlbumAssetIDs.insert(assetID)
-                    HapticManager.notify(.success)
-                    self.showFeedback(L10n.string("已归类到 \(currentAlbumInfo.title)"), icon: "checkmark.circle.fill", style: .positive)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
-                        self.recentlyFiledAlbumAssetIDs.remove(assetID)
-                        if self.currentRealPhoto?.localIdentifier == assetID {
-                            self.moveToNextPhoto()
+                self.finishAlbumFilingState(assetID: assetID, albumID: currentAlbumInfo.id)
+                if success, didInsert {
+                    if self.pendingAlbumFilingUndoKeys.contains(filingKey) {
+                        self.dataManager.removePhotoFromAlbum(asset, album: assetCollection) { removeSuccess in
+                            DispatchQueue.main.async {
+                                self.pendingAlbumFilingUndoKeys.remove(filingKey)
+                                if !removeSuccess {
+                                    self.showFeedback(L10n.string("移出失败，请再试一次"), icon: "exclamationmark.triangle", style: .warning)
+                                }
+                            }
                         }
+                        return
                     }
+
+                    self.completedAlbumFilingKeys.insert(filingKey)
+                    self.recentlyFiledAlbumAssetIDs.insert(assetID)
+                    self.showAlbumShortcutSuccess(for: currentAlbumInfo.id)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                        self.recentlyFiledAlbumAssetIDs.remove(assetID)
+                    }
+                } else if success {
+                    self.pendingAlbumFilingUndoKeys.remove(filingKey)
+                    self.removeAlbumFilingAction(filingKey: filingKey)
                 } else {
+                    let wasUndoRequested = self.pendingAlbumFilingUndoKeys.remove(filingKey) != nil
+                    self.removeAlbumFilingAction(filingKey: filingKey)
                     self.recentlyFiledAlbumAssetIDs.remove(assetID)
+                    guard !wasUndoRequested else { return }
                     self.dataManager.restoreReviewedState(asset, wasReviewed: wasReviewed)
                     self.restoreSessionReviewedCount(wasReviewed: wasReviewed)
+                    self.restorePhotoPosition(asset, preferredIndex: originalIndex)
                     HapticManager.notify(.error)
                     if self.dataManager.currentUserAlbumInfo(for: currentAlbumInfo) == nil {
                         self.showFeedback(L10n.string("这个相册已不存在，列表已更新"), icon: "arrow.clockwise", style: .warning)
@@ -2463,8 +3044,53 @@ struct SwipePhotoView: View {
                 }
             }
         }
+    }
+
+    private func handleRemoveFromActiveAlbum(_ asset: PHAsset) {
+        guard let albumInfo = activeAlbumInfo,
+              let assetCollection = albumInfo.assetCollection,
+              albumReviewDownSwipeBehavior == .removeFromAlbum else {
+            handleFinishAction()
+            return
+        }
+
+        let assetID = asset.localIdentifier
+        guard !albumRemovalAssetIDs.contains(assetID) else {
+            resetCardPosition()
+            return
+        }
+
+        albumRemovalAssetIDs.insert(assetID)
+        dataManager.removePhotoFromAlbum(asset, album: assetCollection) { success in
+            DispatchQueue.main.async {
+                self.albumRemovalAssetIDs.remove(assetID)
+                if success {
+                    HapticManager.notify(.success)
+                    self.showFeedback(L10n.string("已移出相册"), icon: "rectangle.stack.badge.minus", style: .positive)
+                    self.removeAssetFromCurrentAlbumSession(assetID: assetID)
+                } else {
+                    HapticManager.notify(.error)
+                    if self.dataManager.currentUserAlbumInfo(for: albumInfo) == nil {
+                        self.showFeedback(L10n.string("这个相册已不存在，列表已更新"), icon: "arrow.clockwise", style: .warning)
+                    } else {
+                        self.showFeedback(L10n.string("移出失败，请再试一次"), icon: "exclamationmark.triangle", style: .warning)
+                    }
+                }
+            }
+        }
 
         resetCardPosition()
+    }
+
+    private func removeAssetFromCurrentAlbumSession(assetID: String) {
+        stopInlineVideoPlayback()
+        let updatedFullPhotos = allSessionPhotos.filter { $0.localIdentifier != assetID }
+        guard updatedFullPhotos.count != allSessionPhotos.count else {
+            refreshSessionForSourceChangeIfNeeded(force: true)
+            return
+        }
+
+        refreshSessionPhotos(updatedFullPhotos)
     }
 
     private func resetCardPosition() {
@@ -2641,14 +3267,6 @@ struct SwipePhotoView: View {
         }
     }
 
-    private func acknowledgeGestureUpdateNotice() {
-        gestureUpdateNoticePending = false
-    }
-
-    private func openGestureSettingsFromNotice() {
-        gestureUpdateNoticePending = false
-        openReviewSettings()
-    }
 }
 
 private struct CompletionStatPill: View {
@@ -2688,6 +3306,7 @@ private struct SwipePhotoCardFrame: View {
     let isInDeleteCandidates: Bool
     let isInFavoriteCandidates: Bool
     let isBeingFiledToAlbum: Bool
+    let isBeingRemovedFromAlbum: Bool
     let isFiledToAlbum: Bool
     let isVideoPlaying: Bool
     let allowsLivePhotoPlayback: Bool
@@ -2697,6 +3316,7 @@ private struct SwipePhotoCardFrame: View {
     let displaySize: CGSize
     let targetSize: CGSize
     @Binding var isScrubbingVideo: Bool
+    let playbackControlsRevealToken: UUID?
     let onStopVideoPlayback: () -> Void
 
     var body: some View {
@@ -2706,6 +3326,7 @@ private struct SwipePhotoCardFrame: View {
             isInDeleteCandidates: isInDeleteCandidates,
             isInFavoriteCandidates: isInFavoriteCandidates,
             isBeingFiledToAlbum: isBeingFiledToAlbum,
+            isBeingRemovedFromAlbum: isBeingRemovedFromAlbum,
             isFiledToAlbum: isFiledToAlbum,
             isVideoPlaying: isVideoPlaying,
             allowsLivePhotoPlayback: allowsLivePhotoPlayback,
@@ -2715,6 +3336,7 @@ private struct SwipePhotoCardFrame: View {
             displaySize: displaySize,
             targetSize: targetSize,
             isScrubbingVideo: $isScrubbingVideo,
+            playbackControlsRevealToken: playbackControlsRevealToken,
             onStopVideoPlayback: onStopVideoPlayback
         )
     }
@@ -2778,6 +3400,7 @@ private struct PhotoSwipeDragFeedbackState {
 
 private struct PhotoSwipeDragFeedbackView: View {
     let feedback: PhotoSwipeDragFeedbackState
+    let downSwipeBehavior: AlbumReviewDownSwipeBehavior
 
     var body: some View {
         ZStack {
@@ -2855,27 +3478,19 @@ private struct PhotoSwipeDragFeedbackView: View {
                 color: feedback.action.tint
             )
         case .up:
-            VStack {
-                SwipeEdgeHint(
-                    icon: SwipeGestureDirection.up.icon,
-                    title: "\(SwipeGestureDirection.up.title)\(feedback.action.title)",
-                    color: feedback.action.tint
-                )
-                .padding(.top, 16)
-                .offset(y: -10 + feedback.progress * 10)
-                Spacer()
-            }
+            verticalHint(
+                icon: SwipeGestureDirection.up.icon,
+                title: "\(SwipeGestureDirection.up.title)\(feedback.action.title)",
+                color: feedback.action.tint,
+                placement: PhotoSwipeDragFeedbackHintPlacement.placement(for: feedback.direction)
+            )
         case .down:
-            VStack {
-                Spacer()
-                SwipeEdgeHint(
-                    icon: "arrow.down",
-                    title: L10n.string("下滑返回列表"),
-                    color: feedback.action.tint
-                )
-                .padding(.bottom, 16)
-                .offset(y: 10 - feedback.progress * 10)
-            }
+            verticalHint(
+                icon: downSwipeBehavior.icon,
+                title: downSwipeBehavior.feedbackTitle,
+                color: downSwipeBehavior.tint,
+                placement: PhotoSwipeDragFeedbackHintPlacement.placement(for: feedback.direction)
+            )
         }
     }
 
@@ -2887,6 +3502,29 @@ private struct PhotoSwipeDragFeedbackView: View {
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         .scaleEffect(0.94 + feedback.progress * 0.06)
+    }
+
+    private func verticalHint(
+        icon: String,
+        title: String,
+        color: Color,
+        placement: PhotoSwipeDragFeedbackHintPlacement
+    ) -> some View {
+        VStack {
+            if placement == .bottom {
+                Spacer()
+            }
+            SwipeEdgeHint(
+                icon: icon,
+                title: title,
+                color: color
+            )
+            .padding(placement == .bottom ? .bottom : .top, 16)
+            .offset(y: placement == .bottom ? 10 - feedback.progress * 10 : -10 + feedback.progress * 10)
+            if placement != .bottom {
+                Spacer()
+            }
+        }
     }
 
     private var glowColors: [Color] {
@@ -3067,6 +3705,7 @@ struct RealPhotoCard: View {
     let isInDeleteCandidates: Bool
     let isInFavoriteCandidates: Bool
     let isBeingFiledToAlbum: Bool
+    let isBeingRemovedFromAlbum: Bool
     let isFiledToAlbum: Bool
     let isVideoPlaying: Bool
     let allowsLivePhotoPlayback: Bool
@@ -3076,6 +3715,7 @@ struct RealPhotoCard: View {
     let displaySize: CGSize
     let targetSize: CGSize
     @Binding var isScrubbingVideo: Bool
+    let playbackControlsRevealToken: UUID?
     let onStopVideoPlayback: () -> Void
 
     private enum PreviewImageQuality {
@@ -3094,6 +3734,8 @@ struct RealPhotoCard: View {
     @State private var livePhotoRequestID: PHImageRequestID?
     @State private var livePhoto: PHLivePhoto?
     @State private var failedToLoadLivePhoto = false
+    @State private var isLivePhotoMotionEnabled = false
+    @State private var livePhotoPlaybackTrigger = 0
     @State private var loadingAssetIdentifier: String?
     @State private var isShowingDegradedPreview = false
     @State private var isDownloadingFromCloud = false
@@ -3107,15 +3749,12 @@ struct RealPhotoCard: View {
                     photoLibraryManager: photoLibraryManager,
                     isMuted: videoMuted,
                     allowsPlayerInteraction: false,
+                    allowsSurfaceTapToRevealControls: true,
+                    playbackControlsRevealToken: playbackControlsRevealToken,
                     onScrubbingChanged: { isScrubbingVideo = $0 }
                 )
                 .frame(width: displaySize.width, height: displaySize.height)
                 .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                .overlay(
-                    InlineVideoCloseButton(action: onStopVideoPlayback)
-                        .padding(12),
-                    alignment: .topLeading
-                )
                 .overlay(
                     candidateOverlay,
                     alignment: .center
@@ -3127,8 +3766,9 @@ struct RealPhotoCard: View {
 
                     LivePhotoPreviewRepresentable(
                         livePhoto: livePhoto,
-                        autoPlay: allowsLivePhotoPlayback,
+                        autoPlay: isLivePhotoMotionEnabled,
                         isMuted: videoMuted,
+                        playbackTrigger: livePhotoPlaybackTrigger,
                         contentMode: .scaleAspectFit
                     )
                     .allowsHitTesting(false)
@@ -3207,10 +3847,10 @@ struct RealPhotoCard: View {
             }
         }
         .frame(width: displaySize.width, height: displaySize.height)
-        .overlay(alignment: .bottomLeading) {
+        .overlay(alignment: metadataOverlayAlignment) {
             if shouldShowMetadataOverlay {
                 PhotoAssetQuickInfoOverlay(summary: metadataSummary)
-                    .frame(maxWidth: displaySize.width - 24, alignment: .leading)
+                    .frame(maxWidth: metadataOverlayMaxWidth, alignment: .leading)
                     .padding(12)
                     .allowsHitTesting(false)
             }
@@ -3218,9 +3858,11 @@ struct RealPhotoCard: View {
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .stroke(PhotoDeleteStyle.hairline, lineWidth: 1)
+                .allowsHitTesting(false)
         )
         .shadow(color: PhotoDeleteStyle.floatingShadow, radius: 18, x: 0, y: 10)
         .accessibilityElement(children: .ignore)
+        .accessibilityIdentifier("review-photo-card")
         .accessibilityLabel(L10n.string("当前照片"))
         .accessibilityValue(accessibilityValue)
         .accessibilityHint(L10n.string("可使用可访问性操作加入待删除、加入收藏或跳过。"))
@@ -3238,25 +3880,37 @@ struct RealPhotoCard: View {
             loadingAssetIdentifier = nil
             livePhoto = nil
             livePhotoRequestID = nil
+            isLivePhotoMotionEnabled = false
+            livePhotoPlaybackTrigger = 0
             imageQuality = .none
             resetPreviewLoadingState()
         }
     }
 
     private var shouldShowLivePhotoPlayback: Bool {
-        allowsLivePhotoPlayback &&
+        isLivePhotoMotionEnabled &&
             photoLibraryManager.isLivePhoto(asset) &&
             !isInDeleteCandidates &&
             !isInFavoriteCandidates &&
             !isBeingFiledToAlbum &&
+            !isBeingRemovedFromAlbum &&
             !isFiledToAlbum
     }
 
     private var shouldShowMetadataOverlay: Bool {
-        !isInDeleteCandidates &&
+            !isInDeleteCandidates &&
             !isInFavoriteCandidates &&
             !isBeingFiledToAlbum &&
+            !isBeingRemovedFromAlbum &&
             !isFiledToAlbum
+    }
+
+    private var metadataOverlayAlignment: Alignment {
+        .topLeading
+    }
+
+    private var metadataOverlayMaxWidth: CGFloat {
+        max(120, displaySize.width - 112)
     }
 
     @ViewBuilder
@@ -3275,15 +3929,10 @@ struct RealPhotoCard: View {
             }
 
             if photoLibraryManager.isLivePhoto(asset) {
-                ZStack {
-                    Circle()
-                        .fill(PhotoDeleteStyle.background.opacity(0.62))
-                        .frame(width: 30, height: 30)
-
-                    Image(systemName: "livephoto")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.white)
-                }
+                LivePhotoMotionControlButton(
+                    isEnabled: isLivePhotoMotionEnabled,
+                    action: toggleLivePhotoMotion
+                )
             }
 
             if photoLibraryManager.isScreenshot(asset) {
@@ -3303,7 +3952,7 @@ struct RealPhotoCard: View {
 
     @ViewBuilder
     private var candidateOverlay: some View {
-        if isInDeleteCandidates || isInFavoriteCandidates || isBeingFiledToAlbum || isFiledToAlbum {
+        if isInDeleteCandidates || isInFavoriteCandidates || isBeingFiledToAlbum || isBeingRemovedFromAlbum || isFiledToAlbum {
             ZStack {
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .fill(PhotoDeleteStyle.background.opacity(0.72))
@@ -3320,6 +3969,7 @@ struct RealPhotoCard: View {
             }
             .frame(width: displaySize.width, height: displaySize.height)
             .cornerRadius(20)
+            .allowsHitTesting(false)
         }
     }
 
@@ -3327,12 +3977,14 @@ struct RealPhotoCard: View {
         if isInDeleteCandidates { return "trash.fill" }
         if isInFavoriteCandidates { return "heart.fill" }
         if isBeingFiledToAlbum { return "tray.and.arrow.down.fill" }
+        if isBeingRemovedFromAlbum { return "rectangle.stack.badge.minus" }
         return "checkmark.circle.fill"
     }
 
     private var candidateOverlayTint: Color {
         if isInDeleteCandidates { return PhotoDeleteStyle.destructive }
         if isInFavoriteCandidates { return PhotoDeleteStyle.iconTint(for: "favorite") }
+        if isBeingRemovedFromAlbum { return PhotoDeleteStyle.warning }
         return PhotoDeleteStyle.positive
     }
 
@@ -3340,6 +3992,7 @@ struct RealPhotoCard: View {
         if isInDeleteCandidates { return L10n.string("待删除") }
         if isInFavoriteCandidates { return L10n.string("待收藏") }
         if isBeingFiledToAlbum { return L10n.string("归类中") }
+        if isBeingRemovedFromAlbum { return L10n.string("移出中") }
         return L10n.string("已归类")
     }
 
@@ -3348,6 +4001,7 @@ struct RealPhotoCard: View {
         if !isInDeleteCandidates,
            !isInFavoriteCandidates,
            !isBeingFiledToAlbum,
+           !isBeingRemovedFromAlbum,
            !isFiledToAlbum,
            isShowingDegradedPreview || isDownloadingFromCloud {
             HStack(spacing: 8) {
@@ -3401,6 +4055,11 @@ struct RealPhotoCard: View {
         resetPreviewLoadingState()
         let requestedAssetID = asset.localIdentifier
         loadingAssetIdentifier = requestedAssetID
+        isLivePhotoMotionEnabled = LivePhotoPlaybackDefaultPolicy.initialMotionEnabled(
+            isLivePhoto: photoLibraryManager.isLivePhoto(asset),
+            autoPlayPreference: allowsLivePhotoPlayback
+        )
+        livePhotoPlaybackTrigger = isLivePhotoMotionEnabled ? 1 : 0
 
         let thumbnailSize = CGSize(
             width: min(targetSize.width, 1_100),
@@ -3458,7 +4117,7 @@ struct RealPhotoCard: View {
             loadFallbackImage(for: requestedAssetID)
         }
 
-        if photoLibraryManager.isLivePhoto(asset) {
+        if isLivePhotoMotionEnabled {
             loadLivePhoto(for: requestedAssetID)
         }
     }
@@ -3547,6 +4206,8 @@ struct RealPhotoCard: View {
             values.append(L10n.string("待收藏"))
         } else if isBeingFiledToAlbum {
             values.append(L10n.string("归类中"))
+        } else if isBeingRemovedFromAlbum {
+            values.append(L10n.string("移出中"))
         } else if isFiledToAlbum {
             values.append(L10n.string("已归类"))
         }
@@ -3602,6 +4263,39 @@ struct RealPhotoCard: View {
                 livePhotoRequestID = nil
             }
         }
+    }
+
+    private func toggleLivePhotoMotion() {
+        guard photoLibraryManager.isLivePhoto(asset) else { return }
+        HapticManager.impact(.light)
+        isLivePhotoMotionEnabled = LivePhotoPlaybackDefaultPolicy.toggledMotionEnabled(current: isLivePhotoMotionEnabled)
+
+        guard isLivePhotoMotionEnabled else { return }
+        livePhotoPlaybackTrigger += 1
+        loadLivePhoto(for: asset.localIdentifier)
+    }
+}
+
+private struct LivePhotoMotionControlButton: View {
+    let isEnabled: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                Circle()
+                    .fill(PhotoDeleteStyle.background.opacity(isEnabled ? 0.72 : 0.62))
+                    .frame(width: 30, height: 30)
+
+                Image(systemName: isEnabled ? "livephoto" : "livephoto.slash")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.white)
+            }
+        }
+        .buttonStyle(.plain)
+        .photoDeleteMinimumTapTarget()
+        .accessibilityLabel(isEnabled ? L10n.string("关闭实况照片动态") : L10n.string("播放实况照片"))
+        .accessibilityIdentifier("live-photo-motion-toggle")
     }
 }
 
@@ -3699,21 +4393,6 @@ private struct ReviewTipBanner: View {
     }
 }
 
-private struct GestureUpdateNoticeBanner: View {
-    let onAdjust: () -> Void
-    let onDismiss: () -> Void
-
-    var body: some View {
-        ReviewTipBanner(
-            icon: "hand.draw",
-            message: L10n.string("手势已更新：左滑删除，右滑保留，上滑收藏。"),
-            actionTitle: L10n.string("调整"),
-            onAction: onAdjust,
-            onDismiss: onDismiss
-        )
-    }
-}
-
 private struct AlbumShortcutHintBubble: View {
     let onDismiss: () -> Void
 
@@ -3752,31 +4431,49 @@ private struct AlbumShortcutManageButton: View {
 
 private struct AlbumMicroButton: View {
     let title: String
+    let isFiling: Bool
+    let isRecentlyFiled: Bool
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Text(title.appLocalized)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(PhotoDeleteStyle.primaryText.opacity(0.82))
-                .lineLimit(1)
-                .minimumScaleFactor(0.72)
-                .truncationMode(.tail)
-                .frame(width: 82)
-                .padding(.horizontal, 10)
-                .frame(height: 28)
-                .background(
-                    Capsule(style: .continuous)
-                        .fill(PhotoDeleteStyle.surface.opacity(0.64))
-                        .overlay(
-                            Capsule(style: .continuous)
-                                .stroke(PhotoDeleteStyle.hairline.opacity(0.78), lineWidth: 1)
-                        )
-                )
+            HStack(spacing: 4) {
+                Text(title.appLocalized)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                    .truncationMode(.tail)
+
+                if isFiling {
+                    ProgressView()
+                        .scaleEffect(0.62)
+                        .frame(width: 12, height: 12)
+                } else if isRecentlyFiled {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(PhotoDeleteStyle.positive)
+                }
+            }
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundColor(PhotoDeleteStyle.primaryText.opacity(0.82))
+            .frame(width: AlbumShortcutLayout.buttonTitleWidth)
+            .padding(.horizontal, 10)
+            .frame(height: AlbumShortcutLayout.buttonVisualHeight)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(isRecentlyFiled ? PhotoDeleteStyle.positive.opacity(0.14) : PhotoDeleteStyle.surface.opacity(0.64))
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .stroke(
+                                isRecentlyFiled ? PhotoDeleteStyle.positive.opacity(0.32) : PhotoDeleteStyle.hairline.opacity(0.78),
+                                lineWidth: 1
+                            )
+                    )
+            )
+            .frame(width: AlbumShortcutLayout.buttonWidth, height: AlbumShortcutLayout.buttonHitHeight)
+            .contentShape(Rectangle())
         }
         .buttonStyle(PhotoDeletePressScaleButtonStyle())
-        .contentShape(Capsule(style: .continuous))
-        .accessibilityLabel(Text(L10n.string("归类到 \(title)")))
+        .accessibilityLabel(Text(isRecentlyFiled ? L10n.string("已归类到 \(title)") : L10n.string("归类到 \(title)")))
     }
 }
 

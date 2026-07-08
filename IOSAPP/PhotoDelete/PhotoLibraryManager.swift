@@ -76,6 +76,31 @@ struct PhotoLibraryRefreshSignature: Equatable {
     }
 }
 
+private struct PhotoLibraryRefreshState {
+    let allPhotosResult: PHFetchResult<PHAsset>
+    let signature: PhotoLibraryRefreshSignature
+}
+
+enum PhotoLibraryLoadingPublishPolicy {
+    static func shouldPublishInitialPhotos(
+        batchStart: Int,
+        batchEnd _: Int,
+        totalCount: Int,
+        preserveExistingData: Bool
+    ) -> Bool {
+        !preserveExistingData && totalCount > 0 && batchStart == 0
+    }
+
+    static func shouldPublishCategorizationProgress(
+        batchEnd: Int,
+        totalCount: Int,
+        batchSize: Int
+    ) -> Bool {
+        guard totalCount > 0, batchSize > 0 else { return false }
+        return batchEnd == totalCount || batchEnd % (batchSize * 10) == 0
+    }
+}
+
 enum VideoCompressionQuality: String, CaseIterable, Identifiable {
     case high
     case balanced
@@ -519,6 +544,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     @Published var isLoading = false
     @Published var loadingProgress: Double = 0
     @Published private(set) var hasLoadedPhotoLibrary = false
+    @Published private(set) var cachedCounts: PhotoLibraryCachedCounts?
 
     private var allPhotosResult: PHFetchResult<PHAsset>?
     private let imageManager = PHCachingImageManager()
@@ -572,6 +598,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
 
         if clearSnapshot {
             snapshotStore.clear()
+            cachedCounts = nil
         }
 
         pendingCompletions.forEach { $0() }
@@ -582,6 +609,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         // 配置图片缓存
         imageCache.countLimit = 50 // 最多缓存50张图片
         imageCache.totalCostLimit = 100 * 1024 * 1024 // 100MB内存限制
+        cachedCounts = snapshotStore.load().map(PhotoLibraryCachedCounts.init(snapshot:))
 
         // 延迟初始化，避免启动时崩溃
         DispatchQueue.main.async { [weak self] in
@@ -644,6 +672,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             return
         }
 
+        cachedCounts = PhotoLibraryCachedCounts(snapshot: snapshot)
         isRestoringSnapshot = true
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self else { return }
@@ -655,13 +684,15 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             let restoredLivePhotos = snapshot.livePhotoIDs.compactMap { assetByID[$0] }
             let restoredFavorites = snapshot.favoriteIDs.compactMap { assetByID[$0] }
             let fetchResult = PHAsset.fetchAssets(with: self.defaultPhotoFetchOptions())
-            let snapshotMatchesCurrentLibrary = snapshot.allPhotoIDs.count == fetchResult.count &&
-                restoredAssets.count == snapshot.allPhotoIDs.count
+            let restoreDecision = PhotoLibrarySnapshotRestorePolicy.decision(
+                cachedIdentifierCount: snapshot.allPhotoIDs.count,
+                restoredIdentifierCount: restoredAssets.count,
+                currentLibraryCount: fetchResult.count
+            )
 
-            guard snapshotMatchesCurrentLibrary else {
+            guard restoreDecision.shouldRestore else {
                 DispatchQueue.main.async {
                     self.isRestoringSnapshot = false
-                    self.snapshotStore.clear()
                     completion(false)
                     self.reloadPhotoLibraryAfterCurrentLoadIfNeeded()
                 }
@@ -691,22 +722,16 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             return
         }
 
-        let currentSignature = PhotoLibraryRefreshSignature(
-            allPhotoIDs: allPhotos.map(\.localIdentifier),
-            videoIDs: videos.map(\.localIdentifier),
-            favoriteIDs: favorites.map(\.localIdentifier),
-            screenshotIDs: screenshots.map(\.localIdentifier),
-            livePhotoIDs: livePhotos.map(\.localIdentifier)
-        )
+        let currentSignature = loadedPhotoLibraryRefreshSignature()
 
         DispatchQueue.global(qos: .utility).async { [weak self] in
             guard let self else { return }
-            let latestSignature = self.currentPhotoLibraryRefreshSignature()
-            let identifiersChanged = latestSignature != currentSignature
+            let latestState = self.currentPhotoLibraryRefreshState()
+            let identifiersChanged = latestState.signature != currentSignature
 
             DispatchQueue.main.async {
                 if identifiersChanged {
-                    self.loadPhotos(preserveExistingData: true) {
+                    self.rebuildCachedAssets(from: latestState.allPhotosResult, generation: nil) {
                         completion?(true)
                     }
                 } else {
@@ -716,13 +741,27 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         }
     }
 
-    private func currentPhotoLibraryRefreshSignature() -> PhotoLibraryRefreshSignature {
+    private func currentPhotoLibraryRefreshState() -> PhotoLibraryRefreshState {
+        let allPhotosResult = PHAsset.fetchAssets(with: defaultPhotoFetchOptions())
+        return PhotoLibraryRefreshState(
+            allPhotosResult: allPhotosResult,
+            signature: PhotoLibraryRefreshSignature(
+                allPhotos: assetListSignature(from: allPhotosResult),
+                videos: assetListSignature(from: fetchAssets(mediaType: .video)),
+                favorites: assetListSignature(from: fetchFavoriteAssets()),
+                screenshots: assetListSignature(from: fetchSmartAlbumAssets(.smartAlbumScreenshots)),
+                livePhotos: assetListSignature(from: fetchSmartAlbumAssets(.smartAlbumLivePhotos))
+            )
+        )
+    }
+
+    private func loadedPhotoLibraryRefreshSignature() -> PhotoLibraryRefreshSignature {
         PhotoLibraryRefreshSignature(
-            allPhotos: assetListSignature(from: PHAsset.fetchAssets(with: defaultPhotoFetchOptions())),
-            videos: assetListSignature(from: fetchAssets(mediaType: .video)),
-            favorites: assetListSignature(from: fetchFavoriteAssets()),
-            screenshots: assetListSignature(from: fetchSmartAlbumAssets(.smartAlbumScreenshots)),
-            livePhotos: assetListSignature(from: fetchSmartAlbumAssets(.smartAlbumLivePhotos))
+            allPhotos: assetListSignature(fromLoadedAssets: allPhotos),
+            videos: assetListSignature(fromLoadedAssets: videos),
+            favorites: assetListSignature(fromLoadedAssets: favorites),
+            screenshots: assetListSignature(fromLoadedAssets: screenshots),
+            livePhotos: assetListSignature(fromLoadedAssets: livePhotos)
         )
     }
 
@@ -732,6 +771,14 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             count: count,
             firstIdentifier: count > 0 ? fetchResult.object(at: 0).localIdentifier : nil,
             lastIdentifier: count > 1 ? fetchResult.object(at: count - 1).localIdentifier : (count == 1 ? fetchResult.object(at: 0).localIdentifier : nil)
+        )
+    }
+
+    private func assetListSignature(fromLoadedAssets assets: [PHAsset]) -> PhotoLibraryAssetListSignature {
+        PhotoLibraryAssetListSignature(
+            count: assets.count,
+            firstIdentifier: assets.first?.localIdentifier,
+            lastIdentifier: assets.last?.localIdentifier
         )
     }
 
@@ -814,8 +861,20 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                 allPhotosArray.append(contentsOf: batchAssets)
 
                 // 更新进度
+                let loadingProgress = Double(batchEnd) / Double(totalCount) * 0.6 // 60%用于基础加载
+                let shouldPublishPartialPhotos = PhotoLibraryLoadingPublishPolicy.shouldPublishInitialPhotos(
+                    batchStart: batchStart,
+                    batchEnd: batchEnd,
+                    totalCount: totalCount,
+                    preserveExistingData: shouldPreserveExistingData
+                )
+                let partialPhotos = shouldPublishPartialPhotos ? allPhotosArray : []
                 DispatchQueue.main.async {
-                    self.loadingProgress = Double(batchEnd) / Double(totalCount) * 0.6 // 60%用于基础加载
+                    self.loadingProgress = max(self.loadingProgress, loadingProgress)
+                    if shouldPublishPartialPhotos, self.hasPhotoLibraryAccess {
+                        self.allPhotos = partialPhotos
+                        self.hasLoadedPhotoLibrary = !partialPhotos.isEmpty
+                    }
                 }
 
             }
@@ -898,10 +957,15 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                     }
                 }
 
-                // 更新进度
-                DispatchQueue.main.async {
-                    let progress = 0.6 + (Double(batchEnd) / Double(photos.count)) * 0.3 // 30%用于分类
-                    self.loadingProgress = progress
+                if PhotoLibraryLoadingPublishPolicy.shouldPublishCategorizationProgress(
+                    batchEnd: batchEnd,
+                    totalCount: photos.count,
+                    batchSize: batchSize
+                ) {
+                    DispatchQueue.main.async {
+                        let progress = 0.6 + (Double(batchEnd) / Double(photos.count)) * 0.3 // 30%用于分类
+                        self.loadingProgress = progress
+                    }
                 }
             }
 
@@ -2345,13 +2409,14 @@ class PhotoLibraryManager: NSObject, ObservableObject {
 
     private func scheduleRebuildCachedAssets(
         from fetchResult: PHFetchResult<PHAsset>,
-        delay: TimeInterval = 0.35
+        delay: TimeInterval = 0.35,
+        completion: (() -> Void)? = nil
     ) {
         rebuildCachedAssetsWorkItem?.cancel()
         rebuildCachedAssetsGeneration += 1
         let generation = rebuildCachedAssetsGeneration
         let workItem = DispatchWorkItem { [weak self] in
-            self?.rebuildCachedAssets(from: fetchResult, generation: generation)
+            self?.rebuildCachedAssets(from: fetchResult, generation: generation, completion: completion)
         }
         rebuildCachedAssetsWorkItem = workItem
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
@@ -2359,7 +2424,8 @@ class PhotoLibraryManager: NSObject, ObservableObject {
 
     private func rebuildCachedAssets(
         from fetchResult: PHFetchResult<PHAsset>,
-        generation: Int? = nil
+        generation: Int? = nil,
+        completion: (() -> Void)? = nil
     ) {
         DispatchQueue.global(qos: .utility).async { [weak self] in
             guard let self else { return }
@@ -2389,6 +2455,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                         self.rebuildCachedAssetsWorkItem = nil
                     }
                     self.onLibraryDataChanged?()
+                    completion?()
                     self.reloadPhotoLibraryAfterCurrentLoadIfNeeded()
                 }
             }
@@ -2528,6 +2595,13 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     }
 
     private func saveSnapshot(allPhotos: [PHAsset], videos: [PHAsset], screenshots: [PHAsset], livePhotos: [PHAsset], favorites: [PHAsset]) {
+        cachedCounts = PhotoLibraryCachedCounts(
+            totalPhotos: allPhotos.count,
+            videos: videos.count,
+            screenshots: screenshots.count,
+            livePhotos: livePhotos.count,
+            favorites: favorites.count
+        )
         let store = snapshotStore
         let createdAt = Date()
         DispatchQueue.global(qos: .utility).async {
@@ -2615,14 +2689,61 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         }
     }
 
-    func addPhotosToAlbum(_ assets: [PHAsset], album: PHAssetCollection, completion: @escaping (Bool, Error?) -> Void) {
+    func addPhotosToAlbum(_ assets: [PHAsset], album: PHAssetCollection, completion: @escaping (Bool, Int, Error?) -> Void) {
+        guard hasPhotoLibraryAccess else {
+            completion(false, 0, PhotoLibraryWriteError.noLibraryAccess)
+            return
+        }
+
+        guard album.assetCollectionType == .album, album.canPerform(.addContent) else {
+            completion(false, 0, PhotoLibraryWriteError.unsupportedAlbumAdd)
+            return
+        }
+
+        let uniqueAssets = uniqueAssets(assets)
+        guard !uniqueAssets.isEmpty else {
+            completion(true, 0, nil)
+            return
+        }
+
+        let albumAssets = PHAsset.fetchAssets(in: album, options: nil)
+        var existingAssetIDs: Set<String> = []
+        albumAssets.enumerateObjects { asset, _, _ in
+            existingAssetIDs.insert(asset.localIdentifier)
+        }
+        let assetsToAdd = uniqueAssets.filter { !existingAssetIDs.contains($0.localIdentifier) }
+        guard !assetsToAdd.isEmpty else {
+            completion(true, 0, nil)
+            return
+        }
+
+        PHPhotoLibrary.shared().performChanges({
+            if let addAssetRequest = PHAssetCollectionChangeRequest(for: album) {
+                addAssetRequest.addAssets(assetsToAdd as NSArray)
+            }
+        }) { success, error in
+            DispatchQueue.main.async {
+                let verifiedSuccess = success && self.album(
+                    withIdentifier: album.localIdentifier,
+                    containsAllAssetIdentifiers: assetsToAdd.map(\.localIdentifier)
+                )
+                completion(
+                    verifiedSuccess,
+                    verifiedSuccess ? assetsToAdd.count : 0,
+                    verifiedSuccess ? nil : (error ?? PhotoLibraryWriteError.unsupportedAlbumAdd)
+                )
+            }
+        }
+    }
+
+    func removePhotosFromAlbum(_ assets: [PHAsset], album: PHAssetCollection, completion: @escaping (Bool, Error?) -> Void) {
         guard hasPhotoLibraryAccess else {
             completion(false, PhotoLibraryWriteError.noLibraryAccess)
             return
         }
 
-        guard album.canPerform(.addContent) else {
-            completion(false, PhotoLibraryWriteError.unsupportedAlbumAdd)
+        guard album.assetCollectionType == .album, album.canPerform(.removeContent) else {
+            completion(false, PhotoLibraryWriteError.unsupportedAlbumRemove)
             return
         }
 
@@ -2632,15 +2753,58 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             return
         }
 
+        let albumAssets = PHAsset.fetchAssets(in: album, options: nil)
+        var existingAssetIDs: Set<String> = []
+        albumAssets.enumerateObjects { asset, _, _ in
+            existingAssetIDs.insert(asset.localIdentifier)
+        }
+        let assetsToRemove = uniqueAssets.filter { existingAssetIDs.contains($0.localIdentifier) }
+        guard !assetsToRemove.isEmpty else {
+            completion(true, nil)
+            return
+        }
+
         PHPhotoLibrary.shared().performChanges({
-            if let addAssetRequest = PHAssetCollectionChangeRequest(for: album) {
-                addAssetRequest.addAssets(uniqueAssets as NSArray)
+            if let removeAssetRequest = PHAssetCollectionChangeRequest(for: album) {
+                removeAssetRequest.removeAssets(assetsToRemove as NSArray)
             }
         }) { success, error in
             DispatchQueue.main.async {
-                completion(success, error)
+                let verifiedSuccess = success && self.album(
+                    withIdentifier: album.localIdentifier,
+                    excludesAllAssetIdentifiers: assetsToRemove.map(\.localIdentifier)
+                )
+                completion(verifiedSuccess, verifiedSuccess ? nil : (error ?? PhotoLibraryWriteError.unsupportedAlbumRemove))
             }
         }
+    }
+
+    private func album(withIdentifier identifier: String, containsAllAssetIdentifiers assetIdentifiers: [String]) -> Bool {
+        guard let collection = fetchAlbum(withIdentifier: identifier) else { return false }
+        let fetchResult = PHAsset.fetchAssets(in: collection, options: nil)
+        var containedIdentifiers: Set<String> = []
+        fetchResult.enumerateObjects { asset, _, _ in
+            containedIdentifiers.insert(asset.localIdentifier)
+        }
+        return assetIdentifiers.allSatisfy { containedIdentifiers.contains($0) }
+    }
+
+    private func album(withIdentifier identifier: String, excludesAllAssetIdentifiers assetIdentifiers: [String]) -> Bool {
+        guard let collection = fetchAlbum(withIdentifier: identifier) else { return false }
+        let fetchResult = PHAsset.fetchAssets(in: collection, options: nil)
+        var containedIdentifiers: Set<String> = []
+        fetchResult.enumerateObjects { asset, _, _ in
+            containedIdentifiers.insert(asset.localIdentifier)
+        }
+        return assetIdentifiers.allSatisfy { !containedIdentifiers.contains($0) }
+    }
+
+    private func fetchAlbum(withIdentifier identifier: String) -> PHAssetCollection? {
+        let collections = PHAssetCollection.fetchAssetCollections(
+            withLocalIdentifiers: [identifier],
+            options: nil
+        )
+        return collections.firstObject
     }
 
     // MARK: - Statistics
@@ -2650,6 +2814,46 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     var screenshotsCount: Int { screenshots.count }
     var livePhotosCount: Int { livePhotos.count }
     var favoritesCount: Int { favorites.count }
+
+    var displayTotalPhotosCount: Int {
+        PhotoLibraryDisplayCountResolver.count(
+            current: totalPhotosCount,
+            cached: cachedCounts?.totalPhotos,
+            hasLoadedPhotoLibrary: hasLoadedPhotoLibrary
+        )
+    }
+
+    var displayVideosCount: Int {
+        PhotoLibraryDisplayCountResolver.count(
+            current: videosCount,
+            cached: cachedCounts?.videos,
+            hasLoadedPhotoLibrary: hasLoadedPhotoLibrary
+        )
+    }
+
+    var displayScreenshotsCount: Int {
+        PhotoLibraryDisplayCountResolver.count(
+            current: screenshotsCount,
+            cached: cachedCounts?.screenshots,
+            hasLoadedPhotoLibrary: hasLoadedPhotoLibrary
+        )
+    }
+
+    var displayLivePhotosCount: Int {
+        PhotoLibraryDisplayCountResolver.count(
+            current: livePhotosCount,
+            cached: cachedCounts?.livePhotos,
+            hasLoadedPhotoLibrary: hasLoadedPhotoLibrary
+        )
+    }
+
+    var displayFavoritesCount: Int {
+        PhotoLibraryDisplayCountResolver.count(
+            current: favoritesCount,
+            cached: cachedCounts?.favorites,
+            hasLoadedPhotoLibrary: hasLoadedPhotoLibrary
+        )
+    }
 
     private func uniqueAssets(_ assets: [PHAsset]) -> [PHAsset] {
         var seenIdentifiers = Set<String>()
@@ -2991,6 +3195,7 @@ private enum PhotoLibraryWriteError: LocalizedError {
     case unsupportedDelete
     case unsupportedFavorite
     case unsupportedAlbumAdd
+    case unsupportedAlbumRemove
     case unsupportedAlbumRename
     case unsupportedAlbumDelete
     case invalidAlbumTitle
@@ -3005,6 +3210,8 @@ private enum PhotoLibraryWriteError: LocalizedError {
             return L10n.string("有照片无法收藏，请先在系统照片中检查权限或来源。")
         case .unsupportedAlbumAdd:
             return L10n.string("这个相册不支持添加照片。")
+        case .unsupportedAlbumRemove:
+            return L10n.string("这个相册不支持移出照片。")
         case .unsupportedAlbumRename:
             return L10n.string("这个相册不支持重命名。")
         case .unsupportedAlbumDelete:

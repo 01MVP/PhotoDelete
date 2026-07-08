@@ -185,8 +185,9 @@ struct PhotoDeleteTests {
         #expect(SwipeGesturePreset.browse.rightAction == .previous)
         #expect(SwipeGesturePreset.browse.upAction == .delete)
 
-        #expect(SwipeGesturePreset.leftDeleteNext.leftAction == .delete)
-        #expect(SwipeGesturePreset.leftDeleteNext.rightAction == .next)
+        #expect(SwipeGesturePreset.leftKeepRightDelete.leftAction == .keep)
+        #expect(SwipeGesturePreset.leftKeepRightDelete.rightAction == .delete)
+        #expect(SwipeGesturePreset.leftKeepRightDelete.upAction == .favorite)
     }
 
     @Test func swipeGestureActionNormalizationFallsBackForUnknownValues() async throws {
@@ -208,7 +209,7 @@ struct PhotoDeleteTests {
         #expect(defaults.string(forKey: AppConstants.leftSwipeActionKey) == SwipeGestureAction.delete.rawValue)
         #expect(defaults.string(forKey: AppConstants.rightSwipeActionKey) == SwipeGestureAction.keep.rawValue)
         #expect(defaults.string(forKey: AppConstants.upSwipeActionKey) == SwipeGestureAction.favorite.rawValue)
-        #expect(defaults.bool(forKey: AppConstants.gestureUpdateNoticePendingKey))
+        #expect(defaults.bool(forKey: AppConstants.gestureUpdateNoticePendingKey) == false)
     }
 
     @Test func swipeGestureMigrationMovesPreviousBrowseDefaultToLeftDelete() async throws {
@@ -225,7 +226,7 @@ struct PhotoDeleteTests {
         #expect(defaults.string(forKey: AppConstants.leftSwipeActionKey) == SwipeGestureAction.delete.rawValue)
         #expect(defaults.string(forKey: AppConstants.rightSwipeActionKey) == SwipeGestureAction.keep.rawValue)
         #expect(defaults.string(forKey: AppConstants.upSwipeActionKey) == SwipeGestureAction.favorite.rawValue)
-        #expect(defaults.bool(forKey: AppConstants.gestureUpdateNoticePendingKey))
+        #expect(defaults.bool(forKey: AppConstants.gestureUpdateNoticePendingKey) == false)
     }
 
     @Test func swipeGestureMigrationDoesNotOverwriteCustomLayout() async throws {
@@ -245,7 +246,7 @@ struct PhotoDeleteTests {
         #expect(defaults.bool(forKey: AppConstants.gestureUpdateNoticePendingKey) == false)
     }
 
-    @Test func swipeGestureMigrationShowsNoticeForExistingImplicitLegacyDefault() async throws {
+    @Test func swipeGestureMigrationDoesNotShowNoticeForExistingImplicitLegacyDefault() async throws {
         let suiteName = "PhotoDeleteGestureMigrationImplicit-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
@@ -257,7 +258,7 @@ struct PhotoDeleteTests {
         #expect(defaults.string(forKey: AppConstants.leftSwipeActionKey) == SwipeGestureAction.delete.rawValue)
         #expect(defaults.string(forKey: AppConstants.rightSwipeActionKey) == SwipeGestureAction.keep.rawValue)
         #expect(defaults.string(forKey: AppConstants.upSwipeActionKey) == SwipeGestureAction.favorite.rawValue)
-        #expect(defaults.bool(forKey: AppConstants.gestureUpdateNoticePendingKey))
+        #expect(defaults.bool(forKey: AppConstants.gestureUpdateNoticePendingKey) == false)
     }
 
     @Test func swipeGestureMigrationDoesNotShowNoticeForFreshInstall() async throws {
@@ -280,11 +281,28 @@ struct PhotoDeleteTests {
 
         ReviewPlaybackPreferences.applyLaunchDefaults(defaults: defaults)
         #expect(defaults.bool(forKey: AppConstants.reviewVideoMutedKey))
+        #expect(defaults.object(forKey: AppConstants.reviewLivePhotoAutoPlayKey) != nil)
+        #expect(!defaults.bool(forKey: AppConstants.reviewLivePhotoAutoPlayKey))
 
         defaults.set(false, forKey: AppConstants.reviewVideoMutedKey)
+        defaults.set(true, forKey: AppConstants.reviewLivePhotoAutoPlayKey)
         ReviewPlaybackPreferences.applyLaunchDefaults(defaults: defaults)
 
         #expect(!defaults.bool(forKey: AppConstants.reviewVideoMutedKey))
+        #expect(defaults.bool(forKey: AppConstants.reviewLivePhotoAutoPlayKey))
+    }
+
+    @Test func livePhotoPlaybackDefaultsKeepMotionOffUnlessEnabled() async throws {
+        #expect(!LivePhotoPlaybackDefaultPolicy.initialMotionEnabled(isLivePhoto: false, autoPlayPreference: true))
+        #expect(!LivePhotoPlaybackDefaultPolicy.initialMotionEnabled(isLivePhoto: true, autoPlayPreference: false))
+        #expect(LivePhotoPlaybackDefaultPolicy.initialMotionEnabled(isLivePhoto: true, autoPlayPreference: true))
+        #expect(LivePhotoPlaybackDefaultPolicy.toggledMotionEnabled(current: false))
+        #expect(!LivePhotoPlaybackDefaultPolicy.toggledMotionEnabled(current: true))
+    }
+
+    @Test func livePhotoPlaybackDoesNotLoopAfterOnePlay() async throws {
+        #expect(!LivePhotoPlaybackLoopPolicy.shouldRestartAfterPlaybackEnds(autoPlay: true))
+        #expect(!LivePhotoPlaybackLoopPolicy.shouldRestartAfterPlaybackEnds(autoPlay: false))
     }
 
     @Test func photoAssetMetadataFormatterUsesReadableFallbacks() async throws {
@@ -453,15 +471,72 @@ struct PhotoDeleteTests {
     }
 
     @Test func photoCategoryIncludesLivePhotosQuickEntry() async throws {
-        #expect(PhotoCategory.allCases == [.all, .videos, .screenshots, .livePhotos, .favorites])
+        #expect(PhotoCategory.allCases == [.all, .unclassified, .videos, .screenshots, .livePhotos, .favorites])
+        #expect(PhotoCategory.unclassified.rawValue == "未归类照片")
+        #expect(PhotoCategory.unclassified.icon == "tray")
         #expect(PhotoCategory.livePhotos.icon == "livephoto")
     }
 
+    @Test func unclassifiedPhotoFilterExcludesAlbumMembersOnly() async throws {
+        let allIDs = ["new-photo", "album-photo", "downloaded-photo", "shared-album-photo"]
+        let result = UnclassifiedPhotoFilter.unclassifiedIdentifiers(
+            allIdentifiers: allIDs,
+            albumMemberIdentifiers: ["album-photo", "shared-album-photo"]
+        )
+
+        #expect(result == ["new-photo", "downloaded-photo"])
+    }
+
+    @Test func albumLoadPolicyRefreshesCachedAlbumsUntilMembershipIsReady() async throws {
+        #expect(AlbumLoadNeededPolicy.shouldLoad(
+            hasLoadedAlbums: true,
+            hasLoadedAlbumMembership: false,
+            isFetchingAlbums: false
+        ))
+        #expect(!AlbumLoadNeededPolicy.shouldLoad(
+            hasLoadedAlbums: true,
+            hasLoadedAlbumMembership: true,
+            isFetchingAlbums: false
+        ))
+        #expect(!AlbumLoadNeededPolicy.shouldLoad(
+            hasLoadedAlbums: false,
+            hasLoadedAlbumMembership: false,
+            isFetchingAlbums: true
+        ))
+    }
+
     @Test func appLanguageSupportsMainLocalizedLanguages() async throws {
-        #expect(AppLanguage.allCases.map(\.rawValue) == ["system", "zh-Hans", "zh-Hant", "en"])
+        #expect(AppLanguage.allCases.first == .system)
+        #expect(AppLanguage.allCases.contains(.en))
+        #expect(AppLanguage.allCases.contains(.ja))
+        #expect(AppLanguage.allCases.contains(.ar))
+        #expect(AppLanguage.allCases.contains(.he))
+        #expect(AppLanguage.allCases.contains(.ur))
         #expect(AppLanguage.zhHans.showsSimplifiedChineseOnlyContent)
         #expect(!AppLanguage.zhHant.showsSimplifiedChineseOnlyContent)
         #expect(!AppLanguage.en.showsSimplifiedChineseOnlyContent)
+        #expect(AppLanguage.ar.isRightToLeft)
+        #expect(AppLanguage.he.isRightToLeft)
+        #expect(AppLanguage.ur.isRightToLeft)
+        #expect(!AppLanguage.ja.isRightToLeft)
+    }
+
+    @Test func appLanguageCoversWorthwhileAppStoreMetadataLocales() async throws {
+        #expect(AppLanguage.supportedStoreMetadataLocales.count == 50)
+        #expect(AppLanguage.supportedStoreMetadataLocales.contains("en-US"))
+        #expect(AppLanguage.supportedStoreMetadataLocales.contains("ar-SA"))
+        #expect(AppLanguage.supportedStoreMetadataLocales.contains("he"))
+        #expect(AppLanguage.supportedStoreMetadataLocales.contains("ur-PK"))
+        #expect(AppLanguage.supportedStoreMetadataLocales.contains("bn-BD"))
+        #expect(AppLanguage.supportedStoreMetadataLocales.contains("ta-IN"))
+        #expect(AppLanguage.supportedStoreMetadataLocales.contains("zh-Hant"))
+    }
+
+    @Test func appStoreReviewURLTargetsPhotoDeleteReviewPage() async throws {
+        #expect(AppConstants.appStoreID == "6779493280")
+        #expect(AppConstants.appStoreReviewURL.absoluteString.contains(AppConstants.appStoreID))
+        #expect(AppConstants.appStoreReviewURL.absoluteString.contains("action=write-review"))
+        #expect(AppConstants.appStoreProductURL.absoluteString.contains(AppConstants.appStoreID))
     }
 
     @Test func supporterEntitlementStateOnlyUnlocksVerifiedOrCachedOffline() async throws {
@@ -812,12 +887,116 @@ struct PhotoDeleteTests {
         #expect(achievement.subtitle == "完成第一轮照片整理")
         #expect(SwipeGesturePreset.standard.title == "左删右留")
         #expect(SwipeGesturePreset.standard.subtitle == "左滑删除，右滑保留，上滑收藏")
+        #expect(SwipeGesturePreset.leftKeepRightDelete.title == "左留右删")
+        #expect(SwipeGesturePreset.leftKeepRightDelete.subtitle == "左滑保留，右滑删除，上滑收藏")
+        #expect(AdvancedCleanupKind.similarPhotos.title == "相似照片")
+        #expect(PhotoCategory.unclassified.title == "未归类照片")
+        #expect(L10n.string("保留首张") == "保留首张")
+        #expect(String(format: L10n.string("%lld 张相近候选"), Int64(3)) == "3 张相近候选")
 
         defaults.set(AppLanguage.en.rawValue, forKey: AppConstants.appLanguageKey)
         #expect(achievement.title == "First Cleanup")
         #expect(achievement.subtitle == "Complete your first photo cleanup")
         #expect(SwipeGesturePreset.standard.title == "Delete left, keep right")
         #expect(SwipeGesturePreset.standard.subtitle == "Swipe left to delete, right to keep, up to favorite")
+        #expect(SwipeGesturePreset.leftKeepRightDelete.title == "Keep left, delete right")
+        #expect(SwipeGesturePreset.leftKeepRightDelete.subtitle == "Swipe left to keep, right to delete, up to favorite")
+        #expect(AdvancedCleanupKind.similarPhotos.title == "Similar Photos")
+        #expect(PhotoCategory.unclassified.title == "Unfiled Photos")
+        #expect(L10n.string("保留首张") == "Keep First")
+        #expect(String(format: L10n.string("%lld 张相近候选"), Int64(3)) == "3 similar candidates")
+    }
+
+    @MainActor
+    @Test func albumCleanupAndDownSwipeHintsAreLocalizedForVisibleLanguages() async throws {
+        let defaults = UserDefaults.standard
+        let previousLanguage = defaults.string(forKey: AppConstants.appLanguageKey)
+        defer {
+            if let previousLanguage {
+                defaults.set(previousLanguage, forKey: AppConstants.appLanguageKey)
+            } else {
+                defaults.removeObject(forKey: AppConstants.appLanguageKey)
+            }
+        }
+
+        let localizedExpectations: [(AppLanguage, [String: String])] = [
+            (.ar, [
+                "%lld 个相册删除失败，请稍后再试": "تعذر حذف %lld ألبومًا. حاول مرة أخرى لاحقًا.",
+                "下滑动作": "السحب للأسفل",
+                "下滑可移出当前相册，不会删除照片": "اسحب للأسفل للإزالة من هذا الألبوم دون حذف الصورة",
+                "下滑移出相册，不删除照片": "اسحب للأسفل للإزالة من الألبوم، وليس الحذف",
+                "只会删除空相册，不会删除任何照片。": "سيتم حذف الألبومات الفارغة فقط. لن يتم حذف أي صور.",
+                "删除 %lld 个空相册": "حذف %lld ألبومًا فارغًا",
+                "删除空相册": "حذف الألبومات الفارغة",
+                "发现 %lld 个空相册": "تم العثور على %lld ألبومًا فارغًا",
+                "普通整理": "مراجعة عادية",
+                "正在删除 %lld/%lld": "جارٍ الحذف %lld/%lld",
+                "没有空相册": "لا توجد ألبومات فارغة",
+                "相册操作": "إجراءات الألبوم",
+                "移出相册，不删除照片": "إزالة من الألبوم، وليس حذفًا"
+            ]),
+            (.de, [
+                "%lld 个相册删除失败，请稍后再试": "%lld Alben konnten nicht gelöscht werden. Versuche es später erneut.",
+                "下滑动作": "Nach unten wischen",
+                "下滑可移出当前相册，不会删除照片": "Wische nach unten, um aus diesem Album zu entfernen, ohne das Foto zu löschen",
+                "下滑移出相册，不删除照片": "Nach unten wischen: aus Album entfernen, nicht löschen",
+                "只会删除空相册，不会删除任何照片。": "Es werden nur leere Alben gelöscht. Keine Fotos werden gelöscht.",
+                "删除 %lld 个空相册": "%lld leere Alben löschen",
+                "删除空相册": "Leere Alben löschen",
+                "发现 %lld 个空相册": "%lld leere Alben gefunden",
+                "普通整理": "Normale Durchsicht",
+                "正在删除 %lld/%lld": "Löschen %lld/%lld",
+                "没有空相册": "Keine leeren Alben",
+                "相册操作": "Albumaktionen",
+                "移出相册，不删除照片": "Aus Album entfernen, nicht löschen"
+            ]),
+            (.ja, [
+                "%lld 个相册删除失败，请稍后再试": "%lld個のアルバムを削除できませんでした。あとでもう一度お試しください。",
+                "下滑动作": "下スワイプ",
+                "下滑可移出当前相册，不会删除照片": "下にスワイプすると、このアルバムから外せます。写真は削除されません",
+                "下滑移出相册，不删除照片": "下スワイプでアルバムから外す（削除しません）",
+                "只会删除空相册，不会删除任何照片。": "空のアルバムだけを削除します。写真は削除されません。",
+                "删除 %lld 个空相册": "%lld個の空のアルバムを削除",
+                "删除空相册": "空のアルバムを削除",
+                "发现 %lld 个空相册": "%lld個の空のアルバムが見つかりました",
+                "普通整理": "通常の整理",
+                "正在删除 %lld/%lld": "削除中 %lld/%lld",
+                "没有空相册": "空のアルバムはありません",
+                "相册操作": "アルバム操作",
+                "移出相册，不删除照片": "アルバムから外す（削除しません）"
+            ])
+        ]
+
+        for (language, expectations) in localizedExpectations {
+            defaults.set(language.rawValue, forKey: AppConstants.appLanguageKey)
+            for (key, expected) in expectations {
+                #expect(L10n.key(key) == expected)
+            }
+        }
+    }
+
+    @Test func similarPhotoKeepFirstSelectionTogglesRecommendedAssets() async throws {
+        let groupAssetIDs = makeAssetIDs(4)
+        let firstTapSelection = AdvancedSimilarPhotoRecommendedSelection.toggledSelection(
+            current: [],
+            groupAssetIDs: groupAssetIDs
+        )
+
+        #expect(firstTapSelection == Set(groupAssetIDs.dropFirst()))
+
+        let secondTapSelection = AdvancedSimilarPhotoRecommendedSelection.toggledSelection(
+            current: firstTapSelection,
+            groupAssetIDs: groupAssetIDs
+        )
+
+        #expect(secondTapSelection.isEmpty)
+
+        let mixedSelection = AdvancedSimilarPhotoRecommendedSelection.toggledSelection(
+            current: ["other-asset", groupAssetIDs[1]],
+            groupAssetIDs: groupAssetIDs
+        )
+
+        #expect(mixedSelection == Set(["other-asset"] + Array(groupAssetIDs.dropFirst())))
     }
 
     @Test func cleanupAchievementEvaluatorIncludesExpandedSpaceMilestones() async throws {
@@ -1174,6 +1353,29 @@ struct PhotoDeleteTests {
         ) == .available)
     }
 
+    @Test func homeCategoryCountsPreferLoadingTextDuringInitialPreparation() async throws {
+        #expect(HomeCategoryCountDetailResolver.shouldShowLibraryLoading(
+            category: .all,
+            count: 500,
+            isPreparingLibrary: true,
+            isLoadingPhotoLibrary: true
+        ))
+
+        #expect(HomeCategoryCountDetailResolver.shouldShowLibraryLoading(
+            category: .unclassified,
+            count: 406,
+            isPreparingLibrary: true,
+            isLoadingPhotoLibrary: true
+        ))
+
+        #expect(!HomeCategoryCountDetailResolver.shouldShowLibraryLoading(
+            category: .all,
+            count: 500,
+            isPreparingLibrary: false,
+            isLoadingPhotoLibrary: true
+        ))
+    }
+
     @Test func homeLibraryStateOnlyShowsEmptyAfterLoadedEmptyLibrary() async throws {
         #expect(HomeLibraryContentState.resolve(
             hasPhotoLibraryAccess: true,
@@ -1198,6 +1400,55 @@ struct PhotoDeleteTests {
             hasLoadedPhotoLibrary: false,
             totalPhotosCount: 0
         ) == .needsAuthorization)
+    }
+
+    @Test func photoLibraryDisplayCountUsesCachedSnapshotBeforeFullRestore() async throws {
+        #expect(PhotoLibraryDisplayCountResolver.count(
+            current: 0,
+            cached: 128,
+            hasLoadedPhotoLibrary: false
+        ) == 128)
+        #expect(PhotoLibraryDisplayCountResolver.count(
+            current: 36,
+            cached: 128,
+            hasLoadedPhotoLibrary: false
+        ) == 128)
+        #expect(PhotoLibraryDisplayCountResolver.count(
+            current: 36,
+            cached: nil,
+            hasLoadedPhotoLibrary: false
+        ) == 0)
+        #expect(PhotoLibraryDisplayCountResolver.count(
+            current: 0,
+            cached: 128,
+            hasLoadedPhotoLibrary: true
+        ) == 0)
+    }
+
+    @Test func photoLibrarySnapshotRestoreKeepsStaleCacheForBackgroundRefresh() async throws {
+        #expect(PhotoLibrarySnapshotRestorePolicy.decision(
+            cachedIdentifierCount: 100,
+            restoredIdentifierCount: 100,
+            currentLibraryCount: 100
+        ) == PhotoLibrarySnapshotRestoreDecision(shouldRestore: true, shouldRefreshAfterRestore: false))
+
+        #expect(PhotoLibrarySnapshotRestorePolicy.decision(
+            cachedIdentifierCount: 100,
+            restoredIdentifierCount: 100,
+            currentLibraryCount: 103
+        ) == PhotoLibrarySnapshotRestoreDecision(shouldRestore: true, shouldRefreshAfterRestore: true))
+
+        #expect(PhotoLibrarySnapshotRestorePolicy.decision(
+            cachedIdentifierCount: 100,
+            restoredIdentifierCount: 97,
+            currentLibraryCount: 103
+        ) == PhotoLibrarySnapshotRestoreDecision(shouldRestore: true, shouldRefreshAfterRestore: true))
+
+        #expect(PhotoLibrarySnapshotRestorePolicy.decision(
+            cachedIdentifierCount: 100,
+            restoredIdentifierCount: 0,
+            currentLibraryCount: 100
+        ) == PhotoLibrarySnapshotRestoreDecision(shouldRestore: false, shouldRefreshAfterRestore: true))
     }
 
     @Test func advancedDemoSnapshotIncludesCalendarAndCleanupQueues() async throws {
@@ -1246,6 +1497,21 @@ struct PhotoDeleteTests {
         #expect(album.thumbnailAsset == nil)
     }
 
+    @Test func emptyAlbumCleanupPlannerOnlyIncludesDeletableEmptyUserAlbums() async throws {
+        let albums = [
+            AlbumInfo(id: "empty-user", title: "Empty", assetCollection: nil, type: .userCreated, photosCount: 0),
+            AlbumInfo(id: "filled-user", title: "Filled", assetCollection: nil, type: .userCreated, photosCount: 2),
+            AlbumInfo(id: "empty-system", title: "Favorites", assetCollection: nil, type: .favorites, photosCount: 0),
+            AlbumInfo(id: "protected-user", title: "Protected", assetCollection: nil, type: .userCreated, photosCount: 0)
+        ]
+
+        let candidates = EmptyAlbumCleanupPlanner.cleanupCandidates(from: albums) { album in
+            album.id != "protected-user"
+        }
+
+        #expect(candidates.map(\.id) == ["empty-user"])
+    }
+
     @Test func albumsSortedByCustomOrderPrioritizesSavedIDs() async throws {
         let albums = [
             AlbumInfo(id: "album-a", title: "A", assetCollection: nil, type: .userCreated, photosCount: 1),
@@ -1275,6 +1541,21 @@ struct PhotoDeleteTests {
         )
 
         #expect(sorted.map(\.id) == ["album-c", "album-a", "album-b"])
+    }
+
+    @Test func customAlbumOrderByPrependingMovesCreatedAlbumToFront() async throws {
+        #expect(
+            DataManager.customAlbumOrderByPrepending(
+                "album-new",
+                to: ["album-a", "album-b", "album-c"]
+            ) == ["album-new", "album-a", "album-b", "album-c"]
+        )
+        #expect(
+            DataManager.customAlbumOrderByPrepending(
+                "album-b",
+                to: ["album-a", "album-b", "album-c"]
+            ) == ["album-b", "album-a", "album-c"]
+        )
     }
 
     @Test func decodeCustomAlbumOrderFallsBackForInvalidData() async throws {
@@ -1784,6 +2065,108 @@ struct PhotoDeleteTests {
         #expect(index == 3)
     }
 
+    @Test func photoReviewReadinessAllowsAllPhotosDuringBackgroundLoading() async throws {
+        #expect(!PhotoReviewSourceReadiness.isWaiting(
+            selectedCategory: .all,
+            selectedLocationGroupID: nil,
+            hasLoadedAllCategoryPhotos: true,
+            isPhotoLibraryLoading: true,
+            isPreparingLibrary: true,
+            isRestoringLibrarySnapshot: false,
+            isLoadingLocationGroups: false,
+            isResolvingLocationTitles: false,
+            isLoadingAdvancedCleanupQueues: false,
+            hasLoadedAlbumMembership: true,
+            isLoadingAlbums: false
+        ))
+
+        #expect(PhotoReviewSourceReadiness.isWaiting(
+            selectedCategory: .videos,
+            selectedLocationGroupID: nil,
+            hasLoadedAllCategoryPhotos: true,
+            isPhotoLibraryLoading: true,
+            isPreparingLibrary: true,
+            isRestoringLibrarySnapshot: false,
+            isLoadingLocationGroups: false,
+            isResolvingLocationTitles: false,
+            isLoadingAdvancedCleanupQueues: false,
+            hasLoadedAlbumMembership: true,
+            isLoadingAlbums: false
+        ))
+
+        #expect(PhotoReviewSourceReadiness.isWaiting(
+            selectedCategory: .all,
+            selectedLocationGroupID: nil,
+            hasLoadedAllCategoryPhotos: false,
+            isPhotoLibraryLoading: true,
+            isPreparingLibrary: false,
+            isRestoringLibrarySnapshot: false,
+            isLoadingLocationGroups: false,
+            isResolvingLocationTitles: false,
+            isLoadingAdvancedCleanupQueues: false,
+            hasLoadedAlbumMembership: true,
+            isLoadingAlbums: false
+        ))
+
+        #expect(PhotoReviewSourceReadiness.isWaiting(
+            selectedCategory: .unclassified,
+            selectedLocationGroupID: nil,
+            hasLoadedAllCategoryPhotos: true,
+            isPhotoLibraryLoading: false,
+            isPreparingLibrary: false,
+            isRestoringLibrarySnapshot: false,
+            isLoadingLocationGroups: false,
+            isResolvingLocationTitles: false,
+            isLoadingAdvancedCleanupQueues: false,
+            hasLoadedAlbumMembership: false,
+            isLoadingAlbums: true
+        ))
+
+        #expect(!PhotoReviewSourceReadiness.isWaiting(
+            selectedCategory: .unclassified,
+            selectedLocationGroupID: nil,
+            hasLoadedAllCategoryPhotos: true,
+            isPhotoLibraryLoading: false,
+            isPreparingLibrary: false,
+            isRestoringLibrarySnapshot: false,
+            isLoadingLocationGroups: false,
+            isResolvingLocationTitles: false,
+            isLoadingAdvancedCleanupQueues: false,
+            hasLoadedAlbumMembership: true,
+            isLoadingAlbums: false
+        ))
+    }
+
+    @Test func photoReviewReadinessStillWaitsForScopedLocationAndAdvancedQueues() async throws {
+        #expect(PhotoReviewSourceReadiness.isWaiting(
+            selectedCategory: .all,
+            selectedLocationGroupID: "location:shanghai",
+            hasLoadedAllCategoryPhotos: true,
+            isPhotoLibraryLoading: true,
+            isPreparingLibrary: false,
+            isRestoringLibrarySnapshot: false,
+            isLoadingLocationGroups: true,
+            isResolvingLocationTitles: false,
+            isLoadingAdvancedCleanupQueues: false,
+            hasLoadedAlbumMembership: true,
+            isLoadingAlbums: false
+        ))
+
+        #expect(PhotoReviewSourceReadiness.isWaiting(
+            selectedCategory: nil,
+            selectedLocationGroupID: nil,
+            hasLoadedAllCategoryPhotos: true,
+            isPhotoLibraryLoading: false,
+            isPreparingLibrary: false,
+            isRestoringLibrarySnapshot: false,
+            isLoadingLocationGroups: false,
+            isResolvingLocationTitles: false,
+            isLoadingAdvancedCleanupQueues: true,
+            hasLoadedAlbumMembership: true,
+            isLoadingAlbums: false
+        ))
+    }
+
     @Test func similarPhotoGroupingUsesBurstIdentifierForTwoItemGroups() async throws {
         let date = Date(timeIntervalSince1970: 1_000)
         let groups = DataManager.similarPhotoIdentifierGroups(from: [
@@ -1809,19 +2192,51 @@ struct PhotoDeleteTests {
         let date = Date(timeIntervalSince1970: 1_000)
         let groups = DataManager.similarPhotoIdentifierGroups(from: [
             similarFingerprint("a", date: date),
-            similarFingerprint("b", date: date.addingTimeInterval(6)),
-            similarFingerprint("c", date: date.addingTimeInterval(12))
+            similarFingerprint("b", date: date.addingTimeInterval(3)),
+            similarFingerprint("c", date: date.addingTimeInterval(6))
         ])
 
         #expect(groups == [["a", "b", "c"]])
+    }
+
+    @Test func similarPhotoGroupingAcceptsTightTwoPhotoSequence() async throws {
+        let date = Date(timeIntervalSince1970: 1_000)
+        let groups = DataManager.similarPhotoIdentifierGroups(from: [
+            similarFingerprint("a", date: date),
+            similarFingerprint("b", date: date.addingTimeInterval(3))
+        ])
+
+        #expect(groups == [["a", "b"]])
+    }
+
+    @Test func similarPhotoGroupingRejectsAdjacentButLooseSequence() async throws {
+        let date = Date(timeIntervalSince1970: 1_000)
+        let groups = DataManager.similarPhotoIdentifierGroups(from: [
+            similarFingerprint("a", date: date),
+            similarFingerprint("b", date: date.addingTimeInterval(8)),
+            similarFingerprint("c", date: date.addingTimeInterval(16))
+        ])
+
+        #expect(groups.isEmpty)
+    }
+
+    @Test func similarPhotoGroupingRejectsSmallDimensionDrift() async throws {
+        let date = Date(timeIntervalSince1970: 1_000)
+        let groups = DataManager.similarPhotoIdentifierGroups(from: [
+            similarFingerprint("a", date: date, width: 4_032, height: 3_024),
+            similarFingerprint("b", date: date.addingTimeInterval(3), width: 4_180, height: 3_135),
+            similarFingerprint("c", date: date.addingTimeInterval(6), width: 4_032, height: 3_024)
+        ])
+
+        #expect(groups.isEmpty)
     }
 
     @Test func similarPhotoGroupingSeparatesDifferentDimensions() async throws {
         let date = Date(timeIntervalSince1970: 1_000)
         let groups = DataManager.similarPhotoIdentifierGroups(from: [
             similarFingerprint("a", date: date, width: 4_032, height: 3_024),
-            similarFingerprint("b", date: date.addingTimeInterval(6), width: 3_024, height: 4_032),
-            similarFingerprint("c", date: date.addingTimeInterval(12), width: 4_032, height: 3_024)
+            similarFingerprint("b", date: date.addingTimeInterval(3), width: 3_024, height: 4_032),
+            similarFingerprint("c", date: date.addingTimeInterval(6), width: 4_032, height: 3_024)
         ])
 
         #expect(groups.isEmpty)
@@ -1832,6 +2247,439 @@ struct PhotoDeleteTests {
         #expect(VideoPlaybackProgressMapper.progress(locationX: 60, width: 120) == 0.5)
         #expect(VideoPlaybackProgressMapper.progress(locationX: 180, width: 120) == 1)
         #expect(VideoPlaybackProgressMapper.progress(locationX: 60, width: 0) == 0)
+    }
+
+    @Test func videoPlaybackDurationResolverFallsBackToAssetDuration() async throws {
+        #expect(VideoPlaybackDurationResolver.playableDuration(
+            playerItemDuration: 12,
+            assetDuration: 8
+        ) == 12)
+        #expect(VideoPlaybackDurationResolver.playableDuration(
+            playerItemDuration: .nan,
+            assetDuration: 8
+        ) == 8)
+        #expect(VideoPlaybackDurationResolver.playableDuration(
+            playerItemDuration: 0,
+            assetDuration: 8
+        ) == 8)
+        #expect(VideoPlaybackDurationResolver.playableDuration(
+            playerItemDuration: nil,
+            assetDuration: 0
+        ) == nil)
+    }
+
+    @Test func videoPlaybackControlVisibilityHidesPlayingControlsUntilTapped() async throws {
+        #expect(!VideoPlaybackControlVisibility.shouldShowButton(
+            isPlaying: true,
+            controlsVisible: false,
+            playbackProgress: 0.2
+        ))
+        #expect(VideoPlaybackControlVisibility.shouldShowButton(
+            isPlaying: true,
+            controlsVisible: true,
+            playbackProgress: 0.2
+        ))
+        #expect(VideoPlaybackControlVisibility.shouldShowButton(
+            isPlaying: false,
+            controlsVisible: false,
+            playbackProgress: 0.2
+        ))
+        #expect(VideoPlaybackControlVisibility.shouldShowButton(
+            isPlaying: true,
+            controlsVisible: false,
+            playbackProgress: 1
+        ))
+    }
+
+    @Test func videoPlaybackControlVisibilityAutoHidesOnlyWhilePlaying() async throws {
+        #expect(VideoPlaybackControlVisibility.shouldAutoHideControls(isPlaying: true, controlsVisible: true))
+        #expect(!VideoPlaybackControlVisibility.shouldAutoHideControls(isPlaying: false, controlsVisible: true))
+        #expect(!VideoPlaybackControlVisibility.shouldAutoHideControls(isPlaying: true, controlsVisible: false))
+    }
+
+    @Test func videoPlaybackProgressHitRegionOnlyUsesBottomControlArea() async throws {
+        let containerSize = CGSize(width: 320, height: 500)
+
+        #expect(VideoPlaybackControlLayout.isInProgressHitRegion(
+            point: CGPoint(x: 160, y: 480),
+            containerSize: containerSize
+        ))
+        #expect(!VideoPlaybackControlLayout.isInProgressHitRegion(
+            point: CGPoint(x: 160, y: 300),
+            containerSize: containerSize
+        ))
+        #expect(!VideoPlaybackControlLayout.isInProgressHitRegion(
+            point: CGPoint(x: 340, y: 480),
+            containerSize: containerSize
+        ))
+        #expect(VideoPlaybackControlLayout.progressHitHeight >= 44)
+    }
+
+    @Test func videoPlaybackScrubResumePolicyUsesPlayerAndViewState() async throws {
+        #expect(VideoPlaybackScrubResumePolicy.shouldResumeAfterScrub(
+            wasPlayingState: true,
+            playerWasPlaying: false
+        ))
+        #expect(VideoPlaybackScrubResumePolicy.shouldResumeAfterScrub(
+            wasPlayingState: false,
+            playerWasPlaying: true
+        ))
+        #expect(!VideoPlaybackScrubResumePolicy.shouldResumeAfterScrub(
+            wasPlayingState: false,
+            playerWasPlaying: false
+        ))
+        #expect(VideoPlaybackScrubResumePolicy.shouldResumeAfterScrub(
+            wasPlayingState: false,
+            playerWasPlaying: false,
+            autoPlayEnabled: true,
+            playbackProgress: 0.5
+        ))
+        #expect(!VideoPlaybackScrubResumePolicy.shouldResumeAfterScrub(
+            wasPlayingState: false,
+            playerWasPlaying: false,
+            autoPlayEnabled: true,
+            playbackProgress: 1
+        ))
+    }
+
+    @Test func videoPlaybackScrubFallbackEndsQuicklyWhenTouchEndIsLost() async throws {
+        #expect(VideoPlaybackScrubTiming.endFallbackDelay <= 0.2)
+        #expect(VideoPlaybackScrubTiming.resumeAfterLastScrubDelay <= 0.25)
+        #expect(VideoPlaybackScrubTiming.controlHideRetryDelay <= 0.3)
+        #expect(VideoPlaybackScrubTiming.controlHideAfterResumeDelay <= 0.5)
+    }
+
+    @Test func inlineVideoScrubGestureRegionReservesBottomVideoArea() async throws {
+        let cardSize = CGSize(width: 320, height: 520)
+
+        #expect(InlineVideoScrubGestureRegion.contains(
+            startLocation: CGPoint(x: 160, y: 470),
+            cardSize: cardSize,
+            isVideoPlaying: true,
+            reservedBottomHeight: 78
+        ))
+        #expect(!InlineVideoScrubGestureRegion.contains(
+            startLocation: CGPoint(x: 160, y: 430),
+            cardSize: cardSize,
+            isVideoPlaying: true,
+            reservedBottomHeight: 78
+        ))
+    }
+
+    @Test func inlineVideoCardHitRegionKeepsScrubberAreaInteractive() async throws {
+        let cardSize = CGSize(width: 320, height: 520)
+        let scrubberPoint = CGPoint(x: 160, y: 470)
+
+        #expect(InlineVideoScrubGestureRegion.contains(
+            startLocation: scrubberPoint,
+            cardSize: cardSize,
+            isVideoPlaying: true,
+            reservedBottomHeight: 78
+        ))
+        #expect(InlineVideoCardHitRegion.contains(
+            point: scrubberPoint,
+            cardSize: cardSize
+        ))
+    }
+
+    @Test func inlineVideoCardGestureRoutingOnlyReservesBottomScrubberDrags() async throws {
+        let cardSize = CGSize(width: 320, height: 520)
+
+        #expect(InlineVideoCardGestureRouting.shouldReserveForVideoScrubber(
+            startLocation: CGPoint(x: 160, y: 470),
+            cardSize: cardSize,
+            isVideoPlaying: true,
+            reservedBottomHeight: 78,
+            isCurrentVideoScrubbing: false,
+            isScrubGestureActive: false
+        ))
+        #expect(!InlineVideoCardGestureRouting.shouldReserveForVideoScrubber(
+            startLocation: CGPoint(x: 160, y: 260),
+            cardSize: cardSize,
+            isVideoPlaying: true,
+            reservedBottomHeight: 78,
+            isCurrentVideoScrubbing: true,
+            isScrubGestureActive: false
+        ))
+        #expect(InlineVideoCardGestureRouting.shouldReserveForVideoScrubber(
+            startLocation: CGPoint(x: 160, y: 260),
+            cardSize: cardSize,
+            isVideoPlaying: true,
+            reservedBottomHeight: 78,
+            isCurrentVideoScrubbing: false,
+            isScrubGestureActive: true
+        ))
+    }
+
+    @Test func inlineVideoScrubGestureRegionIgnoresInactiveVideoAndInvalidSizes() async throws {
+        let cardSize = CGSize(width: 320, height: 520)
+
+        #expect(!InlineVideoScrubGestureRegion.contains(
+            startLocation: CGPoint(x: 160, y: 470),
+            cardSize: cardSize,
+            isVideoPlaying: false,
+            reservedBottomHeight: 78
+        ))
+        #expect(!InlineVideoScrubGestureRegion.contains(
+            startLocation: CGPoint(x: 160, y: 470),
+            cardSize: .zero,
+            isVideoPlaying: true,
+            reservedBottomHeight: 78
+        ))
+    }
+
+    @Test func albumShortcutVisibilityRequiresAlbumsAndActionableReviewPhoto() async throws {
+        #expect(AlbumShortcutVisibility.shouldShow(
+            isAlbumMode: false,
+            canPerformPhotoAction: true,
+            albumCount: 1
+        ))
+        #expect(!AlbumShortcutVisibility.shouldShow(
+            isAlbumMode: true,
+            canPerformPhotoAction: true,
+            albumCount: 1
+        ))
+        #expect(!AlbumShortcutVisibility.shouldShow(
+            isAlbumMode: false,
+            canPerformPhotoAction: false,
+            albumCount: 1
+        ))
+        #expect(!AlbumShortcutVisibility.shouldShow(
+            isAlbumMode: false,
+            canPerformPhotoAction: true,
+            albumCount: 0
+        ))
+    }
+
+    @Test func albumShortcutLayoutUsesCompactTwoRowsFromFourAlbums() async throws {
+        #expect(!AlbumShortcutLayout.usesTwoRows(albumCount: 3))
+        #expect(AlbumShortcutLayout.usesTwoRows(albumCount: 4))
+        #expect(AlbumShortcutLayout.stripHeight(albumCount: 3) == 44)
+        #expect(AlbumShortcutLayout.stripHeight(albumCount: 4) == 88)
+        #expect(AlbumShortcutLayout.rowSpacing <= 2)
+    }
+
+    @Test func albumShortcutEligibilityOnlyIncludesWritableUserAlbums() async throws {
+        #expect(AlbumShortcutEligibility.shouldInclude(
+            type: .userCreated,
+            hasAssetCollection: true,
+            canAddContent: true
+        ))
+        #expect(!AlbumShortcutEligibility.shouldInclude(
+            type: .userCreated,
+            hasAssetCollection: false,
+            canAddContent: true
+        ))
+        #expect(!AlbumShortcutEligibility.shouldInclude(
+            type: .userCreated,
+            hasAssetCollection: true,
+            canAddContent: false
+        ))
+        #expect(!AlbumShortcutEligibility.shouldInclude(
+            type: .favorites,
+            hasAssetCollection: true,
+            canAddContent: true
+        ))
+    }
+
+    @Test func albumReviewDownSwipeOnlyRemovesFromWritableUserAlbums() async throws {
+        #expect(AlbumReviewDownSwipeBehavior.resolve(
+            isAlbumMode: true,
+            albumType: .userCreated,
+            hasAssetCollection: true,
+            canRemoveContent: true
+        ) == .removeFromAlbum)
+        #expect(AlbumReviewDownSwipeBehavior.resolve(
+            isAlbumMode: false,
+            albumType: .userCreated,
+            hasAssetCollection: true,
+            canRemoveContent: true
+        ) == .returnToList)
+        #expect(AlbumReviewDownSwipeBehavior.resolve(
+            isAlbumMode: true,
+            albumType: .userCreated,
+            hasAssetCollection: false,
+            canRemoveContent: true
+        ) == .returnToList)
+        #expect(AlbumReviewDownSwipeBehavior.resolve(
+            isAlbumMode: true,
+            albumType: .favorites,
+            hasAssetCollection: true,
+            canRemoveContent: true
+        ) == .returnToList)
+        #expect(AlbumReviewDownSwipeBehavior.resolve(
+            isAlbumMode: true,
+            albumType: .userCreated,
+            hasAssetCollection: true,
+            canRemoveContent: false
+        ) == .returnToList)
+        #expect(AlbumReviewDownSwipeBehavior.removeFromAlbum.detailTitle == L10n.string("移出相册，不删除照片"))
+        #expect(AlbumReviewDownSwipeBehavior.removeFromAlbum.feedbackTitle == L10n.string("下滑移出相册"))
+    }
+
+    @Test func photoSwipeDragFeedbackPlacesDownSwipeHintAtTop() async throws {
+        #expect(PhotoSwipeDragFeedbackHintPlacement.placement(for: .down) == .top)
+        #expect(PhotoSwipeDragFeedbackHintPlacement.placement(for: .up) == .top)
+        #expect(PhotoSwipeDragFeedbackHintPlacement.placement(for: .left) == .center)
+        #expect(PhotoSwipeDragFeedbackHintPlacement.placement(for: .right) == .center)
+    }
+
+    @Test func photoLibraryLoadingPublishesOnlyUsefulLaunchUpdates() async throws {
+        #expect(PhotoLibraryLoadingPublishPolicy.shouldPublishInitialPhotos(
+            batchStart: 0,
+            batchEnd: 500,
+            totalCount: 5_000,
+            preserveExistingData: false
+        ))
+        #expect(!PhotoLibraryLoadingPublishPolicy.shouldPublishInitialPhotos(
+            batchStart: 500,
+            batchEnd: 1_000,
+            totalCount: 5_000,
+            preserveExistingData: false
+        ))
+        #expect(!PhotoLibraryLoadingPublishPolicy.shouldPublishInitialPhotos(
+            batchStart: 0,
+            batchEnd: 500,
+            totalCount: 5_000,
+            preserveExistingData: true
+        ))
+
+        #expect(!PhotoLibraryLoadingPublishPolicy.shouldPublishCategorizationProgress(
+            batchEnd: 500,
+            totalCount: 5_000,
+            batchSize: 100
+        ))
+        #expect(PhotoLibraryLoadingPublishPolicy.shouldPublishCategorizationProgress(
+            batchEnd: 1_000,
+            totalCount: 5_000,
+            batchSize: 100
+        ))
+        #expect(PhotoLibraryLoadingPublishPolicy.shouldPublishCategorizationProgress(
+            batchEnd: 5_000,
+            totalCount: 5_000,
+            batchSize: 100
+        ))
+    }
+
+    @Test func restoredSnapshotDefersTimelineBuildAfterLaunch() async throws {
+        #expect(PhotoLibraryStartupRefreshTiming.restoredSnapshotProgressDelay >= 1.0)
+        #expect(PhotoLibraryStartupRefreshTiming.restoredSnapshotProgressDelay <= 2.0)
+    }
+
+    @Test func albumReviewSessionsIgnorePersistedReviewedStateOnRefresh() async throws {
+        let persistedReviewedIDs: Set<String> = ["asset-a", "asset-b"]
+
+        #expect(PhotoReviewSessionReviewedStatePolicy.reviewedAssetIdentifiers(
+            isAlbumMode: true,
+            persistedReviewedAssetIdentifiers: persistedReviewedIDs
+        ).isEmpty)
+        #expect(PhotoReviewSessionReviewedStatePolicy.reviewedCount(
+            isAlbumMode: true,
+            persistedReviewedCount: persistedReviewedIDs.count
+        ) == 0)
+        #expect(!PhotoReviewSessionReviewedStatePolicy.shouldShowCompletionAfterRefresh(
+            isAlbumMode: true,
+            hasPhotos: true,
+            firstUnreviewedIndex: nil
+        ))
+
+        #expect(PhotoReviewSessionReviewedStatePolicy.reviewedAssetIdentifiers(
+            isAlbumMode: false,
+            persistedReviewedAssetIdentifiers: persistedReviewedIDs
+        ) == persistedReviewedIDs)
+        #expect(PhotoReviewSessionReviewedStatePolicy.reviewedCount(
+            isAlbumMode: false,
+            persistedReviewedCount: persistedReviewedIDs.count
+        ) == persistedReviewedIDs.count)
+        #expect(PhotoReviewSessionReviewedStatePolicy.shouldShowCompletionAfterRefresh(
+            isAlbumMode: false,
+            hasPhotos: true,
+            firstUnreviewedIndex: nil
+        ))
+    }
+
+    @Test func albumShortcutScrollRestorationDoesNotRunAfterCurrentPhotoChanges() async throws {
+        #expect(AlbumShortcutScrollRestorationPolicy.shouldRestore(anchorID: "album-a", reason: .appear))
+        #expect(AlbumShortcutScrollRestorationPolicy.shouldRestore(anchorID: "album-a", reason: .albumsChanged))
+        #expect(!AlbumShortcutScrollRestorationPolicy.shouldRestore(anchorID: "album-a", reason: .currentPhotoChanged))
+        #expect(!AlbumShortcutScrollRestorationPolicy.shouldRestore(anchorID: nil, reason: .appear))
+    }
+
+    @Test func albumShortcutVisibilityCanStayStableWhileAlbumFilingFinishes() async throws {
+        #expect(!AlbumShortcutVisibility.shouldShow(
+            isAlbumMode: false,
+            canPerformPhotoAction: false,
+            albumCount: 2
+        ))
+        #expect(AlbumShortcutVisibility.shouldShow(
+            isAlbumMode: false,
+            canPerformPhotoAction: false,
+            shouldKeepStableDuringFiling: true,
+            albumCount: 2
+        ))
+        #expect(!AlbumShortcutVisibility.shouldShow(
+            isAlbumMode: true,
+            canPerformPhotoAction: false,
+            shouldKeepStableDuringFiling: true,
+            albumCount: 2
+        ))
+    }
+
+    @Test func albumShortcutFilingCounterTracksConcurrentWrites() async throws {
+        let firstIncrement = AlbumShortcutFilingCounter.increment([:], albumID: "album-a")
+        let secondIncrement = AlbumShortcutFilingCounter.increment(firstIncrement, albumID: "album-a")
+
+        #expect(AlbumShortcutFilingCounter.isFiling(secondIncrement, albumID: "album-a"))
+        #expect(secondIncrement["album-a"] == 2)
+
+        let firstDecrement = AlbumShortcutFilingCounter.decrement(secondIncrement, albumID: "album-a")
+        #expect(AlbumShortcutFilingCounter.isFiling(firstDecrement, albumID: "album-a"))
+        #expect(firstDecrement["album-a"] == 1)
+
+        let secondDecrement = AlbumShortcutFilingCounter.decrement(firstDecrement, albumID: "album-a")
+        #expect(!AlbumShortcutFilingCounter.isFiling(secondDecrement, albumID: "album-a"))
+        #expect(secondDecrement["album-a"] == nil)
+    }
+
+    @Test func advancedPreviewPagingShowsSelectedPositionAndNeighbors() async throws {
+        let identifiers = ["first", "second", "third"]
+
+        #expect(AdvancedPreviewPaging.positionText(selectedIdentifier: "second", identifiers: identifiers) == "2 / 3")
+        #expect(AdvancedPreviewPaging.adjacentIdentifier(
+            selectedIdentifier: "second",
+            identifiers: identifiers,
+            direction: .previous
+        ) == "first")
+        #expect(AdvancedPreviewPaging.adjacentIdentifier(
+            selectedIdentifier: "second",
+            identifiers: identifiers,
+            direction: .next
+        ) == "third")
+    }
+
+    @Test func advancedPreviewPagingStopsAtEdgesAndHidesSingleItemPosition() async throws {
+        let identifiers = ["first", "second", "third"]
+
+        #expect(AdvancedPreviewPaging.positionText(selectedIdentifier: "first", identifiers: ["first"]) == nil)
+        #expect(AdvancedPreviewPaging.adjacentIdentifier(
+            selectedIdentifier: "first",
+            identifiers: identifiers,
+            direction: .previous
+        ) == nil)
+        #expect(AdvancedPreviewPaging.adjacentIdentifier(
+            selectedIdentifier: "third",
+            identifiers: identifiers,
+            direction: .next
+        ) == nil)
+    }
+
+    @Test func advancedSelectableThumbnailSelectionButtonStaysVisuallySubtle() async throws {
+        #expect(AdvancedSelectableThumbnailSelectionButtonStyle.selectedIconOpacity <= 0.8)
+        #expect(AdvancedSelectableThumbnailSelectionButtonStyle.unselectedIconOpacity <= 0.65)
+        #expect(AdvancedSelectableThumbnailSelectionButtonStyle.backgroundOpacity(isSelected: true) <= 0.5)
+        #expect(AdvancedSelectableThumbnailSelectionButtonStyle.backgroundOpacity(isSelected: false) <= 0.3)
+        #expect(AdvancedSelectableThumbnailSelectionButtonStyle.shadowOpacity <= 0.15)
+        #expect(AdvancedSelectableThumbnailSelectionButtonStyle.visualSize <= 30)
     }
 
     @Test func visibleListPaginationFiltersBeforePagingAndClampsLimit() async throws {

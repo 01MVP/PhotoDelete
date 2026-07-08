@@ -386,6 +386,9 @@ enum AppConstants {
     static let feedbackEmail = "contact@01mvp.com"
     static let wechatID = "mvps01"
     static let websiteURL = "https://01mvp.com"
+    static let appStoreID = "6779493280"
+    static let appStoreProductURL = URL(string: "https://apps.apple.com/app/id6779493280")!
+    static let appStoreReviewURL = URL(string: "itms-apps://itunes.apple.com/app/id6779493280?action=write-review")!
     static let oneZenAppStoreURL = URL(string: "https://apps.apple.com/cn/app/id6780318004")!
     static let technicalAppName = "PhotoDelete"
     static let zhHansAppStoreName = "删图"
@@ -409,11 +412,14 @@ enum AppConstants {
     static let rightSwipeActionKey = "photoDeleteRightSwipeAction"
     static let upSwipeActionKey = "photoDeleteUpSwipeAction"
     static let gestureDefaultMigrationKey = "photoDeleteGestureDefaultMigration"
-    static let reviewMediaAutoPlayKey = "photoDeleteReviewMediaAutoPlay"
+    static let reviewVideoAutoPlayKey = "photoDeleteReviewMediaAutoPlay"
+    static let reviewMediaAutoPlayKey = reviewVideoAutoPlayKey
+    static let reviewLivePhotoAutoPlayKey = "photoDeleteReviewLivePhotoAutoPlay"
     static let reviewVideoMutedKey = "photoDeleteReviewVideoMuted"
     static let reviewModeKey = "photoDeleteReviewMode"
     static let hasSeenReviewModeHintKey = "photoDeleteHasSeenReviewModeHint"
     static let hasSeenAlbumShortcutHintKey = "photoDeleteHasSeenAlbumShortcutHintV2"
+    static let hasSeenAlbumDownSwipeHintKey = "photoDeleteHasSeenAlbumDownSwipeHint"
     static let hasSeenDeleteButtonTipKey = "photoDeleteHasSeenDeleteButtonTip"
     static let gestureUpdateNoticePendingKey = "photoDeleteGestureUpdateNoticePendingV1"
     static let reviewProgressByScopeKey = "photoDeleteReviewProgressByScope"

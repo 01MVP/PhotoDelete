@@ -931,7 +931,9 @@ struct PhotoAssetVideoPlayerView: View {
     var autoPlay = true
     var isMuted = true
     var ignoresSafeArea = true
-    var allowsPlayerInteraction = true
+    var allowsPlayerInteraction = false
+    var allowsSurfaceTapToRevealControls = true
+    var playbackControlsRevealToken: UUID?
     var onScrubbingChanged: (Bool) -> Void = { _ in }
 
     @State private var player: AVPlayer?
@@ -943,6 +945,11 @@ struct PhotoAssetVideoPlayerView: View {
     @State private var timeObserverToken: Any?
     @State private var isScrubbingPlayback = false
     @State private var wasPlayingBeforeScrub = false
+    @State private var isPlaying = false
+    @State private var playbackEndObserver: NSObjectProtocol?
+    @State private var showsPlaybackControls = false
+    @State private var playbackControlsHideWorkItem: DispatchWorkItem?
+    @State private var scrubResumeWorkItem: DispatchWorkItem?
 
     var body: some View {
         ZStack {
@@ -950,22 +957,47 @@ struct PhotoAssetVideoPlayerView: View {
                 .ignoresSafeArea(edges: ignoresSafeArea ? .all : [])
 
             if let player {
-                VideoPlayer(player: player)
-                    .ignoresSafeArea(edges: ignoresSafeArea ? .all : [])
-                    .allowsHitTesting(allowsPlayerInteraction)
-                    .overlay(alignment: .bottom) {
-                        VideoPlaybackProgressBar(
-                            progress: playbackProgress,
-                            onScrub: seekToProgress,
-                            onScrubbingChanged: handlePlaybackScrubbingChanged
-                        )
-                    }
-                    .onAppear {
-                        if autoPlay {
-                            player.isMuted = isMuted
-                            player.play()
+                ZStack {
+                    VideoPlayer(player: player)
+                        .ignoresSafeArea(edges: ignoresSafeArea ? .all : [])
+                        .allowsHitTesting(allowsPlayerInteraction)
+
+                    if allowsSurfaceTapToRevealControls {
+                        VStack(spacing: 0) {
+                            VideoPlaybackTapRevealArea {
+                                revealPlaybackControls()
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            Color.clear
+                                .frame(height: VideoPlaybackControlLayout.progressHitHeight)
+                                .allowsHitTesting(false)
                         }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
+
+                    if shouldShowPlaybackButton && !isScrubbingPlayback {
+                        VideoPlaybackPlayPauseButton(isPlaying: isPlaying) {
+                            togglePlayback(for: player)
+                        }
+                        .transition(.opacity)
+                        .animation(.easeInOut(duration: 0.16), value: isScrubbingPlayback)
+                    }
+                }
+                .contentShape(Rectangle())
+                .overlay(alignment: .bottom) {
+                    VideoPlaybackProgressBar(
+                        progress: playbackProgress,
+                        onScrub: seekToProgress,
+                        onScrubbingChanged: handlePlaybackScrubbingChanged
+                    )
+                    .zIndex(2)
+                    .allowsHitTesting(true)
+                }
+                .onAppear {
+                    if autoPlay {
+                        startPlayback(for: player)
+                    }
+                }
             } else {
                 VStack(spacing: 14) {
                     if isLoading {
@@ -985,10 +1017,13 @@ struct PhotoAssetVideoPlayerView: View {
                 .padding(24)
             }
         }
-        .accessibilityLabel(didFail ? L10n.string("无法播放这个视频") : L10n.string("视频预览"))
         .onAppear(perform: loadPlayer)
         .onChange(of: isMuted) { muted in
             player?.isMuted = muted
+        }
+        .onChange(of: playbackControlsRevealToken) { token in
+            guard token != nil else { return }
+            revealPlaybackControls()
         }
         .onDisappear(perform: cleanup)
     }
@@ -1001,6 +1036,8 @@ struct PhotoAssetVideoPlayerView: View {
         isLoading = true
         didFail = false
         playbackProgress = 0
+        showsPlaybackControls = false
+        cancelPlaybackControlsAutoHide()
 
         requestID = photoLibraryManager.loadPlayerItem(for: asset) { playerItem in
             guard loadingAssetIdentifier == requestedAssetID else { return }
@@ -1017,10 +1054,89 @@ struct PhotoAssetVideoPlayerView: View {
             loadedPlayer.isMuted = isMuted
             player = loadedPlayer
             installPlaybackProgressObserver(for: loadedPlayer)
+            installPlaybackEndObserver(for: playerItem)
             if autoPlay {
-                loadedPlayer.play()
+                startPlayback(for: loadedPlayer)
             }
         }
+    }
+
+    private func startPlayback(for player: AVPlayer) {
+        player.isMuted = isMuted
+        player.play()
+        isPlaying = true
+        schedulePlaybackControlsAutoHideIfNeeded()
+    }
+
+    private func pausePlayback(for player: AVPlayer) {
+        player.pause()
+        isPlaying = false
+        setPlaybackControlsVisible(true, autoHide: false)
+    }
+
+    private func togglePlayback(for player: AVPlayer) {
+        if isPlaying || player.timeControlStatus == .playing {
+            pausePlayback(for: player)
+            return
+        }
+
+        if playbackProgress >= 0.995 {
+            player.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero)
+            playbackProgress = 0
+        }
+        startPlayback(for: player)
+    }
+
+    private var shouldShowPlaybackButton: Bool {
+        VideoPlaybackControlVisibility.shouldShowButton(
+            isPlaying: isPlaying,
+            controlsVisible: showsPlaybackControls,
+            playbackProgress: playbackProgress
+        )
+    }
+
+    private func revealPlaybackControls() {
+        setPlaybackControlsVisible(true, autoHide: isPlaying)
+    }
+
+    private func setPlaybackControlsVisible(_ isVisible: Bool, autoHide: Bool) {
+        withAnimation(.easeInOut(duration: 0.16)) {
+            showsPlaybackControls = isVisible
+        }
+
+        if autoHide {
+            schedulePlaybackControlsAutoHideIfNeeded()
+        } else {
+            cancelPlaybackControlsAutoHide()
+        }
+    }
+
+    private func schedulePlaybackControlsAutoHideIfNeeded(after delay: TimeInterval = 2.0) {
+        cancelPlaybackControlsAutoHide()
+        guard VideoPlaybackControlVisibility.shouldAutoHideControls(
+            isPlaying: isPlaying,
+            controlsVisible: showsPlaybackControls
+        ) else {
+            return
+        }
+
+        let workItem = DispatchWorkItem {
+            guard isPlaying else { return }
+            guard !isScrubbingPlayback else {
+                schedulePlaybackControlsAutoHideIfNeeded(after: VideoPlaybackScrubTiming.controlHideRetryDelay)
+                return
+            }
+            withAnimation(.easeInOut(duration: 0.16)) {
+                showsPlaybackControls = false
+            }
+        }
+        playbackControlsHideWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
+    }
+
+    private func cancelPlaybackControlsAutoHide() {
+        playbackControlsHideWorkItem?.cancel()
+        playbackControlsHideWorkItem = nil
     }
 
     private func installPlaybackProgressObserver(for loadedPlayer: AVPlayer) {
@@ -1032,8 +1148,11 @@ struct PhotoAssetVideoPlayerView: View {
         ) { [weak loadedPlayer] time in
             guard let currentPlayer = loadedPlayer else { return }
             guard !isScrubbingPlayback else { return }
-            let duration = currentPlayer.currentItem?.duration.seconds ?? 0
-            guard duration.isFinite, duration > 0, time.seconds.isFinite else {
+            guard let duration = VideoPlaybackDurationResolver.playableDuration(
+                playerItemDuration: currentPlayer.currentItem?.duration.seconds,
+                assetDuration: asset.duration
+            ),
+                  time.seconds.isFinite else {
                 playbackProgress = 0
                 return
             }
@@ -1047,25 +1166,65 @@ struct PhotoAssetVideoPlayerView: View {
         self.timeObserverToken = nil
     }
 
+    private func installPlaybackEndObserver(for playerItem: AVPlayerItem) {
+        removePlaybackEndObserver()
+        playbackEndObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: playerItem,
+            queue: .main
+        ) { _ in
+            playbackProgress = 1
+            isPlaying = false
+            setPlaybackControlsVisible(true, autoHide: false)
+        }
+    }
+
+    private func removePlaybackEndObserver() {
+        guard let playbackEndObserver else { return }
+        NotificationCenter.default.removeObserver(playbackEndObserver)
+        self.playbackEndObserver = nil
+    }
+
     private func handlePlaybackScrubbingChanged(_ isScrubbing: Bool) {
         guard isScrubbingPlayback != isScrubbing else { return }
         isScrubbingPlayback = isScrubbing
         onScrubbingChanged(isScrubbing)
 
         if isScrubbing {
-            wasPlayingBeforeScrub = player?.timeControlStatus == .playing
+            cancelScrubResume()
+            setPlaybackControlsVisible(true, autoHide: false)
+            wasPlayingBeforeScrub = VideoPlaybackScrubResumePolicy.shouldResumeAfterScrub(
+                wasPlayingState: isPlaying,
+                playerWasPlaying: player?.timeControlStatus == .playing,
+                autoPlayEnabled: autoPlay,
+                playbackProgress: playbackProgress
+            )
             player?.pause()
-        } else if wasPlayingBeforeScrub {
-            player?.play()
+            isPlaying = false
+        } else if VideoPlaybackScrubResumePolicy.shouldResumeAfterScrub(
+            wasPlayingState: wasPlayingBeforeScrub,
+            playerWasPlaying: player?.timeControlStatus == .playing,
+            autoPlayEnabled: autoPlay,
+            playbackProgress: playbackProgress
+        ) {
+            if let player {
+                cancelScrubResume()
+                startPlayback(for: player)
+                schedulePlaybackControlsAutoHideIfNeeded(after: VideoPlaybackScrubTiming.controlHideAfterResumeDelay)
+            }
             wasPlayingBeforeScrub = false
+        } else {
+            isPlaying = player?.timeControlStatus == .playing
+            setPlaybackControlsVisible(true, autoHide: isPlaying)
         }
     }
 
     private func seekToProgress(_ progress: Double) {
         guard let player,
-              let duration = player.currentItem?.duration.seconds,
-              duration.isFinite,
-              duration > 0 else {
+              let duration = VideoPlaybackDurationResolver.playableDuration(
+                playerItemDuration: player.currentItem?.duration.seconds,
+                assetDuration: asset.duration
+              ) else {
             return
         }
 
@@ -1076,6 +1235,37 @@ struct PhotoAssetVideoPlayerView: View {
             toleranceBefore: .zero,
             toleranceAfter: .zero
         )
+        schedulePlaybackResumeAfterScrubSeek()
+    }
+
+    private func schedulePlaybackResumeAfterScrubSeek() {
+        guard autoPlay, playbackProgress < 0.995 else { return }
+        scrubResumeWorkItem?.cancel()
+        let workItem = DispatchWorkItem {
+            guard autoPlay,
+                  playbackProgress < 0.995,
+                  let player else {
+                return
+            }
+            if isScrubbingPlayback {
+                isScrubbingPlayback = false
+                onScrubbingChanged(false)
+            }
+            wasPlayingBeforeScrub = false
+            startPlayback(for: player)
+            schedulePlaybackControlsAutoHideIfNeeded(after: VideoPlaybackScrubTiming.controlHideAfterResumeDelay)
+            scrubResumeWorkItem = nil
+        }
+        scrubResumeWorkItem = workItem
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + VideoPlaybackScrubTiming.resumeAfterLastScrubDelay,
+            execute: workItem
+        )
+    }
+
+    private func cancelScrubResume() {
+        scrubResumeWorkItem?.cancel()
+        scrubResumeWorkItem = nil
     }
 
     private func cleanup() {
@@ -1083,9 +1273,14 @@ struct PhotoAssetVideoPlayerView: View {
         requestID = nil
         loadingAssetIdentifier = nil
         removePlaybackProgressObserver()
+        removePlaybackEndObserver()
+        cancelPlaybackControlsAutoHide()
+        cancelScrubResume()
         player?.pause()
         player = nil
         playbackProgress = 0
+        isPlaying = false
+        showsPlaybackControls = false
         if isScrubbingPlayback {
             onScrubbingChanged(false)
         }
@@ -1105,6 +1300,105 @@ enum VideoPlaybackProgressMapper {
     }
 }
 
+enum VideoPlaybackDurationResolver {
+    static func playableDuration(playerItemDuration: Double?, assetDuration: TimeInterval) -> Double? {
+        if let playerItemDuration,
+           playerItemDuration.isFinite,
+           playerItemDuration > 0 {
+            return playerItemDuration
+        }
+
+        guard assetDuration.isFinite, assetDuration > 0 else { return nil }
+        return assetDuration
+    }
+}
+
+enum VideoPlaybackControlLayout {
+    static let progressHitHeight: CGFloat = 54
+    static let progressHorizontalPadding: CGFloat = 14
+
+    static func isInProgressHitRegion(point: CGPoint, containerSize: CGSize) -> Bool {
+        guard containerSize.width > 0,
+              containerSize.height > 0,
+              progressHitHeight > 0 else {
+            return false
+        }
+
+        let progressTop = max(containerSize.height - progressHitHeight, 0)
+        return point.x >= 0 &&
+            point.x <= containerSize.width &&
+            point.y >= progressTop &&
+            point.y <= containerSize.height
+    }
+}
+
+enum VideoPlaybackScrubResumePolicy {
+    static func shouldResumeAfterScrub(
+        wasPlayingState: Bool,
+        playerWasPlaying: Bool,
+        autoPlayEnabled: Bool = false,
+        playbackProgress: Double = 0
+    ) -> Bool {
+        wasPlayingState || playerWasPlaying || (autoPlayEnabled && playbackProgress < 0.995)
+    }
+}
+
+enum VideoPlaybackScrubTiming {
+    static let endFallbackDelay: TimeInterval = 0.18
+    static let resumeAfterLastScrubDelay: TimeInterval = 0.24
+    static let controlHideRetryDelay: TimeInterval = 0.25
+    static let controlHideAfterResumeDelay: TimeInterval = 0.45
+}
+
+enum VideoPlaybackControlVisibility {
+    static func shouldShowButton(isPlaying: Bool, controlsVisible: Bool, playbackProgress: Double) -> Bool {
+        controlsVisible || !isPlaying || playbackProgress >= 0.995
+    }
+
+    static func shouldAutoHideControls(isPlaying: Bool, controlsVisible: Bool) -> Bool {
+        isPlaying && controlsVisible
+    }
+}
+
+private struct VideoPlaybackPlayPauseButton: View {
+    let isPlaying: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(
+                L10n.string(isPlaying ? "暂停视频" : "播放视频"),
+                systemImage: isPlaying ? "pause.fill" : "play.fill"
+            )
+            .labelStyle(.iconOnly)
+            .font(.system(size: 20, weight: .bold))
+            .foregroundColor(.white)
+            .frame(width: 50, height: 50)
+            .background(Circle().fill(Color.black.opacity(0.62)))
+            .overlay(Circle().stroke(Color.white.opacity(0.24), lineWidth: 1))
+            .shadow(color: .black.opacity(0.28), radius: 8, x: 0, y: 3)
+        }
+        .buttonStyle(.plain)
+        .photoDeleteMinimumTapTarget()
+        .accessibilityIdentifier("video-playback-toggle-button")
+        .accessibilityLabel(L10n.string(isPlaying ? "暂停视频" : "播放视频"))
+    }
+}
+
+private struct VideoPlaybackTapRevealArea: View {
+    let action: () -> Void
+
+    var body: some View {
+        Color.clear
+            .contentShape(Rectangle())
+            .simultaneousGesture(TapGesture().onEnded { action() }, including: .gesture)
+            .accessibilityElement(children: .ignore)
+            .accessibilityIdentifier("photo-asset-video-player")
+            .accessibilityLabel(L10n.string("视频预览"))
+            .accessibilityAddTraits(.isButton)
+    }
+}
+
 private struct VideoPlaybackProgressBar: View {
     let progress: Double
     let onScrub: (Double) -> Void
@@ -1117,28 +1411,13 @@ private struct VideoPlaybackProgressBar: View {
     }
 
     var body: some View {
-        GeometryReader { proxy in
-            ZStack(alignment: .leading) {
-                Capsule(style: .continuous)
-                    .fill(Color.white.opacity(0.24))
-
-                Capsule(style: .continuous)
-                    .fill(PhotoDeleteStyle.accent)
-                    .frame(width: proxy.size.width * CGFloat(displayedProgress))
-
-                Circle()
-                    .fill(Color.white)
-                    .frame(width: 14, height: 14)
-                    .shadow(color: .black.opacity(0.28), radius: 4, x: 0, y: 1)
-                    .offset(x: max(0, proxy.size.width * CGFloat(displayedProgress) - 7))
-            }
-            .frame(height: 18)
-            .contentShape(Rectangle())
-            .gesture(scrubGesture(width: proxy.size.width))
-        }
-        .frame(height: 18)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        VideoPlaybackSlider(
+            progress: displayedProgress,
+            onScrub: updateScrubProgress,
+            onScrubbingChanged: handleSliderEditingChanged
+        )
+        .frame(height: VideoPlaybackControlLayout.progressHitHeight)
+        .padding(.horizontal, VideoPlaybackControlLayout.progressHorizontalPadding)
         .background(
             LinearGradient(
                 colors: [.clear, Color.black.opacity(0.46)],
@@ -1146,35 +1425,195 @@ private struct VideoPlaybackProgressBar: View {
                 endPoint: .bottom
             )
         )
+        .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(L10n.string("视频预览"))
         .accessibilityValue(L10n.percent(Int(displayedProgress * 100)))
+        .accessibilityIdentifier("video-playback-progress-bar")
     }
 
-    private func scrubGesture(width: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 0)
-            .onChanged { value in
-                let nextProgress = VideoPlaybackProgressMapper.progress(
-                    locationX: value.location.x,
-                    width: width
-                )
-                if scrubbingProgress == nil {
-                    onScrubbingChanged(true)
-                }
-                scrubbingProgress = nextProgress
-                onScrub(nextProgress)
+    private func updateScrubProgress(_ progress: Double) {
+        let clampedProgress = VideoPlaybackProgressMapper.clamped(progress)
+        if scrubbingProgress == nil {
+            onScrubbingChanged(true)
+        }
+        scrubbingProgress = clampedProgress
+        onScrub(clampedProgress)
+    }
+
+    private func handleSliderEditingChanged(_ isEditing: Bool) {
+        if isEditing {
+            if scrubbingProgress == nil {
+                onScrubbingChanged(true)
             }
-            .onEnded { value in
-                let finalProgress = VideoPlaybackProgressMapper.progress(
-                    locationX: value.location.x,
-                    width: width
-                )
-                onScrub(finalProgress)
-                scrubbingProgress = nil
-                onScrubbingChanged(false)
-            }
+            return
+        }
+
+        if let scrubbingProgress {
+            onScrub(scrubbingProgress)
+        }
+        scrubbingProgress = nil
+        onScrubbingChanged(false)
     }
 }
+
+#if canImport(UIKit)
+private struct VideoPlaybackSlider: UIViewRepresentable {
+    let progress: Double
+    let onScrub: (Double) -> Void
+    let onScrubbingChanged: (Bool) -> Void
+
+    func makeUIView(context: Context) -> UISlider {
+        let slider = ScrubbableSlider(frame: .zero)
+        slider.accessibilityIdentifier = "video-playback-slider"
+        slider.minimumValue = 0
+        slider.maximumValue = 1
+        slider.isContinuous = true
+        slider.minimumTrackTintColor = UIColor(PhotoDeleteStyle.accent)
+        slider.maximumTrackTintColor = UIColor.white.withAlphaComponent(0.28)
+        slider.setThumbImage(Self.thumbImage(diameter: 20), for: .normal)
+        slider.setThumbImage(Self.thumbImage(diameter: 24), for: .highlighted)
+        slider.addTarget(context.coordinator, action: #selector(Coordinator.touchDown(_:)), for: .touchDown)
+        slider.addTarget(context.coordinator, action: #selector(Coordinator.valueChanged(_:)), for: .valueChanged)
+        slider.addTarget(
+            context.coordinator,
+            action: #selector(Coordinator.touchEnded(_:)),
+            for: [.touchUpInside, .touchUpOutside, .touchCancel]
+        )
+
+        slider.value = Float(VideoPlaybackProgressMapper.clamped(progress))
+        return slider
+    }
+
+    func updateUIView(_ slider: UISlider, context: Context) {
+        context.coordinator.parent = self
+        slider.minimumTrackTintColor = UIColor(PhotoDeleteStyle.accent)
+        slider.maximumTrackTintColor = UIColor.white.withAlphaComponent(0.28)
+
+        guard !slider.isTracking else { return }
+        slider.value = Float(VideoPlaybackProgressMapper.clamped(progress))
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    static func dismantleUIView(_ slider: UISlider, coordinator: Coordinator) {
+        coordinator.forceEndScrubbing()
+    }
+
+    private static func thumbImage(diameter: CGFloat) -> UIImage {
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: diameter, height: diameter))
+        return renderer.image { context in
+            let rect = CGRect(x: 0, y: 0, width: diameter, height: diameter)
+            context.cgContext.setShadow(
+                offset: CGSize(width: 0, height: 1),
+                blur: 4,
+                color: UIColor.black.withAlphaComponent(0.28).cgColor
+            )
+            UIColor.white.setFill()
+            context.cgContext.fillEllipse(in: rect.insetBy(dx: 2, dy: 2))
+        }
+    }
+
+    private final class ScrubbableSlider: UISlider {
+        private let minimumTouchHeight: CGFloat = 54
+
+        override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+            let verticalInset = max(0, (minimumTouchHeight - bounds.height) / 2)
+            return bounds.insetBy(dx: 0, dy: -verticalInset).contains(point)
+        }
+
+        override func beginTracking(_ touch: UITouch, with event: UIEvent?) -> Bool {
+            updateValue(for: touch)
+            sendActions(for: .touchDown)
+            sendActions(for: .valueChanged)
+            return true
+        }
+
+        override func continueTracking(_ touch: UITouch, with event: UIEvent?) -> Bool {
+            updateValue(for: touch)
+            sendActions(for: .valueChanged)
+            return true
+        }
+
+        override func endTracking(_ touch: UITouch?, with event: UIEvent?) {
+            if let touch {
+                updateValue(for: touch)
+                sendActions(for: .valueChanged)
+            }
+            sendActions(for: .touchUpInside)
+            super.endTracking(touch, with: event)
+        }
+
+        override func cancelTracking(with event: UIEvent?) {
+            sendActions(for: .touchCancel)
+            super.cancelTracking(with: event)
+        }
+
+        private func updateValue(for touch: UITouch) {
+            let progress = VideoPlaybackProgressMapper.progress(
+                locationX: touch.location(in: self).x,
+                width: bounds.width
+            )
+            value = Float(progress)
+        }
+    }
+
+    final class Coordinator: NSObject {
+        var parent: VideoPlaybackSlider
+        private var isScrubbing = false
+        private var scrubEndFallbackWorkItem: DispatchWorkItem?
+
+        init(parent: VideoPlaybackSlider) {
+            self.parent = parent
+        }
+
+        @objc func touchDown(_ slider: UISlider) {
+            beginScrubbing()
+            parent.onScrub(Double(slider.value))
+        }
+
+        @objc func valueChanged(_ slider: UISlider) {
+            beginScrubbing()
+            scheduleScrubEndFallback()
+            parent.onScrub(Double(slider.value))
+        }
+
+        @objc func touchEnded(_ slider: UISlider) {
+            parent.onScrub(Double(slider.value))
+            endScrubbing()
+        }
+
+        private func beginScrubbing() {
+            guard !isScrubbing else { return }
+            isScrubbing = true
+            parent.onScrubbingChanged(true)
+        }
+
+        private func endScrubbing() {
+            scrubEndFallbackWorkItem?.cancel()
+            scrubEndFallbackWorkItem = nil
+            guard isScrubbing else { return }
+            isScrubbing = false
+            parent.onScrubbingChanged(false)
+        }
+
+        func forceEndScrubbing() {
+            endScrubbing()
+        }
+
+        private func scheduleScrubEndFallback() {
+            scrubEndFallbackWorkItem?.cancel()
+            let workItem = DispatchWorkItem { [weak self] in
+                self?.endScrubbing()
+            }
+            scrubEndFallbackWorkItem = workItem
+            DispatchQueue.main.asyncAfter(deadline: .now() + VideoPlaybackScrubTiming.endFallbackDelay, execute: workItem)
+        }
+    }
+}
+#endif
 
 struct CandidatePhotoPreviewView: View {
     @Environment(\.dismiss) private var dismiss
@@ -1484,10 +1923,11 @@ struct LivePhotoPreviewRepresentable: UIViewRepresentable {
     var autoPlay = true
     var isMuted = true
     var playbackStyle: PHLivePhotoViewPlaybackStyle = .full
+    var playbackTrigger = 0
     var contentMode: UIView.ContentMode = .scaleAspectFit
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(autoPlay: autoPlay, playbackStyle: playbackStyle)
+        Coordinator(autoPlay: autoPlay, playbackStyle: playbackStyle, playbackTrigger: playbackTrigger)
     }
 
     func makeUIView(context: Context) -> PHLivePhotoView {
@@ -1499,17 +1939,26 @@ struct LivePhotoPreviewRepresentable: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: PHLivePhotoView, context: Context) {
+        let didChangePlaybackTrigger = context.coordinator.playbackTrigger != playbackTrigger
         context.coordinator.autoPlay = autoPlay
         context.coordinator.playbackStyle = playbackStyle
+        context.coordinator.playbackTrigger = playbackTrigger
         context.coordinator.isDismantled = false
         uiView.contentMode = contentMode
         uiView.isMuted = isMuted
 
+        if !autoPlay {
+            uiView.stopPlayback()
+            context.coordinator.isPlaying = false
+        }
+
         if context.coordinator.displayedLivePhoto !== livePhoto {
             context.coordinator.displayedLivePhoto = livePhoto
             uiView.livePhoto = livePhoto
-            context.coordinator.startPlayback(in: uiView, delay: 0.12)
-        } else if autoPlay, !context.coordinator.isPlaying {
+            if autoPlay {
+                context.coordinator.startPlayback(in: uiView, delay: 0.12)
+            }
+        } else if autoPlay, didChangePlaybackTrigger {
             context.coordinator.startPlayback(in: uiView, delay: 0.12)
         }
     }
@@ -1526,12 +1975,14 @@ struct LivePhotoPreviewRepresentable: UIViewRepresentable {
         weak var displayedLivePhoto: PHLivePhoto?
         var autoPlay: Bool
         var playbackStyle: PHLivePhotoViewPlaybackStyle
+        var playbackTrigger: Int
         var isPlaying = false
         var isDismantled = false
 
-        init(autoPlay: Bool, playbackStyle: PHLivePhotoViewPlaybackStyle) {
+        init(autoPlay: Bool, playbackStyle: PHLivePhotoViewPlaybackStyle, playbackTrigger: Int) {
             self.autoPlay = autoPlay
             self.playbackStyle = playbackStyle
+            self.playbackTrigger = playbackTrigger
         }
 
         func startPlayback(in view: PHLivePhotoView, delay: TimeInterval) {
@@ -1554,7 +2005,9 @@ struct LivePhotoPreviewRepresentable: UIViewRepresentable {
 
         func livePhotoView(_ livePhotoView: PHLivePhotoView, didEndPlaybackWith playbackStyle: PHLivePhotoViewPlaybackStyle) {
             isPlaying = false
-            startPlayback(in: livePhotoView, delay: 0.75)
+            if LivePhotoPlaybackLoopPolicy.shouldRestartAfterPlaybackEnds(autoPlay: autoPlay) {
+                startPlayback(in: livePhotoView, delay: 0.75)
+            }
         }
     }
 }

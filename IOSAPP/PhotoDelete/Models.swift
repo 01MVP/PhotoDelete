@@ -12,6 +12,7 @@ import Photos
 // MARK: - 照片分类
 enum PhotoCategory: String, CaseIterable {
     case all = "全部照片"
+    case unclassified = "未归类照片"
     case videos = "视频"
     case screenshots = "截图"
     case livePhotos = "实况照片"
@@ -20,6 +21,7 @@ enum PhotoCategory: String, CaseIterable {
     var title: String {
         switch self {
         case .all: return L10n.string("全部照片")
+        case .unclassified: return L10n.string("未归类照片")
         case .videos: return L10n.string("视频")
         case .screenshots: return L10n.string("截图")
         case .livePhotos: return L10n.string("实况照片")
@@ -30,11 +32,21 @@ enum PhotoCategory: String, CaseIterable {
     var icon: String {
         switch self {
         case .all: return "photo.on.rectangle"
+        case .unclassified: return "tray"
         case .videos: return "video"
         case .screenshots: return "iphone"
         case .livePhotos: return "livephoto"
         case .favorites: return "heart"
         }
+    }
+}
+
+enum UnclassifiedPhotoFilter {
+    static func unclassifiedIdentifiers(
+        allIdentifiers: [String],
+        albumMemberIdentifiers: Set<String>
+    ) -> [String] {
+        allIdentifiers.filter { !albumMemberIdentifiers.contains($0) }
     }
 }
 
@@ -162,19 +174,19 @@ struct SwipeGesturePreset: Identifiable, Equatable {
         upAction: .delete
     )
 
-    static let leftDeleteNext = SwipeGesturePreset(
-        id: "leftDelete",
-        titleKey: "左滑删除",
-        subtitleKey: "左滑删除，右滑下一张，上滑收藏",
-        leftAction: .delete,
-        rightAction: .next,
+    static let leftKeepRightDelete = SwipeGesturePreset(
+        id: "leftKeepRightDelete",
+        titleKey: "左留右删",
+        subtitleKey: "左滑保留，右滑删除，上滑收藏",
+        leftAction: .keep,
+        rightAction: .delete,
         upAction: .favorite
     )
 
     static let presets: [SwipeGesturePreset] = [
         .standard,
         .browse,
-        .leftDeleteNext
+        .leftKeepRightDelete
     ]
 }
 
@@ -221,10 +233,8 @@ enum SwipeGesturePreferences {
             defaults.set(SwipeGesturePreset.standard.leftAction.rawValue, forKey: AppConstants.leftSwipeActionKey)
             defaults.set(SwipeGesturePreset.standard.rightAction.rawValue, forKey: AppConstants.rightSwipeActionKey)
             defaults.set(SwipeGesturePreset.standard.upAction.rawValue, forKey: AppConstants.upSwipeActionKey)
-            defaults.set(true, forKey: AppConstants.gestureUpdateNoticePendingKey)
-        } else if defaults.object(forKey: AppConstants.gestureUpdateNoticePendingKey) == nil {
-            defaults.set(false, forKey: AppConstants.gestureUpdateNoticePendingKey)
         }
+        defaults.set(false, forKey: AppConstants.gestureUpdateNoticePendingKey)
 
         defaults.set(gestureMigrationVersion, forKey: AppConstants.gestureDefaultMigrationKey)
     }
@@ -232,8 +242,28 @@ enum SwipeGesturePreferences {
 
 enum ReviewPlaybackPreferences {
     static func applyLaunchDefaults(defaults: UserDefaults = .standard) {
-        guard defaults.object(forKey: AppConstants.reviewVideoMutedKey) == nil else { return }
-        defaults.set(true, forKey: AppConstants.reviewVideoMutedKey)
+        if defaults.object(forKey: AppConstants.reviewVideoMutedKey) == nil {
+            defaults.set(true, forKey: AppConstants.reviewVideoMutedKey)
+        }
+        if defaults.object(forKey: AppConstants.reviewLivePhotoAutoPlayKey) == nil {
+            defaults.set(false, forKey: AppConstants.reviewLivePhotoAutoPlayKey)
+        }
+    }
+}
+
+enum LivePhotoPlaybackDefaultPolicy {
+    static func initialMotionEnabled(isLivePhoto: Bool, autoPlayPreference: Bool) -> Bool {
+        isLivePhoto && autoPlayPreference
+    }
+
+    static func toggledMotionEnabled(current: Bool) -> Bool {
+        !current
+    }
+}
+
+enum LivePhotoPlaybackLoopPolicy {
+    static func shouldRestartAfterPlaybackEnds(autoPlay _: Bool) -> Bool {
+        false
     }
 }
 

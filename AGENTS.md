@@ -1,4 +1,5 @@
 # AGENTS.md
+DO NOT send optional commentary
 
 This file provides guidance to Codex when working in this repository.
 

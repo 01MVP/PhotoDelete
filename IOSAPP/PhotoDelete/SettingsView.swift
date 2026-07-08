@@ -6,9 +6,6 @@
 //
 
 import SwiftUI
-#if canImport(StoreKit)
-import StoreKit
-#endif
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -27,7 +24,8 @@ struct SettingsView: View {
     @AppStorage(AppConstants.leftSwipeActionKey) private var leftSwipeActionValue = SwipeGesturePreset.standard.leftAction.rawValue
     @AppStorage(AppConstants.rightSwipeActionKey) private var rightSwipeActionValue = SwipeGesturePreset.standard.rightAction.rawValue
     @AppStorage(AppConstants.upSwipeActionKey) private var upSwipeActionValue = SwipeGesturePreset.standard.upAction.rawValue
-    @AppStorage(AppConstants.reviewMediaAutoPlayKey) private var reviewMediaAutoPlay = true
+    @AppStorage(AppConstants.reviewVideoAutoPlayKey) private var reviewVideoAutoPlay = true
+    @AppStorage(AppConstants.reviewLivePhotoAutoPlayKey) private var reviewLivePhotoAutoPlay = false
     @AppStorage(AppConstants.appAppearanceKey) private var appAppearanceValue = AppAppearance.system.rawValue
     @AppStorage(AppConstants.appThemeKey) private var appThemeValue = PhotoDeleteTheme.defaultTheme.rawValue
     @State private var activeSheet: SettingsSheet?
@@ -553,18 +551,19 @@ struct SettingsView: View {
         let left = "\(shortDirectionTitle(.left))\(shortActionTitle(currentGestureAction(for: .left)))"
         let right = "\(shortDirectionTitle(.right))\(shortActionTitle(currentGestureAction(for: .right)))"
         let up = "\(shortDirectionTitle(.up))\(shortActionTitle(currentGestureAction(for: .up)))"
-        let playback = reviewMediaAutoPlay ? L10n.string("自动播放") : L10n.string("手动播放")
-        return "\(left) · \(right) · \(up) · \(playback)"
+        let videoPlayback = reviewVideoAutoPlay ? L10n.string("视频自动") : L10n.string("视频手动")
+        let livePhotoPlayback = reviewLivePhotoAutoPlay ? L10n.string("实况自动") : L10n.string("实况手动")
+        return "\(left) · \(right) · \(up) · \(videoPlayback) · \(livePhotoPlayback)"
     }
 
     private var usesChineseCompactText: Bool {
         switch selectedLanguage {
         case .zhHans, .zhHant:
             return true
-        case .en:
-            return false
         case .system:
             return Locale.autoupdatingCurrent.language.languageCode?.identifier == "zh"
+        default:
+            return false
         }
     }
 
@@ -711,19 +710,11 @@ struct SettingsView: View {
     }
 
     private func requestAppReview() {
-        #if canImport(StoreKit) && canImport(UIKit)
-        guard let scene = UIApplication.shared.connectedScenes
-            .compactMap({ $0 as? UIWindowScene })
-            .first(where: { $0.activationState == .foregroundActive }) else {
-            showSettingsToast(
-                L10n.string("稍后可在 App Store 评分"),
-                icon: "star",
-                style: .positive
-            )
-            return
+        #if canImport(UIKit)
+        UIApplication.shared.open(AppConstants.appStoreReviewURL) { opened in
+            guard !opened else { return }
+            UIApplication.shared.open(AppConstants.appStoreProductURL)
         }
-
-        SKStoreReviewController.requestReview(in: scene)
         #else
         showSettingsToast(
             L10n.string("稍后可在 App Store 评分"),
@@ -993,8 +984,10 @@ struct GestureSettingsView: View {
     @AppStorage(AppConstants.leftSwipeActionKey) private var leftSwipeActionValue = SwipeGesturePreset.standard.leftAction.rawValue
     @AppStorage(AppConstants.rightSwipeActionKey) private var rightSwipeActionValue = SwipeGesturePreset.standard.rightAction.rawValue
     @AppStorage(AppConstants.upSwipeActionKey) private var upSwipeActionValue = SwipeGesturePreset.standard.upAction.rawValue
-    @AppStorage(AppConstants.reviewMediaAutoPlayKey) private var reviewMediaAutoPlay = true
+    @AppStorage(AppConstants.reviewVideoAutoPlayKey) private var reviewVideoAutoPlay = true
+    @AppStorage(AppConstants.reviewLivePhotoAutoPlayKey) private var reviewLivePhotoAutoPlay = false
     @AppStorage(AppConstants.reviewVideoMutedKey) private var reviewVideoMuted = true
+    @AppStorage(AppConstants.hapticsEnabledKey) private var hapticsEnabled = true
 
     var body: some View {
         NavigationStack {
@@ -1005,6 +998,7 @@ struct GestureSettingsView: View {
                     VStack(spacing: PhotoDeleteStyle.sectionSpacing) {
                         mediaPlaybackSection
                         currentGesturePreview
+                        downSwipeNoteSection
                         presetSection
                         customGestureSection
                         resetButton
@@ -1038,9 +1032,20 @@ struct GestureSettingsView: View {
             VStack(spacing: 0) {
                 SettingToggleRow(
                     icon: "play.circle",
-                    title: L10n.string("视频和实况照片自动播放"),
-                    subtitle: L10n.string("只播放当前照片，切换后会自动停止"),
-                    isOn: $reviewMediaAutoPlay
+                    title: L10n.string("视频自动播放"),
+                    subtitle: L10n.string("只播放当前视频，切换后会自动停止"),
+                    isOn: $reviewVideoAutoPlay
+                )
+
+                Divider()
+                    .background(PhotoDeleteStyle.hairline)
+                    .padding(.horizontal, 16)
+
+                SettingToggleRow(
+                    icon: "livephoto",
+                    title: L10n.string("实况照片自动播放"),
+                    subtitle: L10n.string("进入当前照片时只播放一次，也可点右上角手动控制"),
+                    isOn: $reviewLivePhotoAutoPlay
                 )
 
                 Divider()
@@ -1052,6 +1057,17 @@ struct GestureSettingsView: View {
                     title: L10n.string("视频和实况照片静音播放"),
                     subtitle: L10n.string("开启后每次进入整理页默认静音；整理页可临时打开声音"),
                     isOn: $reviewVideoMuted
+                )
+
+                Divider()
+                    .background(PhotoDeleteStyle.hairline)
+                    .padding(.horizontal, 16)
+
+                SettingToggleRow(
+                    icon: "hand.tap",
+                    title: L10n.string("触感反馈"),
+                    subtitle: L10n.string("滑动、撤销和归类时提供轻微反馈"),
+                    isOn: $hapticsEnabled
                 )
             }
             .photoDeleteCard()
@@ -1072,6 +1088,34 @@ struct GestureSettingsView: View {
                     )
                 }
             }
+        }
+    }
+
+    private var downSwipeNoteSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(L10n.string("下滑动作"))
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(PhotoDeleteStyle.primaryText)
+
+            VStack(spacing: 0) {
+                FixedGestureNoteRow(
+                    icon: "arrow.down",
+                    title: L10n.string("普通整理"),
+                    detail: L10n.string("下滑返回列表")
+                )
+
+                Divider()
+                    .background(PhotoDeleteStyle.hairline)
+                    .padding(.leading, 60)
+
+                FixedGestureNoteRow(
+                    icon: "rectangle.stack.badge.minus",
+                    title: L10n.string("相册整理"),
+                    detail: L10n.string("下滑移出相册，不删除照片"),
+                    color: PhotoDeleteStyle.warning
+                )
+            }
+            .photoDeleteCard()
         }
     }
 
@@ -1200,6 +1244,35 @@ private struct GesturePreviewTile: View {
     }
 }
 
+private struct FixedGestureNoteRow: View {
+    let icon: String
+    let title: String
+    let detail: String
+    var color = PhotoDeleteStyle.accent
+
+    var body: some View {
+        HStack(spacing: 12) {
+            PhotoDeleteIconTile(icon: icon, tint: color, size: 36, cornerRadius: 10)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title.appLocalized)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.primaryText)
+                    .lineLimit(1)
+
+                Text(detail.appLocalized)
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                    .lineLimit(2)
+            }
+
+            Spacer()
+        }
+        .padding(16)
+        .accessibilityElement(children: .combine)
+    }
+}
+
 private struct GesturePresetButton: View {
     let preset: SwipeGesturePreset
     let isSelected: Bool
@@ -1298,6 +1371,7 @@ private struct LanguageSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @AppStorage(AppConstants.appLanguageKey) private var selectedLanguageID = AppLanguage.system.rawValue
+    @State private var searchText = ""
 
     var body: some View {
         NavigationStack {
@@ -1317,39 +1391,9 @@ private struct LanguageSettingsView: View {
                                 .fixedSize(horizontal: false, vertical: true)
                         }
 
-                        VStack(spacing: 0) {
-                            ForEach(AppLanguage.allCases) { language in
-                                Button {
-                                    selectedLanguageID = language.rawValue
-                                    HapticManager.impact(.light)
-                                } label: {
-                                    HStack(spacing: 12) {
-                                        Image(systemName: selectedLanguage == language ? "checkmark.circle.fill" : "circle")
-                                            .font(.system(size: 20, weight: .semibold))
-                                            .foregroundColor(selectedLanguage == language ? PhotoDeleteStyle.positive : PhotoDeleteStyle.tertiaryText)
+                        searchField
 
-                                        Text(language.title)
-                                            .font(.system(size: 16, weight: .semibold))
-                                            .foregroundColor(PhotoDeleteStyle.primaryText)
-                                            .lineLimit(1)
-
-                                        Spacer()
-                                    }
-                                    .padding(16)
-                                }
-                                .buttonStyle(.plain)
-                                .accessibilityHint(Text(language.detail))
-                                .accessibilityAddTraits(selectedLanguage == language ? .isSelected : [])
-                                .accessibilityValue(Text(selectedLanguage == language ? L10n.string("已选") : L10n.string("未选择")))
-
-                                if language != AppLanguage.allCases.last {
-                                    Divider()
-                                        .background(PhotoDeleteStyle.hairline)
-                                        .padding(.leading, 16)
-                                }
-                            }
-                        }
-                        .photoDeleteCard()
+                        languageList
                     }
                     .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
                     .padding(.top, 20)
@@ -1373,6 +1417,147 @@ private struct LanguageSettingsView: View {
 
     private var selectedLanguage: AppLanguage {
         AppLanguage(rawValue: selectedLanguageID) ?? .system
+    }
+
+    private var sortedLanguages: [AppLanguage] {
+        AppLanguage.appLanguages.sorted {
+            $0.title.localizedStandardCompare($1.title) == .orderedAscending
+        }
+    }
+
+    private var visibleLanguages: [AppLanguage] {
+        let trimmedQuery = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty else {
+            return [AppLanguage.system] + sortedLanguages
+        }
+
+        return [AppLanguage.system]
+            .filter { matches($0, query: trimmedQuery) }
+            + sortedLanguages.filter { matches($0, query: trimmedQuery) }
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(PhotoDeleteStyle.secondaryText)
+
+            TextField(L10n.string("搜索语言"), text: $searchText)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .font(.system(size: 16, weight: .regular))
+                .foregroundColor(PhotoDeleteStyle.primaryText)
+                .submitLabel(.search)
+
+            if !searchText.isEmpty {
+                Button {
+                    searchText = ""
+                    HapticManager.impact(.light)
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(PhotoDeleteStyle.tertiaryText)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text(L10n.string("清除搜索")))
+            }
+        }
+        .padding(.horizontal, 14)
+        .frame(minHeight: 44)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(PhotoDeleteStyle.elevatedSurface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(PhotoDeleteStyle.hairline, lineWidth: 1)
+                )
+        )
+        .accessibilityHint(Text(L10n.string("按语言名称、地区或代码搜索")))
+    }
+
+    @ViewBuilder
+    private var languageList: some View {
+        if visibleLanguages.isEmpty {
+            VStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.tertiaryText)
+
+                Text(L10n.string("未找到匹配语言"))
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 28)
+            .photoDeleteCard()
+        } else {
+            VStack(spacing: 0) {
+                ForEach(visibleLanguages) { language in
+                    languageRow(language)
+
+                    if language != visibleLanguages.last {
+                        Divider()
+                            .background(PhotoDeleteStyle.hairline)
+                            .padding(.leading, 16)
+                    }
+                }
+            }
+            .photoDeleteCard()
+        }
+    }
+
+    private func languageRow(_ language: AppLanguage) -> some View {
+        Button {
+            selectedLanguageID = language.rawValue
+            HapticManager.impact(.light)
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: selectedLanguage == language ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(selectedLanguage == language ? PhotoDeleteStyle.positive : PhotoDeleteStyle.tertiaryText)
+                    .frame(width: 24, height: 24)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(language.title)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(PhotoDeleteStyle.primaryText)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+
+                    Text(language.detail)
+                        .font(.system(size: 13, weight: .regular))
+                        .foregroundColor(PhotoDeleteStyle.secondaryText)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                }
+
+                Spacer(minLength: 8)
+
+                if language.isRightToLeft {
+                    Text("RTL")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(PhotoDeleteStyle.secondaryText)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 4)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(PhotoDeleteStyle.elevatedSurface)
+                        )
+                }
+            }
+            .padding(16)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint(Text(language.detail))
+        .accessibilityAddTraits(selectedLanguage == language ? .isSelected : [])
+        .accessibilityValue(Text(selectedLanguage == language ? L10n.string("已选") : L10n.string("未选择")))
+    }
+
+    private func matches(_ language: AppLanguage, query: String) -> Bool {
+        language.searchTokens.contains { token in
+            token.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+        }
     }
 }
 

@@ -6,6 +6,7 @@
 //
 
 #if DEBUG
+import AVFoundation
 import CoreLocation
 import Photos
 import UIKit
@@ -21,19 +22,39 @@ enum UITestPhotoLibrarySeeder {
             return
         }
 
-        guard !hasStarted else {
-            completion()
-            return
-        }
-        hasStarted = true
-
         let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
-        guard status == .authorized || status == .limited else {
+        switch status {
+        case .authorized, .limited:
+            guard !hasStarted else {
+                completion()
+                return
+            }
+            hasStarted = true
+            seedAuthorizedLibrary(language: environment["PHOTO_DELETE_UI_TEST_APP_LANGUAGE"] ?? "zh-Hans", completion: completion)
+        case .notDetermined:
+            guard !hasStarted else {
+                completion()
+                return
+            }
+            hasStarted = true
+            PHPhotoLibrary.requestAuthorization(for: .readWrite) { status in
+                DispatchQueue.main.async {
+                    guard status == .authorized || status == .limited else {
+                        completion()
+                        return
+                    }
+                    seedAuthorizedLibrary(
+                        language: environment["PHOTO_DELETE_UI_TEST_APP_LANGUAGE"] ?? "zh-Hans",
+                        completion: completion
+                    )
+                }
+            }
+        default:
             completion()
-            return
         }
+    }
 
-        let language = environment["PHOTO_DELETE_UI_TEST_APP_LANGUAGE"] ?? "zh-Hans"
+    private static func seedAuthorizedLibrary(language: String, completion: @escaping () -> Void) {
         let albumPlan = makeAlbumPlan(language: language)
         let cleanupTitles = Set(makeAlbumPlan(language: "zh-Hans").map(\.title) +
             makeAlbumPlan(language: "en").map(\.title) +
@@ -78,6 +99,7 @@ enum UITestPhotoLibrarySeeder {
         let date: Date
         let location: CLLocation?
         let generatedPetIndex: Int?
+        let generatedVideoIndex: Int?
     }
 
     private static func makeAlbumPlan(language: String) -> [AlbumSeed] {
@@ -107,18 +129,28 @@ enum UITestPhotoLibrarySeeder {
             switch album.kind {
             case .travel:
                 seeds.append(PhotoSeed(
+                    resourceName: nil,
+                    albumTitle: album.title,
+                    date: day(1),
+                    location: CLLocation(latitude: 35.6762, longitude: 139.6503),
+                    generatedPetIndex: nil,
+                    generatedVideoIndex: 0
+                ))
+                seeds.append(PhotoSeed(
                     resourceName: "travel-seed-04",
                     albumTitle: album.title,
                     date: day(0),
                     location: CLLocation(latitude: 22.3193, longitude: 114.1694),
-                    generatedPetIndex: nil
+                    generatedPetIndex: nil,
+                    generatedVideoIndex: nil
                 ))
                 seeds.append(PhotoSeed(
                     resourceName: "travel-seed-07",
                     albumTitle: album.title,
                     date: day(-1),
                     location: CLLocation(latitude: 40.7128, longitude: -74.0060),
-                    generatedPetIndex: nil
+                    generatedPetIndex: nil,
+                    generatedVideoIndex: nil
                 ))
             case .beach:
                 seeds.append(PhotoSeed(
@@ -126,14 +158,16 @@ enum UITestPhotoLibrarySeeder {
                     albumTitle: album.title,
                     date: day(-2),
                     location: CLLocation(latitude: 1.3521, longitude: 103.8198),
-                    generatedPetIndex: nil
+                    generatedPetIndex: nil,
+                    generatedVideoIndex: nil
                 ))
                 seeds.append(PhotoSeed(
                     resourceName: "travel-seed-06",
                     albumTitle: album.title,
                     date: day(-3),
                     location: CLLocation(latitude: 48.8566, longitude: 2.3522),
-                    generatedPetIndex: nil
+                    generatedPetIndex: nil,
+                    generatedVideoIndex: nil
                 ))
             case .city:
                 seeds.append(PhotoSeed(
@@ -141,14 +175,40 @@ enum UITestPhotoLibrarySeeder {
                     albumTitle: album.title,
                     date: day(-4),
                     location: CLLocation(latitude: 30.2741, longitude: 120.1551),
-                    generatedPetIndex: nil
+                    generatedPetIndex: nil,
+                    generatedVideoIndex: nil
                 ))
                 seeds.append(PhotoSeed(
                     resourceName: "travel-seed-03",
                     albumTitle: album.title,
                     date: day(-5),
                     location: CLLocation(latitude: 25.0330, longitude: 121.5654),
-                    generatedPetIndex: nil
+                    generatedPetIndex: nil,
+                    generatedVideoIndex: nil
+                ))
+                seeds.append(PhotoSeed(
+                    resourceName: nil,
+                    albumTitle: album.title,
+                    date: day(-8),
+                    location: CLLocation(latitude: 25.0330, longitude: 121.5654),
+                    generatedPetIndex: nil,
+                    generatedVideoIndex: nil
+                ))
+                seeds.append(PhotoSeed(
+                    resourceName: nil,
+                    albumTitle: album.title,
+                    date: day(-8).addingTimeInterval(3),
+                    location: CLLocation(latitude: 25.0330, longitude: 121.5654),
+                    generatedPetIndex: nil,
+                    generatedVideoIndex: nil
+                ))
+                seeds.append(PhotoSeed(
+                    resourceName: nil,
+                    albumTitle: album.title,
+                    date: day(-8).addingTimeInterval(6),
+                    location: CLLocation(latitude: 25.0330, longitude: 121.5654),
+                    generatedPetIndex: nil,
+                    generatedVideoIndex: nil
                 ))
             case .pet:
                 seeds.append(PhotoSeed(
@@ -156,14 +216,16 @@ enum UITestPhotoLibrarySeeder {
                     albumTitle: album.title,
                     date: day(-6),
                     location: nil,
-                    generatedPetIndex: 0
+                    generatedPetIndex: 0,
+                    generatedVideoIndex: nil
                 ))
                 seeds.append(PhotoSeed(
                     resourceName: nil,
                     albumTitle: album.title,
                     date: day(-7),
                     location: nil,
-                    generatedPetIndex: 1
+                    generatedPetIndex: 1,
+                    generatedVideoIndex: nil
                 ))
             }
         }
@@ -197,6 +259,11 @@ enum UITestPhotoLibrarySeeder {
     }
 
     private static func makeAssetRequest(for seed: PhotoSeed) -> PHAssetChangeRequest? {
+        if let videoIndex = seed.generatedVideoIndex,
+           let url = makeGeneratedVideoURL(index: videoIndex) {
+            return PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url)
+        }
+
         if let resourceName = seed.resourceName,
            let url = resourceURL(named: resourceName) {
             return PHAssetChangeRequest.creationRequestForAssetFromImage(atFileURL: url)
@@ -231,6 +298,145 @@ enum UITestPhotoLibrarySeeder {
             }
         }
         return Array(assetsByID.values)
+    }
+
+    private static func makeGeneratedVideoURL(index: Int) -> URL? {
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("photodelete-ui-test-video-\(index).mov")
+        try? FileManager.default.removeItem(at: outputURL)
+
+        let width = 720
+        let height = 1280
+        let fps: Int32 = 30
+        let frameCount = 180
+
+        do {
+            let writer = try AVAssetWriter(outputURL: outputURL, fileType: .mov)
+            let input = AVAssetWriterInput(
+                mediaType: .video,
+                outputSettings: [
+                    AVVideoCodecKey: AVVideoCodecType.h264,
+                    AVVideoWidthKey: width,
+                    AVVideoHeightKey: height
+                ]
+            )
+            input.expectsMediaDataInRealTime = false
+
+            let adaptor = AVAssetWriterInputPixelBufferAdaptor(
+                assetWriterInput: input,
+                sourcePixelBufferAttributes: [
+                    kCVPixelBufferPixelFormatTypeKey as String: Int(kCVPixelFormatType_32ARGB),
+                    kCVPixelBufferWidthKey as String: width,
+                    kCVPixelBufferHeightKey as String: height
+                ]
+            )
+
+            guard writer.canAdd(input) else { return nil }
+            writer.add(input)
+            guard writer.startWriting() else { return nil }
+            writer.startSession(atSourceTime: .zero)
+
+            for frame in 0..<frameCount {
+                while !input.isReadyForMoreMediaData {
+                    Thread.sleep(forTimeInterval: 0.005)
+                }
+                guard let pixelBuffer = makeVideoPixelBuffer(
+                    width: width,
+                    height: height,
+                    frame: frame,
+                    frameCount: frameCount
+                ) else {
+                    writer.cancelWriting()
+                    return nil
+                }
+                let time = CMTime(value: CMTimeValue(frame), timescale: fps)
+                guard adaptor.append(pixelBuffer, withPresentationTime: time) else {
+                    writer.cancelWriting()
+                    return nil
+                }
+            }
+
+            input.markAsFinished()
+            let semaphore = DispatchSemaphore(value: 0)
+            writer.finishWriting {
+                semaphore.signal()
+            }
+            semaphore.wait()
+            return writer.status == .completed ? outputURL : nil
+        } catch {
+            return nil
+        }
+    }
+
+    private static func makeVideoPixelBuffer(
+        width: Int,
+        height: Int,
+        frame: Int,
+        frameCount: Int
+    ) -> CVPixelBuffer? {
+        var pixelBuffer: CVPixelBuffer?
+        let status = CVPixelBufferCreate(
+            kCFAllocatorDefault,
+            width,
+            height,
+            kCVPixelFormatType_32ARGB,
+            nil,
+            &pixelBuffer
+        )
+        guard status == kCVReturnSuccess, let pixelBuffer else { return nil }
+
+        CVPixelBufferLockBaseAddress(pixelBuffer, [])
+        defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, []) }
+
+        guard let baseAddress = CVPixelBufferGetBaseAddress(pixelBuffer),
+              let context = CGContext(
+                data: baseAddress,
+                width: width,
+                height: height,
+                bitsPerComponent: 8,
+                bytesPerRow: CVPixelBufferGetBytesPerRow(pixelBuffer),
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue
+              ) else {
+            return nil
+        }
+
+        UIGraphicsPushContext(context)
+        defer { UIGraphicsPopContext() }
+
+        let size = CGSize(width: width, height: height)
+        let progress = CGFloat(frame) / CGFloat(max(frameCount - 1, 1))
+        let top = UIColor(red: 0.10 + 0.20 * progress, green: 0.38, blue: 0.62, alpha: 1)
+        let bottom = UIColor(red: 0.88, green: 0.62 + 0.18 * progress, blue: 0.34, alpha: 1)
+        let colors = [top.cgColor, bottom.cgColor] as CFArray
+        let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1])!
+        context.drawLinearGradient(
+            gradient,
+            start: .zero,
+            end: CGPoint(x: size.width, y: size.height),
+            options: []
+        )
+
+        UIColor.white.withAlphaComponent(0.72).setFill()
+        let movingX = 80 + progress * (size.width - 220)
+        context.fillEllipse(in: CGRect(x: movingX, y: 180, width: 140, height: 140))
+
+        UIColor.black.withAlphaComponent(0.18).setFill()
+        context.fill(CGRect(x: 0, y: size.height * 0.72, width: size.width, height: size.height * 0.28))
+        UIColor.white.withAlphaComponent(0.52).setStroke()
+        for offset in stride(from: CGFloat(-120), through: size.width, by: CGFloat(180)) {
+            let wave = UIBezierPath()
+            wave.lineWidth = 8
+            wave.move(to: CGPoint(x: offset + progress * 90, y: size.height * 0.82))
+            wave.addCurve(
+                to: CGPoint(x: offset + 140 + progress * 90, y: size.height * 0.82),
+                controlPoint1: CGPoint(x: offset + 42 + progress * 90, y: size.height * 0.79),
+                controlPoint2: CGPoint(x: offset + 98 + progress * 90, y: size.height * 0.85)
+            )
+            wave.stroke()
+        }
+
+        return pixelBuffer
     }
 
     private static func makeGeneratedImage(for seed: PhotoSeed) -> UIImage {

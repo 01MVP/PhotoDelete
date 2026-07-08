@@ -11,6 +11,19 @@ import Photos
 import UIKit
 #endif
 
+enum EmptyAlbumCleanupPlanner {
+    static func cleanupCandidates(
+        from albums: [AlbumInfo],
+        canDelete: (AlbumInfo) -> Bool
+    ) -> [AlbumInfo] {
+        albums.filter { album in
+            album.type == .userCreated &&
+                album.photosCount == 0 &&
+                canDelete(album)
+        }
+    }
+}
+
 struct AlbumsView: View {
     @EnvironmentObject var dataManager: DataManager
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -52,6 +65,7 @@ struct AlbumsView: View {
                                 .font(.body.weight(.semibold))
                         } else {
                             sortMenu
+                            albumActionsMenu
                             createAlbumButton
                         }
                     }
@@ -72,6 +86,9 @@ struct AlbumsView: View {
                     .environmentObject(dataManager)
             case .edit(let album):
                 EditAlbumView(album: album)
+                    .environmentObject(dataManager)
+            case .deleteEmpty(let albums):
+                DeleteEmptyAlbumsView(albums: albums)
                     .environmentObject(dataManager)
             }
         }
@@ -120,6 +137,21 @@ struct AlbumsView: View {
         .accessibilityLabel(L10n.string("排序"))
     }
 
+    private var albumActionsMenu: some View {
+        Menu {
+            Button(action: presentEmptyAlbumCleanup) {
+                Label(L10n.string("删除空相册"), systemImage: "folder.badge.minus")
+            }
+        } label: {
+            Label(L10n.string("相册操作"), systemImage: "ellipsis.circle")
+                .labelStyle(.iconOnly)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(PhotoDeleteStyle.accent)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(L10n.string("相册操作"))
+    }
+
     private var albumTopSection: some View {
         VStack(alignment: .leading, spacing: 0) {
             albumCountRow
@@ -151,6 +183,25 @@ struct AlbumsView: View {
     private func createAlbum() {
         HapticManager.impact(.light)
         activeSheet = .create
+    }
+
+    private func presentEmptyAlbumCleanup() {
+        let refreshedAlbums = dataManager.getUserAlbums().compactMap { album in
+            dataManager.currentUserAlbumInfo(for: album)
+        }
+        let emptyAlbums = EmptyAlbumCleanupPlanner.cleanupCandidates(from: refreshedAlbums) { album in
+            guard let collection = album.assetCollection else { return false }
+            return collection.assetCollectionType == .album && collection.canPerform(.delete)
+        }
+
+        guard !emptyAlbums.isEmpty else {
+            HapticManager.impact(.light)
+            showAlbumToast(L10n.string("没有空相册"), icon: "checkmark.circle", style: .positive)
+            return
+        }
+
+        HapticManager.impact(.light)
+        activeSheet = .deleteEmpty(emptyAlbums)
     }
 
     // MARK: - 权限授权区域
@@ -620,6 +671,7 @@ enum AlbumNavigationDestination: Hashable {
 private enum AlbumSheet: Identifiable {
     case create
     case edit(PHAssetCollection)
+    case deleteEmpty([AlbumInfo])
 
     var id: String {
         switch self {
@@ -627,6 +679,8 @@ private enum AlbumSheet: Identifiable {
             return "create"
         case .edit(let album):
             return "edit-\(album.localIdentifier)"
+        case .deleteEmpty(let albums):
+            return "deleteEmpty-\(albums.map(\.id).joined(separator: "|"))"
         }
     }
 }
@@ -1037,6 +1091,229 @@ struct EditAlbumView: View {
     private func dismissAfterShowingMissingAlbumMessage() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
             dismiss()
+        }
+    }
+}
+
+// MARK: - 删除空相册
+struct DeleteEmptyAlbumsView: View {
+    let albums: [AlbumInfo]
+
+    @EnvironmentObject var dataManager: DataManager
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @State private var selectedAlbumIDs: Set<String>
+    @State private var isDeleting = false
+    @State private var processedAlbumCount = 0
+    @State private var failedAlbumTitles: [String] = []
+
+    init(albums: [AlbumInfo]) {
+        self.albums = albums
+        self._selectedAlbumIDs = State(initialValue: Set(albums.map(\.id)))
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                PhotoDeleteScreenBackground()
+
+                ScrollView {
+                    VStack(spacing: 22) {
+                        headerSection
+                        albumSelectionSection
+                        errorSection
+                        actionButtons
+                    }
+                    .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
+                    .padding(.top, 28)
+                    .padding(.bottom, 24)
+                    .frame(maxWidth: PhotoDeleteAdaptiveLayout.readableContentMaxWidth(horizontalSizeClass: horizontalSizeClass))
+                    .frame(maxWidth: .infinity)
+                }
+            }
+            .navigationTitle(L10n.string("删除空相册"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(L10n.string("取消")) {
+                        dismiss()
+                    }
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                    .disabled(isDeleting)
+                }
+            }
+        }
+    }
+
+    private var headerSection: some View {
+        VStack(spacing: 12) {
+            PhotoDeleteIconTile(
+                icon: "folder.badge.minus",
+                tint: PhotoDeleteStyle.destructive,
+                size: 58,
+                cornerRadius: 16
+            )
+
+            VStack(spacing: 6) {
+                Text(String(format: L10n.string("发现 %lld 个空相册"), Int64(albums.count)))
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.primaryText)
+                    .multilineTextAlignment(.center)
+
+                Text(L10n.string("只会删除空相册，不会删除任何照片。"))
+                    .font(.system(size: 14, weight: .regular))
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var albumSelectionSection: some View {
+        VStack(spacing: 0) {
+            ForEach(albums) { album in
+                Button {
+                    toggleSelection(for: album)
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: selectedAlbumIDs.contains(album.id) ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundColor(selectedAlbumIDs.contains(album.id) ? PhotoDeleteStyle.destructive : PhotoDeleteStyle.tertiaryText)
+                            .frame(width: 24, height: 24)
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(album.title)
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(PhotoDeleteStyle.primaryText)
+                                .lineLimit(1)
+
+                            Text(L10n.photoCount(album.photosCount))
+                                .font(.system(size: 13, weight: .regular))
+                                .foregroundColor(PhotoDeleteStyle.secondaryText)
+                        }
+
+                        Spacer()
+                    }
+                    .padding(16)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(isDeleting)
+
+                if album.id != albums.last?.id {
+                    Divider()
+                        .background(PhotoDeleteStyle.hairline)
+                        .padding(.leading, 52)
+                }
+            }
+        }
+        .photoDeleteCard()
+    }
+
+    @ViewBuilder
+    private var errorSection: some View {
+        if !failedAlbumTitles.isEmpty {
+            Text(String(format: L10n.string("%lld 个相册删除失败，请稍后再试"), Int64(failedAlbumTitles.count)))
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(PhotoDeleteStyle.warning)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var actionButtons: some View {
+        VStack(spacing: 12) {
+            Button(action: deleteSelectedAlbums) {
+                HStack(spacing: 8) {
+                    if isDeleting {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: PhotoDeleteStyle.primaryButtonText))
+                            .scaleEffect(0.82)
+                    } else {
+                        Image(systemName: "trash")
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+
+                    Text(deleteButtonTitle)
+                }
+            }
+            .photoDeleteDestructiveButton()
+            .disabled(selectedAlbums.isEmpty || isDeleting)
+
+            Button(action: { dismiss() }) {
+                Text(L10n.string("取消"))
+            }
+            .photoDeleteSecondaryButton()
+            .disabled(isDeleting)
+        }
+    }
+
+    private var selectedAlbums: [AlbumInfo] {
+        albums.filter { selectedAlbumIDs.contains($0.id) }
+    }
+
+    private var deleteButtonTitle: String {
+        if isDeleting {
+            return String(
+                format: L10n.string("正在删除 %lld/%lld"),
+                Int64(processedAlbumCount),
+                Int64(selectedAlbums.count)
+            )
+        }
+        return String(format: L10n.string("删除 %lld 个空相册"), Int64(selectedAlbums.count))
+    }
+
+    private func toggleSelection(for album: AlbumInfo) {
+        guard !isDeleting else { return }
+        if selectedAlbumIDs.contains(album.id) {
+            selectedAlbumIDs.remove(album.id)
+        } else {
+            selectedAlbumIDs.insert(album.id)
+        }
+        HapticManager.impact(.light)
+    }
+
+    private func deleteSelectedAlbums() {
+        let targets = selectedAlbums
+        guard !targets.isEmpty, !isDeleting else { return }
+
+        failedAlbumTitles = []
+        processedAlbumCount = 0
+        isDeleting = true
+
+        deleteNextAlbum(targets, index: 0, failures: [])
+    }
+
+    private func deleteNextAlbum(_ targets: [AlbumInfo], index: Int, failures: [String]) {
+        guard index < targets.count else {
+            isDeleting = false
+            if failures.isEmpty {
+                HapticManager.notify(.success)
+                dismiss()
+            } else {
+                HapticManager.notify(.error)
+                failedAlbumTitles = failures
+            }
+            return
+        }
+
+        let album = targets[index]
+        guard let currentAlbum = dataManager.currentUserAlbumInfo(for: album),
+              currentAlbum.photosCount == 0,
+              let collection = currentAlbum.assetCollection,
+              collection.assetCollectionType == .album,
+              collection.canPerform(.delete) else {
+            processedAlbumCount += 1
+            deleteNextAlbum(targets, index: index + 1, failures: failures + [album.title])
+            return
+        }
+
+        dataManager.deleteUserAlbum(collection) { success in
+            processedAlbumCount += 1
+            deleteNextAlbum(
+                targets,
+                index: index + 1,
+                failures: success ? failures : failures + [album.title]
+            )
         }
     }
 }

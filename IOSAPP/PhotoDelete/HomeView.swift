@@ -94,6 +94,21 @@ enum HomeLibraryContentState: Equatable {
     }
 }
 
+enum HomeCategoryCountDetailResolver {
+    static func shouldShowLibraryLoading(
+        category _: PhotoCategory,
+        count: Int,
+        isPreparingLibrary: Bool,
+        isLoadingPhotoLibrary: Bool
+    ) -> Bool {
+        if isPreparingLibrary && isLoadingPhotoLibrary {
+            return true
+        }
+
+        return count == 0 && isLoadingPhotoLibrary
+    }
+}
+
 struct HomeView: View {
     @EnvironmentObject var dataManager: DataManager
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -192,6 +207,9 @@ struct HomeView: View {
                     .environmentObject(dataManager)
                 }
             }
+        }
+        .onAppear {
+            dataManager.loadAlbumsIfNeeded()
         }
     }
 
@@ -301,7 +319,7 @@ struct HomeView: View {
             isPreparingLibrary: dataManager.isPreparingLibrary,
             isLoadingPhotoLibrary: dataManager.photoLibraryManager.isLoading,
             hasLoadedPhotoLibrary: dataManager.photoLibraryManager.hasLoadedPhotoLibrary,
-            totalPhotosCount: dataManager.photoLibraryManager.totalPhotosCount
+            totalPhotosCount: dataManager.photoLibraryManager.displayTotalPhotosCount
         )
     }
 
@@ -375,6 +393,7 @@ struct HomeView: View {
             VStack(spacing: 0) {
                 let skeletons: [(String, String)] = [
                     (PhotoCategory.all.title, "photo.on.rectangle"),
+                    (PhotoCategory.unclassified.title, "tray"),
                     (PhotoCategory.videos.title, "video"),
                     (PhotoCategory.screenshots.title, "iphone"),
                     (PhotoCategory.livePhotos.title, "livephoto")
@@ -611,23 +630,36 @@ struct HomeView: View {
     private func getPhotoCount(for category: PhotoCategory) -> Int {
         switch category {
         case .all:
-            return dataManager.photoLibraryManager.totalPhotosCount
+            return dataManager.photoLibraryManager.displayTotalPhotosCount
+        case .unclassified:
+            return dataManager.unclassifiedPhotosCount
         case .videos:
-            return dataManager.photoLibraryManager.videosCount
+            return dataManager.photoLibraryManager.displayVideosCount
         case .screenshots:
-            return dataManager.photoLibraryManager.screenshotsCount
+            return dataManager.photoLibraryManager.displayScreenshotsCount
         case .livePhotos:
-            return dataManager.photoLibraryManager.livePhotosCount
+            return dataManager.photoLibraryManager.displayLivePhotosCount
         case .favorites:
-            return dataManager.photoLibraryManager.favoritesCount
+            return dataManager.photoLibraryManager.displayFavoritesCount
         }
     }
 
     private func getPhotoCountDetail(for category: PhotoCategory) -> String {
         let count = getPhotoCount(for: category)
-        if count == 0 && dataManager.photoLibraryManager.isLoading {
+
+        if HomeCategoryCountDetailResolver.shouldShowLibraryLoading(
+            category: category,
+            count: count,
+            isPreparingLibrary: dataManager.isPreparingLibrary,
+            isLoadingPhotoLibrary: dataManager.photoLibraryManager.isLoading
+        ) {
             return L10n.string("读取中 \(libraryLoadingProgressText)")
         }
+
+        if category == .unclassified && !dataManager.hasLoadedAlbumMembership {
+            return L10n.string("读取中")
+        }
+
         return L10n.shortPhotoCount(count)
     }
 
@@ -641,6 +673,8 @@ struct HomeView: View {
             return PhotoDeleteStyle.iconTint(for: "livephoto")
         case .favorites:
             return PhotoDeleteStyle.iconTint(for: "favorite")
+        case .unclassified:
+            return PhotoDeleteStyle.warning
         case .all:
             return PhotoDeleteStyle.accent
         }
