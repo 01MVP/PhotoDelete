@@ -2,6 +2,16 @@ import SwiftUI
 
 #if canImport(UIKit)
 import UIKit
+
+struct SystemShareSheet: UIViewControllerRepresentable {
+    let activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
 #endif
 
 enum PhotoDeleteStyle {
@@ -415,6 +425,7 @@ enum AppConstants {
     static let reviewVideoAutoPlayKey = "photoDeleteReviewMediaAutoPlay"
     static let reviewMediaAutoPlayKey = reviewVideoAutoPlayKey
     static let reviewLivePhotoAutoPlayKey = "photoDeleteReviewLivePhotoAutoPlay"
+    static let randomReviewHideFiledPhotosKey = "photoDeleteRandomReviewHideFiledPhotos"
     static let reviewVideoMutedKey = "photoDeleteReviewVideoMuted"
     static let reviewModeKey = "photoDeleteReviewMode"
     static let hasSeenReviewModeHintKey = "photoDeleteHasSeenReviewModeHint"
@@ -424,6 +435,7 @@ enum AppConstants {
     static let gestureUpdateNoticePendingKey = "photoDeleteGestureUpdateNoticePendingV1"
     static let reviewProgressByScopeKey = "photoDeleteReviewProgressByScope"
     static let randomReviewSessionsKey = "photoDeleteRandomReviewSessions"
+    static let randomReviewMigrationVersionKey = "photoDeleteRandomReviewMigrationVersion"
     static let appAppearanceKey = "photoDeleteAppAppearance"
     static let appThemeKey = "photoDeleteAppTheme"
     static let openAlbumsTabNotificationName = Notification.Name("photoDeleteOpenAlbumsTab")

@@ -300,9 +300,40 @@ struct PhotoDeleteTests {
         #expect(!LivePhotoPlaybackDefaultPolicy.toggledMotionEnabled(current: true))
     }
 
-    @Test func livePhotoPlaybackDoesNotLoopAfterOnePlay() async throws {
-        #expect(!LivePhotoPlaybackLoopPolicy.shouldRestartAfterPlaybackEnds(autoPlay: true))
-        #expect(!LivePhotoPlaybackLoopPolicy.shouldRestartAfterPlaybackEnds(autoPlay: false))
+    @Test func livePhotoPlaybackStartsOncePerAssetUnlessExplicitlyTriggered() async throws {
+        var state = LivePhotoPlaybackRequestState()
+
+        let initialPlayback = state.shouldStartPlayback(
+            contentIdentifier: "photo-1",
+            autoPlay: true,
+            playbackTrigger: 0
+        )
+        let duplicatePlayback = state.shouldStartPlayback(
+            contentIdentifier: "photo-1",
+            autoPlay: true,
+            playbackTrigger: 0
+        )
+        let explicitReplay = state.shouldStartPlayback(
+            contentIdentifier: "photo-1",
+            autoPlay: true,
+            playbackTrigger: 1
+        )
+        let duplicateReplay = state.shouldStartPlayback(
+            contentIdentifier: "photo-1",
+            autoPlay: true,
+            playbackTrigger: 1
+        )
+        let nextPhotoPlayback = state.shouldStartPlayback(
+            contentIdentifier: "photo-2",
+            autoPlay: true,
+            playbackTrigger: 1
+        )
+
+        #expect(initialPlayback)
+        #expect(!duplicatePlayback)
+        #expect(explicitReplay)
+        #expect(!duplicateReplay)
+        #expect(nextPhotoPlayback)
     }
 
     @Test func photoAssetMetadataFormatterUsesReadableFallbacks() async throws {
@@ -1854,6 +1885,66 @@ struct PhotoDeleteTests {
         #expect(first.count == 3)
     }
 
+    @Test func randomMemoriesPrioritizeUnreviewedOldPhotosAndNeverIncludeRecentPhotos() async throws {
+        let oldPhotoIDs = ["old-a", "old-b", "old-reviewed"]
+        let resolved = PhotoRandomReviewPlanner.resolvedSessionIdentifiers(
+            existingSessionIDs: [],
+            candidateIdentifiers: oldPhotoIDs,
+            fallbackCandidateIdentifiers: oldPhotoIDs,
+            validIdentifiers: Set(oldPhotoIDs),
+            excludedIdentifiers: ["old-reviewed"],
+            fallbackExcludedIdentifiers: [],
+            seed: "old-memories",
+            limit: Int.max
+        )
+
+        #expect(Set(resolved.prefix(2)) == ["old-a", "old-b"])
+        #expect(resolved.last == "old-reviewed")
+        #expect(!resolved.contains("recent-photo"))
+    }
+
+    @Test func randomMemoryDatePolicyOnlyAcceptsPhotosOlderThanSixMonths() async throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = Date(timeIntervalSince1970: 1_767_225_600) // 2026-01-01 UTC
+        let sevenMonthsAgo = try #require(calendar.date(byAdding: .month, value: -7, to: now))
+        let twoMonthsAgo = try #require(calendar.date(byAdding: .month, value: -2, to: now))
+
+        #expect(PhotoRandomReviewDatePolicy.isOlderMemory(
+            creationDate: sevenMonthsAgo,
+            now: now,
+            calendar: calendar
+        ))
+        #expect(!PhotoRandomReviewDatePolicy.isOlderMemory(
+            creationDate: twoMonthsAgo,
+            now: now,
+            calendar: calendar
+        ))
+        #expect(!PhotoRandomReviewDatePolicy.isOlderMemory(
+            creationDate: nil,
+            now: now,
+            calendar: calendar
+        ))
+    }
+
+    @Test func randomReviewWaitsForTheCompleteLibraryEvenWhenPartialPhotosExist() async throws {
+        #expect(PhotoReviewSessionInitializationPolicy.shouldWaitForSource(
+            isRandomReview: true,
+            hasPhotos: true,
+            isWaitingForSourceData: true
+        ))
+        #expect(!PhotoReviewSessionInitializationPolicy.shouldWaitForSource(
+            isRandomReview: true,
+            hasPhotos: true,
+            isWaitingForSourceData: false
+        ))
+        #expect(!PhotoReviewSessionInitializationPolicy.shouldWaitForSource(
+            isRandomReview: false,
+            hasPhotos: true,
+            isWaitingForSourceData: true
+        ))
+    }
+
     @Test func randomReviewPlannerPrunesExistingSessionToValidIdentifiers() async throws {
         let existing = PhotoRandomReviewPlanner.existingSessionIdentifiers(
             ["a", "missing", "a", "b"],
@@ -1948,6 +2039,30 @@ struct PhotoDeleteTests {
         #expect(PhotoRandomReviewSessionStore.load(scopeID: "random:memories", defaults: defaults).isEmpty)
     }
 
+    @Test func randomReviewMigrationClearsOnlyLegacyRandomStateOnce() async throws {
+        let suiteName = "PhotoDeleteRandomMigration-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        PhotoReviewProgressStore.save(assetIdentifier: "recent-cursor", scopeID: "random:memories", defaults: defaults)
+        PhotoReviewProgressStore.save(assetIdentifier: "category-cursor", scopeID: "category:all", defaults: defaults)
+        PhotoRandomReviewSessionStore.save(
+            assetIdentifiers: ["recent-a", "recent-b"],
+            scopeID: "random:memories",
+            defaults: defaults
+        )
+
+        PhotoRandomReviewMigration.applyIfNeeded(defaults: defaults)
+
+        #expect(PhotoReviewProgressStore.load(scopeID: "random:memories", defaults: defaults) == nil)
+        #expect(PhotoReviewProgressStore.load(scopeID: "category:all", defaults: defaults) == "category-cursor")
+        #expect(PhotoRandomReviewSessionStore.load(scopeID: "random:memories", defaults: defaults).isEmpty)
+
+        PhotoReviewProgressStore.save(assetIdentifier: "new-random-cursor", scopeID: "random:memories", defaults: defaults)
+        PhotoRandomReviewMigration.applyIfNeeded(defaults: defaults)
+        #expect(PhotoReviewProgressStore.load(scopeID: "random:memories", defaults: defaults) == "new-random-cursor")
+    }
+
     @Test func reviewProgressStoreRoundTripsAndClearsScope() async throws {
         let suiteName = "PhotoDeleteReviewProgress-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suiteName))
@@ -1980,6 +2095,61 @@ struct PhotoDeleteTests {
         #expect(PhotoReviewSessionPaginator.expandedLoadedCount(totalCount: 500, currentLoadedCount: 80, currentIndex: 40) == 80)
         #expect(PhotoReviewSessionPaginator.expandedLoadedCount(totalCount: 500, currentLoadedCount: 80, currentIndex: 75) == 160)
         #expect(PhotoReviewSessionPaginator.expandedLoadedCount(totalCount: 120, currentLoadedCount: 80, currentIndex: 75) == 120)
+    }
+
+    @Test func browsingDoesNotSkipUnreviewedPhotosAfterReturningToAnEarlierPhoto() async throws {
+        let ids = ["photo-1", "photo-2", "photo-3", "photo-4", "photo-5"]
+        var reviewed: Set<String> = []
+
+        // Pure browsing from 1 → 4 does not add review decisions.
+        #expect(PhotoReviewSessionDecisionPolicy.remainingCount(
+            assetIdentifiers: ids,
+            reviewedAssetIdentifiers: reviewed
+        ) == 5)
+
+        // After returning to photo 2 and classifying it, photo 3 is next.
+        reviewed.insert("photo-2")
+        let nextIndex = PhotoReviewSessionDecisionPolicy.nextUnreviewedIndex(
+            assetIdentifiers: ids,
+            reviewedAssetIdentifiers: reviewed,
+            after: 1
+        )
+
+        #expect(nextIndex == 2)
+        #expect(PhotoReviewSessionDecisionPolicy.remainingCount(
+            assetIdentifiers: ids,
+            reviewedAssetIdentifiers: reviewed
+        ) == 4)
+    }
+
+    @Test func nextUnreviewedPhotoCanBeFoundBeyondTheLoadedPage() async throws {
+        let ids = (0..<100).map { "photo-\($0)" }
+        let reviewed = Set(ids.prefix(80))
+
+        let nextIndex = PhotoReviewSessionDecisionPolicy.nextUnreviewedIndex(
+            assetIdentifiers: ids,
+            reviewedAssetIdentifiers: reviewed,
+            after: 70
+        )
+
+        #expect(nextIndex == 80)
+    }
+
+    @Test func favoriteIsAModifierThatDoesNotAdvanceOrCompleteReview() async throws {
+        #expect(!PhotoReviewActionPolicy.shouldAdvance(after: .favorite))
+        #expect(!PhotoReviewActionPolicy.shouldAdvance(after: .previous))
+        #expect(!PhotoReviewActionPolicy.shouldAdvance(after: .next))
+        #expect(PhotoReviewActionPolicy.shouldAdvance(after: .keep))
+        #expect(PhotoReviewActionPolicy.shouldAdvance(after: .delete))
+    }
+
+    @Test func twoRowBrowserSignatureDetectsMiddleReplacementAndReordering() async throws {
+        let original = TwoRowPhotoBrowserView.AssetSignature(identifiers: ["first", "middle", "last"])
+        let replaced = TwoRowPhotoBrowserView.AssetSignature(identifiers: ["first", "other", "last"])
+        let reordered = TwoRowPhotoBrowserView.AssetSignature(identifiers: ["first", "last", "middle"])
+
+        #expect(original != replaced)
+        #expect(original != reordered)
     }
 
     @Test func reviewSessionInitialTargetPrioritizesNewPhotosBeforeSavedProgress() async throws {
@@ -2593,6 +2763,18 @@ struct PhotoDeleteTests {
         ) == persistedReviewedIDs.count)
         #expect(PhotoReviewSessionReviewedStatePolicy.shouldShowCompletionAfterRefresh(
             isAlbumMode: false,
+            hasPhotos: true,
+            firstUnreviewedIndex: nil
+        ))
+
+        #expect(PhotoReviewSessionReviewedStatePolicy.reviewedAssetIdentifiers(
+            isAlbumMode: false,
+            isRandomMemoriesMode: true,
+            persistedReviewedAssetIdentifiers: persistedReviewedIDs
+        ).isEmpty)
+        #expect(!PhotoReviewSessionReviewedStatePolicy.shouldShowCompletionAfterRefresh(
+            isAlbumMode: false,
+            isRandomMemoriesMode: true,
             hasPhotos: true,
             firstUnreviewedIndex: nil
         ))

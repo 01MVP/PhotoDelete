@@ -136,6 +136,7 @@ enum PhotoRandomReviewPlanner {
         fallbackCandidateIdentifiers: [String] = [],
         validIdentifiers: Set<String>,
         excludedIdentifiers: Set<String>,
+        fallbackExcludedIdentifiers: Set<String>? = nil,
         seed: String,
         limit: Int,
         preservesExistingSessionIdentifiers: Bool = false
@@ -162,9 +163,10 @@ enum PhotoRandomReviewPlanner {
 
         guard resolved.count < limit else { return resolved }
 
+        let fallbackExclusions = fallbackExcludedIdentifiers ?? excludedIdentifiers
         let fallbackFill = plannedIdentifiers(
             from: fallbackCandidateIdentifiers,
-            excluding: excludedIdentifiers.union(selectedIDs),
+            excluding: fallbackExclusions.union(selectedIDs),
             seed: seed,
             limit: limit - resolved.count
         )
@@ -180,6 +182,24 @@ enum PhotoRandomReviewPlanner {
             hash &*= 1_099_511_628_211
         }
         return hash
+    }
+}
+
+enum PhotoRandomReviewDatePolicy {
+    static func isOlderMemory(
+        creationDate: Date?,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Bool {
+        guard let creationDate,
+              let cutoff = calendar.date(
+                byAdding: .month,
+                value: -PhotoRandomReviewPlanner.oldPhotoMinimumMonthAge,
+                to: now
+              ) else {
+            return false
+        }
+        return creationDate < cutoff
     }
 }
 
@@ -267,6 +287,12 @@ enum PhotoReviewProgressStore {
         defaults.removeObject(forKey: AppConstants.reviewProgressByScopeKey)
     }
 
+    static func clearScopes(withPrefix prefix: String, defaults: UserDefaults = .standard) {
+        var map = progressMap(defaults: defaults)
+        map = map.filter { !$0.key.hasPrefix(prefix) }
+        saveMap(map, defaults: defaults)
+    }
+
     private static func progressMap(defaults: UserDefaults) -> [String: String] {
         defaults.dictionary(forKey: AppConstants.reviewProgressByScopeKey) as? [String: String] ?? [:]
     }
@@ -277,6 +303,20 @@ enum PhotoReviewProgressStore {
         } else {
             defaults.set(map, forKey: AppConstants.reviewProgressByScopeKey)
         }
+    }
+}
+
+enum PhotoRandomReviewMigration {
+    private static let currentVersion = 1
+
+    static func applyIfNeeded(defaults: UserDefaults = .standard) {
+        guard defaults.integer(forKey: AppConstants.randomReviewMigrationVersionKey) < currentVersion else {
+            return
+        }
+
+        PhotoRandomReviewSessionStore.clearAll(defaults: defaults)
+        PhotoReviewProgressStore.clearScopes(withPrefix: "random:", defaults: defaults)
+        defaults.set(currentVersion, forKey: AppConstants.randomReviewMigrationVersionKey)
     }
 }
 
@@ -621,6 +661,54 @@ enum PhotoReviewSessionPaginator {
             return clampedLoaded
         }
         return min(clampedTotal, clampedLoaded + max(pageSize, 0))
+    }
+}
+
+enum PhotoReviewSessionDecisionPolicy {
+    static func remainingCount(
+        assetIdentifiers: [String],
+        reviewedAssetIdentifiers: Set<String>
+    ) -> Int {
+        assetIdentifiers.reduce(into: 0) { count, identifier in
+            if !reviewedAssetIdentifiers.contains(identifier) {
+                count += 1
+            }
+        }
+    }
+
+    static func firstUnreviewedIndex(
+        assetIdentifiers: [String],
+        reviewedAssetIdentifiers: Set<String>,
+        startingAt startIndex: Int
+    ) -> Int? {
+        let clampedStart = max(startIndex, 0)
+        guard clampedStart < assetIdentifiers.count else { return nil }
+        return assetIdentifiers[clampedStart...].firstIndex { identifier in
+            !reviewedAssetIdentifiers.contains(identifier)
+        }
+    }
+
+    static func nextUnreviewedIndex(
+        assetIdentifiers: [String],
+        reviewedAssetIdentifiers: Set<String>,
+        after currentIndex: Int
+    ) -> Int? {
+        firstUnreviewedIndex(
+            assetIdentifiers: assetIdentifiers,
+            reviewedAssetIdentifiers: reviewedAssetIdentifiers,
+            startingAt: currentIndex + 1
+        )
+    }
+}
+
+enum PhotoReviewActionPolicy {
+    static func shouldAdvance(after action: SwipeGestureAction) -> Bool {
+        switch action {
+        case .delete, .keep:
+            return true
+        case .favorite, .previous, .next, .close:
+            return false
+        }
     }
 }
 

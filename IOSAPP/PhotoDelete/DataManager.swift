@@ -97,6 +97,7 @@ class DataManager: ObservableObject {
     @Published var isLoadingAlbums = false
     @Published var albumLoadingProgress: Double = 0
     @Published private(set) var albumMemberAssetIDs: Set<String> = []
+    @Published private(set) var albumTitlesByAssetID: [String: [String]] = [:]
     @Published private(set) var hasLoadedAlbumMembership = false
     @Published private(set) var cleanupStatsRevision = UUID()
     @Published private(set) var videoCompressionHistoryRevision = UUID()
@@ -122,12 +123,14 @@ class DataManager: ObservableObject {
     private let locationTitleCacheStore: PhotoLocationTitleCacheStore
     private let userDefaults: UserDefaults
     private let albumSnapshotStore = AlbumListSnapshotStore()
+    private var cachedCustomAlbumOrder: [String] = []
 
     private var isReloadingLibrary = false
     private var hasLoadedAlbums = false
     private var isFetchingAlbums = false
     private var pendingAlbumRefresh = false
     private var pendingAlbumRefreshShouldShowLoading = false
+    private var isCommittingLegacyFavoriteCandidates = false
     private var albumMembershipCountsByAssetID: [String: Int] = [:]
     private var timeGroupCache: [TimeGroup: [PHAsset]] = [:]
     private var historicalTodayCache: [PHAsset] = []
@@ -149,6 +152,7 @@ class DataManager: ObservableObject {
     private var nextLibraryDataRefreshDelay: TimeInterval?
     private var suppressNextDerivedLibraryRefresh = false
     private var reviewedAssetIDsSaveWorkItem: DispatchWorkItem?
+    private var pendingCandidateIDsSaveWorkItem: DispatchWorkItem?
     private var pendingDeleteCandidateIDs: Set<String> = []
     private var pendingFavoriteCandidateIDs: Set<String> = []
     private var videoFileSizeEstimateCache: [String: VideoFileSizeEstimate] = [:]
@@ -236,6 +240,9 @@ class DataManager: ObservableObject {
         self.imageCompressionHistoryStore = imageCompressionHistoryStore
         self.locationTitleCacheStore = locationTitleCacheStore
         self.userDefaults = userDefaults
+        self.cachedCustomAlbumOrder = Self.decodeCustomAlbumOrder(
+            userDefaults.string(forKey: AppConstants.customAlbumOrderKey)
+        )
         loadReviewedAssetIDs()
         loadPendingCandidateIDs()
         setupPhotoLibraryManager()
@@ -261,6 +268,7 @@ class DataManager: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.saveReviewedAssetIDsNow()
+                self?.savePendingCandidateIDsNow()
             }
             .store(in: &cancellables)
 
@@ -388,14 +396,14 @@ class DataManager: ObservableObject {
     func addToDeleteCandidates(_ asset: PHAsset) {
         favoriteCandidates.remove(asset)
         deleteCandidates.insert(asset)
-        savePendingCandidateIDsNow()
+        schedulePendingCandidateIDsSave()
         scheduleLocationGroupsRefreshIfLoaded()
         updateStats()
     }
 
     func removeFromDeleteCandidates(_ asset: PHAsset) {
         deleteCandidates.remove(asset)
-        savePendingCandidateIDsNow()
+        schedulePendingCandidateIDsSave()
         scheduleLocationGroupsRefreshIfLoaded()
         updateStats()
     }
@@ -403,14 +411,14 @@ class DataManager: ObservableObject {
     func addToFavoriteCandidates(_ asset: PHAsset) {
         deleteCandidates.remove(asset)
         favoriteCandidates.insert(asset)
-        savePendingCandidateIDsNow()
+        schedulePendingCandidateIDsSave()
         scheduleLocationGroupsRefreshIfLoaded()
         updateStats()
     }
 
     func removeFromFavoriteCandidates(_ asset: PHAsset) {
         favoriteCandidates.remove(asset)
-        savePendingCandidateIDsNow()
+        schedulePendingCandidateIDsSave()
         scheduleLocationGroupsRefreshIfLoaded()
         updateStats()
     }
@@ -421,6 +429,42 @@ class DataManager: ObservableObject {
 
     func isInFavoriteCandidates(_ asset: PHAsset) -> Bool {
         favoriteCandidates.contains(asset)
+    }
+
+    func favoritePhotoImmediately(_ asset: PHAsset, completion: @escaping (Bool) -> Void) {
+        photoLibraryManager.commitBatchChanges(deleteAssets: [], favoriteAssets: [asset]) { success, error in
+            if let error {
+                dataManagerLogger.error("Failed to favorite photo: \(error.localizedDescription, privacy: .public)")
+            }
+            if success {
+                self.favoriteCandidates.remove(asset)
+                self.schedulePendingCandidateIDsSave()
+                self.photoLibraryManager.applyCommittedBatchChanges(
+                    deletedAssets: [],
+                    favoritedAssets: [asset]
+                )
+            }
+            completion(success)
+        }
+    }
+
+    func commitLegacyFavoriteCandidatesIfNeeded() {
+        guard !isCommittingLegacyFavoriteCandidates, !favoriteCandidates.isEmpty else { return }
+        isCommittingLegacyFavoriteCandidates = true
+        let assets = Array(favoriteCandidates)
+        photoLibraryManager.commitBatchChanges(deleteAssets: [], favoriteAssets: assets) { success, error in
+            self.isCommittingLegacyFavoriteCandidates = false
+            if let error {
+                dataManagerLogger.error("Failed to migrate pending favorites: \(error.localizedDescription, privacy: .public)")
+            }
+            guard success else { return }
+            self.favoriteCandidates.subtract(assets)
+            self.schedulePendingCandidateIDsSave()
+            self.photoLibraryManager.applyCommittedBatchChanges(
+                deletedAssets: [],
+                favoritedAssets: assets
+            )
+        }
     }
 
     static func remainingCandidateIdentifiers(
@@ -1085,16 +1129,7 @@ class DataManager: ObservableObject {
     func getPhotosForRandomReviewScope(_ scope: PhotoRandomReviewScope) -> [PHAsset] {
         switch scope {
         case .memories:
-            let cutoff = Calendar.current.date(
-                byAdding: .month,
-                value: -PhotoRandomReviewPlanner.oldPhotoMinimumMonthAge,
-                to: Date()
-            ) ?? Date()
-            let oldPhotos = photoLibraryManager.allPhotos.filter { asset in
-                guard let creationDate = asset.creationDate else { return false }
-                return creationDate < cutoff
-            }
-            return oldPhotos.isEmpty ? photoLibraryManager.allPhotos : oldPhotos
+            return photoLibraryManager.allPhotos
         case .all:
             return photoLibraryManager.allPhotos
         case .screenshots:
@@ -1110,39 +1145,42 @@ class DataManager: ObservableObject {
 
     func makeRandomReviewPhotos(
         for scope: PhotoRandomReviewScope,
-        scopeID: String,
+        seed: String,
+        excludingFiledPhotos: Bool = true,
         limit: Int = PhotoRandomReviewPlanner.continuousReviewLimit
     ) -> [PHAsset] {
-        let sourcePhotos = getPhotosForRandomReviewScope(scope)
-        let validSourcePhotos = scope == .memories ? photoLibraryManager.allPhotos : sourcePhotos
-        let validIDs = Set(validSourcePhotos.map(\.localIdentifier))
-        let existingIDs = PhotoRandomReviewSessionStore.load(scopeID: scopeID)
+        let sourcePhotos = getPhotosForRandomReviewScope(scope).filter { asset in
+            !excludingFiledPhotos || !albumMemberAssetIDs.contains(asset.localIdentifier)
+        }
+        let sourceIDs = sourcePhotos.map(\.localIdentifier)
+        let reviewedAndPendingIDs = randomReviewExcludedIdentifiers()
+        let pendingOperationIDs = randomReviewPendingOperationIdentifiers()
         let resolvedIDs = PhotoRandomReviewPlanner.resolvedSessionIdentifiers(
-            existingSessionIDs: existingIDs,
-            candidateIdentifiers: sourcePhotos.map(\.localIdentifier),
-            fallbackCandidateIdentifiers: scope == .memories ? photoLibraryManager.allPhotos.map(\.localIdentifier) : [],
-            validIdentifiers: validIDs,
-            excludedIdentifiers: randomReviewExcludedIdentifiers(),
-            seed: UUID().uuidString,
+            existingSessionIDs: [],
+            candidateIdentifiers: sourceIDs,
+            fallbackCandidateIdentifiers: scope == .memories ? sourceIDs : [],
+            validIdentifiers: Set(sourceIDs),
+            excludedIdentifiers: reviewedAndPendingIDs,
+            fallbackExcludedIdentifiers: scope == .memories ? pendingOperationIDs : nil,
+            seed: seed,
             limit: limit
         )
 
-        guard !resolvedIDs.isEmpty else {
-            PhotoRandomReviewSessionStore.clear(scopeID: scopeID)
-            return []
-        }
-
-        if !existingIDs.isEmpty {
-            PhotoRandomReviewSessionStore.clear(scopeID: scopeID)
-        }
-
-        return Self.assets(in: validSourcePhotos, preserving: resolvedIDs)
+        return Self.assets(in: sourcePhotos, preserving: resolvedIDs)
     }
 
     private func randomReviewExcludedIdentifiers() -> Set<String> {
         reviewedAssetIDs
-            .union(deleteCandidates.map(\.localIdentifier))
+            .union(randomReviewPendingOperationIdentifiers())
+    }
+
+    private func randomReviewPendingOperationIdentifiers() -> Set<String> {
+        Set(deleteCandidates.map(\.localIdentifier))
             .union(favoriteCandidates.map(\.localIdentifier))
+    }
+
+    func albumTitles(for asset: PHAsset) -> [String] {
+        albumTitlesByAssetID[asset.localIdentifier] ?? []
     }
 
     func clearRandomReviewSession(scopeID: String) {
@@ -2451,6 +2489,8 @@ class DataManager: ObservableObject {
     }
 
     private func savePendingCandidateIDsNow() {
+        pendingCandidateIDsSaveWorkItem?.cancel()
+        pendingCandidateIDsSaveWorkItem = nil
         pendingDeleteCandidateIDs = Set(deleteCandidates.map(\.localIdentifier))
         pendingFavoriteCandidateIDs = Set(favoriteCandidates.map(\.localIdentifier))
             .subtracting(pendingDeleteCandidateIDs)
@@ -2458,7 +2498,18 @@ class DataManager: ObservableObject {
         userDefaults.set(Array(pendingFavoriteCandidateIDs), forKey: AppConstants.pendingFavoriteCandidateIDsKey)
     }
 
+    private func schedulePendingCandidateIDsSave() {
+        pendingCandidateIDsSaveWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.savePendingCandidateIDsNow()
+        }
+        pendingCandidateIDsSaveWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: workItem)
+    }
+
     private func clearPendingCandidateIDs() {
+        pendingCandidateIDsSaveWorkItem?.cancel()
+        pendingCandidateIDsSaveWorkItem = nil
         pendingDeleteCandidateIDs.removeAll()
         pendingFavoriteCandidateIDs.removeAll()
         userDefaults.removeObject(forKey: AppConstants.pendingDeleteCandidateIDsKey)
@@ -2600,6 +2651,7 @@ class DataManager: ObservableObject {
             var systemAlbums: [AlbumInfo] = []
             var userAlbums: [AlbumInfo] = []
             var albumMembershipCountsByAssetID: [String: Int] = [:]
+            var albumTitlesByAssetID: [String: [String]] = [:]
 
             // 系统相册
             let smartAlbumTypes: [PHAssetCollectionSubtype] = [
@@ -2661,6 +2713,7 @@ class DataManager: ObservableObject {
                 userAlbums.append(albumData.albumInfo)
                 for identifier in albumData.assetIdentifiers {
                     albumMembershipCountsByAssetID[identifier, default: 0] += 1
+                    albumTitlesByAssetID[identifier, default: []].append(albumData.albumInfo.title)
                 }
                 publishProgress()
             }
@@ -2669,6 +2722,7 @@ class DataManager: ObservableObject {
                 self.systemAlbums = systemAlbums
                 self.userAlbums = userAlbums
                 self.setAlbumMembershipCounts(albumMembershipCountsByAssetID)
+                self.albumTitlesByAssetID = albumTitlesByAssetID.mapValues { Array(Set($0)).sorted() }
                 self.hasLoadedAlbums = true
                 self.isFetchingAlbums = false
                 self.albumLoadingProgress = 1
@@ -2761,15 +2815,19 @@ class DataManager: ObservableObject {
     private func resetAlbumMembershipState() {
         albumMembershipCountsByAssetID = [:]
         albumMemberAssetIDs = []
+        albumTitlesByAssetID = [:]
         hasLoadedAlbumMembership = false
     }
 
-    private func recordAlbumMembershipAdded(for assetIdentifier: String) {
+    private func recordAlbumMembershipAdded(for assetIdentifier: String, albumTitle: String) {
         albumMembershipCountsByAssetID[assetIdentifier, default: 0] += 1
         albumMemberAssetIDs.insert(assetIdentifier)
+        if !albumTitlesByAssetID[assetIdentifier, default: []].contains(albumTitle) {
+            albumTitlesByAssetID[assetIdentifier, default: []].append(albumTitle)
+        }
     }
 
-    private func recordAlbumMembershipRemoved(for assetIdentifiers: [String]) {
+    private func recordAlbumMembershipRemoved(for assetIdentifiers: [String], albumTitle: String? = nil) {
         guard !assetIdentifiers.isEmpty else { return }
         for identifier in assetIdentifiers {
             let nextCount = max((albumMembershipCountsByAssetID[identifier] ?? 0) - 1, 0)
@@ -2777,6 +2835,13 @@ class DataManager: ObservableObject {
                 albumMembershipCountsByAssetID[identifier] = nextCount
             } else {
                 albumMembershipCountsByAssetID.removeValue(forKey: identifier)
+                albumTitlesByAssetID.removeValue(forKey: identifier)
+            }
+            if let albumTitle {
+                albumTitlesByAssetID[identifier]?.removeAll { $0 == albumTitle }
+                if albumTitlesByAssetID[identifier]?.isEmpty == true {
+                    albumTitlesByAssetID.removeValue(forKey: identifier)
+                }
             }
         }
         albumMemberAssetIDs = Set(albumMembershipCountsByAssetID.keys)
@@ -2881,6 +2946,7 @@ class DataManager: ObservableObject {
 
     func saveCustomAlbumOrder(_ order: [String]) {
         guard let value = Self.encodeCustomAlbumOrder(order) else { return }
+        cachedCustomAlbumOrder = order
         objectWillChange.send()
         userDefaults.set(value, forKey: AppConstants.customAlbumOrderKey)
     }
@@ -2890,7 +2956,7 @@ class DataManager: ObservableObject {
     }
 
     private var customAlbumOrder: [String] {
-        Self.decodeCustomAlbumOrder(userDefaults.string(forKey: AppConstants.customAlbumOrderKey))
+        cachedCustomAlbumOrder
     }
 
     static func albumsSortedByCustomOrder(_ albums: [AlbumInfo], customOrder: [String]) -> [AlbumInfo] {
@@ -3102,7 +3168,10 @@ class DataManager: ObservableObject {
             }
             if success, insertedCount > 0 {
                 self.recordAddedPhotoToAlbum(asset, albumID: album.localIdentifier)
-                self.recordAlbumMembershipAdded(for: asset.localIdentifier)
+                self.recordAlbumMembershipAdded(
+                    for: asset.localIdentifier,
+                    albumTitle: album.localizedTitle ?? L10n.string("未命名相册")
+                )
             }
             completion(success, insertedCount > 0)
         }
@@ -3115,7 +3184,10 @@ class DataManager: ObservableObject {
             }
             if success {
                 self.recordRemovedPhotosFromAlbum(albumID: album.localIdentifier, removedAssets: [asset])
-                self.recordAlbumMembershipRemoved(for: [asset.localIdentifier])
+                self.recordAlbumMembershipRemoved(
+                    for: [asset.localIdentifier],
+                    albumTitle: album.localizedTitle
+                )
             }
             completion(success)
         }

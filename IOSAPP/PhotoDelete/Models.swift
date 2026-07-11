@@ -261,9 +261,25 @@ enum LivePhotoPlaybackDefaultPolicy {
     }
 }
 
-enum LivePhotoPlaybackLoopPolicy {
-    static func shouldRestartAfterPlaybackEnds(autoPlay _: Bool) -> Bool {
-        false
+struct LivePhotoPlaybackRequestState {
+    private var contentIdentifier: String?
+    private var playbackTrigger: Int?
+    private var wasAutoPlayEnabled = false
+
+    mutating func shouldStartPlayback(
+        contentIdentifier: String,
+        autoPlay: Bool,
+        playbackTrigger: Int
+    ) -> Bool {
+        let didChangeContent = self.contentIdentifier != contentIdentifier
+        let didChangeTrigger = self.playbackTrigger != playbackTrigger
+        let didEnableAutoPlay = autoPlay && !wasAutoPlayEnabled
+
+        self.contentIdentifier = contentIdentifier
+        self.playbackTrigger = playbackTrigger
+        wasAutoPlayEnabled = autoPlay
+
+        return autoPlay && (didChangeContent || didChangeTrigger || didEnableAutoPlay)
     }
 }
 

@@ -35,6 +35,21 @@ enum L10n {
 }
 
 enum AppDateFormatter {
+    private static func cachedFormatter(
+        key: String,
+        configure: (DateFormatter) -> Void
+    ) -> DateFormatter {
+        let cacheKey = "PhotoDelete.DateFormatter.\(key)" as NSString
+        if let formatter = Thread.current.threadDictionary[cacheKey] as? DateFormatter {
+            return formatter
+        }
+
+        let formatter = DateFormatter()
+        configure(formatter)
+        Thread.current.threadDictionary[cacheKey] = formatter
+        return formatter
+    }
+
     static func string(
         from date: Date,
         template: String,
@@ -48,10 +63,14 @@ enum AppDateFormatter {
         dateStyle: DateFormatter.Style,
         timeStyle: DateFormatter.Style
     ) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = AppLanguage.current.locale
-        formatter.dateStyle = dateStyle
-        formatter.timeStyle = timeStyle
+        let locale = AppLanguage.current.locale
+        let formatter = cachedFormatter(
+            key: "style|\(locale.identifier)|\(dateStyle.rawValue)|\(timeStyle.rawValue)"
+        ) { formatter in
+            formatter.locale = locale
+            formatter.dateStyle = dateStyle
+            formatter.timeStyle = timeStyle
+        }
         return formatter.string(from: date)
     }
 
@@ -59,10 +78,10 @@ enum AppDateFormatter {
         template: String,
         locale: Locale = AppLanguage.current.locale
     ) -> DateFormatter {
-        let formatter = DateFormatter()
-        formatter.locale = locale
-        formatter.setLocalizedDateFormatFromTemplate(template)
-        return formatter
+        cachedFormatter(key: "template|\(locale.identifier)|\(template)") { formatter in
+            formatter.locale = locale
+            formatter.setLocalizedDateFormatFromTemplate(template)
+        }
     }
 }
 

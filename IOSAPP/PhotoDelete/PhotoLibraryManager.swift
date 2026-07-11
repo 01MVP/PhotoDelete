@@ -22,6 +22,21 @@ struct PhotoLibraryLivePhotoResult {
     let isFinal: Bool
 }
 
+struct PhotoSharePayload: Identifiable {
+    let id = UUID()
+    let fileURL: URL
+    let temporaryDirectoryURL: URL
+
+    func cleanup() {
+        try? FileManager.default.removeItem(at: temporaryDirectoryURL)
+    }
+}
+
+enum PhotoSharePreparationError: Error {
+    case noLibraryAccess
+    case resourceUnavailable
+}
+
 struct PhotoLibraryAssetListSignature: Equatable {
     let count: Int
     let firstIdentifier: String?
@@ -657,6 +672,64 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         }
 
         PHPhotoLibrary.shared().presentLimitedLibraryPicker(from: presentingViewController)
+    }
+
+    func prepareSharePayload(for asset: PHAsset) async throws -> PhotoSharePayload {
+        guard hasPhotoLibraryAccess else {
+            throw PhotoSharePreparationError.noLibraryAccess
+        }
+
+        let resources = PHAssetResource.assetResources(for: asset)
+        let resource: PHAssetResource?
+        if asset.mediaType == .video {
+            resource = resources.first(where: { $0.type == .fullSizeVideo }) ??
+                resources.first(where: { $0.type == .video })
+        } else {
+            resource = resources.first(where: { $0.type == .fullSizePhoto }) ??
+                resources.first(where: { $0.type == .photo })
+        }
+
+        guard let resource else {
+            throw PhotoSharePreparationError.resourceUnavailable
+        }
+
+        let directoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("PhotoDeleteShare", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: directoryURL,
+            withIntermediateDirectories: true
+        )
+
+        let originalFilename = URL(fileURLWithPath: resource.originalFilename).lastPathComponent
+        let fallbackExtension = UTType(resource.uniformTypeIdentifier)?.preferredFilenameExtension
+        let fallbackBaseName = asset.mediaType == .video ? "Video" : "Photo"
+        let fallbackFilename = fallbackExtension.map { "\(fallbackBaseName).\($0)" } ?? fallbackBaseName
+        let filename = originalFilename.isEmpty ? fallbackFilename : originalFilename
+        let fileURL = directoryURL.appendingPathComponent(filename, isDirectory: false)
+        let options = PHAssetResourceRequestOptions()
+        options.isNetworkAccessAllowed = true
+
+        do {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                PHAssetResourceManager.default().writeData(
+                    for: resource,
+                    toFile: fileURL,
+                    options: options
+                ) { error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                    } else {
+                        continuation.resume(returning: ())
+                    }
+                }
+            }
+            try Task.checkCancellation()
+            return PhotoSharePayload(fileURL: fileURL, temporaryDirectoryURL: directoryURL)
+        } catch {
+            try? FileManager.default.removeItem(at: directoryURL)
+            throw error
+        }
     }
 
     // MARK: - Load Photos
@@ -1623,7 +1696,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             let requestID = loadSwipePreviewResult(
                 for: asset,
                 size: size,
-                networkAccessAllowed: true
+                networkAccessAllowed: false
             ) { [weak self] result in
                 guard result.isFinal else { return }
                 self?.swipePreviewPreloadRequests[preloadKey] = nil
@@ -1807,6 +1880,12 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         if let preferredVideoAsset,
            let sizeMB = try? localVideoFileSizeMB(for: preferredVideoAsset) {
             return sizeMB
+        }
+
+        // List screens must not read an entire video merely to calculate its size.
+        // Full resource reads remain available to explicit compression operations.
+        if preferredVideoAsset != nil, !networkAccessAllowed {
+            throw VideoCompressionError.videoUnavailable
         }
 
         let resources = PHAssetResource.assetResources(for: asset)

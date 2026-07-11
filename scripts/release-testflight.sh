@@ -12,6 +12,26 @@ CODE_SIGN_IDENTITY="${CODE_SIGN_IDENTITY:-Apple Distribution}"
 CODE_SIGN_STYLE="${CODE_SIGN_STYLE:-Automatic}"
 ARCHIVE_CODE_SIGNING_ALLOWED="${ARCHIVE_CODE_SIGNING_ALLOWED:-YES}"
 ARCHIVE_CODE_SIGNING_ALLOWED="$(printf '%s' "$ARCHIVE_CODE_SIGNING_ALLOWED" | tr '[:lower:]' '[:upper:]')"
+ASC_KEY_ID="${ASC_KEY_ID:-}"
+ASC_ISSUER_ID="${ASC_ISSUER_ID:-}"
+ASC_PRIVATE_KEY_PATH="${ASC_PRIVATE_KEY_PATH:-}"
+XCODE_AUTH_ARGS=()
+
+if [[ -n "$ASC_KEY_ID" || -n "$ASC_ISSUER_ID" || -n "$ASC_PRIVATE_KEY_PATH" ]]; then
+  if [[ -z "$ASC_KEY_ID" || -z "$ASC_ISSUER_ID" || -z "$ASC_PRIVATE_KEY_PATH" ]]; then
+    printf 'ASC_KEY_ID, ASC_ISSUER_ID, and ASC_PRIVATE_KEY_PATH must be provided together.\n' >&2
+    exit 1
+  fi
+  if [[ ! -f "$ASC_PRIVATE_KEY_PATH" ]]; then
+    printf 'ASC private key not found at %s.\n' "$ASC_PRIVATE_KEY_PATH" >&2
+    exit 1
+  fi
+  XCODE_AUTH_ARGS=(
+    -authenticationKeyPath "$ASC_PRIVATE_KEY_PATH"
+    -authenticationKeyID "$ASC_KEY_ID"
+    -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+  )
+fi
 
 resolve_project_marketing_version() {
   local version
@@ -86,7 +106,6 @@ is_closed_marketing_version_error() {
 MARKETING_VERSION_WAS_EXPLICIT="${MARKETING_VERSION+x}"
 MARKETING_VERSION="${MARKETING_VERSION:-$(resolve_project_marketing_version)}"
 BUILD_NUMBER="${BUILD_NUMBER:-$(TZ=Asia/Shanghai date +%Y%m%d%H%M)}"
-SIMULATOR_DESTINATION="$("$ROOT_DIR/scripts/resolve-ios-simulator-destination.sh")"
 RELEASE_DIR="${PHOTO_DELETE_RELEASE_DIR:-/tmp/PhotoDeleteRelease}"
 ARCHIVE_PATH="$RELEASE_DIR/PhotoDelete.xcarchive"
 EXPORT_PATH="$RELEASE_DIR/export"
@@ -94,6 +113,12 @@ EXPORT_OPTIONS="$RELEASE_DIR/ExportOptions.plist"
 SKIP_TESTS="${SKIP_TESTS:-0}"
 AUTO_INCREMENT_MARKETING_VERSION="${AUTO_INCREMENT_MARKETING_VERSION:-1}"
 MAX_MARKETING_VERSION_UPLOAD_ATTEMPTS="${MAX_MARKETING_VERSION_UPLOAD_ATTEMPTS:-2}"
+
+if [[ "$SKIP_TESTS" != "1" ]]; then
+  SIMULATOR_DESTINATION="$("$ROOT_DIR/scripts/resolve-ios-simulator-destination.sh")"
+else
+  SIMULATOR_DESTINATION=""
+fi
 
 check_icon_alpha() {
   local icon_dir="$ROOT_DIR/IOSAPP/PhotoDelete/Assets.xcassets/AppIcon.appiconset"
@@ -138,6 +163,8 @@ write_export_options() {
 verify_archive_version() {
   local info_plist="$ARCHIVE_PATH/Products/Applications/PhotoDelete.app/Info.plist"
   local archived_build_number
+  local archived_bundle_id
+  local archived_marketing_version
 
   if [[ ! -f "$info_plist" ]]; then
     printf 'Archive Info.plist not found at %s.\n' "$info_plist" >&2
@@ -147,6 +174,18 @@ verify_archive_version() {
   archived_build_number="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$info_plist")"
   if [[ "$archived_build_number" != "$BUILD_NUMBER" ]]; then
     printf 'Archive CFBundleVersion mismatch: expected %s, got %s.\n' "$BUILD_NUMBER" "$archived_build_number" >&2
+    return 1
+  fi
+
+  archived_bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$info_plist")"
+  if [[ "$archived_bundle_id" != "$BUNDLE_ID" ]]; then
+    printf 'Archive bundle identifier mismatch: expected %s, got %s.\n' "$BUNDLE_ID" "$archived_bundle_id" >&2
+    return 1
+  fi
+
+  archived_marketing_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$info_plist")"
+  if [[ "$archived_marketing_version" != "$MARKETING_VERSION" ]]; then
+    printf 'Archive marketing version mismatch: expected %s, got %s.\n' "$MARKETING_VERSION" "$archived_marketing_version" >&2
     return 1
   fi
 }
@@ -210,6 +249,7 @@ archive_and_upload() {
     -destination 'generic/platform=iOS' \
     -archivePath "$ARCHIVE_PATH" \
     -allowProvisioningUpdates \
+    "${XCODE_AUTH_ARGS[@]}" \
     "${archive_signing_args[@]}"
 
   verify_archive_version
@@ -226,7 +266,8 @@ archive_and_upload() {
     -archivePath "$ARCHIVE_PATH" \
     -exportPath "$EXPORT_PATH" \
     -exportOptionsPlist "$EXPORT_OPTIONS" \
-    -allowProvisioningUpdates 2>&1 | tee "$export_log"; then
+    -allowProvisioningUpdates \
+    "${XCODE_AUTH_ARGS[@]}" 2>&1 | tee "$export_log"; then
     if is_closed_marketing_version_error "$export_log"; then
       return 86
     fi

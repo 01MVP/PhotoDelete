@@ -1,6 +1,55 @@
 {
   "sourceLanguage": "zh-Hans",
   "strings": {
+    "%@ 等 %lld 个相册": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "%1$@ and %2$lld albums" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "%1$@ 等 %2$lld 个相册" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "%1$@ 等 %2$lld 個相簿" } }
+      }
+    },
+    "隐藏已归类照片": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Hide filed photos" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "隐藏已归类照片" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "隱藏已歸類照片" } }
+      }
+    },
+    "默认不再显示已加入用户相册的照片": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Photos already added to your albums are hidden by default" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "默认不再显示已加入用户相册的照片" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "預設不再顯示已加入使用者相簿的照片" } }
+      }
+    },
+    "没有未归类的照片": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "No unfiled photos found" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "没有未归类的照片" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "沒有未歸類的照片" } }
+      }
+    },
+    "已归类照片当前被隐藏，可在整理设置中重新显示。": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Filed photos are hidden. You can show them again in review settings." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已归类照片当前被隐藏，可在整理设置中重新显示。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "已歸類照片目前已隱藏，可在整理設定中重新顯示。" } }
+      }
+    },
+    "若照片权限为部分访问，请在系统设置中允许更多照片。": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "If photo access is limited, allow more photos in System Settings." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "若照片权限为部分访问，请在系统设置中允许更多照片。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "若照片權限為部分存取，請在系統設定中允許更多照片。" } }
+      }
+    },
+    "未命名相册": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Untitled Album" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "未命名相册" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "未命名相簿" } }
+      }
+    },
     "%@ %lld 张": {
       "localizations": {
         "ar": {
@@ -7631,6 +7680,46 @@
           "stringUnit": {
             "state": "translated",
             "value": "減少 %@"
+          }
+        }
+      }
+    },
+    "分享": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "مشاركة"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teilen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "共有"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "分享"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分享"
           }
         }
       }
@@ -16238,6 +16327,46 @@
         }
       }
     },
+    "已取消待收藏": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تمت الإزالة من قائمة المفضلة"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aus Favoriten-Warteliste entfernt"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Removed from favorites queue"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "お気に入り候補を解除しました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "已取消待收藏"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已取消待收藏"
+          }
+        }
+      }
+    },
     "已取消删除": {
       "localizations": {
         "ar": {
@@ -16685,6 +16814,46 @@
           "stringUnit": {
             "state": "translated",
             "value": "已收藏"
+          }
+        }
+      }
+    },
+    "已浏览到最后一张": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "وصلت إلى آخر صورة"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Letztes Foto erreicht"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reached the last photo"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最後の写真まで移動しました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "已浏览到最后一张"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已瀏覽到最後一張"
           }
         }
       }
@@ -30064,6 +30233,46 @@
         }
       }
     },
+    "没有找到六个月前的照片": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لم يتم العثور على صور أقدم من ستة أشهر"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Fotos gefunden, die älter als sechs Monate sind"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No photos older than six months were found"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "6か月以上前の写真が見つかりません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有找到六个月前的照片"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到六個月前的照片"
+          }
+        }
+      }
+    },
     "没有可撤销的操作": {
       "localizations": {
         "ar": {
@@ -40889,6 +41098,46 @@
           "stringUnit": {
             "state": "translated",
             "value": "隨機瀏覽"
+          }
+        }
+      }
+    },
+    "随机浏览只展示六个月前的照片。若照片权限为部分访问，请在设置中允许更多旧照片。": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يعرض التصفح العشوائي الصور الأقدم من ستة أشهر فقط. إذا كان الوصول إلى الصور محدودًا، فاسمح بالوصول إلى مزيد من الصور القديمة في الإعدادات."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Zufallsansicht zeigt nur Fotos, die älter als sechs Monate sind. Wenn der Fotozugriff eingeschränkt ist, erlaube in den Einstellungen den Zugriff auf weitere ältere Fotos."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Random Browse only shows photos older than six months. If Photos access is limited, allow access to more older photos in Settings."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ランダム表示では6か月以上前の写真だけを表示します。写真へのアクセスが制限されている場合は、設定でより多くの古い写真へのアクセスを許可してください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "随机浏览只展示六个月前的照片。若照片权限为部分访问，请在设置中允许更多旧照片。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隨機瀏覽只顯示六個月前的照片。若照片權限為部分存取，請在設定中允許更多舊照片。"
           }
         }
       }

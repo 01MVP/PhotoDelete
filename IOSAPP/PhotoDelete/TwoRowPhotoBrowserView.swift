@@ -70,14 +70,14 @@ struct TwoRowPhotoBrowserView: UIViewRepresentable {
     }
 
     struct AssetSignature: Equatable {
-        let count: Int
-        let firstID: String?
-        let lastID: String?
+        let orderedIDs: [String]
 
         init(assets: [PHAsset]) {
-            count = assets.count
-            firstID = assets.first?.localIdentifier
-            lastID = assets.last?.localIdentifier
+            self.init(identifiers: assets.map(\.localIdentifier))
+        }
+
+        init(identifiers: [String]) {
+            orderedIDs = identifiers
         }
     }
 

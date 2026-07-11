@@ -988,6 +988,7 @@ struct GestureSettingsView: View {
     @AppStorage(AppConstants.reviewLivePhotoAutoPlayKey) private var reviewLivePhotoAutoPlay = false
     @AppStorage(AppConstants.reviewVideoMutedKey) private var reviewVideoMuted = true
     @AppStorage(AppConstants.hapticsEnabledKey) private var hapticsEnabled = true
+    @AppStorage(AppConstants.randomReviewHideFiledPhotosKey) private var randomReviewHideFiledPhotos = true
 
     var body: some View {
         NavigationStack {
@@ -996,6 +997,7 @@ struct GestureSettingsView: View {
 
                 ScrollView {
                     VStack(spacing: PhotoDeleteStyle.sectionSpacing) {
+                        randomReviewSection
                         mediaPlaybackSection
                         currentGesturePreview
                         downSwipeNoteSection
@@ -1020,6 +1022,22 @@ struct GestureSettingsView: View {
                     .foregroundColor(PhotoDeleteStyle.accent)
                 }
             }
+        }
+    }
+
+    private var randomReviewSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(L10n.string("随机浏览"))
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(PhotoDeleteStyle.primaryText)
+
+            SettingToggleRow(
+                icon: "rectangle.stack.badge.minus",
+                title: L10n.string("隐藏已归类照片"),
+                subtitle: L10n.string("默认不再显示已加入用户相册的照片"),
+                isOn: $randomReviewHideFiledPhotos
+            )
+            .photoDeleteCard()
         }
     }
 

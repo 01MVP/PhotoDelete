@@ -831,7 +831,7 @@ func photoPreviewTargetSize(for asset: PHAsset, viewport: CGSize, displayScale: 
     let pixelHeight = max(CGFloat(asset.pixelHeight), 1)
     let assetLongEdge = max(pixelWidth, pixelHeight)
     let viewportLongEdge = max(viewport.width, viewport.height) * displayScale
-    let requestedLongEdge = min(max(viewportLongEdge * 3, 2_400), min(assetLongEdge, 6_000))
+    let requestedLongEdge = min(max(viewportLongEdge * 2, 1_600), min(assetLongEdge, 3_200))
     let ratio = requestedLongEdge / assetLongEdge
 
     return CGSize(
@@ -1627,6 +1627,10 @@ struct CandidatePhotoPreviewView: View {
     @State private var isLoading = true
     @State private var requestID: PHImageRequestID?
     @State private var failedToLoadLivePhoto = false
+    @State private var sharePayload: PhotoSharePayload?
+    @State private var sharePreparationTask: Task<Void, Never>?
+    @State private var isPreparingShare = false
+    @State private var showShareError = false
 
     var body: some View {
         NavigationStack {
@@ -1660,6 +1664,21 @@ struct CandidatePhotoPreviewView: View {
             .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(action: prepareShare) {
+                        Group {
+                            if isPreparingShare {
+                                ProgressView()
+                            } else {
+                                Image(systemName: "square.and.arrow.up")
+                            }
+                        }
+                        .frame(width: 44, height: 44)
+                    }
+                    .disabled(isPreparingShare)
+                    .accessibilityLabel(L10n.string("分享"))
+                }
+
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(L10n.string("关闭")) {
                         dismiss()
@@ -1667,8 +1686,17 @@ struct CandidatePhotoPreviewView: View {
                 }
             }
         }
+        .sheet(item: $sharePayload, onDismiss: cleanupSharePayload) { payload in
+            SystemShareSheet(activityItems: [payload.fileURL])
+        }
+        .alert(L10n.string("操作失败，请稍后重试。"), isPresented: $showShareError) {
+            Button(L10n.string("知道了"), role: .cancel) {}
+        }
         .onDisappear {
             photoLibraryManager.cancelImageRequest(requestID)
+            sharePreparationTask?.cancel()
+            sharePreparationTask = nil
+            isPreparingShare = false
         }
     }
 
@@ -1685,7 +1713,10 @@ struct CandidatePhotoPreviewView: View {
                 )
             } else if isLivePhotoAsset {
                 if let livePhoto {
-                    LivePhotoPreviewRepresentable(livePhoto: livePhoto)
+                    LivePhotoPreviewRepresentable(
+                        livePhoto: livePhoto,
+                        contentIdentifier: asset.localIdentifier
+                    )
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .accessibilityLabel(L10n.string("实况照片"))
                 } else {
@@ -1772,6 +1803,43 @@ struct CandidatePhotoPreviewView: View {
             isLoading = false
             requestID = nil
         }
+    }
+
+    private func prepareShare() {
+        guard !isPreparingShare else { return }
+
+        isPreparingShare = true
+        sharePreparationTask?.cancel()
+        sharePreparationTask = Task {
+            do {
+                let payload = try await photoLibraryManager.prepareSharePayload(for: asset)
+                guard !Task.isCancelled else {
+                    payload.cleanup()
+                    return
+                }
+                await MainActor.run {
+                    sharePayload = payload
+                    isPreparingShare = false
+                    sharePreparationTask = nil
+                }
+            } catch is CancellationError {
+                await MainActor.run {
+                    isPreparingShare = false
+                    sharePreparationTask = nil
+                }
+            } catch {
+                await MainActor.run {
+                    isPreparingShare = false
+                    sharePreparationTask = nil
+                    showShareError = true
+                }
+            }
+        }
+    }
+
+    private func cleanupSharePayload() {
+        sharePayload?.cleanup()
+        sharePayload = nil
     }
 }
 
@@ -1920,6 +1988,7 @@ private struct PhotoAssetDetailsPanel: View {
 
 struct LivePhotoPreviewRepresentable: UIViewRepresentable {
     let livePhoto: PHLivePhoto
+    let contentIdentifier: String
     var autoPlay = true
     var isMuted = true
     var playbackStyle: PHLivePhotoViewPlaybackStyle = .full
@@ -1927,7 +1996,7 @@ struct LivePhotoPreviewRepresentable: UIViewRepresentable {
     var contentMode: UIView.ContentMode = .scaleAspectFit
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(autoPlay: autoPlay, playbackStyle: playbackStyle, playbackTrigger: playbackTrigger)
+        Coordinator()
     }
 
     func makeUIView(context: Context) -> PHLivePhotoView {
@@ -1939,32 +2008,34 @@ struct LivePhotoPreviewRepresentable: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: PHLivePhotoView, context: Context) {
-        let didChangePlaybackTrigger = context.coordinator.playbackTrigger != playbackTrigger
+        let shouldStartPlayback = context.coordinator.playbackRequestState.shouldStartPlayback(
+            contentIdentifier: contentIdentifier,
+            autoPlay: autoPlay,
+            playbackTrigger: playbackTrigger
+        )
         context.coordinator.autoPlay = autoPlay
         context.coordinator.playbackStyle = playbackStyle
-        context.coordinator.playbackTrigger = playbackTrigger
         context.coordinator.isDismantled = false
         uiView.contentMode = contentMode
         uiView.isMuted = isMuted
 
         if !autoPlay {
-            uiView.stopPlayback()
-            context.coordinator.isPlaying = false
+            context.coordinator.stopPlayback(in: uiView)
         }
 
         if context.coordinator.displayedLivePhoto !== livePhoto {
             context.coordinator.displayedLivePhoto = livePhoto
             uiView.livePhoto = livePhoto
-            if autoPlay {
-                context.coordinator.startPlayback(in: uiView, delay: 0.12)
-            }
-        } else if autoPlay, didChangePlaybackTrigger {
+        }
+
+        if shouldStartPlayback {
             context.coordinator.startPlayback(in: uiView, delay: 0.12)
         }
     }
 
     static func dismantleUIView(_ uiView: PHLivePhotoView, coordinator: Coordinator) {
         coordinator.isDismantled = true
+        coordinator.cancelPendingPlayback()
         uiView.delegate = nil
         uiView.stopPlayback()
         uiView.livePhoto = nil
@@ -1973,30 +2044,39 @@ struct LivePhotoPreviewRepresentable: UIViewRepresentable {
 
     final class Coordinator: NSObject, PHLivePhotoViewDelegate {
         weak var displayedLivePhoto: PHLivePhoto?
-        var autoPlay: Bool
-        var playbackStyle: PHLivePhotoViewPlaybackStyle
-        var playbackTrigger: Int
+        var autoPlay = false
+        var playbackStyle: PHLivePhotoViewPlaybackStyle = .full
+        var playbackRequestState = LivePhotoPlaybackRequestState()
         var isPlaying = false
         var isDismantled = false
-
-        init(autoPlay: Bool, playbackStyle: PHLivePhotoViewPlaybackStyle, playbackTrigger: Int) {
-            self.autoPlay = autoPlay
-            self.playbackStyle = playbackStyle
-            self.playbackTrigger = playbackTrigger
-        }
+        private var pendingPlaybackToken: UUID?
 
         func startPlayback(in view: PHLivePhotoView, delay: TimeInterval) {
             guard autoPlay else { return }
+            let playbackToken = UUID()
+            pendingPlaybackToken = playbackToken
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self, weak view] in
                 guard let self,
                       let view,
+                      self.pendingPlaybackToken == playbackToken,
                       self.autoPlay,
                       !self.isDismantled,
                       view.livePhoto != nil else { return }
+                self.pendingPlaybackToken = nil
                 view.stopPlayback()
                 view.startPlayback(with: self.playbackStyle)
                 self.isPlaying = true
             }
+        }
+
+        func cancelPendingPlayback() {
+            pendingPlaybackToken = nil
+        }
+
+        func stopPlayback(in view: PHLivePhotoView) {
+            cancelPendingPlayback()
+            view.stopPlayback()
+            isPlaying = false
         }
 
         func livePhotoView(_ livePhotoView: PHLivePhotoView, willBeginPlaybackWith playbackStyle: PHLivePhotoViewPlaybackStyle) {
@@ -2005,9 +2085,6 @@ struct LivePhotoPreviewRepresentable: UIViewRepresentable {
 
         func livePhotoView(_ livePhotoView: PHLivePhotoView, didEndPlaybackWith playbackStyle: PHLivePhotoViewPlaybackStyle) {
             isPlaying = false
-            if LivePhotoPlaybackLoopPolicy.shouldRestartAfterPlaybackEnds(autoPlay: autoPlay) {
-                startPlayback(in: livePhotoView, delay: 0.75)
-            }
         }
     }
 }

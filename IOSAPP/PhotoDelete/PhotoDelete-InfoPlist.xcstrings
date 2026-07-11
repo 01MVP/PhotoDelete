@@ -134,37 +134,37 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "يحتاج OnePhoto إلى الوصول إلى مكتبة الصور لقراءة الصور المحددة وتنظيمها وتمييزها كمفضلة وحذفها بعد تأكيدك. لا نرفع صورك أو نشاركها مطلقًا."
+            "value": "يحتاج OnePhoto إلى الوصول إلى مكتبة الصور لقراءة الصور المحددة وتنظيمها وتمييزها كمفضلة وحذفها بعد تأكيدك. لا نرفع صورك؛ ولا تتم مشاركة الصورة المحددة إلا عندما تضغط على مشاركة وتختار تطبيقًا."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "OnePhoto benötigt Zugriff auf Ihre Fotomediathek, um ausgewählte Fotos nach Ihrer Bestätigung zu lesen, zu organisieren, als Favoriten zu markieren und zu löschen. Wir laden Ihre Fotos niemals hoch und teilen sie nicht."
+            "value": "OnePhoto benötigt Zugriff auf Ihre Fotomediathek, um ausgewählte Fotos nach Ihrer Bestätigung zu lesen, zu organisieren, als Favoriten zu markieren und zu löschen. Wir laden Ihre Fotos nicht hoch; das ausgewählte Foto wird nur geteilt, wenn Sie auf Teilen tippen und eine App auswählen."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "OnePhoto needs access to read, organize, favorite, and delete selected photos after you confirm. We never upload or share your photos."
+            "value": "OnePhoto needs access to read, organize, favorite, and delete selected photos after you confirm. We never upload your photos; a selected photo is shared only when you tap Share and choose an app."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "OnePhotoは、確認後に選択した写真を読み込み、整理し、お気に入りに追加し、削除するために写真ライブラリへのアクセスが必要です。写真をアップロードしたり共有したりすることはありません。"
+            "value": "OnePhotoは、確認後に選択した写真を読み込み、整理し、お気に入りに追加し、削除するために写真ライブラリへのアクセスが必要です。写真をアップロードすることはなく、共有をタップしてAppを選んだ場合にのみ選択した写真を共有します。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "new",
-            "value": "删图需要访问照片库来读取、整理、收藏，并在您确认后删除选择的照片。我们不会上传或分享您的照片。"
+            "value": "删图需要访问照片库来读取、整理、收藏，并在您确认后删除选择的照片。我们不会上传您的照片；只有在您主动点击分享并选择目标 App 时，系统才会分享所选照片。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "刪圖需要訪問照片庫來讀取、整理、收藏，並在你確認後刪除選擇的照片。我們不會上傳或分享你的照片。"
+            "value": "刪圖需要訪問照片庫來讀取、整理、收藏，並在你確認後刪除選擇的照片。我們不會上傳你的照片；只有在你主動點擊分享並選擇目標 App 時，系統才會分享所選照片。"
           }
         }
       }
