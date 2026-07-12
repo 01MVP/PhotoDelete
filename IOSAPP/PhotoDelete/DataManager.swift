@@ -62,7 +62,22 @@ struct SimilarPhotoAssetFingerprint: Equatable {
 }
 
 enum PhotoLibraryStartupRefreshTiming {
+    static let initialLibraryProgressDelay: TimeInterval = 2.0
     static let restoredSnapshotProgressDelay: TimeInterval = 1.2
+}
+
+enum AlbumScanProgressPublishPolicy {
+    static func shouldPublish(
+        completedSteps: Int,
+        totalSteps: Int,
+        lastPublishedProgress: Double,
+        minimumProgressDelta: Double = 0.05
+    ) -> Bool {
+        guard totalSteps > 0, completedSteps > 0 else { return false }
+        if completedSteps >= totalSteps { return true }
+        let progress = Double(completedSteps) / Double(totalSteps)
+        return progress - lastPublishedProgress >= minimumProgressDelta
+    }
 }
 
 enum AlbumLoadNeededPolicy {
@@ -257,6 +272,15 @@ class DataManager: ObservableObject {
             }
             .store(in: &cancellables)
 
+        photoLibraryManager.$isLoading
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] isLoading in
+                guard !isLoading else { return }
+                self?.resumePendingAlbumRefreshIfNeeded()
+            }
+            .store(in: &cancellables)
+
         photoLibraryManager.onLibraryDataChanged = { [weak self] in
             guard let self else { return }
             let shouldRefreshDerivedData = !self.suppressNextDerivedLibraryRefresh
@@ -350,10 +374,13 @@ class DataManager: ObservableObject {
 
         photoLibraryManager.loadPhotos(preserveExistingData: !showPreparing) { [weak self] in
             guard let self else { return }
-            self.refreshDerivedLibraryData()
+            self.refreshDerivedLibraryData(
+                progressRefreshDelay: PhotoLibraryStartupRefreshTiming.initialLibraryProgressDelay
+            )
             self.suppressNextDerivedLibraryRefresh = true
             self.isPreparingLibrary = false
             self.isReloadingLibrary = false
+            self.resumePendingAlbumRefreshIfNeeded()
         }
     }
 
@@ -2540,6 +2567,7 @@ class DataManager: ObservableObject {
     }
 
     private func pruneReviewedAssetIDs() {
+        guard !reviewedAssetIDs.isEmpty else { return }
         let validAssetIDs = Set(photoLibraryManager.allPhotos.map(\.localIdentifier))
         guard !validAssetIDs.isEmpty || photoLibraryManager.hasLoadedPhotoLibrary else { return }
 
@@ -2550,6 +2578,7 @@ class DataManager: ObservableObject {
     }
 
     private func prunePendingCandidates() {
+        guard !deleteCandidates.isEmpty || !favoriteCandidates.isEmpty else { return }
         let validAssetIDs = Set(photoLibraryManager.allPhotos.map(\.localIdentifier))
         guard !validAssetIDs.isEmpty || photoLibraryManager.hasLoadedPhotoLibrary else { return }
 
@@ -2630,6 +2659,14 @@ class DataManager: ObservableObject {
         }
 
         let shouldShowLoading = showLoading ?? (!hasLoadedAlbums && systemAlbums.isEmpty && userAlbums.isEmpty)
+        guard !photoLibraryManager.isLoading else {
+            pendingAlbumRefresh = true
+            pendingAlbumRefreshShouldShowLoading = pendingAlbumRefreshShouldShowLoading || shouldShowLoading
+            if shouldShowLoading {
+                isLoadingAlbums = true
+            }
+            return
+        }
         guard !isFetchingAlbums else {
             pendingAlbumRefresh = true
             pendingAlbumRefreshShouldShowLoading = pendingAlbumRefreshShouldShowLoading || shouldShowLoading
@@ -2645,7 +2682,7 @@ class DataManager: ObservableObject {
             albumLoadingProgress = 0.03
         }
 
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+        DispatchQueue.global(qos: .utility).async { [weak self] in
             guard let self = self else { return }
 
             var systemAlbums: [AlbumInfo] = []
@@ -2670,10 +2707,17 @@ class DataManager: ObservableObject {
             )
             let totalSteps = max(smartAlbumTypes.count + userCollections.count, 1)
             var completedSteps = 0
+            var lastPublishedProgress = 0.0
 
             func publishProgress() {
                 completedSteps += 1
+                guard AlbumScanProgressPublishPolicy.shouldPublish(
+                    completedSteps: completedSteps,
+                    totalSteps: totalSteps,
+                    lastPublishedProgress: lastPublishedProgress
+                ) else { return }
                 let progress = min(Double(completedSteps) / Double(totalSteps), 0.98)
+                lastPublishedProgress = progress
                 DispatchQueue.main.async {
                     if shouldShowLoading {
                         self.albumLoadingProgress = max(self.albumLoadingProgress, progress)
@@ -2736,6 +2780,18 @@ class DataManager: ObservableObject {
                 }
             }
         }
+    }
+
+    private func resumePendingAlbumRefreshIfNeeded() {
+        guard pendingAlbumRefresh,
+              !isFetchingAlbums,
+              !photoLibraryManager.isLoading,
+              photoLibraryManager.hasPhotoLibraryAccess else { return }
+
+        let shouldShowLoading = pendingAlbumRefreshShouldShowLoading
+        pendingAlbumRefresh = false
+        pendingAlbumRefreshShouldShowLoading = false
+        loadAlbums(showLoading: shouldShowLoading)
     }
 
     @discardableResult

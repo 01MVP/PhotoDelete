@@ -22,6 +22,38 @@ struct PhotoLibraryLivePhotoResult {
     let isFinal: Bool
 }
 
+struct PhotoLibraryAssetClassification: Equatable {
+    let isVideo: Bool
+    let isScreenshot: Bool
+    let isLivePhoto: Bool
+    let isFavorite: Bool
+
+    static func resolve(
+        mediaType: PHAssetMediaType,
+        mediaSubtypes: PHAssetMediaSubtype,
+        pixelWidth: Int,
+        pixelHeight: Int,
+        screenPixelSize: CGSize,
+        isFavorite: Bool
+    ) -> PhotoLibraryAssetClassification {
+        let isVideo = mediaType == .video
+        let hasScreenshotSubtype = mediaSubtypes.contains(.photoScreenshot)
+        let assetLongSide = max(CGFloat(pixelWidth), CGFloat(pixelHeight))
+        let assetShortSide = min(CGFloat(pixelWidth), CGFloat(pixelHeight))
+        let screenLongSide = max(screenPixelSize.width, screenPixelSize.height)
+        let screenShortSide = min(screenPixelSize.width, screenPixelSize.height)
+        let matchesScreenSize = abs(assetLongSide - screenLongSide) < 10 &&
+            abs(assetShortSide - screenShortSide) < 10
+
+        return PhotoLibraryAssetClassification(
+            isVideo: isVideo,
+            isScreenshot: !isVideo && (hasScreenshotSubtype || matchesScreenSize),
+            isLivePhoto: mediaType == .image && mediaSubtypes.contains(.photoLive),
+            isFavorite: isFavorite
+        )
+    }
+}
+
 struct PhotoSharePayload: Identifiable {
     let id = UUID()
     let fileURL: URL
@@ -106,13 +138,24 @@ enum PhotoLibraryLoadingPublishPolicy {
         !preserveExistingData && totalCount > 0 && batchStart == 0
     }
 
-    static func shouldPublishCategorizationProgress(
+    static func shouldPublishScanProgress(
         batchEnd: Int,
         totalCount: Int,
         batchSize: Int
     ) -> Bool {
         guard totalCount > 0, batchSize > 0 else { return false }
-        return batchEnd == totalCount || batchEnd % (batchSize * 10) == 0
+        return batchEnd == totalCount || batchEnd % (batchSize * 5) == 0
+    }
+}
+
+enum PhotoLibraryDeferredReloadPolicy {
+    static func shouldDeferReload(
+        isLoading: Bool,
+        isRestoringSnapshot: Bool,
+        hasTrackedFetchResult: Bool,
+        hasChangeDetails: Bool
+    ) -> Bool {
+        (isLoading || isRestoringSnapshot) && hasTrackedFetchResult && hasChangeDetails
     }
 }
 
@@ -896,6 +939,10 @@ class PhotoLibraryManager: NSObject, ObservableObject {
 
             let totalCount = allPhotosResult.count
             var allPhotosArray: [PHAsset] = []
+            var videosArray: [PHAsset] = []
+            var screenshotsArray: [PHAsset] = []
+            var livePhotosArray: [PHAsset] = []
+            var favoritesArray: [PHAsset] = []
 
             if totalCount == 0 {
                 DispatchQueue.main.async {
@@ -932,24 +979,40 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                 }
 
                 allPhotosArray.append(contentsOf: batchAssets)
+                for asset in batchAssets {
+                    self.appendAssetClassification(
+                        asset,
+                        screenPixelSize: screenPixelSize,
+                        videos: &videosArray,
+                        screenshots: &screenshotsArray,
+                        livePhotos: &livePhotosArray,
+                        favorites: &favoritesArray
+                    )
+                }
 
                 // 更新进度
-                let loadingProgress = Double(batchEnd) / Double(totalCount) * 0.6 // 60%用于基础加载
+                let loadingProgress = Double(batchEnd) / Double(totalCount) * 0.9
                 let shouldPublishPartialPhotos = PhotoLibraryLoadingPublishPolicy.shouldPublishInitialPhotos(
                     batchStart: batchStart,
                     batchEnd: batchEnd,
                     totalCount: totalCount,
                     preserveExistingData: shouldPreserveExistingData
                 )
+                let shouldPublishProgress = PhotoLibraryLoadingPublishPolicy.shouldPublishScanProgress(
+                    batchEnd: batchEnd,
+                    totalCount: totalCount,
+                    batchSize: batchSize
+                )
                 let partialPhotos = shouldPublishPartialPhotos ? allPhotosArray : []
-                DispatchQueue.main.async {
-                    self.loadingProgress = max(self.loadingProgress, loadingProgress)
-                    if shouldPublishPartialPhotos, self.hasPhotoLibraryAccess {
-                        self.allPhotos = partialPhotos
-                        self.hasLoadedPhotoLibrary = !partialPhotos.isEmpty
+                if shouldPublishPartialPhotos || shouldPublishProgress {
+                    DispatchQueue.main.async {
+                        self.loadingProgress = max(self.loadingProgress, loadingProgress)
+                        if shouldPublishPartialPhotos, self.hasPhotoLibraryAccess {
+                            self.allPhotos = partialPhotos
+                            self.hasLoadedPhotoLibrary = !partialPhotos.isEmpty
+                        }
                     }
                 }
-
             }
 
             DispatchQueue.main.async {
@@ -959,37 +1022,23 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                     return
                 }
                 self.allPhotos = allPhotosArray
-                self.hasLoadedPhotoLibrary = !allPhotosArray.isEmpty
-                self.loadingProgress = 0.6
-            }
-
-            // 异步分类照片，避免阻塞
-            self.categorizePhotos(allPhotosArray, screenPixelSize: screenPixelSize) { videos, screenshots, livePhotos, favorites in
-                DispatchQueue.main.async {
-                    guard self.hasPhotoLibraryAccess else {
-                        self.clearLoadedLibraryData(clearSnapshot: true, finishPendingLoads: true)
-                        self.onLibraryDataChanged?()
-                        return
-                    }
-                    self.allPhotos = allPhotosArray
-                    self.videos = videos
-                    self.screenshots = screenshots
-                    self.livePhotos = livePhotos
-                    self.favorites = favorites
-                    self.loadingProgress = 1.0
-                    self.isLoading = false
-                    self.hasLoadedPhotoLibrary = true
-                    self.saveSnapshot(
-                        allPhotos: allPhotosArray,
-                        videos: videos,
-                        screenshots: screenshots,
-                        livePhotos: livePhotos,
-                        favorites: favorites
-                    )
-                    self.finishLoadingPhotos()
-                    self.onLibraryDataChanged?()
-                    self.reloadPhotoLibraryAfterCurrentLoadIfNeeded()
-                }
+                self.videos = videosArray
+                self.screenshots = screenshotsArray
+                self.livePhotos = livePhotosArray
+                self.favorites = favoritesArray
+                self.loadingProgress = 1.0
+                self.isLoading = false
+                self.hasLoadedPhotoLibrary = true
+                self.saveSnapshot(
+                    allPhotos: allPhotosArray,
+                    videos: videosArray,
+                    screenshots: screenshotsArray,
+                    livePhotos: livePhotosArray,
+                    favorites: favoritesArray
+                )
+                self.finishLoadingPhotos()
+                self.onLibraryDataChanged?()
+                self.reloadPhotoLibraryAfterCurrentLoadIfNeeded()
             }
         }
     }
@@ -1012,80 +1061,67 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             var screenshots: [PHAsset] = []
             var livePhotos: [PHAsset] = []
 
-            // 分批处理分类以避免内存压力
-            let batchSize = 100
-            for batchStart in stride(from: 0, to: photos.count, by: batchSize) {
-                let batchEnd = min(batchStart + batchSize, photos.count)
-                let batch = Array(photos[batchStart..<batchEnd])
-
-                for asset in batch {
-                    if asset.mediaType == .video {
-                        videos.append(asset)
-                    } else if self.isScreenshot(asset, screenPixelSize: screenPixelSize) {
-                        screenshots.append(asset)
-                    }
-
-                    if self.isLivePhoto(asset) {
-                        livePhotos.append(asset)
-                    }
-                }
-
-                if PhotoLibraryLoadingPublishPolicy.shouldPublishCategorizationProgress(
-                    batchEnd: batchEnd,
-                    totalCount: photos.count,
-                    batchSize: batchSize
-                ) {
-                    DispatchQueue.main.async {
-                        let progress = 0.6 + (Double(batchEnd) / Double(photos.count)) * 0.3 // 30%用于分类
-                        self.loadingProgress = progress
-                    }
-                }
-            }
-
-            // 获取收藏的照片
-            let favoriteOptions = PHFetchOptions()
-            favoriteOptions.predicate = NSPredicate(format: "isFavorite == YES")
-            favoriteOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-            let favoritesResult = PHAsset.fetchAssets(with: favoriteOptions)
-
             var favoritesArray: [PHAsset] = []
-            favoritesResult.enumerateObjects { asset, _, _ in
-                favoritesArray.append(asset)
+            for asset in photos {
+                self.appendAssetClassification(
+                    asset,
+                    screenPixelSize: screenPixelSize,
+                    videos: &videos,
+                    screenshots: &screenshots,
+                    livePhotos: &livePhotos,
+                    favorites: &favoritesArray
+                )
             }
 
             completion(videos, screenshots, livePhotos, favoritesArray)
         }
     }
 
+    private func appendAssetClassification(
+        _ asset: PHAsset,
+        screenPixelSize: CGSize,
+        videos: inout [PHAsset],
+        screenshots: inout [PHAsset],
+        livePhotos: inout [PHAsset],
+        favorites: inout [PHAsset]
+    ) {
+        let classification = assetClassification(asset, screenPixelSize: screenPixelSize)
+        if classification.isVideo {
+            videos.append(asset)
+        } else if classification.isScreenshot {
+            screenshots.append(asset)
+        }
+
+        if classification.isLivePhoto {
+            livePhotos.append(asset)
+        }
+        if classification.isFavorite {
+            favorites.append(asset)
+        }
+    }
+
     // MARK: - Photo Classification
 
     func isScreenshot(_ asset: PHAsset) -> Bool {
-        isScreenshot(asset, screenPixelSize: Self.currentScreenPixelSize())
+        assetClassification(asset, screenPixelSize: Self.currentScreenPixelSize()).isScreenshot
     }
 
     func isLivePhoto(_ asset: PHAsset) -> Bool {
         asset.mediaType == .image && asset.mediaSubtypes.contains(.photoLive)
     }
 
-    private func isScreenshot(_ asset: PHAsset, screenPixelSize: CGSize) -> Bool {
-        // 检查截图的特征
-        if #available(iOS 9.0, *) {
-            // 通过资源子类型判断
-            if asset.mediaSubtypes.contains(.photoScreenshot) {
-                return true
-            }
-        }
-
-        // 备用方法：通过设备尺寸判断
-        let assetSize = CGSize(width: CGFloat(asset.pixelWidth), height: CGFloat(asset.pixelHeight))
-        let screenLongSide = max(screenPixelSize.width, screenPixelSize.height)
-        let screenShortSide = min(screenPixelSize.width, screenPixelSize.height)
-        let assetLongSide = max(assetSize.width, assetSize.height)
-        let assetShortSide = min(assetSize.width, assetSize.height)
-
-        // 如果尺寸匹配屏幕尺寸，可能是截图
-        return abs(assetLongSide - screenLongSide) < 10 &&
-               abs(assetShortSide - screenShortSide) < 10
+    private func assetClassification(
+        _ asset: PHAsset,
+        screenPixelSize: CGSize
+    ) -> PhotoLibraryAssetClassification {
+        PhotoLibraryAssetClassification.resolve(
+            mediaType: asset.mediaType,
+            mediaSubtypes: asset.mediaSubtypes,
+            pixelWidth: asset.pixelWidth,
+            pixelHeight: asset.pixelHeight,
+            screenPixelSize: screenPixelSize,
+            isFavorite: asset.isFavorite
+        )
     }
 
     // MARK: - Photo Operations
@@ -3362,10 +3398,24 @@ extension PhotoLibraryManager: PHPhotoLibraryChangeObserver {
                 return
             }
 
-            guard !self.isLoading, !self.isRestoringSnapshot, self.hasLoadedPhotoLibrary else {
-                self.needsPhotoLibraryReloadAfterCurrentLoad = true
+            if self.isLoading || self.isRestoringSnapshot {
+                let hasTrackedFetchResult = self.allPhotosResult != nil
+                let hasChangeDetails = self.allPhotosResult.flatMap {
+                    changeInstance.changeDetails(for: $0)
+                } != nil
+                if PhotoLibraryDeferredReloadPolicy.shouldDeferReload(
+                    isLoading: self.isLoading,
+                    isRestoringSnapshot: self.isRestoringSnapshot,
+                    hasTrackedFetchResult: hasTrackedFetchResult,
+                    hasChangeDetails: hasChangeDetails
+                ) {
+                    self.needsPhotoLibraryReloadAfterCurrentLoad = true
+                }
                 return
             }
+
+            // Before the first fetch starts, the upcoming scan already reads the latest library state.
+            guard self.hasLoadedPhotoLibrary else { return }
 
             guard let fetchResult = self.allPhotosResult else {
                 self.onLibraryDataChanged?()

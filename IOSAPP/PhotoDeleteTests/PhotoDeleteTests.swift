@@ -1754,14 +1754,17 @@ struct PhotoDeleteTests {
         let dm = DataManager(userDefaults: defaults)
 
         dm.addToDeleteCandidates(asset)
+        try await Task.sleep(for: .milliseconds(700))
         #expect(storedPendingCandidateIDs(for: AppConstants.pendingDeleteCandidateIDsKey, defaults: defaults) == [asset.localIdentifier])
         #expect(storedPendingCandidateIDs(for: AppConstants.pendingFavoriteCandidateIDsKey, defaults: defaults).isEmpty)
 
         dm.addToFavoriteCandidates(asset)
+        try await Task.sleep(for: .milliseconds(700))
         #expect(storedPendingCandidateIDs(for: AppConstants.pendingDeleteCandidateIDsKey, defaults: defaults).isEmpty)
         #expect(storedPendingCandidateIDs(for: AppConstants.pendingFavoriteCandidateIDsKey, defaults: defaults) == [asset.localIdentifier])
 
         dm.cancelAllOperations()
+        try await Task.sleep(for: .milliseconds(50))
         #expect(storedPendingCandidateIDs(for: AppConstants.pendingDeleteCandidateIDsKey, defaults: defaults).isEmpty)
         #expect(storedPendingCandidateIDs(for: AppConstants.pendingFavoriteCandidateIDsKey, defaults: defaults).isEmpty)
     }
@@ -2714,26 +2717,128 @@ struct PhotoDeleteTests {
             preserveExistingData: true
         ))
 
-        #expect(!PhotoLibraryLoadingPublishPolicy.shouldPublishCategorizationProgress(
+        #expect(!PhotoLibraryLoadingPublishPolicy.shouldPublishScanProgress(
             batchEnd: 500,
-            totalCount: 5_000,
-            batchSize: 100
+            totalCount: 30_000,
+            batchSize: 500
         ))
-        #expect(PhotoLibraryLoadingPublishPolicy.shouldPublishCategorizationProgress(
-            batchEnd: 1_000,
-            totalCount: 5_000,
-            batchSize: 100
+        #expect(PhotoLibraryLoadingPublishPolicy.shouldPublishScanProgress(
+            batchEnd: 2_500,
+            totalCount: 30_000,
+            batchSize: 500
         ))
-        #expect(PhotoLibraryLoadingPublishPolicy.shouldPublishCategorizationProgress(
-            batchEnd: 5_000,
-            totalCount: 5_000,
-            batchSize: 100
+        #expect(PhotoLibraryLoadingPublishPolicy.shouldPublishScanProgress(
+            batchEnd: 30_000,
+            totalCount: 30_000,
+            batchSize: 500
         ))
     }
 
     @Test func restoredSnapshotDefersTimelineBuildAfterLaunch() async throws {
+        #expect(PhotoLibraryStartupRefreshTiming.initialLibraryProgressDelay >= 1.5)
+        #expect(PhotoLibraryStartupRefreshTiming.initialLibraryProgressDelay <= 3.0)
         #expect(PhotoLibraryStartupRefreshTiming.restoredSnapshotProgressDelay >= 1.0)
         #expect(PhotoLibraryStartupRefreshTiming.restoredSnapshotProgressDelay <= 2.0)
+    }
+
+    @Test func photoLibraryReloadIsDeferredOnlyForTrackedChangesDuringARealLoad() async throws {
+        #expect(!PhotoLibraryDeferredReloadPolicy.shouldDeferReload(
+            isLoading: true,
+            isRestoringSnapshot: false,
+            hasTrackedFetchResult: false,
+            hasChangeDetails: false
+        ))
+        #expect(!PhotoLibraryDeferredReloadPolicy.shouldDeferReload(
+            isLoading: true,
+            isRestoringSnapshot: false,
+            hasTrackedFetchResult: true,
+            hasChangeDetails: false
+        ))
+        #expect(PhotoLibraryDeferredReloadPolicy.shouldDeferReload(
+            isLoading: true,
+            isRestoringSnapshot: false,
+            hasTrackedFetchResult: true,
+            hasChangeDetails: true
+        ))
+        #expect(PhotoLibraryDeferredReloadPolicy.shouldDeferReload(
+            isLoading: false,
+            isRestoringSnapshot: true,
+            hasTrackedFetchResult: true,
+            hasChangeDetails: true
+        ))
+    }
+
+    @Test func singlePassAssetClassificationPreservesExistingMediaRules() async throws {
+        let screenSize = CGSize(width: 1_170, height: 2_532)
+
+        let screenshot = PhotoLibraryAssetClassification.resolve(
+            mediaType: .image,
+            mediaSubtypes: [.photoScreenshot],
+            pixelWidth: 2_000,
+            pixelHeight: 3_000,
+            screenPixelSize: screenSize,
+            isFavorite: true
+        )
+        #expect(screenshot.isScreenshot)
+        #expect(screenshot.isFavorite)
+        #expect(!screenshot.isVideo)
+        #expect(!screenshot.isLivePhoto)
+
+        let livePhoto = PhotoLibraryAssetClassification.resolve(
+            mediaType: .image,
+            mediaSubtypes: [.photoLive],
+            pixelWidth: 4_032,
+            pixelHeight: 3_024,
+            screenPixelSize: screenSize,
+            isFavorite: false
+        )
+        #expect(livePhoto.isLivePhoto)
+        #expect(!livePhoto.isScreenshot)
+
+        let dimensionMatchedScreenshot = PhotoLibraryAssetClassification.resolve(
+            mediaType: .image,
+            mediaSubtypes: [],
+            pixelWidth: 1_170,
+            pixelHeight: 2_532,
+            screenPixelSize: screenSize,
+            isFavorite: false
+        )
+        #expect(dimensionMatchedScreenshot.isScreenshot)
+
+        let video = PhotoLibraryAssetClassification.resolve(
+            mediaType: .video,
+            mediaSubtypes: [],
+            pixelWidth: 1_170,
+            pixelHeight: 2_532,
+            screenPixelSize: screenSize,
+            isFavorite: false
+        )
+        #expect(video.isVideo)
+        #expect(!video.isScreenshot)
+        #expect(!video.isLivePhoto)
+    }
+
+    @Test func albumScanProgressPublishesAtCoarseIntervalsAndCompletion() async throws {
+        #expect(!AlbumScanProgressPublishPolicy.shouldPublish(
+            completedSteps: 1,
+            totalSteps: 100,
+            lastPublishedProgress: 0
+        ))
+        #expect(AlbumScanProgressPublishPolicy.shouldPublish(
+            completedSteps: 5,
+            totalSteps: 100,
+            lastPublishedProgress: 0
+        ))
+        #expect(!AlbumScanProgressPublishPolicy.shouldPublish(
+            completedSteps: 9,
+            totalSteps: 100,
+            lastPublishedProgress: 0.05
+        ))
+        #expect(AlbumScanProgressPublishPolicy.shouldPublish(
+            completedSteps: 100,
+            totalSteps: 100,
+            lastPublishedProgress: 0.95
+        ))
     }
 
     @Test func albumReviewSessionsIgnorePersistedReviewedStateOnRefresh() async throws {

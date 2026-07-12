@@ -1567,6 +1567,7 @@ private struct LanguageSettingsView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(Text(language.title))
         .accessibilityHint(Text(language.detail))
         .accessibilityAddTraits(selectedLanguage == language ? .isSelected : [])
         .accessibilityValue(Text(selectedLanguage == language ? L10n.string("已选") : L10n.string("未选择")))
