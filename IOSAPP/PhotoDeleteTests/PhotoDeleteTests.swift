@@ -296,8 +296,9 @@ struct PhotoDeleteTests {
         #expect(!LivePhotoPlaybackDefaultPolicy.initialMotionEnabled(isLivePhoto: false, autoPlayPreference: true))
         #expect(!LivePhotoPlaybackDefaultPolicy.initialMotionEnabled(isLivePhoto: true, autoPlayPreference: false))
         #expect(LivePhotoPlaybackDefaultPolicy.initialMotionEnabled(isLivePhoto: true, autoPlayPreference: true))
-        #expect(LivePhotoPlaybackDefaultPolicy.toggledMotionEnabled(current: false))
-        #expect(!LivePhotoPlaybackDefaultPolicy.toggledMotionEnabled(current: true))
+        #expect(LivePhotoPlaybackDefaultPolicy.motionEnabledAfterManualAction(current: false, previousLoadFailed: false))
+        #expect(!LivePhotoPlaybackDefaultPolicy.motionEnabledAfterManualAction(current: true, previousLoadFailed: false))
+        #expect(LivePhotoPlaybackDefaultPolicy.motionEnabledAfterManualAction(current: true, previousLoadFailed: true))
     }
 
     @Test func livePhotoPlaybackStartsOncePerAssetUnlessExplicitlyTriggered() async throws {
@@ -1870,64 +1871,37 @@ struct PhotoDeleteTests {
     }
 
     @Test func randomReviewPlannerIsStableForSameSeed() async throws {
-        let identifiers = ["a", "b", "c", "d", "e"]
+        let identifiers = ["asset-a", "asset-b", "asset-c", "asset-d", "asset-e"]
         let first = PhotoRandomReviewPlanner.plannedIdentifiers(
             from: identifiers,
             excluding: [],
-            seed: "stable",
-            limit: 3
+            seed: "stable-order",
+            limit: identifiers.count
         )
         let second = PhotoRandomReviewPlanner.plannedIdentifiers(
             from: identifiers,
             excluding: [],
-            seed: "stable",
-            limit: 3
+            seed: "stable-order",
+            limit: identifiers.count
         )
 
         #expect(first == second)
-        #expect(first.count == 3)
+        #expect(first == ["asset-b", "asset-c", "asset-a", "asset-d", "asset-e"])
     }
 
-    @Test func randomMemoriesPrioritizeUnreviewedOldPhotosAndNeverIncludeRecentPhotos() async throws {
-        let oldPhotoIDs = ["old-a", "old-b", "old-reviewed"]
-        let resolved = PhotoRandomReviewPlanner.resolvedSessionIdentifiers(
-            existingSessionIDs: [],
-            candidateIdentifiers: oldPhotoIDs,
-            fallbackCandidateIdentifiers: oldPhotoIDs,
-            validIdentifiers: Set(oldPhotoIDs),
-            excludedIdentifiers: ["old-reviewed"],
+    @Test func randomReviewFallbackCanIncludeReviewedPhotosAfterUnreviewedCandidates() async throws {
+        let candidateIDs = ["candidate-a", "candidate-b", "candidate-reviewed"]
+        let resolved = PhotoRandomReviewPlanner.resolvedIdentifiers(
+            candidateIdentifiers: candidateIDs,
+            fallbackCandidateIdentifiers: candidateIDs,
+            excludedIdentifiers: ["candidate-reviewed"],
             fallbackExcludedIdentifiers: [],
-            seed: "old-memories",
+            seed: "fallback",
             limit: Int.max
         )
 
-        #expect(Set(resolved.prefix(2)) == ["old-a", "old-b"])
-        #expect(resolved.last == "old-reviewed")
-        #expect(!resolved.contains("recent-photo"))
-    }
-
-    @Test func randomMemoryDatePolicyOnlyAcceptsPhotosOlderThanSixMonths() async throws {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-        let now = Date(timeIntervalSince1970: 1_767_225_600) // 2026-01-01 UTC
-        let sevenMonthsAgo = try #require(calendar.date(byAdding: .month, value: -7, to: now))
-        let twoMonthsAgo = try #require(calendar.date(byAdding: .month, value: -2, to: now))
-
-        #expect(PhotoRandomReviewDatePolicy.isOlderMemory(
-            creationDate: sevenMonthsAgo,
-            now: now,
-            calendar: calendar
-        ))
-        #expect(!PhotoRandomReviewDatePolicy.isOlderMemory(
-            creationDate: twoMonthsAgo,
-            now: now,
-            calendar: calendar
-        ))
-        #expect(!PhotoRandomReviewDatePolicy.isOlderMemory(
-            creationDate: nil,
-            now: now,
-            calendar: calendar
-        ))
+        #expect(Set(resolved.prefix(2)) == ["candidate-a", "candidate-b"])
+        #expect(resolved.last == "candidate-reviewed")
     }
 
     @Test func randomReviewWaitsForTheCompleteLibraryEvenWhenPartialPhotosExist() async throws {
@@ -1946,124 +1920,6 @@ struct PhotoDeleteTests {
             hasPhotos: true,
             isWaitingForSourceData: true
         ))
-    }
-
-    @Test func randomReviewPlannerPrunesExistingSessionToValidIdentifiers() async throws {
-        let existing = PhotoRandomReviewPlanner.existingSessionIdentifiers(
-            ["a", "missing", "a", "b"],
-            keepingValid: ["a", "b"]
-        )
-
-        #expect(existing == ["a", "b"])
-    }
-
-    @Test func randomReviewPlannerFiltersExistingSessionAndBackfillsToLimit() async throws {
-        let resolved = PhotoRandomReviewPlanner.resolvedSessionIdentifiers(
-            existingSessionIDs: ["a", "missing", "reviewed", "a", "b"],
-            candidateIdentifiers: ["a", "b", "c", "d", "reviewed"],
-            validIdentifiers: ["a", "b", "c", "d", "reviewed"],
-            excludedIdentifiers: ["reviewed"],
-            seed: "fill",
-            limit: 4
-        )
-
-        #expect(Array(resolved.prefix(2)) == ["a", "b"])
-        #expect(resolved.count == 4)
-        #expect(Set(resolved).count == resolved.count)
-        #expect(!resolved.contains("reviewed"))
-        #expect(!resolved.contains("missing"))
-    }
-
-    @Test func randomReviewPlannerCanPreserveExistingReviewedSessionItems() async throws {
-        let resolved = PhotoRandomReviewPlanner.resolvedSessionIdentifiers(
-            existingSessionIDs: ["a", "reviewed", "b"],
-            candidateIdentifiers: ["a", "b", "c", "d", "reviewed"],
-            validIdentifiers: ["a", "b", "c", "d", "reviewed"],
-            excludedIdentifiers: ["reviewed"],
-            seed: "preserve",
-            limit: 4,
-            preservesExistingSessionIdentifiers: true
-        )
-
-        #expect(Array(resolved.prefix(3)) == ["a", "reviewed", "b"])
-        #expect(resolved.count == 4)
-        #expect(Set(resolved).count == resolved.count)
-    }
-
-    @Test func randomReviewPlannerRefillsLegacyTenItemSessionToDefaultBatchSize() async throws {
-        let identifiers = makeAssetIDs(32)
-        let resolved = PhotoRandomReviewPlanner.resolvedSessionIdentifiers(
-            existingSessionIDs: Array(identifiers.prefix(10)),
-            candidateIdentifiers: identifiers,
-            validIdentifiers: Set(identifiers),
-            excludedIdentifiers: [],
-            seed: "legacy-ten",
-            limit: PhotoRandomReviewPlanner.defaultBatchSize
-        )
-
-        #expect(resolved.count == PhotoRandomReviewPlanner.defaultBatchSize)
-        #expect(Array(resolved.prefix(10)) == Array(identifiers.prefix(10)))
-        #expect(Set(resolved).count == resolved.count)
-    }
-
-    @Test func randomReviewPlannerContinuousModeDropsReviewedLegacySessionItems() async throws {
-        let identifiers = makeAssetIDs(120)
-        let reviewed = Set(identifiers.prefix(20))
-        let resolved = PhotoRandomReviewPlanner.resolvedSessionIdentifiers(
-            existingSessionIDs: Array(identifiers.prefix(30)),
-            candidateIdentifiers: identifiers,
-            validIdentifiers: Set(identifiers),
-            excludedIdentifiers: reviewed,
-            seed: "continuous",
-            limit: PhotoRandomReviewPlanner.continuousReviewLimit
-        )
-
-        #expect(resolved.count == 100)
-        #expect(Set(resolved) == Set(identifiers.dropFirst(20)))
-        #expect(Set(resolved).isDisjoint(with: reviewed))
-        #expect(Array(resolved.prefix(10)) == Array(identifiers.dropFirst(20).prefix(10)))
-    }
-
-    @Test func randomReviewSessionStoreRoundTripsAndClearsScope() async throws {
-        let suiteName = "PhotoDeleteRandomSession-\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-
-        PhotoRandomReviewSessionStore.save(
-            assetIdentifiers: ["asset-1", "asset-2"],
-            scopeID: "random:memories",
-            defaults: defaults
-        )
-
-        #expect(PhotoRandomReviewSessionStore.load(scopeID: "random:memories", defaults: defaults) == ["asset-1", "asset-2"])
-        #expect(PhotoRandomReviewSessionStore.load(scopeID: "random:all", defaults: defaults).isEmpty)
-
-        PhotoRandomReviewSessionStore.clear(scopeID: "random:memories", defaults: defaults)
-        #expect(PhotoRandomReviewSessionStore.load(scopeID: "random:memories", defaults: defaults).isEmpty)
-    }
-
-    @Test func randomReviewMigrationClearsOnlyLegacyRandomStateOnce() async throws {
-        let suiteName = "PhotoDeleteRandomMigration-\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-
-        PhotoReviewProgressStore.save(assetIdentifier: "recent-cursor", scopeID: "random:memories", defaults: defaults)
-        PhotoReviewProgressStore.save(assetIdentifier: "category-cursor", scopeID: "category:all", defaults: defaults)
-        PhotoRandomReviewSessionStore.save(
-            assetIdentifiers: ["recent-a", "recent-b"],
-            scopeID: "random:memories",
-            defaults: defaults
-        )
-
-        PhotoRandomReviewMigration.applyIfNeeded(defaults: defaults)
-
-        #expect(PhotoReviewProgressStore.load(scopeID: "random:memories", defaults: defaults) == nil)
-        #expect(PhotoReviewProgressStore.load(scopeID: "category:all", defaults: defaults) == "category-cursor")
-        #expect(PhotoRandomReviewSessionStore.load(scopeID: "random:memories", defaults: defaults).isEmpty)
-
-        PhotoReviewProgressStore.save(assetIdentifier: "new-random-cursor", scopeID: "random:memories", defaults: defaults)
-        PhotoRandomReviewMigration.applyIfNeeded(defaults: defaults)
-        #expect(PhotoReviewProgressStore.load(scopeID: "random:memories", defaults: defaults) == "new-random-cursor")
     }
 
     @Test func reviewProgressStoreRoundTripsAndClearsScope() async throws {

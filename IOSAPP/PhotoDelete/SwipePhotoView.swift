@@ -4501,10 +4501,14 @@ struct RealPhotoCard: View {
     private func toggleLivePhotoMotion() {
         guard photoLibraryManager.isLivePhoto(asset) else { return }
         HapticManager.impact(.light)
-        isLivePhotoMotionEnabled = LivePhotoPlaybackDefaultPolicy.toggledMotionEnabled(current: isLivePhotoMotionEnabled)
+        isLivePhotoMotionEnabled = LivePhotoPlaybackDefaultPolicy.motionEnabledAfterManualAction(
+            current: isLivePhotoMotionEnabled,
+            previousLoadFailed: failedToLoadLivePhoto
+        )
 
         guard isLivePhotoMotionEnabled else { return }
         livePhotoPlaybackTrigger += 1
+        failedToLoadLivePhoto = false
         loadLivePhoto(for: asset.localIdentifier)
     }
 }

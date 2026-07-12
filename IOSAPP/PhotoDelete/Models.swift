@@ -256,8 +256,11 @@ enum LivePhotoPlaybackDefaultPolicy {
         isLivePhoto && autoPlayPreference
     }
 
-    static func toggledMotionEnabled(current: Bool) -> Bool {
-        !current
+    static func motionEnabledAfterManualAction(
+        current: Bool,
+        previousLoadFailed: Bool
+    ) -> Bool {
+        previousLoadFailed || !current
     }
 }
 

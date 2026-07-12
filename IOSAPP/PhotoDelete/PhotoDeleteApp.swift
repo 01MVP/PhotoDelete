@@ -20,7 +20,6 @@ struct PhotoDeleteApp: App {
         #endif
         SwipeGesturePreferences.migrateStoredDefaultsIfNeeded()
         ReviewPlaybackPreferences.applyLaunchDefaults()
-        PhotoRandomReviewMigration.applyIfNeeded()
     }
 
     var body: some Scene {
@@ -115,8 +114,6 @@ private enum PhotoDeleteUITestDefaults {
             AppConstants.hasSeenDeleteButtonTipKey,
             AppConstants.hasDismissedAlbumSwipeHintKey,
             AppConstants.reviewProgressByScopeKey,
-            AppConstants.randomReviewSessionsKey,
-            AppConstants.randomReviewMigrationVersionKey,
             AppConstants.customAlbumOrderKey,
             AppConstants.appAppearanceKey,
             AppConstants.appThemeKey,

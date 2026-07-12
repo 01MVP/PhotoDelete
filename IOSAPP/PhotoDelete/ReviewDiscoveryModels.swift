@@ -71,9 +71,7 @@ enum PhotoRandomReviewScope: String, CaseIterable, Identifiable, Codable, Hashab
 }
 
 enum PhotoRandomReviewPlanner {
-    static let defaultBatchSize = 20
     static let continuousReviewLimit = Int.max
-    static let oldPhotoMinimumMonthAge = 6
 
     static func plannedIdentifiers(
         from candidateIdentifiers: [String],
@@ -93,80 +91,47 @@ enum PhotoRandomReviewPlanner {
             return identifier
         }
 
+        let rankedIdentifiers = eligible.map { identifier in
+            (
+                identifier: identifier,
+                hash: stableHash(seed: seed, identifier: identifier)
+            )
+        }
+
         return Array(
-            eligible.sorted {
-                let lhsHash = stableHash(seed: seed, identifier: $0)
-                let rhsHash = stableHash(seed: seed, identifier: $1)
-                if lhsHash == rhsHash {
-                    return $0 < $1
+            rankedIdentifiers.sorted {
+                if $0.hash == $1.hash {
+                    return $0.identifier < $1.identifier
                 }
-                return lhsHash < rhsHash
+                return $0.hash < $1.hash
             }
             .prefix(limit)
+            .map(\.identifier)
         )
     }
 
-    static func existingSessionIdentifiers(
-        _ identifiers: [String],
-        keepingValid validIdentifiers: Set<String>,
-        excluding excludedIdentifiers: Set<String> = [],
-        limit: Int = Int.max
-    ) -> [String] {
-        guard limit > 0 else { return [] }
-
-        var seen: Set<String> = []
-        var result: [String] = []
-        for identifier in identifiers {
-            guard validIdentifiers.contains(identifier),
-                  !excludedIdentifiers.contains(identifier),
-                  seen.insert(identifier).inserted else {
-                continue
-            }
-            result.append(identifier)
-            if result.count >= limit {
-                break
-            }
-        }
-        return result
-    }
-
-    static func resolvedSessionIdentifiers(
-        existingSessionIDs: [String],
+    static func resolvedIdentifiers(
         candidateIdentifiers: [String],
         fallbackCandidateIdentifiers: [String] = [],
-        validIdentifiers: Set<String>,
         excludedIdentifiers: Set<String>,
         fallbackExcludedIdentifiers: Set<String>? = nil,
         seed: String,
-        limit: Int,
-        preservesExistingSessionIdentifiers: Bool = false
+        limit: Int
     ) -> [String] {
         guard limit > 0 else { return [] }
 
-        var resolved = existingSessionIdentifiers(
-            existingSessionIDs,
-            keepingValid: validIdentifiers,
-            excluding: preservesExistingSessionIdentifiers ? [] : excludedIdentifiers,
+        var resolved = plannedIdentifiers(
+            from: candidateIdentifiers,
+            excluding: excludedIdentifiers,
+            seed: seed,
             limit: limit
         )
-        guard resolved.count < limit else { return resolved }
-
-        var selectedIDs = Set(resolved)
-        let primaryFill = plannedIdentifiers(
-            from: candidateIdentifiers,
-            excluding: excludedIdentifiers.union(selectedIDs),
-            seed: seed,
-            limit: limit - resolved.count
-        )
-        resolved.append(contentsOf: primaryFill)
-        selectedIDs.formUnion(primaryFill)
-
         guard resolved.count < limit else { return resolved }
 
         let fallbackExclusions = fallbackExcludedIdentifiers ?? excludedIdentifiers
         let fallbackFill = plannedIdentifiers(
             from: fallbackCandidateIdentifiers,
-            excluding: fallbackExclusions.union(selectedIDs),
+            excluding: fallbackExclusions.union(resolved),
             seed: seed,
             limit: limit - resolved.count
         )
@@ -182,87 +147,6 @@ enum PhotoRandomReviewPlanner {
             hash &*= 1_099_511_628_211
         }
         return hash
-    }
-}
-
-enum PhotoRandomReviewDatePolicy {
-    static func isOlderMemory(
-        creationDate: Date?,
-        now: Date = Date(),
-        calendar: Calendar = .current
-    ) -> Bool {
-        guard let creationDate,
-              let cutoff = calendar.date(
-                byAdding: .month,
-                value: -PhotoRandomReviewPlanner.oldPhotoMinimumMonthAge,
-                to: now
-              ) else {
-            return false
-        }
-        return creationDate < cutoff
-    }
-}
-
-struct PhotoRandomReviewSession: Codable, Equatable {
-    let scopeID: String
-    let assetIdentifiers: [String]
-    let createdAt: Date
-}
-
-enum PhotoRandomReviewSessionStore {
-    static func load(scopeID: String, defaults: UserDefaults = .standard) -> [String] {
-        guard let data = defaults.data(forKey: AppConstants.randomReviewSessionsKey),
-              let sessions = try? JSONDecoder().decode([String: PhotoRandomReviewSession].self, from: data) else {
-            return []
-        }
-        return sessions[scopeID]?.assetIdentifiers ?? []
-    }
-
-    static func save(
-        assetIdentifiers: [String],
-        scopeID: String,
-        defaults: UserDefaults = .standard,
-        date: Date = Date()
-    ) {
-        var sessions = loadAll(defaults: defaults)
-        sessions[scopeID] = PhotoRandomReviewSession(
-            scopeID: scopeID,
-            assetIdentifiers: assetIdentifiers,
-            createdAt: date
-        )
-        saveAll(sessions, defaults: defaults)
-    }
-
-    static func clear(scopeID: String, defaults: UserDefaults = .standard) {
-        var sessions = loadAll(defaults: defaults)
-        sessions.removeValue(forKey: scopeID)
-        saveAll(sessions, defaults: defaults)
-    }
-
-    static func clearAll(defaults: UserDefaults = .standard) {
-        defaults.removeObject(forKey: AppConstants.randomReviewSessionsKey)
-    }
-
-    private static func loadAll(defaults: UserDefaults) -> [String: PhotoRandomReviewSession] {
-        guard let data = defaults.data(forKey: AppConstants.randomReviewSessionsKey),
-              let sessions = try? JSONDecoder().decode([String: PhotoRandomReviewSession].self, from: data) else {
-            return [:]
-        }
-        return sessions
-    }
-
-    private static func saveAll(
-        _ sessions: [String: PhotoRandomReviewSession],
-        defaults: UserDefaults
-    ) {
-        guard !sessions.isEmpty else {
-            defaults.removeObject(forKey: AppConstants.randomReviewSessionsKey)
-            return
-        }
-
-        if let data = try? JSONEncoder().encode(sessions) {
-            defaults.set(data, forKey: AppConstants.randomReviewSessionsKey)
-        }
     }
 }
 
@@ -287,12 +171,6 @@ enum PhotoReviewProgressStore {
         defaults.removeObject(forKey: AppConstants.reviewProgressByScopeKey)
     }
 
-    static func clearScopes(withPrefix prefix: String, defaults: UserDefaults = .standard) {
-        var map = progressMap(defaults: defaults)
-        map = map.filter { !$0.key.hasPrefix(prefix) }
-        saveMap(map, defaults: defaults)
-    }
-
     private static func progressMap(defaults: UserDefaults) -> [String: String] {
         defaults.dictionary(forKey: AppConstants.reviewProgressByScopeKey) as? [String: String] ?? [:]
     }
@@ -303,20 +181,6 @@ enum PhotoReviewProgressStore {
         } else {
             defaults.set(map, forKey: AppConstants.reviewProgressByScopeKey)
         }
-    }
-}
-
-enum PhotoRandomReviewMigration {
-    private static let currentVersion = 1
-
-    static func applyIfNeeded(defaults: UserDefaults = .standard) {
-        guard defaults.integer(forKey: AppConstants.randomReviewMigrationVersionKey) < currentVersion else {
-            return
-        }
-
-        PhotoRandomReviewSessionStore.clearAll(defaults: defaults)
-        PhotoReviewProgressStore.clearScopes(withPrefix: "random:", defaults: defaults)
-        defaults.set(currentVersion, forKey: AppConstants.randomReviewMigrationVersionKey)
     }
 }
 

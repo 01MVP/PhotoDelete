@@ -968,7 +968,6 @@ class DataManager: ObservableObject {
         favoriteCandidates.removeAll()
         clearPendingCandidateIDs()
         reviewedAssetIDs.removeAll()
-        PhotoRandomReviewSessionStore.clearAll()
         PhotoReviewProgressStore.clearAll(defaults: userDefaults)
         saveReviewedAssetIDsNow()
         hasLoadedAlbums = false
@@ -1050,7 +1049,6 @@ class DataManager: ObservableObject {
         favoriteCandidates.removeAll()
         clearPendingCandidateIDs()
         reviewedAssetIDs.removeAll()
-        PhotoRandomReviewSessionStore.clearAll()
         PhotoReviewProgressStore.clearAll(defaults: userDefaults)
         saveReviewedAssetIDsNow()
         loadTimeGroups()
@@ -1182,11 +1180,9 @@ class DataManager: ObservableObject {
         let sourceIDs = sourcePhotos.map(\.localIdentifier)
         let reviewedAndPendingIDs = randomReviewExcludedIdentifiers()
         let pendingOperationIDs = randomReviewPendingOperationIdentifiers()
-        let resolvedIDs = PhotoRandomReviewPlanner.resolvedSessionIdentifiers(
-            existingSessionIDs: [],
+        let resolvedIDs = PhotoRandomReviewPlanner.resolvedIdentifiers(
             candidateIdentifiers: sourceIDs,
             fallbackCandidateIdentifiers: scope == .memories ? sourceIDs : [],
-            validIdentifiers: Set(sourceIDs),
             excludedIdentifiers: reviewedAndPendingIDs,
             fallbackExcludedIdentifiers: scope == .memories ? pendingOperationIDs : nil,
             seed: seed,
@@ -1208,10 +1204,6 @@ class DataManager: ObservableObject {
 
     func albumTitles(for asset: PHAsset) -> [String] {
         albumTitlesByAssetID[asset.localIdentifier] ?? []
-    }
-
-    func clearRandomReviewSession(scopeID: String) {
-        PhotoRandomReviewSessionStore.clear(scopeID: scopeID)
     }
 
     private static func assets(in photos: [PHAsset], preserving identifiers: [String]) -> [PHAsset] {
@@ -2469,16 +2461,6 @@ class DataManager: ObservableObject {
             hash &*= 1_099_511_628_211
         }
         return hash
-    }
-
-    private func isAssetOrganized(_ asset: PHAsset) -> Bool {
-        let identifier = asset.localIdentifier
-        let deleteCandidateIDs = Set(deleteCandidates.map(\.localIdentifier))
-        let favoriteCandidateIDs = Set(favoriteCandidates.map(\.localIdentifier))
-        return reviewedAssetIDs.contains(identifier) ||
-            deleteCandidateIDs.contains(identifier) ||
-            favoriteCandidateIDs.contains(identifier) ||
-            asset.isFavorite
     }
 
     private func loadReviewedAssetIDs() {
