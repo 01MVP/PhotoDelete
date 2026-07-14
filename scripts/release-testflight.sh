@@ -33,6 +33,14 @@ if [[ -n "$ASC_KEY_ID" || -n "$ASC_ISSUER_ID" || -n "$ASC_PRIVATE_KEY_PATH" ]]; 
   )
 fi
 
+run_xcodebuild() {
+  if (( ${#XCODE_AUTH_ARGS[@]} > 0 )); then
+    xcodebuild "$@" "${XCODE_AUTH_ARGS[@]}"
+  else
+    xcodebuild "$@"
+  fi
+}
+
 resolve_project_marketing_version() {
   local version
   version="$(
@@ -242,14 +250,13 @@ archive_and_upload() {
     )
   fi
 
-  xcodebuild archive \
+  run_xcodebuild archive \
     -project "$PROJECT_PATH" \
     -scheme "$SCHEME" \
     -configuration Release \
     -destination 'generic/platform=iOS' \
     -archivePath "$ARCHIVE_PATH" \
     -allowProvisioningUpdates \
-    "${XCODE_AUTH_ARGS[@]}" \
     "${archive_signing_args[@]}"
 
   verify_archive_version
@@ -262,12 +269,11 @@ archive_and_upload() {
   write_export_options
 
   export_log="$RELEASE_DIR/export-$MARKETING_VERSION-$BUILD_NUMBER.log"
-  if ! xcodebuild -exportArchive \
+  if ! run_xcodebuild -exportArchive \
     -archivePath "$ARCHIVE_PATH" \
     -exportPath "$EXPORT_PATH" \
     -exportOptionsPlist "$EXPORT_OPTIONS" \
-    -allowProvisioningUpdates \
-    "${XCODE_AUTH_ARGS[@]}" 2>&1 | tee "$export_log"; then
+    -allowProvisioningUpdates 2>&1 | tee "$export_log"; then
     if is_closed_marketing_version_error "$export_log"; then
       return 86
     fi
