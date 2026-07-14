@@ -330,4 +330,14 @@ enum CleanupStatsFormatter {
         }
         return "\((megabytes / 1000).formatted(.number.grouping(.never).precision(.fractionLength(1)))) GB"
     }
+
+    static func fileSize(_ mebibytes: Double) -> String {
+        let bytes = max(mebibytes, 0) * 1_048_576
+        if bytes < 1_000_000_000 {
+            let megabytes = bytes / 1_000_000
+            return "\(megabytes.formatted(.number.grouping(.never).precision(.fractionLength(1)))) MB"
+        }
+        let gigabytes = bytes / 1_000_000_000
+        return "\(gigabytes.formatted(.number.grouping(.never).precision(.fractionLength(1)))) GB"
+    }
 }

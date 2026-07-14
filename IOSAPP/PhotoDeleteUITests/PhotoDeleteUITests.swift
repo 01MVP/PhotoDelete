@@ -423,13 +423,21 @@ final class PhotoDeleteUITests: XCTestCase {
         let appLanguage = environment["PHOTO_DELETE_MARKETING_APP_LANGUAGE"] ??
             environment["TEST_RUNNER_PHOTO_DELETE_MARKETING_APP_LANGUAGE"] ??
             "zh-Hans"
+        let shouldSeedLibrary = (environment["PHOTO_DELETE_MARKETING_SEED_LIBRARY"] ??
+            environment["TEST_RUNNER_PHOTO_DELETE_MARKETING_SEED_LIBRARY"] ??
+            "1") != "0"
 
         installPhotoLibraryInterruptionMonitor(allowDeletionConfirmation: true)
 
         let outputDirectory = URL(fileURLWithPath: captureDirectory, isDirectory: true)
         try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
 
-        let app = makeApp(completedOnboarding: true, appLanguage: appLanguage, seedLibrary: true)
+        let app = makeApp(
+            completedOnboarding: true,
+            appLanguage: appLanguage,
+            seedLibrary: shouldSeedLibrary,
+            supporterTrialActive: true
+        )
         app.launch()
         _ = allowFullPhotoLibraryAccessIfNeeded(app: app)
         if !waitForHomeReady(in: app, language: appLanguage, timeout: 30) {
@@ -439,12 +447,25 @@ final class PhotoDeleteUITests: XCTestCase {
         }
 
         XCTAssertTrue(waitForHomeReady(in: app, language: appLanguage, timeout: 30))
+        sleep(2)
+        dismissMarketingSystemPrompts(app: app, allowDeletionConfirmation: true)
+        XCTAssertTrue(waitForHomeReady(in: app, language: appLanguage, timeout: 15))
         try capture("01-home", in: outputDirectory, app: app)
 
         openAlbumsTab(in: app)
         let expectedAlbumTitle = appLanguage.hasPrefix("en") ? "Travel Photos" : "旅行照片"
-        XCTAssertTrue(app.staticTexts[expectedAlbumTitle].waitForExistence(timeout: 60))
-        try capture("02-albums-real", in: outputDirectory, app: app)
+        let hasLocalizedSeedAlbum = app.staticTexts[expectedAlbumTitle].waitForExistence(
+            timeout: shouldSeedLibrary ? 60 : 5
+        )
+        if hasLocalizedSeedAlbum {
+            try capture("05-albums-real", in: outputDirectory, app: app)
+        } else {
+            XCTAssertTrue(
+                appLanguage.hasPrefix("en") && !shouldSeedLibrary &&
+                    app.staticTexts["4 albums"].exists,
+                "Expected localized seeded albums or a reusable existing English album capture"
+            )
+        }
 
         openOrganizeTab(in: app)
         XCTAssertTrue(waitForHomeReady(in: app, language: appLanguage, timeout: 15))
@@ -459,15 +480,10 @@ final class PhotoDeleteUITests: XCTestCase {
         let doneButton = firstExistingButton(in: app, labels: ["完成", "Done"])
         XCTAssertTrue(doneButton.waitForExistence(timeout: 30))
         sleep(2)
-        try capture("03-review-card", in: outputDirectory, app: app)
+        try capture("02-review-card", in: outputDirectory, app: app)
 
         dragCardLeft(in: app)
         sleep(1)
-        try capture("04-left-swipe-delete", in: outputDirectory, app: app)
-
-        dragCardRight(in: app)
-        sleep(1)
-        try capture("05-right-swipe-keep", in: outputDirectory, app: app)
 
         let reviewModeButton = firstExistingButton(in: app, labels: ["整理模式", "Review Mode"])
         XCTAssertTrue(reviewModeButton.waitForExistence(timeout: 5))
@@ -475,7 +491,7 @@ final class PhotoDeleteUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["左右浏览"].waitForExistence(timeout: 5) ||
             app.staticTexts["Browse left or right"].waitForExistence(timeout: 5))
         sleep(2)
-        try capture("06-two-row-browser", in: outputDirectory, app: app)
+        try capture("03-two-row-browser", in: outputDirectory, app: app)
 
         ensurePendingDeleteCandidateForMarketing(in: app)
 
@@ -485,8 +501,119 @@ final class PhotoDeleteUITests: XCTestCase {
             _ = app.staticTexts["确认删除"].waitForExistence(timeout: 5) ||
                 app.staticTexts["Confirm Deletion"].waitForExistence(timeout: 5)
             sleep(1)
-            try capture("07-finish-or-confirm", in: outputDirectory, app: app)
+            try capture("04-finish-or-confirm", in: outputDirectory, app: app)
         }
+
+        let cancelAllActionsButton = firstExistingButton(
+            in: app,
+            labels: ["取消所有操作", "Cancel All Actions"]
+        )
+        if cancelAllActionsButton.waitForExistence(timeout: 5) {
+            cancelAllActionsButton.tap()
+            XCTAssertTrue(waitForElementToDisappear(cancelAllActionsButton, timeout: 5))
+        }
+        navigateBack(in: app)
+
+        openAdvancedTab(in: app)
+        let focusedCleanupTitle = appLanguage.hasPrefix("en") ? "Focused Cleanup" : "高效清理"
+        XCTAssertTrue(app.staticTexts[focusedCleanupTitle].waitForExistence(timeout: 60))
+        sleep(3)
+        try capture("06-advanced-dashboard", in: outputDirectory, app: app)
+
+        let similarPhotosPrefix = appLanguage.hasPrefix("en") ? "Similar Photos" : "相似照片"
+        guard let similarPhotosButton = waitForButtonLabelPrefix(
+            in: app,
+            prefix: similarPhotosPrefix,
+            timeout: 60,
+            excluding: appLanguage.hasPrefix("en") ? "0 items" : "0 项"
+        ) else {
+            XCTFail("Expected a non-empty similar photos cleanup entry for marketing capture")
+            return
+        }
+        similarPhotosButton.tap()
+        XCTAssertTrue(app.staticTexts[similarPhotosPrefix].waitForExistence(timeout: 10))
+        sleep(2)
+        try capture("07-similar-photos", in: outputDirectory, app: app)
+
+        navigateBack(in: app)
+        XCTAssertTrue(app.staticTexts[focusedCleanupTitle].waitForExistence(timeout: 10))
+
+        let largeFilesPrefix = appLanguage.hasPrefix("en") ? "Large Files" : "大文件"
+        guard let largeFilesButton = waitForButtonLabelPrefix(
+            in: app,
+            prefix: largeFilesPrefix,
+            timeout: 30,
+            excluding: appLanguage.hasPrefix("en") ? "0 items" : "0 项"
+        ) else {
+            XCTFail("Expected a non-empty large files cleanup entry for marketing capture")
+            return
+        }
+        largeFilesButton.tap()
+        XCTAssertTrue(app.staticTexts[largeFilesPrefix].waitForExistence(timeout: 10))
+        sleep(2)
+        try capture("08-large-files", in: outputDirectory, app: app)
+    }
+
+    @MainActor
+    func testMarketingCaptureSettingsAndPrivacy() throws {
+        let environment = ProcessInfo.processInfo.environment
+        let captureDirectoryValue = environment["PHOTO_DELETE_MARKETING_CAPTURE_DIR"] ??
+            environment["TEST_RUNNER_PHOTO_DELETE_MARKETING_CAPTURE_DIR"]
+        guard let captureDirectory = captureDirectoryValue,
+              !captureDirectory.isEmpty else {
+            throw XCTSkip("Set PHOTO_DELETE_MARKETING_CAPTURE_DIR to export marketing UI captures.")
+        }
+        let appLanguage = environment["PHOTO_DELETE_MARKETING_APP_LANGUAGE"] ??
+            environment["TEST_RUNNER_PHOTO_DELETE_MARKETING_APP_LANGUAGE"] ??
+            "zh-Hans"
+
+        let outputDirectory = URL(fileURLWithPath: captureDirectory, isDirectory: true)
+        try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
+
+        let app = makeApp(
+            completedOnboarding: true,
+            appLanguage: appLanguage,
+            seedLibrary: false,
+            supporterTrialActive: true
+        )
+        app.launch()
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10))
+
+        openSettingsTab(in: app)
+        let achievementsTitle = appLanguage.hasPrefix("en") ? "Achievements & History" : "成就与历史"
+        let settingsUsageTitle = appLanguage.hasPrefix("en") ? "Usage stats" : "使用统计"
+        XCTAssertTrue(app.staticTexts[settingsUsageTitle].waitForExistence(timeout: 10))
+        guard let achievementsButton = waitForHittableButtonLabelContaining(
+            in: app,
+            substring: achievementsTitle,
+            timeout: 10
+        ) else {
+            XCTFail("Expected achievements entry for marketing capture")
+            return
+        }
+        achievementsButton.tap()
+        XCTAssertTrue(app.staticTexts[achievementsTitle].waitForExistence(timeout: 10))
+        sleep(2)
+        try capture("09-achievements", in: outputDirectory, app: app)
+
+        let doneButton = firstExistingButton(in: app, labels: ["完成", "Done"])
+        XCTAssertTrue(doneButton.waitForExistence(timeout: 5))
+        doneButton.tap()
+
+        let privacyTitle = appLanguage.hasPrefix("en") ? "Privacy Notes" : "隐私说明"
+        var privacyButton = waitForHittableButton(in: app, label: privacyTitle, timeout: 2)
+        for _ in 0..<5 where privacyButton == nil {
+            app.swipeUp()
+            privacyButton = waitForHittableButton(in: app, label: privacyTitle, timeout: 2)
+        }
+        guard let privacyButton else {
+            XCTFail("Expected privacy entry for marketing capture")
+            return
+        }
+        privacyButton.tap()
+        XCTAssertTrue(app.staticTexts[privacyTitle].waitForExistence(timeout: 10))
+        sleep(2)
+        try capture("10-privacy", in: outputDirectory, app: app)
     }
 
     private func makeApp(
@@ -574,6 +701,26 @@ final class PhotoDeleteUITests: XCTestCase {
         ).firstMatch
         guard backButton.waitForExistence(timeout: 1), backButton.isHittable else { return }
         tapHittableElement(backButton)
+    }
+
+    @MainActor
+    private func navigateBack(in app: XCUIApplication) {
+        let navigationBarBackButton = app.navigationBars.buttons.element(boundBy: 0)
+        if navigationBarBackButton.waitForExistence(timeout: 2), navigationBarBackButton.isHittable {
+            navigationBarBackButton.tap()
+            return
+        }
+
+        let fallbackBackButton = app.buttons.matching(
+            NSPredicate(
+                format: "label IN %@ OR identifier IN %@",
+                ["返回", "Back", "向左", "arrow.left"],
+                ["返回", "Back", "向左", "arrow.left"]
+            )
+        ).firstMatch
+        if fallbackBackButton.waitForExistence(timeout: 2), fallbackBackButton.isHittable {
+            fallbackBackButton.tap()
+        }
     }
 
     @MainActor

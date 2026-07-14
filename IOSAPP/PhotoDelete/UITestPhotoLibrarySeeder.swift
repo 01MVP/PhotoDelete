@@ -98,7 +98,6 @@ enum UITestPhotoLibrarySeeder {
         let albumTitle: String
         let date: Date
         let location: CLLocation?
-        let generatedPetIndex: Int?
         let generatedVideoIndex: Int?
     }
 
@@ -131,9 +130,8 @@ enum UITestPhotoLibrarySeeder {
                 seeds.append(PhotoSeed(
                     resourceName: nil,
                     albumTitle: album.title,
-                    date: day(1),
+                    date: day(-9),
                     location: CLLocation(latitude: 35.6762, longitude: 139.6503),
-                    generatedPetIndex: nil,
                     generatedVideoIndex: 0
                 ))
                 seeds.append(PhotoSeed(
@@ -141,7 +139,6 @@ enum UITestPhotoLibrarySeeder {
                     albumTitle: album.title,
                     date: day(0),
                     location: CLLocation(latitude: 22.3193, longitude: 114.1694),
-                    generatedPetIndex: nil,
                     generatedVideoIndex: nil
                 ))
                 seeds.append(PhotoSeed(
@@ -149,7 +146,6 @@ enum UITestPhotoLibrarySeeder {
                     albumTitle: album.title,
                     date: day(-1),
                     location: CLLocation(latitude: 40.7128, longitude: -74.0060),
-                    generatedPetIndex: nil,
                     generatedVideoIndex: nil
                 ))
             case .beach:
@@ -158,7 +154,13 @@ enum UITestPhotoLibrarySeeder {
                     albumTitle: album.title,
                     date: day(-2),
                     location: CLLocation(latitude: 1.3521, longitude: 103.8198),
-                    generatedPetIndex: nil,
+                    generatedVideoIndex: nil
+                ))
+                seeds.append(PhotoSeed(
+                    resourceName: "travel-seed-05",
+                    albumTitle: album.title,
+                    date: day(-2.5),
+                    location: CLLocation(latitude: 36.7783, longitude: -119.4179),
                     generatedVideoIndex: nil
                 ))
                 seeds.append(PhotoSeed(
@@ -166,7 +168,6 @@ enum UITestPhotoLibrarySeeder {
                     albumTitle: album.title,
                     date: day(-3),
                     location: CLLocation(latitude: 48.8566, longitude: 2.3522),
-                    generatedPetIndex: nil,
                     generatedVideoIndex: nil
                 ))
             case .city:
@@ -175,7 +176,6 @@ enum UITestPhotoLibrarySeeder {
                     albumTitle: album.title,
                     date: day(-4),
                     location: CLLocation(latitude: 30.2741, longitude: 120.1551),
-                    generatedPetIndex: nil,
                     generatedVideoIndex: nil
                 ))
                 seeds.append(PhotoSeed(
@@ -183,48 +183,42 @@ enum UITestPhotoLibrarySeeder {
                     albumTitle: album.title,
                     date: day(-5),
                     location: CLLocation(latitude: 25.0330, longitude: 121.5654),
-                    generatedPetIndex: nil,
                     generatedVideoIndex: nil
                 ))
                 seeds.append(PhotoSeed(
-                    resourceName: nil,
+                    resourceName: "travel-seed-01",
                     albumTitle: album.title,
                     date: day(-8),
                     location: CLLocation(latitude: 25.0330, longitude: 121.5654),
-                    generatedPetIndex: nil,
                     generatedVideoIndex: nil
                 ))
                 seeds.append(PhotoSeed(
-                    resourceName: nil,
+                    resourceName: "travel-seed-02",
                     albumTitle: album.title,
                     date: day(-8).addingTimeInterval(3),
                     location: CLLocation(latitude: 25.0330, longitude: 121.5654),
-                    generatedPetIndex: nil,
                     generatedVideoIndex: nil
                 ))
                 seeds.append(PhotoSeed(
-                    resourceName: nil,
+                    resourceName: "travel-seed-03",
                     albumTitle: album.title,
                     date: day(-8).addingTimeInterval(6),
                     location: CLLocation(latitude: 25.0330, longitude: 121.5654),
-                    generatedPetIndex: nil,
                     generatedVideoIndex: nil
                 ))
             case .pet:
                 seeds.append(PhotoSeed(
-                    resourceName: nil,
+                    resourceName: "pet-seed-01",
                     albumTitle: album.title,
                     date: day(-6),
                     location: nil,
-                    generatedPetIndex: 0,
                     generatedVideoIndex: nil
                 ))
                 seeds.append(PhotoSeed(
-                    resourceName: nil,
+                    resourceName: "pet-seed-02",
                     albumTitle: album.title,
                     date: day(-7),
                     location: nil,
-                    generatedPetIndex: 1,
                     generatedVideoIndex: nil
                 ))
             }
@@ -264,12 +258,12 @@ enum UITestPhotoLibrarySeeder {
             return PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url)
         }
 
-        if let resourceName = seed.resourceName,
-           let url = resourceURL(named: resourceName) {
+        if let resourceName = seed.resourceName {
+            guard let url = resourceURL(named: resourceName) else { return nil }
             return PHAssetChangeRequest.creationRequestForAssetFromImage(atFileURL: url)
         }
 
-        return PHAssetChangeRequest.creationRequestForAsset(from: makeGeneratedImage(for: seed))
+        return nil
     }
 
     private static func resourceURL(named name: String) -> URL? {
@@ -439,150 +433,5 @@ enum UITestPhotoLibrarySeeder {
         return pixelBuffer
     }
 
-    private static func makeGeneratedImage(for seed: PhotoSeed) -> UIImage {
-        if let index = seed.generatedPetIndex {
-            return makePetImage(index: index)
-        }
-
-        let variant = seed.resourceName ?? seed.albumTitle
-        let size = CGSize(width: 1600, height: 1200)
-        return UIGraphicsImageRenderer(size: size).image { context in
-            let cg = context.cgContext
-            let palette = scenicPalette(for: variant)
-            let colors = [palette.top.cgColor, palette.bottom.cgColor] as CFArray
-            let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1])!
-            cg.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: size.width, y: size.height), options: [])
-
-            palette.sun.withAlphaComponent(0.92).setFill()
-            UIBezierPath(ovalIn: CGRect(x: 1180, y: 140, width: 210, height: 210)).fill()
-
-            UIColor.white.withAlphaComponent(0.36).setFill()
-            UIBezierPath(roundedRect: CGRect(x: 130, y: 170, width: 360, height: 82), cornerRadius: 41).fill()
-            UIBezierPath(roundedRect: CGRect(x: 350, y: 235, width: 260, height: 62), cornerRadius: 31).fill()
-
-            palette.mountainBack.setFill()
-            let backMountain = UIBezierPath()
-            backMountain.move(to: CGPoint(x: 0, y: 780))
-            backMountain.addLine(to: CGPoint(x: 330, y: 460))
-            backMountain.addLine(to: CGPoint(x: 680, y: 780))
-            backMountain.addLine(to: CGPoint(x: 1020, y: 500))
-            backMountain.addLine(to: CGPoint(x: size.width, y: 790))
-            backMountain.addLine(to: CGPoint(x: size.width, y: size.height))
-            backMountain.addLine(to: CGPoint(x: 0, y: size.height))
-            backMountain.close()
-            backMountain.fill()
-
-            palette.mountainFront.setFill()
-            let frontMountain = UIBezierPath()
-            frontMountain.move(to: CGPoint(x: 0, y: 890))
-            frontMountain.addLine(to: CGPoint(x: 520, y: 520))
-            frontMountain.addLine(to: CGPoint(x: 970, y: 890))
-            frontMountain.addLine(to: CGPoint(x: 1280, y: 650))
-            frontMountain.addLine(to: CGPoint(x: size.width, y: 900))
-            frontMountain.addLine(to: CGPoint(x: size.width, y: size.height))
-            frontMountain.addLine(to: CGPoint(x: 0, y: size.height))
-            frontMountain.close()
-            frontMountain.fill()
-
-            palette.water.setFill()
-            UIBezierPath(rect: CGRect(x: 0, y: 880, width: size.width, height: 320)).fill()
-
-            UIColor.white.withAlphaComponent(0.42).setStroke()
-            for offset in stride(from: CGFloat(40), through: CGFloat(1500), by: CGFloat(260)) {
-                let wave = UIBezierPath()
-                wave.lineWidth = 10
-                wave.move(to: CGPoint(x: offset, y: 990))
-                wave.addCurve(
-                    to: CGPoint(x: offset + 180, y: 990),
-                    controlPoint1: CGPoint(x: offset + 55, y: 950),
-                    controlPoint2: CGPoint(x: offset + 125, y: 1030)
-                )
-                wave.stroke()
-            }
-        }
-    }
-
-    private struct ScenicPalette {
-        let top: UIColor
-        let bottom: UIColor
-        let sun: UIColor
-        let mountainBack: UIColor
-        let mountainFront: UIColor
-        let water: UIColor
-    }
-
-    private static func scenicPalette(for variant: String) -> ScenicPalette {
-        switch variant {
-        case "travel-seed-02", "travel-seed-03":
-            return ScenicPalette(
-                top: UIColor(red: 0.78, green: 0.88, blue: 0.96, alpha: 1),
-                bottom: UIColor(red: 0.96, green: 0.88, blue: 0.74, alpha: 1),
-                sun: UIColor(red: 1.0, green: 0.76, blue: 0.34, alpha: 1),
-                mountainBack: UIColor(red: 0.47, green: 0.64, blue: 0.58, alpha: 1),
-                mountainFront: UIColor(red: 0.26, green: 0.44, blue: 0.40, alpha: 1),
-                water: UIColor(red: 0.39, green: 0.64, blue: 0.78, alpha: 1)
-            )
-        case "travel-seed-06", "travel-seed-08":
-            return ScenicPalette(
-                top: UIColor(red: 0.48, green: 0.72, blue: 0.92, alpha: 1),
-                bottom: UIColor(red: 0.92, green: 0.76, blue: 0.60, alpha: 1),
-                sun: UIColor(red: 1.0, green: 0.88, blue: 0.46, alpha: 1),
-                mountainBack: UIColor(red: 0.52, green: 0.60, blue: 0.72, alpha: 1),
-                mountainFront: UIColor(red: 0.33, green: 0.46, blue: 0.64, alpha: 1),
-                water: UIColor(red: 0.22, green: 0.58, blue: 0.74, alpha: 1)
-            )
-        default:
-            return ScenicPalette(
-                top: UIColor(red: 0.70, green: 0.82, blue: 0.76, alpha: 1),
-                bottom: UIColor(red: 0.98, green: 0.83, blue: 0.65, alpha: 1),
-                sun: UIColor(red: 1.0, green: 0.72, blue: 0.38, alpha: 1),
-                mountainBack: UIColor(red: 0.56, green: 0.66, blue: 0.48, alpha: 1),
-                mountainFront: UIColor(red: 0.32, green: 0.48, blue: 0.36, alpha: 1),
-                water: UIColor(red: 0.42, green: 0.68, blue: 0.72, alpha: 1)
-            )
-        }
-    }
-
-    private static func makePetImage(index: Int) -> UIImage {
-        let size = CGSize(width: 1200, height: 1600)
-        return UIGraphicsImageRenderer(size: size).image { context in
-            let cg = context.cgContext
-            let backgroundColors: [UIColor] = index == 0
-                ? [UIColor(red: 0.78, green: 0.91, blue: 1.0, alpha: 1), UIColor(red: 1.0, green: 0.91, blue: 0.82, alpha: 1)]
-                : [UIColor(red: 0.96, green: 0.88, blue: 1.0, alpha: 1), UIColor(red: 0.82, green: 0.95, blue: 0.88, alpha: 1)]
-            let colors = backgroundColors.map(\.cgColor) as CFArray
-            let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1])!
-            cg.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: size.width, y: size.height), options: [])
-
-            UIColor.white.withAlphaComponent(0.68).setFill()
-            UIBezierPath(roundedRect: CGRect(x: 180, y: 520, width: 840, height: 650), cornerRadius: 120).fill()
-
-            let faceRect = CGRect(x: 310, y: 420, width: 580, height: 580)
-            UIColor(red: 0.88, green: 0.67, blue: 0.42, alpha: 1).setFill()
-            UIBezierPath(ovalIn: faceRect).fill()
-
-            UIColor(red: 0.65, green: 0.42, blue: 0.24, alpha: 1).setFill()
-            UIBezierPath(ovalIn: CGRect(x: 250, y: 360, width: 210, height: 260)).fill()
-            UIBezierPath(ovalIn: CGRect(x: 740, y: 360, width: 210, height: 260)).fill()
-
-            UIColor.black.withAlphaComponent(0.78).setFill()
-            UIBezierPath(ovalIn: CGRect(x: 450, y: 630, width: 68, height: 88)).fill()
-            UIBezierPath(ovalIn: CGRect(x: 682, y: 630, width: 68, height: 88)).fill()
-
-            UIColor(red: 0.18, green: 0.12, blue: 0.10, alpha: 1).setFill()
-            UIBezierPath(ovalIn: CGRect(x: 560, y: 760, width: 80, height: 58)).fill()
-
-            UIColor.white.withAlphaComponent(0.85).setStroke()
-            let smile = UIBezierPath()
-            smile.lineWidth = 12
-            smile.move(to: CGPoint(x: 515, y: 850))
-            smile.addQuadCurve(to: CGPoint(x: 685, y: 850), controlPoint: CGPoint(x: 600, y: 930))
-            smile.stroke()
-
-            UIColor.white.withAlphaComponent(0.76).setFill()
-            UIBezierPath(ovalIn: CGRect(x: 470, y: 650, width: 18, height: 24)).fill()
-            UIBezierPath(ovalIn: CGRect(x: 702, y: 650, width: 18, height: 24)).fill()
-        }
-    }
 }
 #endif

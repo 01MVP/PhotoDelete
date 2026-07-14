@@ -349,7 +349,7 @@ struct VideoCompressionEstimate: Equatable {
     }
 }
 
-struct VideoFileSizeEstimate: Equatable {
+struct AssetFileSizeEstimate: Equatable {
     enum Source: Equatable {
         case assetResource
         case iCloud
@@ -368,6 +368,8 @@ struct VideoFileSizeEstimate: Equatable {
         }
     }
 }
+
+typealias VideoFileSizeEstimate = AssetFileSizeEstimate
 
 struct VideoCompressionResult {
     let originalAssetIdentifier: String
@@ -1631,6 +1633,39 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         } catch {}
 
         return VideoFileSizeEstimate(sizeMB: 0, source: .unavailable)
+    }
+
+    func photoFileSizeEstimate(for asset: PHAsset) async throws -> AssetFileSizeEstimate {
+        guard asset.mediaType == .image else {
+            throw ImageCompressionError.notImage
+        }
+
+        try Task.checkCancellation()
+        let result: (data: Data?, isInCloud: Bool) = await withCheckedContinuation { continuation in
+            let options = PHImageRequestOptions()
+            options.deliveryMode = .highQualityFormat
+            options.version = .current
+            options.isNetworkAccessAllowed = false
+            options.isSynchronous = false
+
+            imageManager.requestImageDataAndOrientation(for: asset, options: options) { data, _, _, info in
+                let isCancelled = (info?[PHImageCancelledKey] as? Bool) == true
+                let isInCloud = (info?[PHImageResultIsInCloudKey] as? Bool) == true
+                continuation.resume(returning: (isCancelled ? nil : data, isInCloud))
+            }
+        }
+        try Task.checkCancellation()
+
+        if let data = result.data, !data.isEmpty {
+            return AssetFileSizeEstimate(
+                sizeMB: max(Double(data.count) / 1_048_576, 0),
+                source: .assetResource
+            )
+        }
+        return AssetFileSizeEstimate(
+            sizeMB: 0,
+            source: result.isInCloud ? .iCloud : .unavailable
+        )
     }
 
     func estimatedVideoFileSizeMB(for asset: PHAsset) async throws -> Double {

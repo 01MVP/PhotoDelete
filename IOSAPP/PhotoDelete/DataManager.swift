@@ -283,6 +283,7 @@ class DataManager: ObservableObject {
 
         photoLibraryManager.onLibraryDataChanged = { [weak self] in
             guard let self else { return }
+            self.videoFileSizeEstimateCache.removeAll()
             let shouldRefreshDerivedData = !self.suppressNextDerivedLibraryRefresh
             self.suppressNextDerivedLibraryRefresh = false
             self.scheduleLibraryDataRefresh(refreshDerivedData: shouldRefreshDerivedData)

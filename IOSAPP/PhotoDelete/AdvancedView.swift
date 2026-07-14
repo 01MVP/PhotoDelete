@@ -1334,6 +1334,7 @@ private struct AdvancedAssetListView: View {
     @State private var assets: [PHAsset] = []
     @State private var orderedAssets: [PHAsset] = []
     @State private var videoSizeEstimatesByAssetID: [String: VideoFileSizeEstimate] = [:]
+    @State private var photoSizeEstimatesByAssetID: [String: AssetFileSizeEstimate] = [:]
     @State private var selectedAssetIDs: Set<String> = []
     @State private var selectedFilter: AdvancedCleanupFilter = .all
     @State private var showingICloudVideoInfo = false
@@ -1342,12 +1343,12 @@ private struct AdvancedAssetListView: View {
     @State private var sizeLoadingTask: Task<Void, Never>?
     @State private var visibleAssetLimit = 40
     @State private var isLoadingAssets = false
-    @State private var isLoadingVideoSizes = false
+    @State private var isLoadingFileSizes = false
     @State private var assetLoadGeneration = 0
     @State private var sizeLoadGeneration = 0
 
     private let assetLimitStep = 40
-    private let videoSizeUpdateBatchSize = 8
+    private let fileSizeUpdateBatchSize = 8
 
     private var selectedAssets: [PHAsset] {
         makeFilteredAssetSnapshot().assets.filter { selectedAssetIDs.contains($0.localIdentifier) }
@@ -1362,8 +1363,15 @@ private struct AdvancedAssetListView: View {
         }
     }
 
-    private var videoSizeLoadTargets: [PHAsset] {
-        makeFilteredAssetSnapshot().visibleAssets.filter { $0.mediaType == .video }
+    private var shouldLoadPhotoFileSizes: Bool {
+        if case .cleanup(.largeFiles) = mode { return true }
+        return false
+    }
+
+    private var fileSizeLoadTargets: [PHAsset] {
+        makeFilteredAssetSnapshot().visibleAssets.filter { asset in
+            asset.mediaType == .video || (shouldLoadPhotoFileSizes && asset.mediaType == .image)
+        }
     }
 
     private func makeFilteredAssetSnapshot() -> AdvancedFilteredAssetSnapshot {
@@ -1416,7 +1424,7 @@ private struct AdvancedAssetListView: View {
                         action: toggleBulkSelection
                     )
 
-                    if !isLoadingAssets, !isLoadingVideoSizes, snapshot.iCloudVideoCount > 0 {
+                    if !isLoadingAssets, !isLoadingFileSizes, snapshot.iCloudVideoCount > 0 {
                         AdvancedVideoCompressionICloudInfoCard(
                             count: snapshot.iCloudVideoCount,
                             subtitle: L10n.string("预览或处理时会下载原片。"),
@@ -1512,7 +1520,7 @@ private struct AdvancedAssetListView: View {
         .onChange(of: selectedFilter) { _ in
             visibleAssetLimit = 40
             pruneSelectionToFilteredAssets()
-            loadVideoSizesForCurrentScope()
+            loadFileSizesForCurrentScope()
         }
         .onDisappear {
             sizeLoadingTask?.cancel()
@@ -1577,11 +1585,12 @@ private struct AdvancedAssetListView: View {
         assets = loadedAssets
         visibleAssetLimit = 40
         pruneVideoSizeEstimates(for: loadedAssets)
+        prunePhotoSizeEstimates(for: loadedAssets)
         seedCachedVideoSizeEstimates(for: loadedAssets)
         refreshOrderedAssets()
         pruneSelectionToFilteredAssets()
         isLoadingAssets = false
-        loadVideoSizesForCurrentScope()
+        loadFileSizesForCurrentScope()
     }
 
     private func matches(asset: PHAsset, filter: AdvancedCleanupFilter) -> Bool {
@@ -1598,7 +1607,7 @@ private struct AdvancedAssetListView: View {
                 guard estimate.isReliable else { return true }
                 return estimate.sizeMB >= 80
             }
-            return dataManager.estimatedSizeMB(for: asset) >= 18
+            return (reliablePhotoSizeMB(for: asset) ?? dataManager.estimatedSizeMB(for: asset)) >= 18
         case .long:
             return asset.mediaType == .video && asset.duration >= 60
         case .month:
@@ -1611,24 +1620,31 @@ private struct AdvancedAssetListView: View {
         if asset.mediaType == .video {
             return reliableVideoSizeMB(for: asset) ?? dataManager.estimatedSizeMB(for: asset)
         }
-        return dataManager.estimatedSizeMB(for: asset)
+        return reliablePhotoSizeMB(for: asset) ?? dataManager.estimatedSizeMB(for: asset)
     }
 
     private func displaySizeMB(for asset: PHAsset) -> Double {
         if asset.mediaType == .video {
             return reliableVideoSizeMB(for: asset) ?? dataManager.estimatedSizeMB(for: asset)
         }
-        return dataManager.estimatedSizeMB(for: asset)
+        return reliablePhotoSizeMB(for: asset) ?? dataManager.estimatedSizeMB(for: asset)
     }
 
     private func displaySizeText(for asset: PHAsset) -> String? {
-        guard asset.mediaType == .video else { return nil }
-        guard let estimate = videoSizeEstimatesByAssetID[asset.localIdentifier] else {
+        let estimate: AssetFileSizeEstimate?
+        if asset.mediaType == .video {
+            estimate = videoSizeEstimatesByAssetID[asset.localIdentifier]
+        } else if shouldLoadPhotoFileSizes {
+            estimate = photoSizeEstimatesByAssetID[asset.localIdentifier]
+        } else {
+            return nil
+        }
+        guard let estimate else {
             return L10n.string("计算中")
         }
         switch estimate.source {
         case .assetResource:
-            return CleanupStatsFormatter.space(estimate.sizeMB)
+            return CleanupStatsFormatter.fileSize(estimate.sizeMB)
         case .iCloud:
             return L10n.string("待下载")
         case .unavailable:
@@ -1668,18 +1684,21 @@ private struct AdvancedAssetListView: View {
             return (priority: 0, sizeMB: estimate.sizeMB)
         }
 
-        return (priority: 0, sizeMB: dataManager.estimatedSizeMB(for: asset))
+        if let reliableSize = reliablePhotoSizeMB(for: asset) {
+            return (priority: 0, sizeMB: reliableSize)
+        }
+        return (priority: 1, sizeMB: dataManager.estimatedSizeMB(for: asset))
     }
 
     private func sizeStatusSystemImage(for asset: PHAsset) -> String? {
-        guard videoSizeEstimatesByAssetID[asset.localIdentifier]?.source == .iCloud else {
+        guard fileSizeEstimate(for: asset)?.source == .iCloud else {
             return nil
         }
         return "icloud.and.arrow.down"
     }
 
     private func sizeStatusTint(for asset: PHAsset) -> Color {
-        guard videoSizeEstimatesByAssetID[asset.localIdentifier]?.source == .iCloud else {
+        guard fileSizeEstimate(for: asset)?.source == .iCloud else {
             return PhotoDeleteStyle.positive
         }
         return PhotoDeleteStyle.accent
@@ -1693,9 +1712,29 @@ private struct AdvancedAssetListView: View {
         return estimate.sizeMB
     }
 
+    private func reliablePhotoSizeMB(for asset: PHAsset) -> Double? {
+        guard let estimate = photoSizeEstimatesByAssetID[asset.localIdentifier],
+              estimate.isReliable else {
+            return nil
+        }
+        return estimate.sizeMB
+    }
+
+    private func fileSizeEstimate(for asset: PHAsset) -> AssetFileSizeEstimate? {
+        if asset.mediaType == .video {
+            return videoSizeEstimatesByAssetID[asset.localIdentifier]
+        }
+        return photoSizeEstimatesByAssetID[asset.localIdentifier]
+    }
+
     private func pruneVideoSizeEstimates(for loadedAssets: [PHAsset]) {
         let loadedIDs = Set(loadedAssets.map(\.localIdentifier))
         videoSizeEstimatesByAssetID = videoSizeEstimatesByAssetID.filter { loadedIDs.contains($0.key) }
+    }
+
+    private func prunePhotoSizeEstimates(for loadedAssets: [PHAsset]) {
+        let loadedIDs = Set(loadedAssets.map(\.localIdentifier))
+        photoSizeEstimatesByAssetID = photoSizeEstimatesByAssetID.filter { loadedIDs.contains($0.key) }
     }
 
     private func seedCachedVideoSizeEstimates(for loadedAssets: [PHAsset]) {
@@ -1717,6 +1756,17 @@ private struct AdvancedAssetListView: View {
         refreshOrderedAssets()
     }
 
+    private func applyPhotoSizeEstimates(
+        _ estimatesByAssetID: [String: AssetFileSizeEstimate],
+        generation: Int
+    ) {
+        guard generation == sizeLoadGeneration, !estimatesByAssetID.isEmpty else { return }
+        for (assetID, estimate) in estimatesByAssetID {
+            photoSizeEstimatesByAssetID[assetID] = estimate
+        }
+        refreshOrderedAssets()
+    }
+
     private func refreshOrderedAssets() {
         guard prefersSizeFirstOrder else {
             orderedAssets = assets
@@ -1725,19 +1775,20 @@ private struct AdvancedAssetListView: View {
         orderedAssets = assets.sorted(by: sizeFirstOrder)
     }
 
-    private func loadVideoSizes(for loadedAssets: [PHAsset]) {
+    private func loadFileSizes(for loadedAssets: [PHAsset]) {
         sizeLoadingTask?.cancel()
         sizeLoadGeneration += 1
         let generation = sizeLoadGeneration
         let videos = loadedAssets.filter { $0.mediaType == .video }
-        guard !videos.isEmpty else {
-            isLoadingVideoSizes = false
+        let photos = loadedAssets.filter { $0.mediaType == .image }
+        guard !videos.isEmpty || !photos.isEmpty else {
+            isLoadingFileSizes = false
             return
         }
 
-        isLoadingVideoSizes = true
+        isLoadingFileSizes = true
         sizeLoadingTask = Task {
-            var pendingEstimates: [String: VideoFileSizeEstimate] = [:]
+            var pendingVideoEstimates: [String: VideoFileSizeEstimate] = [:]
             for asset in videos {
                 if Task.isCancelled { break }
                 let alreadyLoaded = await MainActor.run {
@@ -1752,10 +1803,10 @@ private struct AdvancedAssetListView: View {
 
                 do {
                     let estimate = try await dataManager.photoLibraryManager.videoFileSizeEstimate(for: asset)
-                    pendingEstimates[asset.localIdentifier] = estimate
-                    if pendingEstimates.count >= videoSizeUpdateBatchSize {
-                        let estimatesToApply = pendingEstimates
-                        pendingEstimates.removeAll()
+                    pendingVideoEstimates[asset.localIdentifier] = estimate
+                    if pendingVideoEstimates.count >= fileSizeUpdateBatchSize {
+                        let estimatesToApply = pendingVideoEstimates
+                        pendingVideoEstimates.removeAll()
                         await MainActor.run {
                             applyVideoSizeEstimates(estimatesToApply, generation: generation)
                         }
@@ -1764,15 +1815,45 @@ private struct AdvancedAssetListView: View {
                     continue
                 }
             }
-            if !pendingEstimates.isEmpty {
-                let estimatesToApply = pendingEstimates
+            if !pendingVideoEstimates.isEmpty {
+                let estimatesToApply = pendingVideoEstimates
                 await MainActor.run {
                     applyVideoSizeEstimates(estimatesToApply, generation: generation)
                 }
             }
+
+            var pendingPhotoEstimates: [String: AssetFileSizeEstimate] = [:]
+            for asset in photos {
+                if Task.isCancelled { break }
+                let alreadyLoaded = await MainActor.run {
+                    guard generation == sizeLoadGeneration else { return true }
+                    return photoSizeEstimatesByAssetID[asset.localIdentifier] != nil
+                }
+                if alreadyLoaded { continue }
+
+                do {
+                    let estimate = try await dataManager.photoLibraryManager.photoFileSizeEstimate(for: asset)
+                    pendingPhotoEstimates[asset.localIdentifier] = estimate
+                    if pendingPhotoEstimates.count >= fileSizeUpdateBatchSize {
+                        let estimatesToApply = pendingPhotoEstimates
+                        pendingPhotoEstimates.removeAll()
+                        await MainActor.run {
+                            applyPhotoSizeEstimates(estimatesToApply, generation: generation)
+                        }
+                    }
+                } catch {
+                    continue
+                }
+            }
+            if !pendingPhotoEstimates.isEmpty {
+                let estimatesToApply = pendingPhotoEstimates
+                await MainActor.run {
+                    applyPhotoSizeEstimates(estimatesToApply, generation: generation)
+                }
+            }
             await MainActor.run {
                 guard generation == sizeLoadGeneration else { return }
-                isLoadingVideoSizes = false
+                isLoadingFileSizes = false
             }
         }
     }
@@ -1786,7 +1867,7 @@ private struct AdvancedAssetListView: View {
                 step: assetLimitStep
             )
         }
-        loadVideoSizesForCurrentScope()
+        loadFileSizesForCurrentScope()
     }
 
     private func showMoreAssetsIfNeeded(currentAsset asset: PHAsset) {
@@ -1799,8 +1880,8 @@ private struct AdvancedAssetListView: View {
         showMoreAssets()
     }
 
-    private func loadVideoSizesForCurrentScope() {
-        loadVideoSizes(for: videoSizeLoadTargets)
+    private func loadFileSizesForCurrentScope() {
+        loadFileSizes(for: fileSizeLoadTargets)
     }
 
     private func toggleSelection(_ asset: PHAsset) {
