@@ -11,6 +11,7 @@ import UIKit
 import Combine
 import CoreLocation
 import OSLog
+import Vision
 
 private let dataManagerLogger = Logger(
     subsystem: Bundle.main.bundleIdentifier ?? "PhotoDelete",
@@ -58,6 +59,98 @@ struct SimilarPhotoAssetFingerprint: Equatable {
 
     var isEligibleImage: Bool {
         mediaType == .image && creationDate != nil && !isScreenshot
+    }
+}
+
+enum SimilarPhotoMatchMode: String, CaseIterable, Identifiable {
+    case strict
+    case standard
+    case broad
+
+    static let defaultMode = SimilarPhotoMatchMode.standard
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .strict:
+            return L10n.string("严格")
+        case .standard:
+            return L10n.string("标准")
+        case .broad:
+            return L10n.string("宽泛")
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .strict:
+            return L10n.string("使用系统 Vision，只保留非常接近的画面。")
+        case .standard:
+            return L10n.string("使用系统 Vision 识别相似画面，兼顾准确和数量。")
+        case .broad:
+            return L10n.string("按连拍、拍摄时间和尺寸寻找更多候选，建议逐组确认。")
+        }
+    }
+
+    var maximumVisionDistance: Float? {
+        switch self {
+        case .strict:
+            return 5.0
+        case .standard:
+            return 10.0
+        case .broad:
+            return nil
+        }
+    }
+}
+
+enum RecentOrganizedPhotoAction: String, Codable, Equatable {
+    case kept
+    case queuedForDeletion
+    case favorited
+    case unfavorited
+    case filedToAlbum
+
+    var title: String {
+        switch self {
+        case .kept:
+            return L10n.string("已保留")
+        case .queuedForDeletion:
+            return L10n.string("待删除")
+        case .favorited:
+            return L10n.string("已收藏")
+        case .unfavorited:
+            return L10n.string("已取消收藏")
+        case .filedToAlbum:
+            return L10n.string("已归类")
+        }
+    }
+}
+
+struct RecentOrganizedPhotoRecord: Codable, Identifiable, Equatable {
+    let assetIdentifier: String
+    let action: RecentOrganizedPhotoAction
+    let date: Date
+
+    var id: String { assetIdentifier }
+}
+
+struct RecentOrganizedPhotoItem: Identifiable {
+    let record: RecentOrganizedPhotoRecord
+    let asset: PHAsset
+
+    var id: String { record.id }
+}
+
+enum RecentOrganizedPhotoHistory {
+    static func updated(
+        _ records: [RecentOrganizedPhotoRecord],
+        with newRecord: RecentOrganizedPhotoRecord,
+        limit: Int = 100
+    ) -> [RecentOrganizedPhotoRecord] {
+        let remaining = records.filter { $0.assetIdentifier != newRecord.assetIdentifier }
+        return Array(([newRecord] + remaining).prefix(max(limit, 0)))
     }
 }
 
@@ -120,6 +213,7 @@ class DataManager: ObservableObject {
     @Published private(set) var imageCompressionJob = AdvancedImageCompressionJobState()
     @Published private(set) var videoCompressionJob = AdvancedVideoCompressionJobState()
     @Published private(set) var reviewedAssetIDs: Set<String> = []
+    @Published private(set) var recentOrganizedPhotoRecords: [RecentOrganizedPhotoRecord] = []
     @Published private(set) var periodSummariesByScope: [AdvancedTimeScope: [PhotoPeriodSummary]] = [:]
     @Published private(set) var isLoadingPeriodSummaries = false
     @Published private(set) var locationGroupsRevision = UUID()
@@ -171,6 +265,7 @@ class DataManager: ObservableObject {
     private var pendingDeleteCandidateIDs: Set<String> = []
     private var pendingFavoriteCandidateIDs: Set<String> = []
     private var videoFileSizeEstimateCache: [String: VideoFileSizeEstimate] = [:]
+    private let similarPhotoFeaturePrintCache = NSCache<NSString, VNFeaturePrintObservation>()
     private var imageCompressionTask: Task<Void, Never>?
     private var videoCompressionTask: Task<Void, Never>?
     private var cancellables: Set<AnyCancellable> = []
@@ -258,7 +353,9 @@ class DataManager: ObservableObject {
         self.cachedCustomAlbumOrder = Self.decodeCustomAlbumOrder(
             userDefaults.string(forKey: AppConstants.customAlbumOrderKey)
         )
+        similarPhotoFeaturePrintCache.countLimit = 600
         loadReviewedAssetIDs()
+        loadRecentOrganizedPhotoRecords()
         loadPendingCandidateIDs()
         setupPhotoLibraryManager()
     }
@@ -304,25 +401,39 @@ class DataManager: ObservableObject {
     }
 
     // MARK: - 照片权限管理
-    func requestPhotoLibraryAccess() {
+    func requestPhotoLibraryAccess(
+        opensSettingsIfDenied: Bool = true,
+        completion: ((PHAuthorizationStatus) -> Void)? = nil
+    ) {
+        photoLibraryManager.checkAuthorizationStatus()
+
         if photoLibraryManager.hasPhotoLibraryAccess {
             reloadLibraryData(showPreparing: true)
+            completion?(photoLibraryManager.authorizationStatus)
             return
         }
 
         if photoLibraryManager.authorizationStatus == .denied ||
             photoLibraryManager.authorizationStatus == .restricted {
-            openPhotoLibrarySettings()
+            if opensSettingsIfDenied {
+                openPhotoLibrarySettings()
+            }
+            completion?(photoLibraryManager.authorizationStatus)
             return
         }
 
-        guard photoLibraryManager.authorizationStatus == .notDetermined, !authorizationRequested else { return }
+        guard photoLibraryManager.authorizationStatus == .notDetermined,
+              !authorizationRequested else {
+            completion?(photoLibraryManager.authorizationStatus)
+            return
+        }
 
         authorizationRequested = true
-        photoLibraryManager.requestAuthorization { [weak self] _ in
+        photoLibraryManager.requestAuthorization { [weak self] status in
             guard let self else { return }
             self.authorizationRequested = false
             self.syncPhotoLibraryAuthorization(showPreparing: true)
+            completion?(status)
         }
     }
 
@@ -424,6 +535,7 @@ class DataManager: ObservableObject {
     func addToDeleteCandidates(_ asset: PHAsset) {
         favoriteCandidates.remove(asset)
         deleteCandidates.insert(asset)
+        recordRecentOrganizedPhoto(asset, action: .queuedForDeletion)
         schedulePendingCandidateIDsSave()
         scheduleLocationGroupsRefreshIfLoaded()
         updateStats()
@@ -431,6 +543,11 @@ class DataManager: ObservableObject {
 
     func removeFromDeleteCandidates(_ asset: PHAsset) {
         deleteCandidates.remove(asset)
+        if recentOrganizedPhotoRecords.first(where: {
+            $0.assetIdentifier == asset.localIdentifier
+        })?.action == .queuedForDeletion {
+            removeRecentOrganizedPhotoRecord(for: asset)
+        }
         schedulePendingCandidateIDsSave()
         scheduleLocationGroupsRefreshIfLoaded()
         updateStats()
@@ -459,17 +576,25 @@ class DataManager: ObservableObject {
         favoriteCandidates.contains(asset)
     }
 
-    func favoritePhotoImmediately(_ asset: PHAsset, completion: @escaping (Bool) -> Void) {
-        photoLibraryManager.commitBatchChanges(deleteAssets: [], favoriteAssets: [asset]) { success, error in
+    func setPhotoFavoriteImmediately(
+        _ asset: PHAsset,
+        isFavorite: Bool,
+        completion: @escaping (Bool) -> Void
+    ) {
+        photoLibraryManager.setFavoriteStatus(asset, isFavorite: isFavorite) { success, error in
             if let error {
-                dataManagerLogger.error("Failed to favorite photo: \(error.localizedDescription, privacy: .public)")
+                dataManagerLogger.error("Failed to update favorite status: \(error.localizedDescription, privacy: .public)")
             }
             if success {
                 self.favoriteCandidates.remove(asset)
                 self.schedulePendingCandidateIDsSave()
-                self.photoLibraryManager.applyCommittedBatchChanges(
-                    deletedAssets: [],
-                    favoritedAssets: [asset]
+                self.photoLibraryManager.applyFavoriteStatusChange(
+                    asset,
+                    isFavorite: isFavorite
+                )
+                self.recordRecentOrganizedPhoto(
+                    asset,
+                    action: isFavorite ? .favorited : .unfavorited
                 )
             }
             completion(success)
@@ -1060,11 +1185,62 @@ class DataManager: ObservableObject {
         }
     }
 
+    func recordRecentOrganizedPhoto(
+        _ asset: PHAsset,
+        action: RecentOrganizedPhotoAction,
+        date: Date = Date()
+    ) {
+        let record = RecentOrganizedPhotoRecord(
+            assetIdentifier: asset.localIdentifier,
+            action: action,
+            date: date
+        )
+        recentOrganizedPhotoRecords = RecentOrganizedPhotoHistory.updated(
+            recentOrganizedPhotoRecords,
+            with: record
+        )
+        saveRecentOrganizedPhotoRecords()
+    }
+
+    func recentOrganizedPhotoItems(limit: Int = 30) -> [RecentOrganizedPhotoItem] {
+        let assetsByID = Dictionary(
+            uniqueKeysWithValues: photoLibraryManager.allPhotos.map { ($0.localIdentifier, $0) }
+        )
+        return recentOrganizedPhotoRecords
+            .prefix(max(limit, 0))
+            .compactMap { record in
+                guard let asset = assetsByID[record.assetIdentifier] else { return nil }
+                return RecentOrganizedPhotoItem(record: record, asset: asset)
+            }
+    }
+
+    func reopenForOrganizing(_ asset: PHAsset) {
+        deleteCandidates.remove(asset)
+        favoriteCandidates.remove(asset)
+        recentOrganizedPhotoRecords.removeAll { $0.assetIdentifier == asset.localIdentifier }
+        saveRecentOrganizedPhotoRecords()
+        schedulePendingCandidateIDsSave()
+        restoreReviewedState(asset, wasReviewed: false)
+        updateStats()
+    }
+
+    func clearRecentOrganizedPhotoHistory() {
+        recentOrganizedPhotoRecords.removeAll()
+        saveRecentOrganizedPhotoRecords()
+    }
+
+    func removeRecentOrganizedPhotoRecord(for asset: PHAsset) {
+        recentOrganizedPhotoRecords.removeAll { $0.assetIdentifier == asset.localIdentifier }
+        saveRecentOrganizedPhotoRecords()
+    }
+
     func clearLocalOrganizeData() {
         deleteCandidates.removeAll()
         favoriteCandidates.removeAll()
         clearPendingCandidateIDs()
         reviewedAssetIDs.removeAll()
+        recentOrganizedPhotoRecords.removeAll()
+        saveRecentOrganizedPhotoRecords()
         PhotoReviewProgressStore.clearAll(defaults: userDefaults)
         saveReviewedAssetIDsNow()
         loadTimeGroups()
@@ -1627,6 +1803,65 @@ class DataManager: ObservableObject {
         )
     }
 
+    func makeSimilarPhotoGroups(
+        mode: SimilarPhotoMatchMode,
+        maxGroups: Int? = nil
+    ) async -> [AdvancedSimilarPhotoGroup] {
+        let broadGroups = makeSimilarPhotoGroups(maxGroups: nil)
+        guard let maximumDistance = mode.maximumVisionDistance else {
+            guard let maxGroups else { return broadGroups }
+            return Array(broadGroups.prefix(max(maxGroups, 0)))
+        }
+
+        var refinedGroups: [AdvancedSimilarPhotoGroup] = []
+        for broadGroup in broadGroups {
+            guard !Task.isCancelled else { return [] }
+
+            var observations: [String: VNFeaturePrintObservation] = [:]
+            await withTaskGroup(of: (String, VNFeaturePrintObservation?).self) { taskGroup in
+                for asset in broadGroup.assets {
+                    taskGroup.addTask { [weak self] in
+                        guard let self else { return (asset.localIdentifier, nil) }
+                        return (asset.localIdentifier, await self.similarPhotoFeaturePrint(for: asset))
+                    }
+                }
+
+                for await (identifier, observation) in taskGroup {
+                    if let observation {
+                        observations[identifier] = observation
+                    }
+                }
+            }
+
+            let identifiers = broadGroup.assets.map(\.localIdentifier)
+            let refinedIdentifierGroups = Self.strictSimilarIdentifierGroups(
+                from: identifiers,
+                maximumDistance: maximumDistance
+            ) { lhsID, rhsID in
+                guard let lhs = observations[lhsID], let rhs = observations[rhsID] else { return nil }
+                var distance: Float = 0
+                do {
+                    try lhs.computeDistance(&distance, to: rhs)
+                    return distance
+                } catch {
+                    dataManagerLogger.error("Failed to compare similar-photo feature prints: \(error.localizedDescription, privacy: .public)")
+                    return nil
+                }
+            }
+
+            let assetsByID = Dictionary(
+                uniqueKeysWithValues: broadGroup.assets.map { ($0.localIdentifier, $0) }
+            )
+            refinedGroups.append(contentsOf: refinedIdentifierGroups.compactMap { identifiers in
+                Self.makeSimilarPhotoGroup(assets: identifiers.compactMap { assetsByID[$0] })
+            })
+        }
+
+        let sortedGroups = Self.sortedSimilarPhotoGroups(refinedGroups)
+        guard let maxGroups else { return sortedGroups }
+        return Array(sortedGroups.prefix(max(maxGroups, 0)))
+    }
+
     private static func makeSimilarPhotoGroups(
         photos allPhotos: [PHAsset],
         screenshotIDs: Set<String>,
@@ -1641,22 +1876,38 @@ class DataManager: ObservableObject {
         }
         let groups = similarPhotoIdentifierGroups(from: fingerprints).compactMap { identifiers -> AdvancedSimilarPhotoGroup? in
             let assets = identifiers.compactMap { assetsByID[$0] }
-            guard assets.count >= 2 else { return nil }
-            let estimatedSpace = assets.dropFirst().reduce(0) { $0 + estimatedAssetSizeMBForAsset($1) }
-            return AdvancedSimilarPhotoGroup(
-                assets: assets.sorted {
-                    let lhsDate = $0.creationDate ?? .distantPast
-                    let rhsDate = $1.creationDate ?? .distantPast
-                    if lhsDate == rhsDate {
-                        return $0.localIdentifier < $1.localIdentifier
-                    }
-                    return lhsDate < rhsDate
-                },
-                estimatedSpaceMB: estimatedSpace
-            )
+            return makeSimilarPhotoGroup(assets: assets)
         }
 
-        let sortedGroups = groups.sorted { lhs, rhs in
+        let sortedGroups = sortedSimilarPhotoGroups(groups)
+
+        guard let maxGroups else { return sortedGroups }
+        return Array(sortedGroups.prefix(max(maxGroups, 0)))
+    }
+
+    private static func makeSimilarPhotoGroup(assets: [PHAsset]) -> AdvancedSimilarPhotoGroup? {
+        guard assets.count >= 2 else { return nil }
+        let sortedAssets = assets.sorted {
+            let lhsDate = $0.creationDate ?? .distantPast
+            let rhsDate = $1.creationDate ?? .distantPast
+            if lhsDate == rhsDate {
+                return $0.localIdentifier < $1.localIdentifier
+            }
+            return lhsDate < rhsDate
+        }
+        let estimatedSpace = sortedAssets.dropFirst().reduce(0) {
+            $0 + estimatedAssetSizeMBForAsset($1)
+        }
+        return AdvancedSimilarPhotoGroup(
+            assets: sortedAssets,
+            estimatedSpaceMB: estimatedSpace
+        )
+    }
+
+    private static func sortedSimilarPhotoGroups(
+        _ groups: [AdvancedSimilarPhotoGroup]
+    ) -> [AdvancedSimilarPhotoGroup] {
+        groups.sorted { lhs, rhs in
             if lhs.estimatedSpaceMB != rhs.estimatedSpaceMB {
                 return lhs.estimatedSpaceMB > rhs.estimatedSpaceMB
             }
@@ -1665,9 +1916,6 @@ class DataManager: ObservableObject {
             }
             return (lhs.representativeDate ?? .distantPast) > (rhs.representativeDate ?? .distantPast)
         }
-
-        guard let maxGroups else { return sortedGroups }
-        return Array(sortedGroups.prefix(max(maxGroups, 0)))
     }
 
     static func similarPhotoIdentifierGroups(
@@ -1732,6 +1980,60 @@ class DataManager: ObservableObject {
         flushCluster()
 
         return groups
+    }
+
+    static func strictSimilarIdentifierGroups(
+        from identifiers: [String],
+        maximumDistance: Float,
+        distance: (String, String) -> Float?
+    ) -> [[String]] {
+        var clusters: [[String]] = []
+
+        for identifier in identifiers {
+            if let clusterIndex = clusters.firstIndex(where: { cluster in
+                cluster.allSatisfy { existingIdentifier in
+                    guard let pairDistance = distance(identifier, existingIdentifier) else { return false }
+                    return pairDistance <= maximumDistance
+                }
+            }) {
+                clusters[clusterIndex].append(identifier)
+            } else {
+                clusters.append([identifier])
+            }
+        }
+
+        return clusters.filter { $0.count >= 2 }
+    }
+
+    private func similarPhotoFeaturePrint(for asset: PHAsset) async -> VNFeaturePrintObservation? {
+        let cacheKey = asset.localIdentifier as NSString
+        if let cached = similarPhotoFeaturePrintCache.object(forKey: cacheKey) {
+            return cached
+        }
+
+        guard let image = await photoLibraryManager.loadVisionAnalysisImage(for: asset) else {
+            return nil
+        }
+
+        let observation = await Task.detached(priority: .userInitiated) {
+            let request = VNGenerateImageFeaturePrintRequest()
+            request.revision = VNGenerateImageFeaturePrintRequestRevision1
+            request.imageCropAndScaleOption = .scaleFit
+
+            do {
+                let handler = VNImageRequestHandler(cgImage: image, options: [:])
+                try handler.perform([request])
+                return request.results?.first
+            } catch {
+                dataManagerLogger.error("Failed to create similar-photo feature print: \(error.localizedDescription, privacy: .public)")
+                return nil
+            }
+        }.value
+
+        if let observation {
+            similarPhotoFeaturePrintCache.setObject(observation, forKey: cacheKey)
+        }
+        return observation
     }
 
     private func similarPhotoCandidates(maxCount: Int? = nil) -> [PHAsset] {
@@ -2501,6 +2803,20 @@ class DataManager: ObservableObject {
         reviewedAssetIDsSaveWorkItem?.cancel()
         reviewedAssetIDsSaveWorkItem = nil
         saveReviewedAssetIDs()
+    }
+
+    private func loadRecentOrganizedPhotoRecords() {
+        guard let data = userDefaults.data(forKey: AppConstants.recentOrganizedPhotosKey),
+              let decoded = try? JSONDecoder().decode([RecentOrganizedPhotoRecord].self, from: data) else {
+            recentOrganizedPhotoRecords = []
+            return
+        }
+        recentOrganizedPhotoRecords = decoded.sorted { $0.date > $1.date }
+    }
+
+    private func saveRecentOrganizedPhotoRecords() {
+        guard let data = try? JSONEncoder().encode(recentOrganizedPhotoRecords) else { return }
+        userDefaults.set(data, forKey: AppConstants.recentOrganizedPhotosKey)
     }
 
     private func loadPendingCandidateIDs() {

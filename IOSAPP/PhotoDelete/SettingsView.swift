@@ -113,9 +113,6 @@ struct SettingsView: View {
                 AppearanceSettingsView()
             }
         }
-        .task {
-            await purchaseManager.refreshEntitlementsAfterPotentialExternalChange()
-        }
     }
 
     // MARK: - 使用统计

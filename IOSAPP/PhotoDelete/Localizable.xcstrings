@@ -1,6 +1,181 @@
 {
   "sourceLanguage": "zh-Hans",
   "strings": {
+    "查看价格": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "View Price" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "查看价格" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "查看價格" } }
+      }
+    },
+    "选择照片访问权限": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Choose Photo Access" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "选择照片访问权限" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "選擇照片存取權限" } }
+      }
+    },
+    "不需要账号，也不会上传照片。最后一步才会由系统请求照片访问权限。": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "No account is needed, and photos are never uploaded. The system asks for photo access only on the final step." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "不需要账号，也不会上传照片。最后一步才会由系统请求照片访问权限。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "不需要帳號，也不會上傳照片。最後一步才會由系統請求照片存取權限。" } }
+      }
+    },
+    "严格": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Strict" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "严格" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "嚴格" } }
+      }
+    },
+    "标准": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Standard" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "标准" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "標準" } }
+      }
+    },
+    "宽泛": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Broad" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "宽泛" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "寬泛" } }
+      }
+    },
+    "使用系统 Vision，只保留非常接近的画面。": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Uses on-device Vision and keeps only very close matches." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "使用系统 Vision，只保留非常接近的画面。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "使用系統 Vision，只保留非常接近的畫面。" } }
+      }
+    },
+    "使用系统 Vision 识别相似画面，兼顾准确和数量。": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Uses on-device Vision to balance accuracy and coverage." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "使用系统 Vision 识别相似画面，兼顾准确和数量。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "使用系統 Vision 識別相似畫面，兼顧準確和數量。" } }
+      }
+    },
+    "按连拍、拍摄时间和尺寸寻找更多候选，建议逐组确认。": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Finds more candidates by burst, capture time, and dimensions. Review each group." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "按连拍、拍摄时间和尺寸寻找更多候选，建议逐组确认。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "按連拍、拍攝時間和尺寸尋找更多候選，建議逐組確認。" } }
+      }
+    },
+    "相似照片宽泛度": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Similarity range" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "相似照片宽泛度" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "相似照片寬泛度" } }
+      }
+    },
+    "正在分析相似画面": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Analyzing similar images" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "正在分析相似画面" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "正在分析相似畫面" } }
+      }
+    },
+    "使用系统 Vision 在本机比对照片，不会上传照片。": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "System Vision compares photos on device. Nothing is uploaded." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "使用系统 Vision 在本机比对照片，不会上传照片。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "使用系統 Vision 在本機比對照片，不會上傳照片。" } }
+      }
+    },
+    "可以切换到宽泛模式，查看更多可能相似的候选。": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Switch to Broad to see more possible matches." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "可以切换到宽泛模式，查看更多可能相似的候选。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "可以切換到寬泛模式，查看更多可能相似的候選。" } }
+      }
+    },
+    "最近整理": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Recently Organized" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "最近整理" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "最近整理" } }
+      }
+    },
+    "点按再次整理，会移出待删除并重新出现在整理列表。": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Tap Organize Again to remove it from pending deletion and return it to review." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "点按再次整理，会移出待删除并重新出现在整理列表。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "點按再次整理，會移出待刪除並重新出現在整理列表。" } }
+      }
+    },
+    "整理过的照片会显示在这里，方便回头修改。": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Recently organized photos appear here so you can revise them." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "整理过的照片会显示在这里，方便回头修改。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "整理過的照片會顯示在這裡，方便回頭修改。" } }
+      }
+    },
+    "再次整理": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Organize Again" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "再次整理" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "再次整理" } }
+      }
+    },
+    "清空最近整理记录？": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Clear recent organization history?" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "清空最近整理记录？" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "清空最近整理記錄？" } }
+      }
+    },
+    "清空记录": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Clear History" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "清空记录" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "清空記錄" } }
+      }
+    },
+    "只会清空本机记录，不会修改照片或待删除列表。": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "This clears only local history and won’t change photos or pending deletion." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "只会清空本机记录，不会修改照片或待删除列表。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "只會清空本機記錄，不會修改照片或待刪除列表。" } }
+      }
+    },
+    "取消收藏": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Unfavorite" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "取消收藏" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "取消收藏" } }
+      }
+    },
+    "取消收藏失败，请再试一次": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Couldn’t remove from favorites. Try again." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "取消收藏失败，请再试一次" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "取消收藏失敗，請再試一次" } }
+      }
+    },
+    "下滑取消收藏": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Swipe down to unfavorite" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "下滑取消收藏" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "下滑取消收藏" } }
+      }
+    },
+    "已取消收藏": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Removed from favorites" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已取消收藏" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "已取消收藏" } }
+      }
+    },
+    "撤销失败，请再试一次": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Couldn’t undo. Try again." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "撤销失败，请再试一次" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "撤銷失敗，請再試一次" } }
+      }
+    },
     "%@ 等 %lld 个相册": {
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "%1$@ and %2$lld albums" } },

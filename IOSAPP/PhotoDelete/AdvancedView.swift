@@ -91,7 +91,6 @@ struct AdvancedView: View {
             scheduleAdvancedDashboardRefresh()
         }
         .task {
-            await purchaseManager.refreshEntitlementsSilently()
             dataManager.syncPhotoLibraryAuthorization()
             refreshAdvancedDashboard(resetSelectedPeriod: true)
         }
@@ -4996,14 +4995,25 @@ private struct AdvancedSimilarGroupSnapshot {
 
 private struct AdvancedSimilarPhotoGroupsView: View {
     @EnvironmentObject var dataManager: DataManager
+    @AppStorage(AppConstants.similarPhotoMatchModeKey) private var matchModeValue = SimilarPhotoMatchMode.defaultMode.rawValue
     @State private var groups: [AdvancedSimilarPhotoGroup] = []
     @State private var selectedAssetIDs: Set<String> = []
     @State private var selectedFilter: AdvancedCleanupFilter = .all
     @State private var showBatchConfirm = false
     @State private var previewAsset: AdvancedPreviewAsset?
     @State private var visibleGroupLimit = 24
+    @State private var isAnalyzing = false
+    @State private var reloadGeneration = 0
 
     private let groupLimitStep = 24
+
+    private var matchMode: SimilarPhotoMatchMode {
+        SimilarPhotoMatchMode(rawValue: matchModeValue) ?? .defaultMode
+    }
+
+    private var reloadID: String {
+        "\(matchMode.rawValue)-\(reloadGeneration)"
+    }
 
     private var selectedAssets: [PHAsset] {
         makeGroupSnapshot().groups.flatMap(\.assets).filter { selectedAssetIDs.contains($0.localIdentifier) }
@@ -5027,6 +5037,22 @@ private struct AdvancedSimilarPhotoGroupsView: View {
 
             ScrollView {
                 VStack(spacing: 14) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Picker(L10n.string("相似照片宽泛度"), selection: $matchModeValue) {
+                            ForEach(SimilarPhotoMatchMode.allCases) { mode in
+                                Text(mode.title).tag(mode.rawValue)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+
+                        Text(matchMode.detail)
+                            .font(.system(size: 12, weight: .regular))
+                            .foregroundColor(PhotoDeleteStyle.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(14)
+                    .photoDeleteCard()
+
                     AdvancedFilterPills(kind: .similarPhotos, selection: $selectedFilter)
 
                     AdvancedAssetListSummaryCard(
@@ -5039,11 +5065,19 @@ private struct AdvancedSimilarPhotoGroupsView: View {
                         action: toggleRecommendedSelection
                     )
 
-                    if groups.isEmpty {
+                    if isAnalyzing {
+                        AdvancedEmptyState(
+                            icon: "sparkles",
+                            title: L10n.string("正在分析相似画面"),
+                            subtitle: L10n.string("使用系统 Vision 在本机比对照片，不会上传照片。")
+                        )
+                    } else if groups.isEmpty {
                         AdvancedEmptyState(
                             icon: AdvancedCleanupKind.similarPhotos.icon,
                             title: L10n.string("暂未发现相似照片"),
-                            subtitle: L10n.string("会把拍摄时间接近的照片放在一起，方便逐组确认。")
+                            subtitle: matchMode == .broad
+                                ? L10n.string("会把拍摄时间接近的照片放在一起，方便逐组确认。")
+                                : L10n.string("可以切换到宽泛模式，查看更多可能相似的候选。")
                         )
                     } else if snapshot.groups.isEmpty {
                         AdvancedEmptyState(
@@ -5099,7 +5133,7 @@ private struct AdvancedSimilarPhotoGroupsView: View {
         .advancedDetailNavigation(title: L10n.string("相似照片"))
         .fullScreenCover(isPresented: $showBatchConfirm, onDismiss: {
             syncSelectionWithPendingDeleteCandidates()
-            reloadGroups()
+            reloadGeneration += 1
         }) {
             BatchConfirmView()
                 .environmentObject(dataManager)
@@ -5112,8 +5146,8 @@ private struct AdvancedSimilarPhotoGroupsView: View {
                 selectedAssetIDs: $selectedAssetIDs
             )
         }
-        .task {
-            reloadGroups()
+        .task(id: reloadID) {
+            await reloadGroups()
         }
         .onChange(of: selectedFilter) { _ in
             visibleGroupLimit = groupLimitStep
@@ -5166,8 +5200,14 @@ private struct AdvancedSimilarPhotoGroupsView: View {
         selectedAssetIDs = selectedAssetIDs.filter { pendingDeleteIDs.contains($0) }
     }
 
-    private func reloadGroups() {
-        groups = dataManager.makeSimilarPhotoGroups()
+    @MainActor
+    private func reloadGroups() async {
+        isAnalyzing = true
+        selectedAssetIDs.removeAll()
+        let loadedGroups = await dataManager.makeSimilarPhotoGroups(mode: matchMode)
+        guard !Task.isCancelled else { return }
+        groups = loadedGroups
+        isAnalyzing = false
         visibleGroupLimit = groupLimitStep
         pruneSelectionToFilteredGroups()
     }

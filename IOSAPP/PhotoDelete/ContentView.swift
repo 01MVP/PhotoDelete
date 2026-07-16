@@ -24,12 +24,16 @@ struct ContentView: View {
                     hasSeenHomeIntro = false
                     hasCompletedOnboarding = true
                 },
+                onRequestPhotoAccess: { completion in
+                    dataManager.requestPhotoLibraryAccess(
+                        opensSettingsIfDenied: false
+                    ) { _ in
+                        completion()
+                    }
+                },
                 onComplete: {
                     hasSeenHomeIntro = true
                     hasCompletedOnboarding = true
-                    DispatchQueue.main.async {
-                        dataManager.requestPhotoLibraryAccess()
-                    }
                 }
             )
         }
@@ -40,8 +44,10 @@ private struct OnboardingFlowView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectedPage = 0
     @State private var animateVisual = false
+    @State private var isRequestingPhotoAccess = false
 
     let onSkip: () -> Void
+    let onRequestPhotoAccess: (@escaping () -> Void) -> Void
     let onComplete: () -> Void
 
     private let pages: [OnboardingPage] = [
@@ -66,7 +72,7 @@ private struct OnboardingFlowView: View {
         OnboardingPage(
             icon: "lock.shield",
             title: L10n.string("照片不会上传"),
-            message: L10n.string("不需要账号，也不会上传照片。点开始后才会请求访问照片库。"),
+            message: L10n.string("不需要账号，也不会上传照片。最后一步才会由系统请求照片访问权限。"),
             visual: .privacy
         )
     ]
@@ -98,14 +104,22 @@ private struct OnboardingFlowView: View {
 
                     Button(action: advance) {
                         HStack(spacing: 8) {
-                            Text(selectedPage == pages.count - 1 ? L10n.string("开始整理照片") : L10n.string("继续"))
+                            if isRequestingPhotoAccess {
+                                ProgressView()
+                                    .tint(.white)
+                            }
 
-                            Image(systemName: selectedPage == pages.count - 1 ? "checkmark" : "arrow.right")
-                                .font(.system(size: 15, weight: .semibold))
+                            Text(selectedPage == pages.count - 1 ? L10n.string("选择照片访问权限") : L10n.string("继续"))
+
+                            if !isRequestingPhotoAccess {
+                                Image(systemName: selectedPage == pages.count - 1 ? "photo.badge.plus" : "arrow.right")
+                                    .font(.system(size: 15, weight: .semibold))
+                            }
                         }
                     }
                     .photoDeletePrimaryButton()
                     .padding(.horizontal, 28)
+                    .disabled(isRequestingPhotoAccess)
                 }
                 .padding(.bottom, 30)
             }
@@ -137,7 +151,12 @@ private struct OnboardingFlowView: View {
         if selectedPage < pages.count - 1 {
             selectedPage += 1
         } else {
-            onComplete()
+            guard !isRequestingPhotoAccess else { return }
+            isRequestingPhotoAccess = true
+            onRequestPhotoAccess {
+                isRequestingPhotoAccess = false
+                onComplete()
+            }
         }
     }
 }

@@ -99,6 +99,7 @@ private enum PhotoDeleteUITestDefaults {
             AppConstants.appLanguageKey,
             AppConstants.hasCompletedOnboardingKey,
             AppConstants.hasSeenIntroKey,
+            AppConstants.recentOrganizedPhotosKey,
             AppConstants.pendingDeleteCandidateIDsKey,
             AppConstants.pendingFavoriteCandidateIDsKey,
             AppConstants.leftSwipeActionKey,
@@ -117,6 +118,7 @@ private enum PhotoDeleteUITestDefaults {
             AppConstants.customAlbumOrderKey,
             AppConstants.appAppearanceKey,
             AppConstants.appThemeKey,
+            AppConstants.similarPhotoMatchModeKey,
             AppConstants.supporterEntitlementKey,
             AppConstants.supporterPurchaseDateKey,
             AppConstants.supporterTrialStartDateKey

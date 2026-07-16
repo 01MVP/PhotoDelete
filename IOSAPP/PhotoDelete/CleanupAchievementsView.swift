@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Photos
 
 struct CleanupAchievementsEntryCard: View {
     @ObservedObject var statsStore: CleanupStatsStore
@@ -77,6 +78,7 @@ struct CleanupAchievementsEntryCard: View {
 }
 
 struct CleanupAchievementsView: View {
+    @EnvironmentObject var dataManager: DataManager
     @ObservedObject var statsStore: CleanupStatsStore
     var showsDoneButton = false
     var showsHistory = false
@@ -282,6 +284,8 @@ struct CleanupAchievementsView: View {
     @ViewBuilder
     private var historySection: some View {
         VStack(spacing: 16) {
+            RecentOrganizedPhotosSection(dataManager: dataManager)
+
             SupporterMonthlySection(summaries: statsStore.monthlySummaries)
 
             SupporterHistorySection(sessions: Array(statsStore.sessions.prefix(50)))
@@ -293,6 +297,193 @@ struct CleanupAchievementsView: View {
                     .frame(maxWidth: .infinity)
             }
             .photoDeleteSecondaryButton()
+        }
+    }
+}
+
+private struct RecentOrganizedPhotosSection: View {
+    @ObservedObject var dataManager: DataManager
+    @State private var previewAsset: CandidatePreviewAsset?
+    @State private var showingClearConfirmation = false
+
+    private var items: [RecentOrganizedPhotoItem] {
+        dataManager.recentOrganizedPhotoItems()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(L10n.string("最近整理"))
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(PhotoDeleteStyle.primaryText)
+
+                    Text(L10n.string("点按再次整理，会移出待删除并重新出现在整理列表。"))
+                        .font(.system(size: 12, weight: .regular))
+                        .foregroundColor(PhotoDeleteStyle.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 8)
+
+                if !items.isEmpty {
+                    Button(L10n.string("清空"), role: .destructive) {
+                        showingClearConfirmation = true
+                    }
+                    .font(.system(size: 13, weight: .semibold))
+                }
+            }
+
+            if items.isEmpty {
+                Text(L10n.string("整理过的照片会显示在这里，方便回头修改。"))
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 8)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(spacing: 10) {
+                        ForEach(items) { item in
+                            RecentOrganizedPhotoCard(
+                                item: item,
+                                photoLibraryManager: dataManager.photoLibraryManager,
+                                onPreview: {
+                                    previewAsset = CandidatePreviewAsset(asset: item.asset)
+                                },
+                                onReopen: {
+                                    HapticManager.impact(.light)
+                                    dataManager.reopenForOrganizing(item.asset)
+                                }
+                            )
+                        }
+                    }
+                    .padding(.horizontal, 1)
+                }
+            }
+        }
+        .padding(18)
+        .photoDeleteCard()
+        .sheet(item: $previewAsset) { item in
+            CandidatePhotoPreviewView(
+                asset: item.asset,
+                photoLibraryManager: dataManager.photoLibraryManager
+            )
+        }
+        .confirmationDialog(
+            L10n.string("清空最近整理记录？"),
+            isPresented: $showingClearConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button(L10n.string("清空记录"), role: .destructive) {
+                dataManager.clearRecentOrganizedPhotoHistory()
+            }
+            Button(L10n.string("取消"), role: .cancel) {}
+        } message: {
+            Text(L10n.string("只会清空本机记录，不会修改照片或待删除列表。"))
+        }
+    }
+}
+
+private struct RecentOrganizedPhotoCard: View {
+    let item: RecentOrganizedPhotoItem
+    let photoLibraryManager: PhotoLibraryManager
+    let onPreview: () -> Void
+    let onReopen: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button(action: onPreview) {
+                RecentOrganizedPhotoThumbnail(
+                    asset: item.asset,
+                    photoLibraryManager: photoLibraryManager
+                )
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(L10n.string("放大查看照片"))
+
+            Label(item.record.action.title, systemImage: actionIcon)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(actionTint)
+                .lineLimit(1)
+
+            Button(L10n.string("再次整理"), action: onReopen)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(PhotoDeleteStyle.accent)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: 32)
+                .background(
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(PhotoDeleteStyle.accent.opacity(0.12))
+                )
+        }
+        .frame(width: 116)
+    }
+
+    private var actionIcon: String {
+        switch item.record.action {
+        case .kept:
+            return "checkmark"
+        case .queuedForDeletion:
+            return "trash"
+        case .favorited:
+            return "heart.fill"
+        case .unfavorited:
+            return "heart.slash"
+        case .filedToAlbum:
+            return "folder.fill"
+        }
+    }
+
+    private var actionTint: Color {
+        switch item.record.action {
+        case .queuedForDeletion:
+            return PhotoDeleteStyle.destructive
+        case .favorited, .unfavorited:
+            return PhotoDeleteStyle.iconTint(for: "favorite")
+        case .filedToAlbum:
+            return PhotoDeleteStyle.accent
+        case .kept:
+            return PhotoDeleteStyle.positive
+        }
+    }
+}
+
+private struct RecentOrganizedPhotoThumbnail: View {
+    let asset: PHAsset
+    let photoLibraryManager: PhotoLibraryManager
+
+    @State private var image: UIImage?
+    @State private var requestID: PHImageRequestID?
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(PhotoDeleteStyle.elevatedSurface)
+
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                ProgressView()
+                    .tint(PhotoDeleteStyle.accent)
+            }
+        }
+        .frame(width: 116, height: 92)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .onAppear(perform: loadImage)
+        .onDisappear {
+            photoLibraryManager.cancelImageRequest(requestID)
+        }
+    }
+
+    private func loadImage() {
+        requestID = photoLibraryManager.loadFastThumbnail(
+            for: asset,
+            size: CGSize(width: 232, height: 184)
+        ) { loadedImage in
+            image = loadedImage
+            requestID = nil
         }
     }
 }

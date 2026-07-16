@@ -30,7 +30,8 @@ final class PhotoDeleteUITests: XCTestCase {
         app.buttons["继续"].tap()
 
         XCTAssertTrue(app.staticTexts["照片不会上传"].waitForExistence(timeout: 3))
-        app.buttons["开始整理照片"].tap()
+        XCTAssertFalse(app.staticTexts["整理"].exists)
+        app.buttons["选择照片访问权限"].tap()
         _ = allowFullPhotoLibraryAccessIfNeeded(app: app)
 
         XCTAssertTrue(
@@ -168,6 +169,78 @@ final class PhotoDeleteUITests: XCTestCase {
     }
 
     @MainActor
+    func testFavoriteButtonTogglesFavoriteStatus() throws {
+        installPhotoLibraryInterruptionMonitor(allowDeletionConfirmation: true)
+
+        let app = makeApp(completedOnboarding: true, seedLibrary: true)
+        app.launch()
+        _ = allowFullPhotoLibraryAccessIfNeeded(app: app)
+
+        if app.state != .runningForeground {
+            app.activate()
+        }
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10))
+        XCTAssertTrue(waitForHomeReady(in: app, language: "zh-Hans", timeout: 30))
+
+        openOrganizeTab(in: app)
+        guard let startCleanupButton = waitForFirstExistingButton(
+            in: app,
+            labels: ["开始整理", "整理全部照片"],
+            timeout: 30
+        ) else {
+            XCTFail("Expected a review entry button after seeded library load")
+            return
+        }
+        startCleanupButton.tap()
+
+        guard let favoriteButton = waitForHittableButton(in: app, label: "收藏", timeout: 30) else {
+            XCTFail("Expected a favorite button in review")
+            return
+        }
+        favoriteButton.tap()
+
+        guard waitForHittableButton(in: app, label: "取消收藏", timeout: 10) != nil else {
+            XCTFail("Expected the favorite button to become an unfavorite button")
+            return
+        }
+        dragCardDown(in: app)
+
+        guard let favoriteButtonAfterSwipe = waitForHittableButton(in: app, label: "收藏", timeout: 10) else {
+            XCTFail("Expected swiping down to remove the favorite")
+            return
+        }
+        favoriteButtonAfterSwipe.tap()
+
+        guard let unfavoriteButtonAfterSwipe = waitForHittableButton(in: app, label: "取消收藏", timeout: 10) else {
+            XCTFail("Expected the photo to be favorited again")
+            return
+        }
+        unfavoriteButtonAfterSwipe.tap()
+
+        XCTAssertNotNil(waitForHittableButton(in: app, label: "收藏", timeout: 10))
+
+        guard let doneButton = waitForHittableButton(in: app, label: "完成", timeout: 10) else {
+            XCTFail("Expected the review done button")
+            return
+        }
+        doneButton.tap()
+        XCTAssertTrue(waitForHomeReady(in: app, language: "zh-Hans", timeout: 15))
+
+        openSettingsTab(in: app)
+        guard let historyButton = waitForHittableButtonLabelContaining(
+            in: app,
+            substring: "成就与历史",
+            timeout: 10
+        ) else {
+            XCTFail("Expected the achievements and history entry")
+            return
+        }
+        historyButton.tap()
+        XCTAssertTrue(app.staticTexts["最近整理"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["再次整理"].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
     func testSimilarPhotoPreviewCanMarkCurrentAssetForDeletion() throws {
         installPhotoLibraryInterruptionMonitor(allowDeletionConfirmation: true)
 
@@ -202,7 +275,12 @@ final class PhotoDeleteUITests: XCTestCase {
         similarPhotosButton.tap()
 
         XCTAssertTrue(app.staticTexts["相似照片"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["保留首张"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["严格"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["标准"].exists)
+        let broadModeButton = app.buttons["宽泛"]
+        XCTAssertTrue(broadModeButton.exists)
+        broadModeButton.tap()
+        XCTAssertTrue(app.buttons["保留首张"].waitForExistence(timeout: 30))
         guard let previewButton = waitForHittableButton(in: app, label: "预览", timeout: 30) else {
             XCTFail("Expected a similar-photo group preview button")
             return
@@ -763,6 +841,11 @@ final class PhotoDeleteUITests: XCTestCase {
         } else {
             drag(in: app, from: CGVector(dx: 0.24, dy: 0.48), to: CGVector(dx: 0.82, dy: 0.48))
         }
+    }
+
+    @MainActor
+    private func dragCardDown(in app: XCUIApplication) {
+        drag(in: app, from: CGVector(dx: 0.5, dy: 0.34), to: CGVector(dx: 0.5, dy: 0.72))
     }
 
     private func usesWideMarketingLayout(_ app: XCUIApplication) -> Bool {

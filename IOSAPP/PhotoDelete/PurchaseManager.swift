@@ -45,6 +45,7 @@ final class PurchaseManager: ObservableObject {
     @Published private(set) var supporterTrialStartDate: Date?
     @Published private(set) var isLoading = false
     @Published var errorMessage: String?
+    private(set) var hasActivatedStoreKit = false
 
     private let productIDs = [AppConstants.supporterProductID]
     private let userDefaults: UserDefaults
@@ -60,7 +61,10 @@ final class PurchaseManager: ObservableObject {
     }
 
     var supporterPriceText: String {
-        supporterProduct?.displayPrice ?? L10n.string("读取价格中")
+        if let supporterProduct {
+            return supporterProduct.displayPrice
+        }
+        return hasActivatedStoreKit ? L10n.string("读取价格中") : L10n.string("查看价格")
     }
 
     var hasPaidSupporterAccess: Bool {
@@ -127,7 +131,7 @@ final class PurchaseManager: ObservableObject {
     init(
         userDefaults: UserDefaults = .standard,
         nowProvider: @escaping () -> Date = { Date.now },
-        startsStoreKitTasks: Bool = true
+        startsStoreKitTasks: Bool = false
     ) {
         self.userDefaults = userDefaults
         self.nowProvider = nowProvider
@@ -142,13 +146,8 @@ final class PurchaseManager: ObservableObject {
         }
 
         if startsStoreKitTasks {
-            updatesTask = Task { [weak self] in
-                await self?.listenForTransactions()
-            }
-
             Task {
-                await refreshEntitlementsSilently()
-                await loadProducts()
+                await activateStoreKit()
             }
         }
     }
@@ -164,6 +163,21 @@ final class PurchaseManager: ObservableObject {
         let startDate = nowProvider()
         supporterTrialStartDate = startDate
         userDefaults.set(startDate, forKey: AppConstants.supporterTrialStartDateKey)
+    }
+
+    func activateStoreKit() async {
+        if updatesTask == nil {
+            updatesTask = Task { [weak self] in
+                await self?.listenForTransactions()
+            }
+        }
+
+        guard !hasActivatedStoreKit else { return }
+        hasActivatedStoreKit = true
+
+        async let entitlementRefresh: Void = refreshEntitlementsSilently()
+        async let productLoad: Void = loadProducts()
+        _ = await (entitlementRefresh, productLoad)
     }
 
     func loadProducts() async {
@@ -203,6 +217,7 @@ final class PurchaseManager: ObservableObject {
     }
 
     func purchaseSupporter() async {
+        await activateStoreKit()
         isLoading = true
         defer { isLoading = false }
 
@@ -236,6 +251,7 @@ final class PurchaseManager: ObservableObject {
     }
 
     func restorePurchases() async {
+        await activateStoreKit()
         isLoading = true
         defer { isLoading = false }
 

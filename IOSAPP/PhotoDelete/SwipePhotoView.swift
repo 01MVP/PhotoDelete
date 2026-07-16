@@ -150,20 +150,22 @@ enum AlbumShortcutEligibility {
 enum AlbumReviewDownSwipeBehavior: Equatable {
     case returnToList
     case removeFromAlbum
+    case removeFromFavorites
 
     static func resolve(
         isAlbumMode: Bool,
         albumType: AlbumType?,
         hasAssetCollection: Bool,
-        canRemoveContent: Bool
+        canRemoveContent: Bool,
+        isFavorite: Bool = false
     ) -> AlbumReviewDownSwipeBehavior {
-        guard isAlbumMode,
-              albumType == .userCreated,
-              hasAssetCollection,
-              canRemoveContent else {
-            return .returnToList
+        if isAlbumMode,
+           albumType == .userCreated,
+           hasAssetCollection,
+           canRemoveContent {
+            return .removeFromAlbum
         }
-        return .removeFromAlbum
+        return isFavorite ? .removeFromFavorites : .returnToList
     }
 
     var icon: String {
@@ -172,6 +174,8 @@ enum AlbumReviewDownSwipeBehavior: Equatable {
             return "arrow.down"
         case .removeFromAlbum:
             return "rectangle.stack.badge.minus"
+        case .removeFromFavorites:
+            return "heart.slash"
         }
     }
 
@@ -181,6 +185,8 @@ enum AlbumReviewDownSwipeBehavior: Equatable {
             return L10n.string("返回列表")
         case .removeFromAlbum:
             return L10n.string("移出相册，不删除照片")
+        case .removeFromFavorites:
+            return L10n.string("取消收藏这张照片")
         }
     }
 
@@ -190,6 +196,8 @@ enum AlbumReviewDownSwipeBehavior: Equatable {
             return L10n.string("下滑返回列表")
         case .removeFromAlbum:
             return L10n.string("下滑移出相册")
+        case .removeFromFavorites:
+            return L10n.string("下滑取消收藏")
         }
     }
 
@@ -199,6 +207,8 @@ enum AlbumReviewDownSwipeBehavior: Equatable {
             return PhotoDeleteStyle.accent
         case .removeFromAlbum:
             return PhotoDeleteStyle.warning
+        case .removeFromFavorites:
+            return PhotoDeleteStyle.iconTint(for: "favorite")
         }
     }
 }
@@ -351,7 +361,7 @@ struct SwipePhotoView: View {
     @State private var preloadedAssets: [PHAsset] = []
     @State private var pendingDeleteCount = 0
     @State private var pendingFavoriteCount = 0
-    @State private var favoritingAssetIDs: Set<String> = []
+    @State private var favoriteMutationTargets: [String: Bool] = [:]
     @State private var pendingSwipeMutations: [String: PendingSwipeMutation] = [:]
     @State private var sessionProgressSaveWorkItem: DispatchWorkItem?
     @State private var previewAsset: CandidatePreviewAsset?
@@ -433,7 +443,7 @@ struct SwipePhotoView: View {
 
     private enum SwipeAction {
         case delete(PHAsset, originalIndex: Int, wasReviewed: Bool, wasSessionReviewed: Bool)
-        case favorite(PHAsset, originalIndex: Int)
+        case favorite(PHAsset, originalIndex: Int, previousStatus: Bool)
         case skip(PHAsset, originalIndex: Int, wasReviewed: Bool, wasSessionReviewed: Bool)
         case fileToAlbum(
             PHAsset,
@@ -545,9 +555,7 @@ struct SwipePhotoView: View {
 
     private var isCurrentPhotoFavorited: Bool {
         guard let asset = currentRealPhoto else { return false }
-        return asset.isFavorite ||
-            favoritingAssetIDs.contains(asset.localIdentifier) ||
-            dataManager.photoLibraryManager.favorites.contains { $0.localIdentifier == asset.localIdentifier }
+        return effectiveFavoriteStatus(for: asset)
     }
 
     private var isCurrentPhotoQueuedForDelete: Bool {
@@ -575,7 +583,8 @@ struct SwipePhotoView: View {
             isAlbumMode: isAlbumMode,
             albumType: activeAlbumInfo?.type,
             hasAssetCollection: activeAlbumInfo?.assetCollection != nil,
-            canRemoveContent: activeAlbumInfo?.assetCollection?.canPerform(.removeContent) == true
+            canRemoveContent: activeAlbumInfo?.assetCollection?.canPerform(.removeContent) == true,
+            isFavorite: isCurrentPhotoFavorited
         )
     }
 
@@ -739,6 +748,10 @@ struct SwipePhotoView: View {
         }
         .onChange(of: dataManager.photoLibraryManager.allPhotos.count) { _ in
             refreshSessionForSourceChangeIfNeeded()
+        }
+        .onChange(of: dataManager.photoLibraryManager.favorites.count) { _ in
+            guard selectedCategory == .favorites || activeAlbumInfo?.type == .favorites else { return }
+            refreshSessionForSourceChangeIfNeeded(force: true)
         }
         .onChange(of: dataManager.hasLoadedAlbumMembership) { _ in
             initializeSessionIfNeeded()
@@ -1051,7 +1064,7 @@ struct SwipePhotoView: View {
                 handleDeleteAction()
                 resetCardPosition()
             }
-            .accessibilityAction(named: Text(isCurrentPhotoFavorited ? L10n.string("已收藏") : L10n.string("加入收藏"))) {
+            .accessibilityAction(named: Text(isCurrentPhotoFavorited ? L10n.string("取消收藏") : L10n.string("加入收藏"))) {
                 handleFavoriteAction()
                 resetCardPosition()
             }
@@ -1357,11 +1370,23 @@ struct SwipePhotoView: View {
     }
 
     private func sessionActionCount(for action: SwipeGestureAction) -> Int {
-        actionHistory.reduce(0) { count, historyAction in
+        if action == .favorite {
+            var changesByAssetID: [String: (initialStatus: Bool, currentStatus: Bool)] = [:]
+            for case .favorite(let asset, _, let previousStatus) in actionHistory {
+                let assetID = asset.localIdentifier
+                let targetStatus = !previousStatus
+                if let existing = changesByAssetID[assetID] {
+                    changesByAssetID[assetID] = (existing.initialStatus, targetStatus)
+                } else {
+                    changesByAssetID[assetID] = (previousStatus, targetStatus)
+                }
+            }
+            return changesByAssetID.values.count { !$0.initialStatus && $0.currentStatus }
+        }
+
+        return actionHistory.reduce(0) { count, historyAction in
             switch (action, historyAction) {
             case (.delete, .delete):
-                return count + 1
-            case (.favorite, .favorite):
                 return count + 1
             case (.keep, .skip):
                 return count + 1
@@ -1437,8 +1462,8 @@ struct SwipePhotoView: View {
 
             VStack(spacing: 10) {
                 SidebarActionButton(
-                    icon: "heart",
-                    title: isCurrentPhotoFavorited ? L10n.string("已收藏") : L10n.string("收藏"),
+                    icon: isCurrentPhotoFavorited ? "heart.slash" : "heart",
+                    title: isCurrentPhotoFavorited ? L10n.string("取消收藏") : L10n.string("收藏"),
                     color: PhotoDeleteStyle.iconTint(for: "favorite")
                 ) {
                     handleFavoriteAction()
@@ -1721,7 +1746,11 @@ struct SwipePhotoView: View {
                 resetCardPosition()
             }
             Spacer(minLength: 0)
-            ActionButton(icon: isCurrentPhotoFavorited ? "heart.fill" : "heart", title: "收藏", color: PhotoDeleteStyle.iconTint(for: "favorite")) {
+            ActionButton(
+                icon: isCurrentPhotoFavorited ? "heart.slash" : "heart",
+                title: isCurrentPhotoFavorited ? "取消收藏" : "收藏",
+                color: PhotoDeleteStyle.iconTint(for: "favorite")
+            ) {
                 handleFavoriteAction()
                 resetCardPosition()
             }
@@ -2637,9 +2666,12 @@ struct SwipePhotoView: View {
         case .next:
             browseToNextPhoto(reviewing: asset)
         case .close:
-            if albumReviewDownSwipeBehavior == .removeFromAlbum {
+            switch albumReviewDownSwipeBehavior {
+            case .removeFromAlbum:
                 handleRemoveFromActiveAlbum(asset)
-            } else {
+            case .removeFromFavorites:
+                setFavoriteStatus(asset, to: false)
+            case .returnToList:
                 handleFinishAction()
             }
         case .delete:
@@ -2653,7 +2685,7 @@ struct SwipePhotoView: View {
                 moveToNextPhoto()
             }
         case .favorite:
-            markFavoriteCandidate(asset)
+            toggleFavoriteStatus(asset)
             if PhotoReviewActionPolicy.shouldAdvance(after: action) {
                 moveToNextPhoto()
             }
@@ -2937,7 +2969,7 @@ struct SwipePhotoView: View {
 
     private func handleFavoriteAction() {
         guard canPerformPhotoAction, let asset = currentRealPhoto else { return }
-        markFavoriteCandidate(asset)
+        toggleFavoriteStatus(asset)
     }
 
     private func handleDeleteAction() {
@@ -2981,13 +3013,20 @@ struct SwipePhotoView: View {
             dataManager.restoreReviewedState(asset, wasReviewed: wasReviewed)
             restoreSessionReviewedState(asset, wasReviewed: wasSessionReviewed)
             restorePhotoPosition(asset, preferredIndex: originalIndex)
-        case .favorite(let asset, let originalIndex):
-            cancelPendingSwipeMutation(for: asset)
-            pendingFavoriteCount = max(pendingFavoriteCount - 1, 0)
-            dataManager.removeFromFavoriteCandidates(asset)
-            restorePhotoPosition(asset, preferredIndex: originalIndex)
+        case .favorite(let asset, let originalIndex, let previousStatus):
+            restoreFavoriteStatus(
+                asset,
+                to: previousStatus,
+                originalIndex: originalIndex,
+                failedAction: lastAction
+            )
+            return
         case .skip(let asset, let originalIndex, let wasReviewed, let wasSessionReviewed):
+            let cancelledBeforeCommit = pendingSwipeMutations[asset.localIdentifier] != nil
             cancelPendingSwipeMutation(for: asset)
+            if !cancelledBeforeCommit {
+                dataManager.removeRecentOrganizedPhotoRecord(for: asset)
+            }
             dataManager.restoreReviewedState(asset, wasReviewed: wasReviewed)
             restoreSessionReviewedState(asset, wasReviewed: wasSessionReviewed)
             restorePhotoPosition(asset, preferredIndex: originalIndex)
@@ -3010,7 +3049,9 @@ struct SwipePhotoView: View {
                 dataManager.removePhotoFromAlbum(asset, album: album) { success in
                     DispatchQueue.main.async {
                         self.pendingAlbumFilingUndoKeys.remove(filingKey)
-                        if !success {
+                        if success {
+                            self.dataManager.removeRecentOrganizedPhotoRecord(for: asset)
+                        } else {
                             self.showFeedback(L10n.string("移出失败，请再试一次"), icon: "exclamationmark.triangle", style: .warning)
                         }
                     }
@@ -3040,34 +3081,6 @@ struct SwipePhotoView: View {
         persistSessionProgressIfPossible()
         HapticManager.impact(.light)
         showFeedback(L10n.string("已取消删除"), icon: "xmark.circle.fill", style: .neutral)
-    }
-
-    private func cancelFavoriteCandidate(_ asset: PHAsset, at index: Int) {
-        guard isAssetQueuedForFavorite(asset) else { return }
-
-        cancelPendingSwipeMutation(for: asset)
-        dataManager.removeFromFavoriteCandidates(asset)
-        pendingFavoriteCount = max(pendingFavoriteCount - 1, 0)
-        removeLatestFavoriteAction(for: asset)
-
-        if isValidPhotoIndex(index) {
-            currentPhotoIndex = index
-        }
-        persistSessionProgressIfPossible()
-        HapticManager.impact(.light)
-        showFeedback(L10n.string("已取消待收藏"), icon: "heart.slash", style: .neutral)
-    }
-
-    private func removeLatestFavoriteAction(for asset: PHAsset) {
-        let assetID = asset.localIdentifier
-        guard let index = actionHistory.lastIndex(where: { action in
-            if case .favorite(let actionAsset, _) = action {
-                return actionAsset.localIdentifier == assetID
-            }
-            return false
-        }) else { return }
-
-        actionHistory.remove(at: index)
     }
 
     private func removeLatestDeleteAction(
@@ -3108,28 +3121,87 @@ struct SwipePhotoView: View {
         recordReviewModeHintOpportunity()
     }
 
-    private func markFavoriteCandidate(_ asset: PHAsset) {
-        let assetID = asset.localIdentifier
-        guard !isCurrentPhotoFavorited else {
-            HapticManager.impact(.light)
-            showFeedback(L10n.string("已经是收藏"), icon: "heart.fill", style: .favorite)
-            return
-        }
+    private func toggleFavoriteStatus(_ asset: PHAsset) {
+        setFavoriteStatus(asset, to: !effectiveFavoriteStatus(for: asset))
+    }
 
-        if isAssetQueuedForDelete(asset) {
+    private func setFavoriteStatus(_ asset: PHAsset, to targetStatus: Bool) {
+        let assetID = asset.localIdentifier
+        guard favoriteMutationTargets[assetID] == nil else { return }
+
+        let previousStatus = effectiveFavoriteStatus(for: asset)
+        guard previousStatus != targetStatus else { return }
+        let originalIndex = currentPhotoIndex
+
+        if targetStatus, isAssetQueuedForDelete(asset) {
             cancelDeleteCandidate(asset, at: currentPhotoIndex)
         }
         cancelPendingSwipeMutation(for: asset)
-        favoritingAssetIDs.insert(assetID)
-        dataManager.favoritePhotoImmediately(asset) { success in
-            favoritingAssetIDs.remove(assetID)
+        favoriteMutationTargets[assetID] = targetStatus
+        dataManager.setPhotoFavoriteImmediately(asset, isFavorite: targetStatus) { success in
+            favoriteMutationTargets.removeValue(forKey: assetID)
             if success {
+                actionHistory.append(.favorite(
+                    asset,
+                    originalIndex: originalIndex,
+                    previousStatus: previousStatus
+                ))
                 HapticManager.notify(.success)
-                showFeedback(L10n.string("已加入收藏"), icon: "heart.fill", style: .favorite)
+                showFeedback(
+                    targetStatus ? L10n.string("已加入收藏") : L10n.string("已取消收藏"),
+                    icon: targetStatus ? "heart.fill" : "heart.slash",
+                    style: .favorite,
+                    showsUndo: true
+                )
             } else {
                 HapticManager.notify(.error)
-                showFeedback(L10n.string("收藏失败，请再试一次"), icon: "exclamationmark.triangle", style: .warning)
+                showFeedback(
+                    targetStatus
+                        ? L10n.string("收藏失败，请再试一次")
+                        : L10n.string("取消收藏失败，请再试一次"),
+                    icon: "exclamationmark.triangle",
+                    style: .warning
+                )
             }
+        }
+    }
+
+    private func restoreFavoriteStatus(
+        _ asset: PHAsset,
+        to previousStatus: Bool,
+        originalIndex: Int,
+        failedAction: SwipeAction
+    ) {
+        let assetID = asset.localIdentifier
+        guard favoriteMutationTargets[assetID] == nil else {
+            actionHistory.append(failedAction)
+            return
+        }
+
+        favoriteMutationTargets[assetID] = previousStatus
+        dataManager.setPhotoFavoriteImmediately(asset, isFavorite: previousStatus) { success in
+            favoriteMutationTargets.removeValue(forKey: assetID)
+            if success {
+                if selectedCategory == .favorites || activeAlbumInfo?.type == .favorites {
+                    refreshSessionForSourceChangeIfNeeded(force: true)
+                }
+                restorePhotoPosition(asset, preferredIndex: originalIndex)
+                HapticManager.notify(.success)
+                showFeedback(L10n.string("已撤销上一步"), icon: "arrow.uturn.backward", style: .positive)
+            } else {
+                actionHistory.append(failedAction)
+                HapticManager.notify(.error)
+                showFeedback(L10n.string("撤销失败，请再试一次"), icon: "exclamationmark.triangle", style: .warning)
+            }
+        }
+    }
+
+    private func effectiveFavoriteStatus(for asset: PHAsset) -> Bool {
+        if let targetStatus = favoriteMutationTargets[asset.localIdentifier] {
+            return targetStatus
+        }
+        return dataManager.photoLibraryManager.favorites.contains {
+            $0.localIdentifier == asset.localIdentifier
         }
     }
 
@@ -3221,6 +3293,7 @@ struct SwipePhotoView: View {
 
                     self.completedAlbumFilingKeys.insert(filingKey)
                     self.recentlyFiledAlbumAssetIDs.insert(assetID)
+                    self.dataManager.recordRecentOrganizedPhoto(asset, action: .filedToAlbum)
                     self.showAlbumShortcutSuccess(for: currentAlbumInfo.id)
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
                         self.recentlyFiledAlbumAssetIDs.remove(assetID)
@@ -3396,7 +3469,9 @@ struct SwipePhotoView: View {
             dataManager.addToDeleteCandidates(mutation.asset)
         case .favorite:
             dataManager.addToFavoriteCandidates(mutation.asset)
-        case .keep, .previous, .next, .close:
+        case .keep:
+            dataManager.recordRecentOrganizedPhoto(mutation.asset, action: .kept)
+        case .previous, .next, .close:
             break
         }
     }
@@ -4423,7 +4498,9 @@ struct RealPhotoCard: View {
             values.append(L10n.string("实况照片"))
         }
 
-        if asset.isFavorite || isInFavoriteCandidates {
+        if photoLibraryManager.favorites.contains(where: {
+            $0.localIdentifier == asset.localIdentifier
+        }) || isInFavoriteCandidates {
             values.append(L10n.string("收藏"))
         }
 

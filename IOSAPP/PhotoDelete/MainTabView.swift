@@ -44,7 +44,6 @@ struct MainTabView: View {
             }
             configureTabBarAppearance()
             dataManager.syncPhotoLibraryAuthorization()
-            purchaseManager.refreshEntitlementsAfterForegroundActivationIfNeeded()
         }
         .onReceive(NotificationCenter.default.publisher(for: AppConstants.openAlbumsTabNotificationName)) { _ in
             selectedTab = .albums

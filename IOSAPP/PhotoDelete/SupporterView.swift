@@ -99,8 +99,7 @@ struct SupporterView: View {
             }
         }
         .task {
-            await purchaseManager.refreshEntitlementsAfterPotentialExternalChange()
-            await purchaseManager.loadProducts()
+            await purchaseManager.activateStoreKit()
         }
         .offerCodeRedemption(isPresented: $showingOfferCodeRedemption) { result in
             purchaseManager.handleOfferCodeRedemptionCompletion(result)

@@ -411,6 +411,7 @@ enum AppConstants {
     static let hasSeenIntroKey = "hasSeenPhotoDeleteIntro"
     static let hasCompletedOnboardingKey = "hasCompletedPhotoDeleteOnboarding"
     static let reviewedAssetIDsKey = "photoDeleteReviewedAssetIDs"
+    static let recentOrganizedPhotosKey = "photoDeleteRecentOrganizedPhotosV1"
     static let pendingDeleteCandidateIDsKey = "photoDeletePendingDeleteCandidateIDs"
     static let pendingFavoriteCandidateIDsKey = "photoDeletePendingFavoriteCandidateIDs"
     static let customAlbumOrderKey = "photoDeleteCustomAlbumOrder"
@@ -436,6 +437,7 @@ enum AppConstants {
     static let reviewProgressByScopeKey = "photoDeleteReviewProgressByScope"
     static let appAppearanceKey = "photoDeleteAppAppearance"
     static let appThemeKey = "photoDeleteAppTheme"
+    static let similarPhotoMatchModeKey = "photoDeleteSimilarPhotoMatchMode"
     static let openAlbumsTabNotificationName = Notification.Name("photoDeleteOpenAlbumsTab")
     static let supporterProductID = "com.01mvp.photodelete.supporter.stats"
     static let supporterEntitlementKey = "photoDeleteSupporterUnlocked"

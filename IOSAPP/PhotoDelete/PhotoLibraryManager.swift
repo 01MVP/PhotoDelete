@@ -1166,7 +1166,48 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         }
     }
 
+    func setFavoriteStatus(
+        _ asset: PHAsset,
+        isFavorite: Bool,
+        completion: @escaping (Bool, Error?) -> Void
+    ) {
+        guard hasPhotoLibraryAccess else {
+            completion(false, PhotoLibraryWriteError.noLibraryAccess)
+            return
+        }
+
+        guard asset.canPerform(.properties) else {
+            completion(false, PhotoLibraryWriteError.unsupportedFavorite)
+            return
+        }
+
+        expectLocalLibraryChange()
+        PHPhotoLibrary.shared().performChanges({
+            let request = PHAssetChangeRequest(for: asset)
+            request.isFavorite = isFavorite
+        }) { success, error in
+            DispatchQueue.main.async {
+                completion(success, error)
+            }
+        }
+    }
+
     // MARK: - Image Loading
+
+    func loadVisionAnalysisImage(for asset: PHAsset) async -> CGImage? {
+        guard let data = try? await requestImageData(for: asset),
+              let source = CGImageSourceCreateWithData(data as CFData, nil) else {
+            return nil
+        }
+
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: 512,
+            kCGImageSourceShouldCacheImmediately: true
+        ]
+        return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+    }
 
     @discardableResult
     func loadImage(for asset: PHAsset, size: CGSize, completion: @escaping (UIImage?) -> Void) -> PHImageRequestID? {
@@ -1733,6 +1774,23 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         isLoading = false
         hasLoadedPhotoLibrary = true
         saveSnapshot(allPhotos: allPhotos, videos: videos, screenshots: screenshots, livePhotos: livePhotos, favorites: favorites)
+        onLibraryDataChanged?()
+    }
+
+    func applyFavoriteStatusChange(_ asset: PHAsset, isFavorite: Bool) {
+        if isFavorite {
+            upsertFavorite(asset)
+        } else {
+            favorites.removeAll { $0.localIdentifier == asset.localIdentifier }
+        }
+
+        saveSnapshot(
+            allPhotos: allPhotos,
+            videos: videos,
+            screenshots: screenshots,
+            livePhotos: livePhotos,
+            favorites: favorites
+        )
         onLibraryDataChanged?()
     }
 

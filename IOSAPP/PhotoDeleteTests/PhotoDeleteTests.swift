@@ -629,6 +629,19 @@ struct PhotoDeleteTests {
     }
 
     @MainActor
+    @Test func storeKitNetworkWorkDoesNotStartUntilTheStoreIsOpened() async throws {
+        let suiteName = "PhotoDeleteDeferredStoreKit-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let manager = PurchaseManager(userDefaults: defaults)
+
+        #expect(!manager.hasActivatedStoreKit)
+        #expect(manager.products.isEmpty)
+        #expect(manager.entitlementState == .locked)
+    }
+
+    @MainActor
     @Test func supporterTrialStartsWhenUserChoosesTrial() async throws {
         let suiteName = "PhotoDeleteSupporterTrialStart-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suiteName))
@@ -2297,6 +2310,52 @@ struct PhotoDeleteTests {
         #expect(groups.isEmpty)
     }
 
+    @Test func strictSimilarPhotoGroupingRequiresEveryPhotoInAGroupToMatch() async throws {
+        let distances: [Set<String>: Float] = [
+            Set(["a", "b"]): 0.4,
+            Set(["b", "c"]): 0.4,
+            Set(["a", "c"]): 1.4
+        ]
+
+        let groups = DataManager.strictSimilarIdentifierGroups(
+            from: ["a", "b", "c"],
+            maximumDistance: 1.0
+        ) { lhs, rhs in
+            lhs == rhs ? 0 : distances[Set([lhs, rhs])]
+        }
+
+        #expect(groups == [["a", "b"]])
+    }
+
+    @Test func similarPhotoMatchModesKeepSystemVisionAsTheDefault() async throws {
+        #expect(SimilarPhotoMatchMode.defaultMode == .standard)
+        #expect(SimilarPhotoMatchMode.strict.maximumVisionDistance == 5.0)
+        #expect(SimilarPhotoMatchMode.standard.maximumVisionDistance == 10.0)
+        #expect(SimilarPhotoMatchMode.broad.maximumVisionDistance == nil)
+    }
+
+    @Test func recentOrganizedPhotoHistoryKeepsLatestActionPerPhoto() async throws {
+        let earlier = Date(timeIntervalSince1970: 1_000)
+        let later = Date(timeIntervalSince1970: 2_000)
+        let initial = [
+            RecentOrganizedPhotoRecord(assetIdentifier: "a", action: .kept, date: earlier),
+            RecentOrganizedPhotoRecord(assetIdentifier: "b", action: .favorited, date: earlier)
+        ]
+
+        let updated = RecentOrganizedPhotoHistory.updated(
+            initial,
+            with: RecentOrganizedPhotoRecord(
+                assetIdentifier: "a",
+                action: .queuedForDeletion,
+                date: later
+            )
+        )
+
+        #expect(updated.map(\.assetIdentifier) == ["a", "b"])
+        #expect(updated.first?.action == .queuedForDeletion)
+        #expect(updated.first?.date == later)
+    }
+
     @Test func videoPlaybackProgressMapperClampsDragLocations() async throws {
         #expect(VideoPlaybackProgressMapper.progress(locationX: -12, width: 120) == 0)
         #expect(VideoPlaybackProgressMapper.progress(locationX: 60, width: 120) == 0.5)
@@ -2570,6 +2629,32 @@ struct PhotoDeleteTests {
         ) == .returnToList)
         #expect(AlbumReviewDownSwipeBehavior.removeFromAlbum.detailTitle == L10n.string("移出相册，不删除照片"))
         #expect(AlbumReviewDownSwipeBehavior.removeFromAlbum.feedbackTitle == L10n.string("下滑移出相册"))
+    }
+
+    @Test func downSwipeRemovesFavoriteUnlessWritableAlbumRemovalTakesPriority() async throws {
+        #expect(AlbumReviewDownSwipeBehavior.resolve(
+            isAlbumMode: false,
+            albumType: nil,
+            hasAssetCollection: false,
+            canRemoveContent: false,
+            isFavorite: true
+        ) == .removeFromFavorites)
+        #expect(AlbumReviewDownSwipeBehavior.resolve(
+            isAlbumMode: true,
+            albumType: .favorites,
+            hasAssetCollection: true,
+            canRemoveContent: false,
+            isFavorite: true
+        ) == .removeFromFavorites)
+        #expect(AlbumReviewDownSwipeBehavior.resolve(
+            isAlbumMode: true,
+            albumType: .userCreated,
+            hasAssetCollection: true,
+            canRemoveContent: true,
+            isFavorite: true
+        ) == .removeFromAlbum)
+        #expect(AlbumReviewDownSwipeBehavior.removeFromFavorites.detailTitle == L10n.string("取消收藏这张照片"))
+        #expect(AlbumReviewDownSwipeBehavior.removeFromFavorites.feedbackTitle == L10n.string("下滑取消收藏"))
     }
 
     @Test func photoSwipeDragFeedbackPlacesDownSwipeHintAtTop() async throws {
