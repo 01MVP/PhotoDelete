@@ -518,6 +518,21 @@ class DataManager: ObservableObject {
         )
     }
 
+    static func candidateIdentifiersForRestore(
+        savedDeleteIDs: Set<String>,
+        savedFavoriteIDs: Set<String>,
+        currentDeleteIDs: Set<String>,
+        currentFavoriteIDs: Set<String>,
+        hasUnsavedChanges: Bool
+    ) -> (deleteIDs: Set<String>, favoriteIDs: Set<String>) {
+        let deleteIDs = hasUnsavedChanges ? currentDeleteIDs : savedDeleteIDs
+        let favoriteIDs = hasUnsavedChanges ? currentFavoriteIDs : savedFavoriteIDs
+        return (
+            deleteIDs: deleteIDs,
+            favoriteIDs: favoriteIDs.subtracting(deleteIDs)
+        )
+    }
+
     // MARK: - 批量操作（离开页面时执行）
     func executeBatchOperations(completion: @escaping (Bool, Error?) -> Void) {
         executeBatchOperations { success, error, _ in
@@ -2532,8 +2547,15 @@ class DataManager: ObservableObject {
         guard !photos.isEmpty || photoLibraryManager.hasLoadedPhotoLibrary else { return }
 
         let assetsByID = Dictionary(uniqueKeysWithValues: photos.map { ($0.localIdentifier, $0) })
-        let deleteIDs = pendingDeleteCandidateIDs
-        let favoriteIDs = pendingFavoriteCandidateIDs.subtracting(deleteIDs)
+        let restoreIDs = Self.candidateIdentifiersForRestore(
+            savedDeleteIDs: pendingDeleteCandidateIDs,
+            savedFavoriteIDs: pendingFavoriteCandidateIDs,
+            currentDeleteIDs: Set(deleteCandidates.map(\.localIdentifier)),
+            currentFavoriteIDs: Set(favoriteCandidates.map(\.localIdentifier)),
+            hasUnsavedChanges: pendingCandidateIDsSaveWorkItem != nil
+        )
+        let deleteIDs = restoreIDs.deleteIDs
+        let favoriteIDs = restoreIDs.favoriteIDs
 
         deleteCandidates = Set(deleteIDs.compactMap { assetsByID[$0] })
         favoriteCandidates = Set(favoriteIDs.compactMap { assetsByID[$0] })

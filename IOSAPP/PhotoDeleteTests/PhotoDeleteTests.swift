@@ -1660,6 +1660,32 @@ struct PhotoDeleteTests {
         #expect(pruned.favoriteIDs == ["asset-d"])
     }
 
+    @Test func candidateRestoreKeepsUnsavedRapidSelections() async throws {
+        let restored = DataManager.candidateIdentifiersForRestore(
+            savedDeleteIDs: ["asset-a", "asset-b", "asset-c"],
+            savedFavoriteIDs: [],
+            currentDeleteIDs: Set((1...12).map { "asset-\($0)" }),
+            currentFavoriteIDs: [],
+            hasUnsavedChanges: true
+        )
+
+        #expect(restored.deleteIDs == Set((1...12).map { "asset-\($0)" }))
+        #expect(restored.favoriteIDs.isEmpty)
+    }
+
+    @Test func candidateRestoreUsesSavedSelectionsAfterDebounceCompletes() async throws {
+        let restored = DataManager.candidateIdentifiersForRestore(
+            savedDeleteIDs: ["asset-a", "asset-b", "asset-c"],
+            savedFavoriteIDs: ["asset-favorite"],
+            currentDeleteIDs: ["stale-live-value"],
+            currentFavoriteIDs: [],
+            hasUnsavedChanges: false
+        )
+
+        #expect(restored.deleteIDs == ["asset-a", "asset-b", "asset-c"])
+        #expect(restored.favoriteIDs == ["asset-favorite"])
+    }
+
     @Test func settingsStatsSummaryUsesPersistedCleanupStats() async throws {
         let fileURL = temporaryStatsURL()
         defer { try? FileManager.default.removeItem(at: fileURL) }
