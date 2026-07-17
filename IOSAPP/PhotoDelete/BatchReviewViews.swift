@@ -840,6 +840,15 @@ func photoPreviewTargetSize(for asset: PHAsset, viewport: CGSize, displayScale: 
     )
 }
 
+enum CandidateLivePhotoPreviewPolicy {
+    static let networkAccessAllowed = true
+    static let deliveryMode: PHImageRequestOptionsDeliveryMode = .highQualityFormat
+
+    static func shouldDisplayLivePhoto(isDegraded: Bool) -> Bool {
+        !isDegraded
+    }
+}
+
 struct ZoomablePhotoPreview: UIViewRepresentable {
     let image: UIImage
     var maximumZoomScale: CGFloat = 5
@@ -1625,7 +1634,8 @@ struct CandidatePhotoPreviewView: View {
     @State private var image: UIImage?
     @State private var livePhoto: PHLivePhoto?
     @State private var isLoading = true
-    @State private var requestID: PHImageRequestID?
+    @State private var imageRequestID: PHImageRequestID?
+    @State private var livePhotoRequestID: PHImageRequestID?
     @State private var failedToLoadLivePhoto = false
     @State private var sharePayload: PhotoSharePayload?
     @State private var sharePreparationTask: Task<Void, Never>?
@@ -1655,6 +1665,7 @@ struct CandidatePhotoPreviewView: View {
                 .background(PhotoDeleteStyle.background.ignoresSafeArea())
                 .onAppear {
                     if isLivePhotoAsset {
+                        loadImage(in: geometry.size)
                         loadLivePhoto(in: geometry.size)
                     } else if asset.mediaType != .video {
                         loadImage(in: geometry.size)
@@ -1693,7 +1704,8 @@ struct CandidatePhotoPreviewView: View {
             Button(L10n.string("知道了"), role: .cancel) {}
         }
         .onDisappear {
-            photoLibraryManager.cancelImageRequest(requestID)
+            photoLibraryManager.cancelImageRequest(imageRequestID)
+            photoLibraryManager.cancelImageRequest(livePhotoRequestID)
             sharePreparationTask?.cancel()
             sharePreparationTask = nil
             isPreparingShare = false
@@ -1719,6 +1731,10 @@ struct CandidatePhotoPreviewView: View {
                     )
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .accessibilityLabel(L10n.string("实况照片"))
+                } else if let image {
+                    ZoomablePhotoPreview(image: image)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .accessibilityLabel(L10n.string("放大的照片"))
                 } else {
                     loadingContent
                 }
@@ -1770,38 +1786,44 @@ struct CandidatePhotoPreviewView: View {
     }
 
     private func loadLivePhoto(in size: CGSize) {
-        guard requestID == nil, livePhoto == nil, !failedToLoadLivePhoto else { return }
+        guard livePhotoRequestID == nil, livePhoto == nil, !failedToLoadLivePhoto else { return }
         isLoading = true
         let targetSize = photoPreviewTargetSize(for: asset, viewport: size, displayScale: displayScale)
 
-        requestID = photoLibraryManager.loadLivePhotoResult(for: asset, size: targetSize) { result in
-            if let loadedLivePhoto = result.livePhoto {
+        livePhotoRequestID = photoLibraryManager.loadLivePhotoResult(
+            for: asset,
+            size: targetSize,
+            networkAccessAllowed: CandidateLivePhotoPreviewPolicy.networkAccessAllowed,
+            deliveryMode: CandidateLivePhotoPreviewPolicy.deliveryMode
+        ) { result in
+            if let loadedLivePhoto = result.livePhoto,
+               CandidateLivePhotoPreviewPolicy.shouldDisplayLivePhoto(isDegraded: result.isDegraded) {
                 livePhoto = loadedLivePhoto
                 isLoading = false
             } else if result.isFinal {
                 failedToLoadLivePhoto = true
-                isLoading = false
+                isLoading = image == nil
             }
 
             if result.isFinal {
-                requestID = nil
+                livePhotoRequestID = nil
             }
         }
     }
 
     private func loadImage(in size: CGSize) {
-        guard requestID == nil, image == nil else { return }
+        guard imageRequestID == nil, image == nil else { return }
         isLoading = true
         let targetSize = photoPreviewTargetSize(for: asset, viewport: size, displayScale: displayScale)
 
-        requestID = photoLibraryManager.loadHighQualityPreview(
+        imageRequestID = photoLibraryManager.loadHighQualityPreview(
             for: asset,
             size: targetSize,
             networkAccessAllowed: true
         ) { loadedImage in
             image = loadedImage
             isLoading = false
-            requestID = nil
+            imageRequestID = nil
         }
     }
 

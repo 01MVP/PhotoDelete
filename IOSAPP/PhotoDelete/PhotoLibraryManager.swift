@@ -1491,6 +1491,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         for asset: PHAsset,
         size: CGSize,
         networkAccessAllowed: Bool = false,
+        deliveryMode: PHImageRequestOptionsDeliveryMode = .opportunistic,
         completion: @escaping (PhotoLibraryLivePhotoResult) -> Void
     ) -> PHImageRequestID? {
         guard isLivePhoto(asset) else {
@@ -1504,7 +1505,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         }
 
         let options = PHLivePhotoRequestOptions()
-        options.deliveryMode = .opportunistic
+        options.deliveryMode = deliveryMode
         options.version = .current
         options.isNetworkAccessAllowed = networkAccessAllowed
 

@@ -301,6 +301,13 @@ struct PhotoDeleteTests {
         #expect(LivePhotoPlaybackDefaultPolicy.motionEnabledAfterManualAction(current: true, previousLoadFailed: true))
     }
 
+    @Test func livePhotoDetailPreviewRequiresOriginalQuality() async throws {
+        #expect(CandidateLivePhotoPreviewPolicy.networkAccessAllowed)
+        #expect(CandidateLivePhotoPreviewPolicy.deliveryMode == .highQualityFormat)
+        #expect(CandidateLivePhotoPreviewPolicy.shouldDisplayLivePhoto(isDegraded: false))
+        #expect(!CandidateLivePhotoPreviewPolicy.shouldDisplayLivePhoto(isDegraded: true))
+    }
+
     @Test func livePhotoPlaybackStartsOncePerAssetUnlessExplicitlyTriggered() async throws {
         var state = LivePhotoPlaybackRequestState()
 
