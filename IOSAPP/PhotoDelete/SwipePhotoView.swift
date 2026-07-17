@@ -392,6 +392,7 @@ struct SwipePhotoView: View {
     @State private var sharePayload: PhotoSharePayload?
     @State private var sharePreparationTask: Task<Void, Never>?
     @State private var isPreparingShare = false
+    @State private var isUndoInProgress = false
 
     private let reviewModeHintThreshold = 5
     private let deleteButtonTipThreshold = 3
@@ -621,7 +622,15 @@ struct SwipePhotoView: View {
         currentRealPhoto != nil &&
             !showCompletionMessage &&
             !isCurrentPhotoBeingFiled &&
-            !isCurrentPhotoBeingRemovedFromAlbum
+            !isCurrentPhotoBeingRemovedFromAlbum &&
+            canStartReviewAction
+    }
+
+    private var canStartReviewAction: Bool {
+        PhotoReviewMutationPolicy.canStartAction(
+            isUndoInProgress: isUndoInProgress,
+            pendingFavoriteMutationCount: favoriteMutationTargets.count
+        )
     }
 
     private var reviewMode: PhotoReviewMode {
@@ -638,6 +647,7 @@ struct SwipePhotoView: View {
                     horizontalSizeClass: horizontalSizeClass
                 )
                 let sidebarWidth = PhotoDeleteAdaptiveLayout.reviewSidebarWidth(totalWidth: geometry.size.width)
+                let primaryWidth = geometry.size.width - sidebarWidth
 
                 ZStack(alignment: .bottom) {
                     if usesSidebar {
@@ -645,8 +655,21 @@ struct SwipePhotoView: View {
                             VStack(spacing: 0) {
                                 navigationHeader
                                 photoArea
+                                    .overlay(alignment: .top) {
+                                        if let feedbackToast {
+                                            PhotoDeleteToastView(toast: feedbackToast) {
+                                                handleUndoAction()
+                                                resetCardPosition()
+                                            }
+                                            .frame(maxWidth: 420)
+                                            .padding(.horizontal, 24)
+                                            .padding(.top, 16)
+                                            .allowsHitTesting(feedbackToast.showsUndo)
+                                            .transition(.move(edge: .top).combined(with: .opacity))
+                                        }
+                                    }
                             }
-                            .frame(width: geometry.size.width - sidebarWidth)
+                            .frame(width: primaryWidth)
 
                             landscapeSidebar
                                 .frame(width: sidebarWidth, height: geometry.size.height)
@@ -659,14 +682,14 @@ struct SwipePhotoView: View {
                         }
                     }
 
-                    if let feedbackToast {
+                    if !usesSidebar, let feedbackToast {
                         PhotoDeleteToastView(toast: feedbackToast) {
                             handleUndoAction()
                             resetCardPosition()
                         }
                         .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
                         .allowsHitTesting(feedbackToast.showsUndo)
-                        .padding(.top, usesSidebar ? 24 : 88)
+                        .padding(.top, 88)
                         .frame(
                             maxWidth: .infinity,
                             maxHeight: .infinity,
@@ -2608,6 +2631,7 @@ struct SwipePhotoView: View {
     private func completeCommittedSwipe(action: SwipeGestureAction, asset: PHAsset) {
         hasPreparedSwipeCommit = false
         clearDragOffsetWithoutAnimation()
+        guard canStartReviewAction else { return }
         performConfiguredSwipeAction(action, asset: asset)
     }
 
@@ -2990,6 +3014,7 @@ struct SwipePhotoView: View {
     }
 
     private func handleFinishAction() {
+        guard canStartReviewAction else { return }
         flushPendingSwipeMutations()
         if hasPendingOperations {
             presentBatchConfirmation(dismissAfter: true)
@@ -2999,12 +3024,17 @@ struct SwipePhotoView: View {
     }
 
     private func handleUndoAction() {
+        guard canStartReviewAction else { return }
+        isUndoInProgress = true
+
         guard let lastAction = actionHistory.popLast() else {
             HapticManager.impact(.light)
             showFeedback(L10n.string("没有可撤销的操作"), icon: "arrow.uturn.backward", style: .neutral)
+            finishUndoInteraction()
             return
         }
 
+        var waitsForAlbumMutation = false
         switch lastAction {
         case .delete(let asset, let originalIndex, let wasReviewed, let wasSessionReviewed):
             cancelPendingSwipeMutation(for: asset)
@@ -3039,21 +3069,21 @@ struct SwipePhotoView: View {
             wasSessionReviewed: let wasSessionReviewed,
             filingKey: let filingKey
         ):
+            waitsForAlbumMutation = true
             pendingAlbumFilingUndoKeys.insert(filingKey)
             albumShortcutSuccessTokens.removeValue(forKey: albumID)
             finishAlbumFilingState(assetID: asset.localIdentifier, albumID: albumID)
             dataManager.restoreReviewedState(asset, wasReviewed: wasReviewed)
             restoreSessionReviewedState(asset, wasReviewed: wasSessionReviewed)
-            restorePhotoPosition(asset, preferredIndex: originalIndex)
             if completedAlbumFilingKeys.remove(filingKey) != nil {
                 dataManager.removePhotoFromAlbum(asset, album: album) { success in
                     DispatchQueue.main.async {
-                        self.pendingAlbumFilingUndoKeys.remove(filingKey)
-                        if success {
-                            self.dataManager.removeRecentOrganizedPhotoRecord(for: asset)
-                        } else {
-                            self.showFeedback(L10n.string("移出失败，请再试一次"), icon: "exclamationmark.triangle", style: .warning)
-                        }
+                        self.completeAlbumFilingUndo(
+                            asset: asset,
+                            preferredIndex: originalIndex,
+                            filingKey: filingKey,
+                            success: success
+                        )
                     }
                 }
             }
@@ -3061,6 +3091,34 @@ struct SwipePhotoView: View {
         syncPendingOperationCounts()
         HapticManager.notify(.success)
         showFeedback(L10n.string("已撤销上一步"), icon: "arrow.uturn.backward", style: .positive)
+        if !waitsForAlbumMutation {
+            finishUndoInteraction()
+        }
+    }
+
+    private func completeAlbumFilingUndo(
+        asset: PHAsset,
+        preferredIndex: Int,
+        filingKey: String,
+        success: Bool
+    ) {
+        pendingAlbumFilingUndoKeys.remove(filingKey)
+        if success {
+            dataManager.removeRecentOrganizedPhotoRecord(for: asset)
+            if selectedCategory == .unclassified || (randomReviewScope != nil && randomReviewHideFiledPhotos) {
+                refreshSessionForSourceChangeIfNeeded(force: true)
+            }
+            restorePhotoPosition(asset, preferredIndex: preferredIndex)
+        } else {
+            showFeedback(L10n.string("移出失败，请再试一次"), icon: "exclamationmark.triangle", style: .warning)
+        }
+        finishUndoInteraction()
+    }
+
+    private func finishUndoInteraction(after delay: TimeInterval = 0.3) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+            isUndoInProgress = false
+        }
     }
 
     private func cancelDeleteCandidate(_ asset: PHAsset, at index: Int) {
@@ -3175,6 +3233,7 @@ struct SwipePhotoView: View {
         let assetID = asset.localIdentifier
         guard favoriteMutationTargets[assetID] == nil else {
             actionHistory.append(failedAction)
+            finishUndoInteraction()
             return
         }
 
@@ -3193,6 +3252,7 @@ struct SwipePhotoView: View {
                 HapticManager.notify(.error)
                 showFeedback(L10n.string("撤销失败，请再试一次"), icon: "exclamationmark.triangle", style: .warning)
             }
+            finishUndoInteraction()
         }
     }
 
@@ -3223,8 +3283,8 @@ struct SwipePhotoView: View {
     }
 
     private func handleAddToAlbum(_ albumInfo: AlbumInfo) {
+        guard canStartReviewAction else { return }
         dismissAlbumShortcutHint(markSeen: true)
-
         guard !showCompletionMessage,
               let asset = currentRealPhoto else {
             showFeedback(L10n.string("无法归类到这个相册"), icon: "exclamationmark.triangle", style: .warning)
@@ -3282,10 +3342,12 @@ struct SwipePhotoView: View {
                     if self.pendingAlbumFilingUndoKeys.contains(filingKey) {
                         self.dataManager.removePhotoFromAlbum(asset, album: assetCollection) { removeSuccess in
                             DispatchQueue.main.async {
-                                self.pendingAlbumFilingUndoKeys.remove(filingKey)
-                                if !removeSuccess {
-                                    self.showFeedback(L10n.string("移出失败，请再试一次"), icon: "exclamationmark.triangle", style: .warning)
-                                }
+                                self.completeAlbumFilingUndo(
+                                    asset: asset,
+                                    preferredIndex: originalIndex,
+                                    filingKey: filingKey,
+                                    success: removeSuccess
+                                )
                             }
                         }
                         return
@@ -3299,13 +3361,30 @@ struct SwipePhotoView: View {
                         self.recentlyFiledAlbumAssetIDs.remove(assetID)
                     }
                 } else if success {
-                    self.pendingAlbumFilingUndoKeys.remove(filingKey)
-                    self.removeAlbumFilingAction(filingKey: filingKey)
+                    if self.pendingAlbumFilingUndoKeys.contains(filingKey) {
+                        self.completeAlbumFilingUndo(
+                            asset: asset,
+                            preferredIndex: originalIndex,
+                            filingKey: filingKey,
+                            success: true
+                        )
+                    } else {
+                        self.pendingAlbumFilingUndoKeys.remove(filingKey)
+                        self.removeAlbumFilingAction(filingKey: filingKey)
+                    }
                 } else {
-                    let wasUndoRequested = self.pendingAlbumFilingUndoKeys.remove(filingKey) != nil
+                    let wasUndoRequested = self.pendingAlbumFilingUndoKeys.contains(filingKey)
                     self.removeAlbumFilingAction(filingKey: filingKey)
                     self.recentlyFiledAlbumAssetIDs.remove(assetID)
-                    guard !wasUndoRequested else { return }
+                    if wasUndoRequested {
+                        self.completeAlbumFilingUndo(
+                            asset: asset,
+                            preferredIndex: originalIndex,
+                            filingKey: filingKey,
+                            success: true
+                        )
+                        return
+                    }
                     self.dataManager.restoreReviewedState(asset, wasReviewed: wasReviewed)
                     self.restoreSessionReviewedState(asset, wasReviewed: wasSessionReviewed)
                     self.restorePhotoPosition(asset, preferredIndex: originalIndex)

@@ -2041,6 +2041,21 @@ struct PhotoDeleteTests {
         #expect(PhotoReviewActionPolicy.shouldAdvance(after: .delete))
     }
 
+    @Test func pendingFavoriteMutationBlocksAnotherReviewAction() async throws {
+        #expect(PhotoReviewMutationPolicy.canStartAction(
+            isUndoInProgress: false,
+            pendingFavoriteMutationCount: 0
+        ))
+        #expect(!PhotoReviewMutationPolicy.canStartAction(
+            isUndoInProgress: false,
+            pendingFavoriteMutationCount: 1
+        ))
+        #expect(!PhotoReviewMutationPolicy.canStartAction(
+            isUndoInProgress: true,
+            pendingFavoriteMutationCount: 0
+        ))
+    }
+
     @Test func twoRowBrowserSignatureDetectsMiddleReplacementAndReordering() async throws {
         let original = TwoRowPhotoBrowserView.AssetSignature(identifiers: ["first", "middle", "last"])
         let replaced = TwoRowPhotoBrowserView.AssetSignature(identifiers: ["first", "other", "last"])

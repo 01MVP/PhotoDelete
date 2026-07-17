@@ -576,6 +576,15 @@ enum PhotoReviewActionPolicy {
     }
 }
 
+enum PhotoReviewMutationPolicy {
+    static func canStartAction(
+        isUndoInProgress: Bool,
+        pendingFavoriteMutationCount: Int
+    ) -> Bool {
+        !isUndoInProgress && pendingFavoriteMutationCount == 0
+    }
+}
+
 enum VisibleListPagination {
     static func filteredItems<T>(_ items: [T], include: (T) -> Bool) -> [T] {
         items.filter(include)
