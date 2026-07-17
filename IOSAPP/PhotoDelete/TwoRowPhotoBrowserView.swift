@@ -19,6 +19,7 @@ struct TwoRowPhotoBrowserView: UIViewRepresentable {
     let selectedTargetSize: CGSize
     let onSelectIndex: (Int) -> Void
     let onOpenAsset: (PHAsset) -> Void
+    let onPreviewAsset: (PHAsset) -> Void
     let onSwipeUpToDelete: (PHAsset, Int) -> Void
     let onCancelDelete: (PHAsset, Int) -> Void
     let onStopVideoPlayback: () -> Void
@@ -98,6 +99,7 @@ struct TwoRowPhotoBrowserView: UIViewRepresentable {
         private var selectedTargetSize: CGSize
         private var onSelectIndex: (Int) -> Void
         private var onOpenAsset: (PHAsset) -> Void
+        private var onPreviewAsset: (PHAsset) -> Void
         private var onSwipeUpToDelete: (PHAsset, Int) -> Void
         private var onCancelDelete: (PHAsset, Int) -> Void
         private var onStopVideoPlayback: () -> Void
@@ -124,6 +126,7 @@ struct TwoRowPhotoBrowserView: UIViewRepresentable {
             selectedTargetSize = view.selectedTargetSize
             onSelectIndex = view.onSelectIndex
             onOpenAsset = view.onOpenAsset
+            onPreviewAsset = view.onPreviewAsset
             onSwipeUpToDelete = view.onSwipeUpToDelete
             onCancelDelete = view.onCancelDelete
             onStopVideoPlayback = view.onStopVideoPlayback
@@ -148,6 +151,7 @@ struct TwoRowPhotoBrowserView: UIViewRepresentable {
             playingVideoAssetID = view.playingVideoAssetID
             onSelectIndex = view.onSelectIndex
             onOpenAsset = view.onOpenAsset
+            onPreviewAsset = view.onPreviewAsset
             onSwipeUpToDelete = view.onSwipeUpToDelete
             onCancelDelete = view.onCancelDelete
             onStopVideoPlayback = view.onStopVideoPlayback
@@ -305,6 +309,9 @@ struct TwoRowPhotoBrowserView: UIViewRepresentable {
                 },
                 onCancelDelete: { [weak self] asset, index in
                     self?.onCancelDelete(asset, index)
+                },
+                onPreviewVideo: { [weak self] asset in
+                    self?.onPreviewAsset(asset)
                 },
                 onStopVideoPlayback: { [weak self] in
                     self?.onStopVideoPlayback()
@@ -602,6 +609,7 @@ private final class TwoRowPhotoBrowserCell: UICollectionViewCell, UIGestureRecog
     private let deleteCueIconView = UIImageView(image: UIImage(systemName: "trash.fill"))
     private let deleteCueLabel = UILabel()
     private let closeVideoButton = UIButton(type: .system)
+    private let previewVideoButton = UIButton(type: .system)
     private let videoContainerView = UIView()
 
     private var representedAssetID: String?
@@ -624,6 +632,7 @@ private final class TwoRowPhotoBrowserCell: UICollectionViewCell, UIGestureRecog
     private var isLoadingAsset = false
     private var onSwipeUpToDelete: ((PHAsset, Int) -> Void)?
     private var onCancelDelete: ((PHAsset, Int) -> Void)?
+    private var onPreviewVideo: ((PHAsset) -> Void)?
     private var onStopVideoPlayback: (() -> Void)?
 
     override init(frame: CGRect) {
@@ -654,6 +663,7 @@ private final class TwoRowPhotoBrowserCell: UICollectionViewCell, UIGestureRecog
         stateOverlayView.isHidden = true
         deleteCueView.isHidden = true
         closeVideoButton.isHidden = true
+        previewVideoButton.isHidden = true
         badgeStackView.arrangedSubviews.forEach { view in
             badgeStackView.removeArrangedSubview(view)
             view.removeFromSuperview()
@@ -684,6 +694,7 @@ private final class TwoRowPhotoBrowserCell: UICollectionViewCell, UIGestureRecog
         prefersHighQualityPreview: Bool,
         onSwipeUpToDelete: @escaping (PHAsset, Int) -> Void,
         onCancelDelete: @escaping (PHAsset, Int) -> Void,
+        onPreviewVideo: @escaping (PHAsset) -> Void,
         onStopVideoPlayback: @escaping () -> Void
     ) {
         let assetID = asset.localIdentifier
@@ -700,6 +711,7 @@ private final class TwoRowPhotoBrowserCell: UICollectionViewCell, UIGestureRecog
         self.photoLibraryManager = photoLibraryManager
         self.onSwipeUpToDelete = onSwipeUpToDelete
         self.onCancelDelete = onCancelDelete
+        self.onPreviewVideo = onPreviewVideo
         self.onStopVideoPlayback = onStopVideoPlayback
         self.prefersHighQualityPreview = prefersHighQualityPreview
         loadedThumbnailTargetSize = thumbnailTargetSize
@@ -742,6 +754,10 @@ private final class TwoRowPhotoBrowserCell: UICollectionViewCell, UIGestureRecog
         }
 
         updateVideoPlayback(isVideoPlaying: isVideoPlaying, asset: asset)
+        previewVideoButton.isHidden = !InlineVideoPreviewControlVisibility.shouldShow(
+            isVideo: isVideo,
+            isVideoPlaying: isVideoPlaying
+        )
     }
 
     private func setupViews() {
@@ -787,6 +803,18 @@ private final class TwoRowPhotoBrowserCell: UICollectionViewCell, UIGestureRecog
         closeVideoButton.addTarget(self, action: #selector(handleStopVideoPlaybackTap), for: .touchUpInside)
         containerView.addSubview(closeVideoButton)
 
+        previewVideoButton.translatesAutoresizingMaskIntoConstraints = false
+        previewVideoButton.tintColor = .white
+        previewVideoButton.backgroundColor = UIColor.black.withAlphaComponent(0.76)
+        previewVideoButton.layer.cornerRadius = 15
+        previewVideoButton.layer.cornerCurve = .continuous
+        previewVideoButton.setImage(UIImage(systemName: "arrow.up.left.and.arrow.down.right"), for: .normal)
+        previewVideoButton.accessibilityIdentifier = "browser-video-full-preview-button"
+        previewVideoButton.accessibilityLabel = L10n.string("视频预览")
+        previewVideoButton.isHidden = true
+        previewVideoButton.addTarget(self, action: #selector(handlePreviewVideoTap), for: .touchUpInside)
+        containerView.addSubview(previewVideoButton)
+
         badgeStackView.translatesAutoresizingMaskIntoConstraints = false
         badgeStackView.axis = .vertical
         badgeStackView.alignment = .trailing
@@ -826,6 +854,11 @@ private final class TwoRowPhotoBrowserCell: UICollectionViewCell, UIGestureRecog
             closeVideoButton.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 8),
             closeVideoButton.widthAnchor.constraint(equalToConstant: 30),
             closeVideoButton.heightAnchor.constraint(equalToConstant: 30),
+
+            previewVideoButton.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -8),
+            previewVideoButton.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -8),
+            previewVideoButton.widthAnchor.constraint(equalToConstant: 30),
+            previewVideoButton.heightAnchor.constraint(equalToConstant: 30),
 
             badgeStackView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -9),
             badgeStackView.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 9)
@@ -1213,6 +1246,11 @@ private final class TwoRowPhotoBrowserCell: UICollectionViewCell, UIGestureRecog
         stopVideoPlayback(resetCallback: true)
     }
 
+    @objc private func handlePreviewVideoTap() {
+        guard let asset = representedAsset else { return }
+        onPreviewVideo?(asset)
+    }
+
     private func stopVideoPlayback(resetCallback: Bool) {
         photoLibraryManager?.cancelImageRequest(videoRequestID)
         videoRequestID = nil
@@ -1222,6 +1260,7 @@ private final class TwoRowPhotoBrowserCell: UICollectionViewCell, UIGestureRecog
         playerLayer = nil
         videoContainerView.isHidden = true
         closeVideoButton.isHidden = true
+        previewVideoButton.isHidden = true
         if resetCallback {
             onStopVideoPlayback?()
         }

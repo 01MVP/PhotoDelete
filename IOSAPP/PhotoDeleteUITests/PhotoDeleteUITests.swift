@@ -378,6 +378,92 @@ final class PhotoDeleteUITests: XCTestCase {
     }
 
     @MainActor
+    func testInlineVideoCanOpenFullPreviewWithPlaybackControls() throws {
+        installPhotoLibraryInterruptionMonitor(allowDeletionConfirmation: true)
+
+        let app = makeApp(completedOnboarding: true, seedLibrary: true)
+        app.launch()
+        _ = allowFullPhotoLibraryAccessIfNeeded(app: app)
+
+        if app.state != .runningForeground {
+            app.activate()
+        }
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10))
+        XCTAssertTrue(waitForHomeReady(in: app, language: "zh-Hans", timeout: 30))
+
+        openOrganizeTab(in: app)
+        guard let videosButton = waitForButtonLabelPrefix(in: app, prefix: "视频", timeout: 30) else {
+            XCTFail("Expected a videos entry after seeded library load")
+            return
+        }
+        videosButton.tap()
+
+        let doneButton = firstExistingButton(in: app, labels: ["完成"])
+        XCTAssertTrue(doneButton.waitForExistence(timeout: 30))
+
+        let dismissHintButton = app.buttons["知道了"]
+        if dismissHintButton.exists, dismissHintButton.isHittable {
+            dismissHintButton.tap()
+        }
+
+        guard waitForInlineVideoPlayer(in: app, timeout: 20) != nil else {
+            XCTFail("Expected seeded video to appear in review")
+            return
+        }
+
+        let expandButton = app.buttons["video-full-preview-button"]
+        XCTAssertTrue(expandButton.waitForExistence(timeout: 8))
+        expandButton.tap()
+
+        XCTAssertTrue(app.navigationBars["视频预览"].waitForExistence(timeout: 8))
+        let previewPlayer = app.buttons.matching(identifier: "photo-asset-video-player").firstMatch
+        XCTAssertTrue(previewPlayer.waitForExistence(timeout: 12))
+        previewPlayer.tap()
+
+        let playbackButton = app.buttons.matching(identifier: "video-playback-toggle-button").firstMatch
+        XCTAssertTrue(playbackButton.waitForExistence(timeout: 5))
+        let progressSlider = app.sliders.matching(identifier: "video-playback-slider").firstMatch
+        XCTAssertTrue(progressSlider.waitForExistence(timeout: 5))
+
+        playbackButton.tap()
+        let playButton = app.buttons.matching(NSPredicate(format: "label == %@", "播放视频")).firstMatch
+        XCTAssertTrue(playButton.waitForExistence(timeout: 5))
+        playButton.tap()
+
+        let scrubStart = progressSlider.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.5))
+        let scrubEnd = progressSlider.coordinate(withNormalizedOffset: CGVector(dx: 0.42, dy: 0.5))
+        scrubStart.press(forDuration: 0.15, thenDragTo: scrubEnd)
+
+        let closeButton = app.buttons["关闭"]
+        XCTAssertTrue(closeButton.waitForExistence(timeout: 5))
+        closeButton.tap()
+        XCTAssertTrue(doneButton.waitForExistence(timeout: 8))
+
+        let reviewModeButton = firstExistingButton(in: app, labels: ["整理模式"])
+        XCTAssertTrue(reviewModeButton.waitForExistence(timeout: 5))
+        reviewModeButton.tap()
+        XCTAssertTrue(app.staticTexts["左右浏览"].waitForExistence(timeout: 5))
+
+        let currentVideoCell = app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "label == %@ AND value CONTAINS %@ AND value CONTAINS %@",
+                "浏览照片",
+                "当前照片",
+                "视频"
+            )
+        ).firstMatch
+        XCTAssertTrue(currentVideoCell.waitForExistence(timeout: 8))
+        currentVideoCell.tap()
+
+        let browserExpandButton = app.buttons["browser-video-full-preview-button"]
+        XCTAssertTrue(browserExpandButton.waitForExistence(timeout: 8))
+        browserExpandButton.tap()
+        XCTAssertTrue(app.navigationBars["视频预览"].waitForExistence(timeout: 8))
+        app.buttons["关闭"].tap()
+        XCTAssertTrue(doneButton.waitForExistence(timeout: 8))
+    }
+
+    @MainActor
     func testSettingsTabShowsCoreControls() throws {
         let app = makeApp(completedOnboarding: true)
         app.launch()

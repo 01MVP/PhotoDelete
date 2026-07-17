@@ -60,6 +60,12 @@ enum InlineVideoCardGestureRouting {
     }
 }
 
+enum InlineVideoPreviewControlVisibility {
+    static func shouldShow(isVideo: Bool, isVideoPlaying: Bool) -> Bool {
+        isVideo && isVideoPlaying
+    }
+}
+
 enum PhotoReviewSourceReadiness {
     static func isWaiting(
         selectedCategory: PhotoCategory?,
@@ -1065,11 +1071,22 @@ struct SwipePhotoView: View {
                 }
             }
             .overlay(alignment: isInlineVideoPlaying ? .topTrailing : .bottomTrailing) {
-                if shouldShowSessionMuteButton {
-                    SessionMuteToggleButton(isMuted: reviewVideoMuted, action: toggleSessionVideoMuted)
-                        .padding(12)
-                        .transition(.opacity)
+                HStack(spacing: 8) {
+                    if InlineVideoPreviewControlVisibility.shouldShow(
+                        isVideo: asset.mediaType == .video,
+                        isVideoPlaying: isInlineVideoPlaying
+                    ) {
+                        VideoPreviewExpandButton {
+                            presentAssetPreview(asset)
+                        }
+                    }
+
+                    if shouldShowSessionMuteButton {
+                        SessionMuteToggleButton(isMuted: reviewVideoMuted, action: toggleSessionVideoMuted)
+                    }
                 }
+                .padding(12)
+                .transition(.opacity)
             }
             .rotationEffect(cardRotationAngle(for: dragOffset, in: cardSize), anchor: .bottom)
             .offset(dragOffset)
@@ -1183,6 +1200,7 @@ struct SwipePhotoView: View {
                 selectedTargetSize: selectedTargetSize,
                 onSelectIndex: selectBrowserPhoto(at:),
                 onOpenAsset: openAssetPreview(_:),
+                onPreviewAsset: presentAssetPreview(_:),
                 onSwipeUpToDelete: handleBrowserSwipeUpDelete(_:at:),
                 onCancelDelete: cancelDeleteCandidate(_:at:),
                 onStopVideoPlayback: {
@@ -1200,8 +1218,15 @@ struct SwipePhotoView: View {
         if asset.mediaType == .video {
             toggleInlineVideoPlayback(for: asset)
         } else {
-            previewAsset = CandidatePreviewAsset(asset: asset)
+            presentAssetPreview(asset)
         }
+    }
+
+    private func presentAssetPreview(_ asset: PHAsset) {
+        if asset.mediaType == .video {
+            stopInlineVideoPlayback()
+        }
+        previewAsset = CandidatePreviewAsset(asset: asset)
     }
 
     private func toggleInlineVideoPlayback(for asset: PHAsset) {
@@ -3715,6 +3740,33 @@ private struct InlineVideoCloseButton: View {
         .buttonStyle(.plain)
         .photoDeleteMinimumTapTarget()
         .accessibilityLabel(L10n.string("停止播放"))
+    }
+}
+
+private struct VideoPreviewExpandButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(L10n.string("视频预览"), systemImage: "arrow.up.left.and.arrow.down.right")
+                .labelStyle(.iconOnly)
+                .symbolRenderingMode(.monochrome)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(PhotoDeleteStyle.accent)
+                .frame(width: 38, height: 38)
+                .background(
+                    Circle()
+                        .fill(PhotoDeleteStyle.surface)
+                        .overlay(
+                            Circle()
+                                .stroke(PhotoDeleteStyle.accent.opacity(0.28), lineWidth: 1)
+                        )
+                )
+                .photoDeleteMinimumTapTarget()
+        }
+        .buttonStyle(PhotoDeletePressScaleButtonStyle())
+        .accessibilityIdentifier("video-full-preview-button")
+        .accessibilityLabel(L10n.string("视频预览"))
     }
 }
 

@@ -2547,6 +2547,12 @@ struct PhotoDeleteTests {
         ))
     }
 
+    @Test func inlineVideoPreviewControlOnlyAppearsDuringVideoPlayback() async throws {
+        #expect(InlineVideoPreviewControlVisibility.shouldShow(isVideo: true, isVideoPlaying: true))
+        #expect(!InlineVideoPreviewControlVisibility.shouldShow(isVideo: true, isVideoPlaying: false))
+        #expect(!InlineVideoPreviewControlVisibility.shouldShow(isVideo: false, isVideoPlaying: true))
+    }
+
     @Test func inlineVideoScrubGestureRegionIgnoresInactiveVideoAndInvalidSizes() async throws {
         let cardSize = CGSize(width: 320, height: 520)
 
