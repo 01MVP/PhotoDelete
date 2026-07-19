@@ -111,6 +111,7 @@ private enum PhotoDeleteUITestDefaults {
             AppConstants.reviewLivePhotoAutoPlayKey,
             AppConstants.reviewVideoMutedKey,
             AppConstants.reviewModeKey,
+            AppConstants.reviewAlbumShortcutsExpandedKey,
             AppConstants.gestureUpdateNoticePendingKey,
             AppConstants.hasSeenAlbumShortcutHintKey,
             AppConstants.hasSeenDeleteButtonTipKey,
@@ -122,6 +123,8 @@ private enum PhotoDeleteUITestDefaults {
             AppConstants.similarPhotoMatchModeKey,
             AppConstants.supporterEntitlementKey,
             AppConstants.supporterPurchaseDateKey,
+            AppConstants.supporterProductIDKey,
+            AppConstants.supporterExpirationDateKey,
             AppConstants.supporterTrialStartDateKey
         ].forEach(defaults.removeObject)
     }

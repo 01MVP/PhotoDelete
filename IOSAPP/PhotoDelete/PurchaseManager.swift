@@ -8,6 +8,61 @@
 import Foundation
 import StoreKit
 
+enum SupporterPurchasePlan: String, CaseIterable, Identifiable {
+    case annual
+    case lifetime
+
+    var id: String { rawValue }
+
+    var productID: String {
+        switch self {
+        case .annual:
+            AppConstants.supporterAnnualProductID
+        case .lifetime:
+            AppConstants.supporterLifetimeProductID
+        }
+    }
+}
+
+enum SupporterAccessKind: String, Equatable {
+    case annual
+    case lifetime
+
+    init?(productID: String) {
+        switch productID {
+        case AppConstants.supporterAnnualProductID:
+            self = .annual
+        case AppConstants.supporterLifetimeProductID:
+            self = .lifetime
+        default:
+            return nil
+        }
+    }
+}
+
+enum SupporterCachedEntitlementPolicy {
+    static func isValid(
+        isUnlocked: Bool,
+        productID: String?,
+        expirationDate: Date?,
+        now: Date
+    ) -> Bool {
+        guard isUnlocked else { return false }
+
+        // Existing purchases predate the product-ID cache and are permanent unlocks.
+        guard let productID else { return true }
+        guard let accessKind = SupporterAccessKind(productID: productID) else { return false }
+
+        switch accessKind {
+        case .lifetime:
+            return true
+        case .annual:
+            guard let expirationDate else { return false }
+            return expirationDate > now
+        }
+    }
+}
+
 enum SupporterEntitlementState: Equatable {
     case unknown
     case verifying
@@ -42,12 +97,14 @@ final class PurchaseManager: ObservableObject {
     @Published private(set) var products: [Product] = []
     @Published private(set) var entitlementState: SupporterEntitlementState
     @Published private(set) var supporterPurchaseDate: Date?
+    @Published private(set) var supporterExpirationDate: Date?
+    @Published private(set) var supporterAccessKind: SupporterAccessKind?
     @Published private(set) var supporterTrialStartDate: Date?
     @Published private(set) var isLoading = false
     @Published var errorMessage: String?
     private(set) var hasActivatedStoreKit = false
 
-    private let productIDs = [AppConstants.supporterProductID]
+    private let productIDs = Array(AppConstants.supporterProductIDs)
     private let userDefaults: UserDefaults
     private let nowProvider: () -> Date
     private var updatesTask: Task<Void, Never>?
@@ -56,15 +113,25 @@ final class PurchaseManager: ObservableObject {
     private var lastExternalEntitlementRefreshDate: Date?
     private let externalEntitlementRefreshCooldown: TimeInterval = 20
 
-    var supporterProduct: Product? {
-        products.first { $0.id == AppConstants.supporterProductID }
+    var supporterAnnualProduct: Product? {
+        product(for: .annual)
     }
 
+    var supporterLifetimeProduct: Product? {
+        product(for: .lifetime)
+    }
+
+    var supporterAnnualPriceText: String {
+        priceText(for: .annual)
+    }
+
+    var supporterLifetimePriceText: String {
+        priceText(for: .lifetime)
+    }
+
+    // The compact advanced screen promotes the lower-barrier annual plan.
     var supporterPriceText: String {
-        if let supporterProduct {
-            return supporterProduct.displayPrice
-        }
-        return hasActivatedStoreKit ? L10n.string("读取价格中") : L10n.string("查看价格")
+        supporterAnnualPriceText
     }
 
     var hasPaidSupporterAccess: Bool {
@@ -122,7 +189,7 @@ final class PurchaseManager: ObservableObject {
         }
 
         if isSupporterTrialExpired {
-            return L10n.string("3 天体验已结束，基础整理仍可继续使用。一次性解锁后可继续使用进阶功能。")
+            return L10n.string("3 天体验已结束，基础整理仍可继续使用。开通年度或永久 Pro 后可继续使用进阶功能。")
         }
 
         return nil
@@ -135,9 +202,20 @@ final class PurchaseManager: ObservableObject {
     ) {
         self.userDefaults = userDefaults
         self.nowProvider = nowProvider
-        let hasCachedEntitlement = userDefaults.bool(forKey: AppConstants.supporterEntitlementKey)
+        let cachedProductID = userDefaults.string(forKey: AppConstants.supporterProductIDKey)
+        let cachedExpirationDate = userDefaults.object(forKey: AppConstants.supporterExpirationDateKey) as? Date
+        let hasCachedEntitlement = SupporterCachedEntitlementPolicy.isValid(
+            isUnlocked: userDefaults.bool(forKey: AppConstants.supporterEntitlementKey),
+            productID: cachedProductID,
+            expirationDate: cachedExpirationDate,
+            now: nowProvider()
+        )
         self.entitlementState = .initial(hasCachedEntitlement: hasCachedEntitlement)
         self.supporterPurchaseDate = userDefaults.object(forKey: AppConstants.supporterPurchaseDateKey) as? Date
+        self.supporterExpirationDate = hasCachedEntitlement ? cachedExpirationDate : nil
+        self.supporterAccessKind = hasCachedEntitlement
+            ? (cachedProductID.flatMap(SupporterAccessKind.init(productID:)) ?? .lifetime)
+            : nil
         if hasCachedEntitlement {
             self.supporterTrialStartDate = nil
             userDefaults.removeObject(forKey: AppConstants.supporterTrialStartDateKey)
@@ -216,16 +294,16 @@ final class PurchaseManager: ObservableObject {
         }
     }
 
-    func purchaseSupporter() async {
+    func purchaseSupporter(plan: SupporterPurchasePlan = .annual) async {
         await activateStoreKit()
         isLoading = true
         defer { isLoading = false }
 
-        if supporterProduct == nil {
+        if product(for: plan) == nil {
             await loadProducts()
         }
 
-        guard let product = supporterProduct else {
+        guard let product = product(for: plan) else {
             errorMessage = L10n.string("暂时无法读取支持者版商品。")
             return
         }
@@ -236,7 +314,7 @@ final class PurchaseManager: ObservableObject {
             case .success(let verification):
                 let transaction = try checkVerified(verification)
                 await transaction.finish()
-                setVerifiedSupporterAccess(true, purchaseDate: transaction.purchaseDate)
+                setVerifiedSupporterAccess(true, transaction: transaction)
                 errorMessage = nil
             case .pending:
                 errorMessage = L10n.string("购买正在处理中，完成后会自动解锁。")
@@ -334,20 +412,23 @@ final class PurchaseManager: ObservableObject {
             entitlementState = .verificationStarted(hasCachedEntitlement: hasCachedSupporterEntitlement)
         }
         var hasCurrentSupporterEntitlement = false
-        var currentPurchaseDate: Date?
+        var currentTransaction: Transaction?
 
         for await result in Transaction.currentEntitlements {
             guard let transaction = try? checkVerified(result) else { continue }
-            if transaction.productID == AppConstants.supporterProductID,
-               transaction.revocationDate == nil {
-                hasCurrentSupporterEntitlement = true
-                currentPurchaseDate = transaction.purchaseDate
+            guard AppConstants.supporterProductIDs.contains(transaction.productID),
+                  transaction.revocationDate == nil else { continue }
+
+            hasCurrentSupporterEntitlement = true
+            if transaction.productID == AppConstants.supporterLifetimeProductID {
+                currentTransaction = transaction
                 break
             }
+            currentTransaction = transaction
         }
 
-        if hasCurrentSupporterEntitlement {
-            setVerifiedSupporterAccess(true, purchaseDate: currentPurchaseDate)
+        if hasCurrentSupporterEntitlement, let currentTransaction {
+            setVerifiedSupporterAccess(true, transaction: currentTransaction)
             errorMessage = nil
         } else if shouldLockWhenMissing {
             setVerifiedSupporterAccess(false)
@@ -357,25 +438,32 @@ final class PurchaseManager: ObservableObject {
     private func listenForTransactions() async {
         for await result in Transaction.updates {
             guard let transaction = try? checkVerified(result) else { continue }
-            guard transaction.productID == AppConstants.supporterProductID else {
+            guard AppConstants.supporterProductIDs.contains(transaction.productID) else {
                 await transaction.finish()
                 continue
             }
 
             if transaction.revocationDate == nil {
-                setVerifiedSupporterAccess(true, purchaseDate: transaction.purchaseDate)
+                setVerifiedSupporterAccess(true, transaction: transaction)
             } else {
-                setVerifiedSupporterAccess(false)
+                await transaction.finish()
+                await refreshEntitlementsSilently()
+                continue
             }
             await transaction.finish()
         }
     }
 
     private var hasCachedSupporterEntitlement: Bool {
-        userDefaults.bool(forKey: AppConstants.supporterEntitlementKey)
+        SupporterCachedEntitlementPolicy.isValid(
+            isUnlocked: userDefaults.bool(forKey: AppConstants.supporterEntitlementKey),
+            productID: userDefaults.string(forKey: AppConstants.supporterProductIDKey),
+            expirationDate: userDefaults.object(forKey: AppConstants.supporterExpirationDateKey) as? Date,
+            now: nowProvider()
+        )
     }
 
-    private func setVerifiedSupporterAccess(_ value: Bool, purchaseDate: Date? = nil) {
+    private func setVerifiedSupporterAccess(_ value: Bool, transaction: Transaction? = nil) {
         entitlementState = value ? .verified : .locked
         userDefaults.set(value, forKey: AppConstants.supporterEntitlementKey)
 
@@ -383,16 +471,43 @@ final class PurchaseManager: ObservableObject {
             supporterTrialStartDate = nil
             userDefaults.removeObject(forKey: AppConstants.supporterTrialStartDateKey)
 
-            if let purchaseDate {
-                supporterPurchaseDate = purchaseDate
-                userDefaults.set(purchaseDate, forKey: AppConstants.supporterPurchaseDateKey)
+            if let transaction,
+               let accessKind = SupporterAccessKind(productID: transaction.productID) {
+                supporterAccessKind = accessKind
+                supporterPurchaseDate = transaction.purchaseDate
+                supporterExpirationDate = transaction.expirationDate
+                userDefaults.set(transaction.productID, forKey: AppConstants.supporterProductIDKey)
+                userDefaults.set(transaction.purchaseDate, forKey: AppConstants.supporterPurchaseDateKey)
+                if let expirationDate = transaction.expirationDate {
+                    userDefaults.set(expirationDate, forKey: AppConstants.supporterExpirationDateKey)
+                } else {
+                    userDefaults.removeObject(forKey: AppConstants.supporterExpirationDateKey)
+                }
             } else {
                 supporterPurchaseDate = userDefaults.object(forKey: AppConstants.supporterPurchaseDateKey) as? Date
+                supporterExpirationDate = userDefaults.object(forKey: AppConstants.supporterExpirationDateKey) as? Date
+                supporterAccessKind = userDefaults.string(forKey: AppConstants.supporterProductIDKey)
+                    .flatMap(SupporterAccessKind.init(productID:)) ?? .lifetime
             }
         } else {
             supporterPurchaseDate = nil
+            supporterExpirationDate = nil
+            supporterAccessKind = nil
             userDefaults.removeObject(forKey: AppConstants.supporterPurchaseDateKey)
+            userDefaults.removeObject(forKey: AppConstants.supporterExpirationDateKey)
+            userDefaults.removeObject(forKey: AppConstants.supporterProductIDKey)
         }
+    }
+
+    private func product(for plan: SupporterPurchasePlan) -> Product? {
+        products.first { $0.id == plan.productID }
+    }
+
+    private func priceText(for plan: SupporterPurchasePlan) -> String {
+        if let product = product(for: plan) {
+            return product.displayPrice
+        }
+        return hasActivatedStoreKit ? L10n.string("读取价格中") : L10n.string("查看价格")
     }
 
     private func checkVerified<T>(_ result: VerificationResult<T>) throws -> T {

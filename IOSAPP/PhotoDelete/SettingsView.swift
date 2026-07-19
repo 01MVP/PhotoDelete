@@ -236,7 +236,9 @@ struct SettingsView: View {
 
     private var supporterRowTitle: String {
         if purchaseManager.hasPaidSupporterAccess {
-            return L10n.string("支持者版已完整解锁")
+            return purchaseManager.supporterAccessKind == .annual
+                ? L10n.string("年度 Pro 已启用")
+                : L10n.string("永久 Pro 已解锁")
         }
 
         if purchaseManager.isUsingTrialSupporterAccess {
@@ -252,18 +254,20 @@ struct SettingsView: View {
 
     private var supporterRowSubtitle: String {
         if purchaseManager.hasPaidSupporterAccess {
-            return L10n.string("查看购买信息和功能区别")
+            return purchaseManager.supporterAccessKind == .annual
+                ? L10n.string("查看订阅状态和功能区别")
+                : L10n.string("查看购买信息和功能区别")
         }
 
         if purchaseManager.isUsingTrialSupporterAccess {
-            return String(format: L10n.string("还剩 %lld 天，可随时一次性解锁"), purchaseManager.supporterTrialDaysRemaining)
+            return String(format: L10n.string("还剩 %lld 天，可选择年度或永久 Pro"), purchaseManager.supporterTrialDaysRemaining)
         }
 
         if purchaseManager.isSupporterTrialExpired {
-            return L10n.string("3 天体验已结束，可一次性解锁进阶功能")
+            return L10n.string("3 天体验已结束，可选择年度或永久 Pro")
         }
 
-        return L10n.string("可先免费体验 3 天，也可一次性解锁")
+        return L10n.string("可先免费体验 3 天，也可选择年度或永久 Pro")
     }
 
     // MARK: - 关于与支持

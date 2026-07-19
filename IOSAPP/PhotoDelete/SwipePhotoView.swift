@@ -115,6 +115,16 @@ enum AlbumShortcutVisibility {
     }
 }
 
+enum AlbumShortcutPresentationPolicy {
+    static func showsStrip(isExpanded: Bool, isAvailable: Bool) -> Bool {
+        isExpanded && isAvailable
+    }
+
+    static func showsRevealButton(isExpanded: Bool, isAvailable: Bool) -> Bool {
+        !isExpanded && isAvailable
+    }
+}
+
 enum AlbumShortcutLayout {
     static let twoRowThreshold = 4
     static let buttonWidth: CGFloat = 102
@@ -123,15 +133,18 @@ enum AlbumShortcutLayout {
     static let buttonVisualHeight: CGFloat = 36
     static let horizontalSpacing: CGFloat = 7
     static let rowSpacing: CGFloat = 0
+    static let controlStackSpacing: CGFloat = 0
 
     static func usesTwoRows(albumCount: Int) -> Bool {
         albumCount >= twoRowThreshold
     }
 
     static func stripHeight(albumCount: Int) -> CGFloat {
-        usesTwoRows(albumCount: albumCount)
+        let albumRowsHeight = usesTwoRows(albumCount: albumCount)
             ? buttonHitHeight * 2 + rowSpacing
             : buttonHitHeight
+        let controlStackHeight = buttonHitHeight * 2 + controlStackSpacing
+        return max(albumRowsHeight, controlStackHeight)
     }
 }
 
@@ -334,6 +347,7 @@ struct SwipePhotoView: View {
     @AppStorage(AppConstants.reviewLivePhotoAutoPlayKey) private var reviewLivePhotoAutoPlay = false
     @AppStorage(AppConstants.reviewVideoMutedKey) private var defaultReviewVideoMuted = true
     @AppStorage(AppConstants.reviewModeKey) private var reviewModeValue = PhotoReviewMode.card.rawValue
+    @AppStorage(AppConstants.reviewAlbumShortcutsExpandedKey) private var albumShortcutsExpanded = true
     @AppStorage(AppConstants.hasSeenReviewModeHintKey) private var hasSeenReviewModeHint = false
     @AppStorage(AppConstants.hasSeenAlbumShortcutHintKey) private var hasSeenAlbumShortcutHint = false
     @AppStorage(AppConstants.hasSeenAlbumDownSwipeHintKey) private var hasSeenAlbumDownSwipeHint = false
@@ -357,6 +371,7 @@ struct SwipePhotoView: View {
     @State private var actionHistory: [SwipeAction] = []
     @State private var sessionPhotos: [PHAsset] = []
     @State private var allSessionPhotos: [PHAsset] = []
+    @State private var allSessionAssetIdentifiers: [String] = []
     @State private var randomReviewSeed = UUID().uuidString
     @AppStorage(AppConstants.randomReviewHideFiledPhotosKey) private var randomReviewHideFiledPhotos = true
     @State private var loadedSessionPhotoCount = 0
@@ -684,6 +699,11 @@ struct SwipePhotoView: View {
                         VStack(spacing: 0) {
                             navigationHeader
                             photoArea
+                                .overlay(alignment: .bottomLeading) {
+                                    albumShortcutRevealButton
+                                        .padding(.leading, PhotoDeleteStyle.screenHorizontalPadding)
+                                        .padding(.bottom, 12)
+                                }
                             bottomControls
                         }
                     }
@@ -739,6 +759,7 @@ struct SwipePhotoView: View {
             isPreparingShare = false
             flushPendingSwipeMutations()
             flushSessionProgressSave()
+            dataManager.flushReviewPersistence()
             dataManager.photoLibraryManager.stopCachingImages(
                 preloadedAssets,
                 size: swipeImageTargetSize
@@ -753,6 +774,7 @@ struct SwipePhotoView: View {
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
             flushPendingSwipeMutations()
             flushSessionProgressSave()
+            dataManager.flushReviewPersistence()
         }
         .onAppear {
             applySessionPlaybackPreferenceIfNeeded()
@@ -1497,6 +1519,12 @@ struct SwipePhotoView: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
             albumShortcutStrip(horizontalPadding: 0)
+            if shouldShowAlbumShortcutRevealButton {
+                AlbumShortcutVisibilityButton(isExpanded: false, showsTitle: true) {
+                    toggleAlbumShortcutVisibility()
+                }
+                .transition(.opacity.combined(with: .scale(scale: 0.94)))
+            }
             if showDeleteButtonTip && canPerformPhotoAction {
                 ReviewTipBanner(
                     icon: "trash",
@@ -1703,7 +1731,13 @@ struct SwipePhotoView: View {
                     .allowsHitTesting(false)
                 )
 
-                AlbumShortcutManageButton(action: openAlbumsTab)
+                VStack(spacing: AlbumShortcutLayout.controlStackSpacing) {
+                    AlbumShortcutManageButton(action: openAlbumsTab)
+
+                    AlbumShortcutVisibilityButton(isExpanded: true, showsTitle: false) {
+                        toggleAlbumShortcutVisibility()
+                    }
+                }
             }
             .padding(.horizontal, horizontalPadding)
             .frame(height: AlbumShortcutLayout.stripHeight(albumCount: albumShortcutAlbums.count))
@@ -1994,12 +2028,49 @@ struct SwipePhotoView: View {
     }
 
     private var shouldShowAlbumShortcutStrip: Bool {
+        AlbumShortcutPresentationPolicy.showsStrip(
+            isExpanded: albumShortcutsExpanded,
+            isAvailable: isAlbumShortcutAvailable
+        )
+    }
+
+    private var shouldShowAlbumShortcutRevealButton: Bool {
+        AlbumShortcutPresentationPolicy.showsRevealButton(
+            isExpanded: albumShortcutsExpanded,
+            isAvailable: isAlbumShortcutAvailable
+        )
+    }
+
+    private var isAlbumShortcutAvailable: Bool {
         AlbumShortcutVisibility.shouldShow(
             isAlbumMode: isAlbumMode,
             canPerformPhotoAction: canPerformPhotoAction,
             shouldKeepStableDuringFiling: isCurrentPhotoBeingFiled || isCurrentPhotoRecentlyFiled,
             albumCount: albumShortcutAlbums.count
         )
+    }
+
+    @ViewBuilder
+    private var albumShortcutRevealButton: some View {
+        if shouldShowAlbumShortcutRevealButton {
+            AlbumShortcutVisibilityButton(isExpanded: false, showsTitle: true) {
+                toggleAlbumShortcutVisibility()
+            }
+            .transition(.opacity.combined(with: .scale(scale: 0.94, anchor: .bottomLeading)))
+        }
+    }
+
+    private func toggleAlbumShortcutVisibility() {
+        let willExpand = !albumShortcutsExpanded
+        if !willExpand {
+            dismissAlbumShortcutHint()
+            hasSeenAlbumShortcutHint = true
+        }
+
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
+            albumShortcutsExpanded = willExpand
+        }
+        HapticManager.impact(.light)
     }
 
     private var hasUnreviewedPhotos: Bool {
@@ -2097,9 +2168,8 @@ struct SwipePhotoView: View {
             return
         }
 
-        let currentIDs = allSessionPhotos.map(\.localIdentifier)
         let nextIDs = photos.map(\.localIdentifier)
-        guard force || currentIDs != nextIDs || (allSessionPhotos.isEmpty && !photos.isEmpty) else {
+        guard force || allSessionAssetIdentifiers != nextIDs || (allSessionPhotos.isEmpty && !photos.isEmpty) else {
             return
         }
 
@@ -2120,7 +2190,9 @@ struct SwipePhotoView: View {
 
     private func refreshSessionPhotos(_ photos: [PHAsset]? = nil) {
         let fullPhotos = photos ?? filteredRealPhotos
+        let fullPhotoIdentifiers = fullPhotos.map(\.localIdentifier)
         allSessionPhotos = fullPhotos
+        allSessionAssetIdentifiers = fullPhotoIdentifiers
         if let inlinePlayingVideoAssetID,
            !fullPhotos.contains(where: { $0.localIdentifier == inlinePlayingVideoAssetID }) {
             self.inlinePlayingVideoAssetID = nil
@@ -2131,7 +2203,7 @@ struct SwipePhotoView: View {
             isRandomMemoriesMode: isRandomMemoriesMode,
             persistedReviewedAssetIdentifiers: dataManager.reviewedAssetIDs
         )
-        let sourceAssetIdentifiers = Set(fullPhotos.map(\.localIdentifier))
+        let sourceAssetIdentifiers = Set(fullPhotoIdentifiers)
         let persistedSessionReviewedAssetIDs = reviewedAssetIdentifiers.intersection(sourceAssetIdentifiers)
         if didInitializeSession {
             sessionReviewedAssetIDs.formIntersection(sourceAssetIdentifiers)
@@ -2147,7 +2219,7 @@ struct SwipePhotoView: View {
             targetIndex = min(currentPhotoIndex, max(fullPhotos.count - 1, 0))
         } else {
             targetIndex = PhotoReviewSessionPaginator.initialTargetIndex(
-                assetIdentifiers: fullPhotos.map(\.localIdentifier),
+                assetIdentifiers: fullPhotoIdentifiers,
                 reviewedAssetIdentifiers: reviewedAssetIdentifiers,
                 savedAssetIdentifier: restoredSessionProgressAssetID,
                 prefersFirstUnreviewedBeforeSavedProgress: shouldPrioritizeNewPhotosBeforeSavedProgress
@@ -2825,9 +2897,8 @@ struct SwipePhotoView: View {
         guard !sessionPhotos.isEmpty else { return }
 
         stopInlineVideoPlayback()
-        let allAssetIdentifiers = allSessionPhotos.map(\.localIdentifier)
         if let newIndex = PhotoReviewSessionDecisionPolicy.nextUnreviewedIndex(
-            assetIdentifiers: allAssetIdentifiers,
+            assetIdentifiers: allSessionAssetIdentifiers,
             reviewedAssetIdentifiers: sessionReviewedAssetIDs,
             after: currentPhotoIndex
         ) {
@@ -3285,9 +3356,7 @@ struct SwipePhotoView: View {
         if let targetStatus = favoriteMutationTargets[asset.localIdentifier] {
             return targetStatus
         }
-        return dataManager.photoLibraryManager.favorites.contains {
-            $0.localIdentifier == asset.localIdentifier
-        }
+        return dataManager.photoLibraryManager.isFavorite(asset)
     }
 
     private func markSkip(_ asset: PHAsset, message: String? = nil) {
@@ -4629,9 +4698,7 @@ struct RealPhotoCard: View {
             values.append(L10n.string("实况照片"))
         }
 
-        if photoLibraryManager.favorites.contains(where: {
-            $0.localIdentifier == asset.localIdentifier
-        }) || isInFavoriteCandidates {
+        if photoLibraryManager.isFavorite(asset) || isInFavoriteCandidates {
             values.append(L10n.string("收藏"))
         }
 
@@ -4869,8 +4936,50 @@ private struct AlbumShortcutManageButton: View {
                 )
         }
         .buttonStyle(PhotoDeletePressScaleButtonStyle())
+        .photoDeleteMinimumTapTarget()
+        .accessibilityIdentifier("album-shortcut-manage-button")
         .accessibilityLabel(L10n.string("管理相册"))
         .accessibilityHint(L10n.string("打开相册页管理相册"))
+    }
+}
+
+private struct AlbumShortcutVisibilityButton: View {
+    let isExpanded: Bool
+    let showsTitle: Bool
+    let action: () -> Void
+
+    private var title: String {
+        L10n.string(isExpanded ? "隐藏相册归类" : "显示相册归类")
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: isExpanded ? "chevron.down" : "folder")
+                    .font(.system(size: 13, weight: .semibold))
+
+                if showsTitle {
+                    Text(title)
+                        .font(.system(size: 12, weight: .semibold))
+                        .lineLimit(1)
+                }
+            }
+            .foregroundColor(PhotoDeleteStyle.accent)
+            .padding(.horizontal, showsTitle ? 12 : 0)
+            .frame(width: showsTitle ? nil : 34, height: 30)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(PhotoDeleteStyle.surface.opacity(0.94))
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .stroke(PhotoDeleteStyle.accent.opacity(0.24), lineWidth: 1)
+                    )
+            )
+            .photoDeleteMinimumTapTarget()
+        }
+        .buttonStyle(PhotoDeletePressScaleButtonStyle())
+        .accessibilityIdentifier("album-shortcut-visibility-button")
+        .accessibilityLabel(title)
     }
 }
 

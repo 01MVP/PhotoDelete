@@ -3,28 +3,28 @@
   "nonRenewingSubscriptions": [],
   "products": [
     {
-      "displayPrice": "15.00",
+      "displayPrice": "29.90",
       "familyShareable": false,
       "internalID": "84162C1D-9E1A-4CF6-9DE3-8EEA70798D2A",
       "localizations": [
         {
           "description": "长期统计和进阶清理工具。基础清理始终免费。",
-          "displayName": "删图支持者版",
+          "displayName": "OnePhoto 永久 Pro",
           "locale": "zh-Hans"
         },
         {
           "description": "長期統計和進階清理工具。基礎清理始終免費。",
-          "displayName": "刪圖支持者版",
+          "displayName": "OnePhoto 永久 Pro",
           "locale": "zh-Hant"
         },
         {
           "description": "Long-term stats and advanced cleanup tools.",
-          "displayName": "OnePhoto Supporter",
+          "displayName": "OnePhoto Lifetime Pro",
           "locale": "en-US"
         }
       ],
       "productID": "com.01mvp.photodelete.supporter.stats",
-      "referenceName": "OnePhoto Supporter",
+      "referenceName": "OnePhoto Lifetime Pro",
       "type": "NonConsumable"
     }
   ],
@@ -36,7 +36,62 @@
     "_locale": "zh_CN",
     "_storefront": "CHN"
   },
-  "subscriptionGroups": [],
+  "subscriptionGroups": [
+    {
+      "id": "0C3D8592-5D0F-4D39-9A9A-6E32462F65A8",
+      "localizations": [
+        {
+          "description": "OnePhoto Pro",
+          "displayName": "OnePhoto Pro",
+          "locale": "zh-Hans"
+        },
+        {
+          "description": "OnePhoto Pro",
+          "displayName": "OnePhoto Pro",
+          "locale": "zh-Hant"
+        },
+        {
+          "description": "OnePhoto Pro",
+          "displayName": "OnePhoto Pro",
+          "locale": "en-US"
+        }
+      ],
+      "name": "OnePhoto Pro",
+      "subscriptions": [
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "9.90",
+          "familyShareable": false,
+          "groupNumber": 1,
+          "internalID": "BE0F2D0D-D626-457B-BC58-4D4B93F4FA52",
+          "introductoryOffer": null,
+          "localizations": [
+            {
+              "description": "一年内使用长期统计和进阶清理工具，基础清理始终免费。",
+              "displayName": "OnePhoto 年度 Pro",
+              "locale": "zh-Hans"
+            },
+            {
+              "description": "一年內使用長期統計和進階清理工具，基礎清理始終免費。",
+              "displayName": "OnePhoto 年度 Pro",
+              "locale": "zh-Hant"
+            },
+            {
+              "description": "Advanced cleanup tools and long-term stats for one year.",
+              "displayName": "OnePhoto Annual Pro",
+              "locale": "en-US"
+            }
+          ],
+          "productID": "com.01mvp.photodelete.pro.annual",
+          "recurringSubscriptionPeriod": "P1Y",
+          "referenceName": "OnePhoto Pro Annual",
+          "subscriptionGroupID": "0C3D8592-5D0F-4D39-9A9A-6E32462F65A8",
+          "type": "RecurringSubscription"
+        }
+      ]
+    }
+  ],
   "version": {
     "major": 4,
     "minor": 0

@@ -1035,7 +1035,7 @@ private struct AdvancedBottomPaywall: View {
                                 .progressViewStyle(CircularProgressViewStyle(tint: PhotoDeleteStyle.accent))
                                 .scaleEffect(0.78)
                         }
-                        Text(isLoading ? L10n.string("处理中...") : String(format: L10n.string("一次性解锁 %@"), priceText))
+                        Text(isLoading ? L10n.string("处理中...") : String(format: L10n.string("开通年度 Pro %@/年"), priceText))
                     }
                 }
                 .photoDeleteSecondaryButton()
@@ -1048,7 +1048,7 @@ private struct AdvancedBottomPaywall: View {
                                 .progressViewStyle(CircularProgressViewStyle(tint: PhotoDeleteStyle.primaryButtonText))
                                 .scaleEffect(0.78)
                         }
-                        Text(isLoading ? L10n.string("处理中...") : String(format: L10n.string("一次性解锁 %@"), priceText))
+                        Text(isLoading ? L10n.string("处理中...") : String(format: L10n.string("开通年度 Pro %@/年"), priceText))
                     }
                 }
                 .photoDeletePrimaryButton()
@@ -1061,14 +1061,14 @@ private struct AdvancedBottomPaywall: View {
                 onRedeemCode: onRedeemCode
             )
 
-            Text(L10n.string("体验到期不会自动扣费，基础整理始终免费。"))
+            Text(L10n.string("3 天体验到期不会扣费；年度 Pro 会自动续订，可随时在 Apple ID 设置中取消。基础整理始终免费。"))
                 .font(.system(size: 12, weight: .regular))
                 .foregroundColor(PhotoDeleteStyle.secondaryText)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
 
             Button(action: onShowBenefits) {
-                Text(L10n.string("查看免费版与支持者版区别"))
+                Text(L10n.string("查看年度与永久 Pro 方案"))
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(PhotoDeleteStyle.secondaryText)
                     .underline()
@@ -1109,10 +1109,10 @@ private struct AdvancedBottomPaywall: View {
 
     private var subtitle: String {
         if canStartTrial {
-            return L10n.string("免费体验 3 天进阶功能，也可以直接一次性解锁。")
+            return L10n.string("免费体验 3 天进阶功能，或开通年度 Pro；永久方案可在方案页选择。")
         }
 
-        return L10n.string("一次性解锁完整时间列表、大文件清理、视频压缩、相似照片清理和主题切换。")
+        return L10n.string("年度 Pro 解锁完整时间列表、大文件清理、视频压缩、相似照片清理和主题切换。")
     }
 }
 
@@ -5003,6 +5003,7 @@ private struct AdvancedSimilarPhotoGroupsView: View {
     @State private var previewAsset: AdvancedPreviewAsset?
     @State private var visibleGroupLimit = 24
     @State private var isAnalyzing = false
+    @State private var analysisProgress = 0.0
     @State private var reloadGeneration = 0
 
     private let groupLimitStep = 24
@@ -5053,65 +5054,66 @@ private struct AdvancedSimilarPhotoGroupsView: View {
                     .padding(14)
                     .photoDeleteCard()
 
-                    AdvancedFilterPills(kind: .similarPhotos, selection: $selectedFilter)
-
-                    AdvancedAssetListSummaryCard(
-                        title: String(format: L10n.string("发现 %lld 组相似照片"), Int64(snapshot.groups.count)),
-                        subtitle: String(
-                            format: L10n.string("预计可减少 %lld 张，逐组确认更稳妥。"),
-                            Int64(snapshot.suggestedDeleteCount)
-                        ),
-                        buttonTitle: selectedAssetIDs.isEmpty ? L10n.string("建议选择") : L10n.string("取消"),
-                        action: toggleRecommendedSelection
-                    )
-
                     if isAnalyzing {
-                        AdvancedEmptyState(
-                            icon: "sparkles",
-                            title: L10n.string("正在分析相似画面"),
-                            subtitle: L10n.string("使用系统 Vision 在本机比对照片，不会上传照片。")
-                        )
-                    } else if groups.isEmpty {
-                        AdvancedEmptyState(
-                            icon: AdvancedCleanupKind.similarPhotos.icon,
-                            title: L10n.string("暂未发现相似照片"),
-                            subtitle: matchMode == .broad
-                                ? L10n.string("会把拍摄时间接近的照片放在一起，方便逐组确认。")
-                                : L10n.string("可以切换到宽泛模式，查看更多可能相似的候选。")
-                        )
-                    } else if snapshot.groups.isEmpty {
-                        AdvancedEmptyState(
-                            icon: AdvancedCleanupKind.similarPhotos.icon,
-                            title: L10n.string("当前筛选没有内容"),
-                            subtitle: L10n.string("可以切换到全部，或稍后再回来查看。")
+                        AdvancedSimilarPhotoAnalysisProgressView(
+                            progress: analysisProgress,
+                            usesVision: matchMode != .broad
                         )
                     } else {
-                        LazyVStack(spacing: 10) {
-                            ForEach(snapshot.visibleGroups) { group in
-                                AdvancedSimilarPhotoGroupCard(
-                                    group: group,
-                                    photoLibraryManager: dataManager.photoLibraryManager,
-                                    selectedAssetIDs: selectedAssetIDs,
-                                    onSelectRecommended: { selectRecommended(in: group) },
-                                    onPreviewGroup: {
-                                        guard let firstAsset = group.assets.first else { return }
-                                        previewAsset = AdvancedPreviewAsset(asset: firstAsset, assets: group.assets)
-                                    },
-                                    onToggleAsset: toggleSelection,
-                                    onPreview: { previewAsset = AdvancedPreviewAsset(asset: $0, assets: group.assets) }
-                                )
-                                .onAppear {
-                                    showMoreGroupsIfNeeded(currentGroup: group)
+                        AdvancedFilterPills(kind: .similarPhotos, selection: $selectedFilter)
+
+                        AdvancedAssetListSummaryCard(
+                            title: String(format: L10n.string("发现 %lld 组相似照片"), Int64(snapshot.groups.count)),
+                            subtitle: String(
+                                format: L10n.string("预计可减少 %lld 张，逐组确认更稳妥。"),
+                                Int64(snapshot.suggestedDeleteCount)
+                            ),
+                            buttonTitle: selectedAssetIDs.isEmpty ? L10n.string("建议选择") : L10n.string("取消"),
+                            action: toggleRecommendedSelection
+                        )
+
+                        if groups.isEmpty {
+                            AdvancedEmptyState(
+                                icon: AdvancedCleanupKind.similarPhotos.icon,
+                                title: L10n.string("暂未发现相似照片"),
+                                subtitle: matchMode == .broad
+                                    ? L10n.string("会把拍摄时间接近的照片放在一起，方便逐组确认。")
+                                    : L10n.string("可以切换到宽泛模式，查看更多可能相似的候选。")
+                            )
+                        } else if snapshot.groups.isEmpty {
+                            AdvancedEmptyState(
+                                icon: AdvancedCleanupKind.similarPhotos.icon,
+                                title: L10n.string("当前筛选没有内容"),
+                                subtitle: L10n.string("可以切换到全部，或稍后再回来查看。")
+                            )
+                        } else {
+                            LazyVStack(spacing: 10) {
+                                ForEach(snapshot.visibleGroups) { group in
+                                    AdvancedSimilarPhotoGroupCard(
+                                        group: group,
+                                        photoLibraryManager: dataManager.photoLibraryManager,
+                                        selectedAssetIDs: selectedAssetIDs,
+                                        onSelectRecommended: { selectRecommended(in: group) },
+                                        onPreviewGroup: {
+                                            guard let firstAsset = group.assets.first else { return }
+                                            previewAsset = AdvancedPreviewAsset(asset: firstAsset, assets: group.assets)
+                                        },
+                                        onToggleAsset: toggleSelection,
+                                        onPreview: { previewAsset = AdvancedPreviewAsset(asset: $0, assets: group.assets) }
+                                    )
+                                    .onAppear {
+                                        showMoreGroupsIfNeeded(currentGroup: group)
+                                    }
                                 }
                             }
-                        }
 
-                        if snapshot.hasMoreGroups {
-                            Text(L10n.string("继续向下滚动加载更多"))
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(PhotoDeleteStyle.secondaryText)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 10)
+                            if snapshot.hasMoreGroups {
+                                Text(L10n.string("继续向下滚动加载更多"))
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 10)
+                            }
                         }
                     }
 
@@ -5202,10 +5204,16 @@ private struct AdvancedSimilarPhotoGroupsView: View {
 
     @MainActor
     private func reloadGroups() async {
+        let requestedReloadID = reloadID
         isAnalyzing = true
+        analysisProgress = 0
         selectedAssetIDs.removeAll()
-        let loadedGroups = await dataManager.makeSimilarPhotoGroups(mode: matchMode)
-        guard !Task.isCancelled else { return }
+        let loadedGroups = await dataManager.makeSimilarPhotoGroups(mode: matchMode) { progress in
+            guard requestedReloadID == reloadID, !Task.isCancelled else { return }
+            analysisProgress = progress
+        }
+        guard requestedReloadID == reloadID, !Task.isCancelled else { return }
+        analysisProgress = 1
         groups = loadedGroups
         isAnalyzing = false
         visibleGroupLimit = groupLimitStep
@@ -5265,6 +5273,49 @@ private struct AdvancedSimilarPhotoGroupsView: View {
     private func pruneSelectionToFilteredGroups() {
         let visibleIDs = Set(makeGroupSnapshot().groups.flatMap { $0.assets.map(\.localIdentifier) })
         selectedAssetIDs = selectedAssetIDs.filter { visibleIDs.contains($0) }
+    }
+}
+
+private struct AdvancedSimilarPhotoAnalysisProgressView: View {
+    let progress: Double
+    let usesVision: Bool
+
+    private var normalizedProgress: Double {
+        min(max(progress, 0), 1)
+    }
+
+    private var percentage: Int64 {
+        Int64((normalizedProgress * 100).rounded())
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.accent)
+
+                Text(String(format: L10n.string("正在分析相似画面 %lld%%"), percentage))
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.primaryText)
+            }
+
+            ProgressView(value: max(normalizedProgress, 0.02))
+                .progressViewStyle(LinearProgressViewStyle(tint: PhotoDeleteStyle.accent))
+                .accessibilityIdentifier("similar-photo-analysis-progress")
+                .accessibilityValue(Text("\(percentage)%"))
+
+            Text(
+                usesVision
+                    ? L10n.string("使用系统 Vision 在本机比对照片，不会上传照片。")
+                    : L10n.string("正在整理拍摄时间和尺寸相近的照片。")
+            )
+            .font(.system(size: 12, weight: .regular))
+            .foregroundColor(PhotoDeleteStyle.secondaryText)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(16)
+        .photoDeleteCard()
     }
 }
 

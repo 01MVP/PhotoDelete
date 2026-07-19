@@ -26,7 +26,12 @@ enum PhotoDeleteTheme: String, CaseIterable, Identifiable, Equatable {
 
     private static var hasStoredThemeAccess: Bool {
         let defaults = UserDefaults.standard
-        if defaults.bool(forKey: AppConstants.supporterEntitlementKey) {
+        if SupporterCachedEntitlementPolicy.isValid(
+            isUnlocked: defaults.bool(forKey: AppConstants.supporterEntitlementKey),
+            productID: defaults.string(forKey: AppConstants.supporterProductIDKey),
+            expirationDate: defaults.object(forKey: AppConstants.supporterExpirationDateKey) as? Date,
+            now: .now
+        ) {
             return true
         }
 

@@ -600,7 +600,11 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     @Published var videos: [PHAsset] = []
     @Published var screenshots: [PHAsset] = []
     @Published var livePhotos: [PHAsset] = []
-    @Published var favorites: [PHAsset] = []
+    @Published var favorites: [PHAsset] = [] {
+        didSet {
+            favoriteAssetIdentifiers = Set(favorites.map(\.localIdentifier))
+        }
+    }
     @Published var isLoading = false
     @Published var loadingProgress: Double = 0
     @Published private(set) var hasLoadedPhotoLibrary = false
@@ -609,6 +613,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     private var allPhotosResult: PHFetchResult<PHAsset>?
     private let imageManager = PHCachingImageManager()
     private let imageCache = NSCache<NSString, UIImage>()
+    private var favoriteAssetIdentifiers: Set<String> = []
     private struct SwipePreviewPreloadRequest {
         let requestID: PHImageRequestID
     }
@@ -1110,6 +1115,10 @@ class PhotoLibraryManager: NSObject, ObservableObject {
 
     func isLivePhoto(_ asset: PHAsset) -> Bool {
         asset.mediaType == .image && asset.mediaSubtypes.contains(.photoLive)
+    }
+
+    func isFavorite(_ asset: PHAsset) -> Bool {
+        favoriteAssetIdentifiers.contains(asset.localIdentifier)
     }
 
     private func assetClassification(

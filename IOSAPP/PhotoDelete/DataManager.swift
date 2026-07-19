@@ -67,7 +67,7 @@ enum SimilarPhotoMatchMode: String, CaseIterable, Identifiable {
     case standard
     case broad
 
-    static let defaultMode = SimilarPhotoMatchMode.standard
+    static let defaultMode = SimilarPhotoMatchMode.broad
 
     var id: String { rawValue }
 
@@ -102,6 +102,13 @@ enum SimilarPhotoMatchMode: String, CaseIterable, Identifiable {
         case .broad:
             return nil
         }
+    }
+}
+
+enum SimilarPhotoAnalysisProgress {
+    static func fraction(completedAssetCount: Int, totalAssetCount: Int) -> Double {
+        guard totalAssetCount > 0 else { return 1 }
+        return min(max(Double(completedAssetCount) / Double(totalAssetCount), 0), 1)
     }
 }
 
@@ -261,6 +268,7 @@ class DataManager: ObservableObject {
     private var nextLibraryDataRefreshDelay: TimeInterval?
     private var suppressNextDerivedLibraryRefresh = false
     private var reviewedAssetIDsSaveWorkItem: DispatchWorkItem?
+    private var recentOrganizedPhotoRecordsSaveWorkItem: DispatchWorkItem?
     private var pendingCandidateIDsSaveWorkItem: DispatchWorkItem?
     private var pendingDeleteCandidateIDs: Set<String> = []
     private var pendingFavoriteCandidateIDs: Set<String> = []
@@ -389,8 +397,7 @@ class DataManager: ObservableObject {
         NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
-                self?.saveReviewedAssetIDsNow()
-                self?.savePendingCandidateIDsNow()
+                self?.flushReviewPersistence()
             }
             .store(in: &cancellables)
 
@@ -1199,7 +1206,7 @@ class DataManager: ObservableObject {
             recentOrganizedPhotoRecords,
             with: record
         )
-        saveRecentOrganizedPhotoRecords()
+        scheduleRecentOrganizedPhotoRecordsSave()
     }
 
     func recentOrganizedPhotoItems(limit: Int = 30) -> [RecentOrganizedPhotoItem] {
@@ -1218,7 +1225,7 @@ class DataManager: ObservableObject {
         deleteCandidates.remove(asset)
         favoriteCandidates.remove(asset)
         recentOrganizedPhotoRecords.removeAll { $0.assetIdentifier == asset.localIdentifier }
-        saveRecentOrganizedPhotoRecords()
+        saveRecentOrganizedPhotoRecordsNow()
         schedulePendingCandidateIDsSave()
         restoreReviewedState(asset, wasReviewed: false)
         updateStats()
@@ -1226,12 +1233,12 @@ class DataManager: ObservableObject {
 
     func clearRecentOrganizedPhotoHistory() {
         recentOrganizedPhotoRecords.removeAll()
-        saveRecentOrganizedPhotoRecords()
+        saveRecentOrganizedPhotoRecordsNow()
     }
 
     func removeRecentOrganizedPhotoRecord(for asset: PHAsset) {
         recentOrganizedPhotoRecords.removeAll { $0.assetIdentifier == asset.localIdentifier }
-        saveRecentOrganizedPhotoRecords()
+        saveRecentOrganizedPhotoRecordsNow()
     }
 
     func clearLocalOrganizeData() {
@@ -1240,7 +1247,7 @@ class DataManager: ObservableObject {
         clearPendingCandidateIDs()
         reviewedAssetIDs.removeAll()
         recentOrganizedPhotoRecords.removeAll()
-        saveRecentOrganizedPhotoRecords()
+        saveRecentOrganizedPhotoRecordsNow()
         PhotoReviewProgressStore.clearAll(defaults: userDefaults)
         saveReviewedAssetIDsNow()
         loadTimeGroups()
@@ -1805,13 +1812,24 @@ class DataManager: ObservableObject {
 
     func makeSimilarPhotoGroups(
         mode: SimilarPhotoMatchMode,
-        maxGroups: Int? = nil
+        maxGroups: Int? = nil,
+        progressHandler: (@MainActor (Double) -> Void)? = nil
     ) async -> [AdvancedSimilarPhotoGroup] {
         let broadGroups = makeSimilarPhotoGroups(maxGroups: nil)
         guard let maximumDistance = mode.maximumVisionDistance else {
+            await progressHandler?(1)
             guard let maxGroups else { return broadGroups }
             return Array(broadGroups.prefix(max(maxGroups, 0)))
         }
+
+        let totalAssetCount = broadGroups.reduce(0) { $0 + $1.assets.count }
+        var completedAssetCount = 0
+        await progressHandler?(
+            SimilarPhotoAnalysisProgress.fraction(
+                completedAssetCount: completedAssetCount,
+                totalAssetCount: totalAssetCount
+            )
+        )
 
         var refinedGroups: [AdvancedSimilarPhotoGroup] = []
         for broadGroup in broadGroups {
@@ -1830,6 +1848,13 @@ class DataManager: ObservableObject {
                     if let observation {
                         observations[identifier] = observation
                     }
+                    completedAssetCount += 1
+                    await progressHandler?(
+                        SimilarPhotoAnalysisProgress.fraction(
+                            completedAssetCount: completedAssetCount,
+                            totalAssetCount: totalAssetCount
+                        )
+                    )
                 }
             }
 
@@ -1857,6 +1882,7 @@ class DataManager: ObservableObject {
             })
         }
 
+        await progressHandler?(1)
         let sortedGroups = Self.sortedSimilarPhotoGroups(refinedGroups)
         guard let maxGroups else { return sortedGroups }
         return Array(sortedGroups.prefix(max(maxGroups, 0)))
@@ -2817,6 +2843,29 @@ class DataManager: ObservableObject {
     private func saveRecentOrganizedPhotoRecords() {
         guard let data = try? JSONEncoder().encode(recentOrganizedPhotoRecords) else { return }
         userDefaults.set(data, forKey: AppConstants.recentOrganizedPhotosKey)
+    }
+
+    private func scheduleRecentOrganizedPhotoRecordsSave() {
+        recentOrganizedPhotoRecordsSaveWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.recentOrganizedPhotoRecordsSaveWorkItem = nil
+            self.saveRecentOrganizedPhotoRecords()
+        }
+        recentOrganizedPhotoRecordsSaveWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: workItem)
+    }
+
+    private func saveRecentOrganizedPhotoRecordsNow() {
+        recentOrganizedPhotoRecordsSaveWorkItem?.cancel()
+        recentOrganizedPhotoRecordsSaveWorkItem = nil
+        saveRecentOrganizedPhotoRecords()
+    }
+
+    func flushReviewPersistence() {
+        saveReviewedAssetIDsNow()
+        saveRecentOrganizedPhotoRecordsNow()
+        savePendingCandidateIDsNow()
     }
 
     private func loadPendingCandidateIDs() {

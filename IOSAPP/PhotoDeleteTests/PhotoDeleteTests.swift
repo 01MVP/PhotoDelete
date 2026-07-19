@@ -606,6 +606,77 @@ struct PhotoDeleteTests {
         #expect(SupporterEntitlementState.verificationStarted(hasCachedEntitlement: false) == .verifying)
     }
 
+    @Test func supporterPlansUseDistinctStoreKitProducts() async throws {
+        #expect(SupporterPurchasePlan.annual.productID == "com.01mvp.photodelete.pro.annual")
+        #expect(SupporterPurchasePlan.lifetime.productID == "com.01mvp.photodelete.supporter.stats")
+        #expect(AppConstants.supporterProductIDs == Set(SupporterPurchasePlan.allCases.map(\.productID)))
+    }
+
+    @Test func storeKitConfigurationContainsBothProPlansAtTargetChinesePrices() async throws {
+        let storeKitURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("PhotoDelete/PhotoDelete.storekit")
+        let data = try Data(contentsOf: storeKitURL)
+        let json = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let products = try #require(json["products"] as? [[String: Any]])
+        let groups = try #require(json["subscriptionGroups"] as? [[String: Any]])
+        let subscriptions = groups.flatMap { $0["subscriptions"] as? [[String: Any]] ?? [] }
+
+        let lifetime = products.first { $0["productID"] as? String == AppConstants.supporterLifetimeProductID }
+        let annual = subscriptions.first { $0["productID"] as? String == AppConstants.supporterAnnualProductID }
+
+        #expect(lifetime?["displayPrice"] as? String == "29.90")
+        #expect(annual?["displayPrice"] as? String == "9.90")
+        #expect(annual?["recurringSubscriptionPeriod"] as? String == "P1Y")
+    }
+
+    @Test func annualCachedEntitlementRequiresAFutureExpirationDate() async throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+        #expect(SupporterCachedEntitlementPolicy.isValid(
+            isUnlocked: true,
+            productID: AppConstants.supporterAnnualProductID,
+            expirationDate: now.addingTimeInterval(60),
+            now: now
+        ))
+        #expect(!SupporterCachedEntitlementPolicy.isValid(
+            isUnlocked: true,
+            productID: AppConstants.supporterAnnualProductID,
+            expirationDate: now.addingTimeInterval(-1),
+            now: now
+        ))
+        #expect(!SupporterCachedEntitlementPolicy.isValid(
+            isUnlocked: true,
+            productID: AppConstants.supporterAnnualProductID,
+            expirationDate: nil,
+            now: now
+        ))
+    }
+
+    @Test func lifetimeAndLegacyCachedEntitlementsRemainValid() async throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+        #expect(SupporterCachedEntitlementPolicy.isValid(
+            isUnlocked: true,
+            productID: AppConstants.supporterLifetimeProductID,
+            expirationDate: nil,
+            now: now
+        ))
+        #expect(SupporterCachedEntitlementPolicy.isValid(
+            isUnlocked: true,
+            productID: nil,
+            expirationDate: nil,
+            now: now
+        ))
+        #expect(!SupporterCachedEntitlementPolicy.isValid(
+            isUnlocked: false,
+            productID: nil,
+            expirationDate: nil,
+            now: now
+        ))
+    }
+
     @MainActor
     @Test func supporterPlanIncludesImageCompression() async throws {
         let features = SupporterPlanComparisonCard.features
@@ -1857,6 +1928,33 @@ struct PhotoDeleteTests {
         #expect(!dm.isReviewed(asset))
     }
 
+    @Test func favoriteLookupIndexTracksPublishedFavorites() async throws {
+        guard let asset = fetchFirstAsset() else { return }
+        let manager = PhotoLibraryManager()
+
+        manager.favorites = [asset]
+        #expect(manager.isFavorite(asset))
+
+        manager.favorites = []
+        #expect(!manager.isFavorite(asset))
+    }
+
+    @Test func flushingReviewPersistenceWritesCoalescedRecentHistory() async throws {
+        guard let asset = fetchFirstAsset() else { return }
+        let suiteName = "PhotoDeleteTests.reviewPersistence.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let dm = DataManager(userDefaults: defaults)
+
+        dm.recordRecentOrganizedPhoto(asset, action: .kept)
+        dm.flushReviewPersistence()
+
+        let data = try #require(defaults.data(forKey: AppConstants.recentOrganizedPhotosKey))
+        let records = try JSONDecoder().decode([RecentOrganizedPhotoRecord].self, from: data)
+        #expect(records.first?.assetIdentifier == asset.localIdentifier)
+        #expect(records.first?.action == .kept)
+    }
+
     @Test func clearLocalOrganizeDataClearsCandidatesAndReviewedState() async throws {
         guard let asset = fetchFirstAsset() else { return }
         UserDefaults.standard.removeObject(forKey: AppConstants.reviewedAssetIDsKey)
@@ -2349,11 +2447,18 @@ struct PhotoDeleteTests {
         #expect(groups == [["a", "b"]])
     }
 
-    @Test func similarPhotoMatchModesKeepSystemVisionAsTheDefault() async throws {
-        #expect(SimilarPhotoMatchMode.defaultMode == .standard)
+    @Test func similarPhotoMatchModesUseBroadAsTheDefault() async throws {
+        #expect(SimilarPhotoMatchMode.defaultMode == .broad)
         #expect(SimilarPhotoMatchMode.strict.maximumVisionDistance == 5.0)
         #expect(SimilarPhotoMatchMode.standard.maximumVisionDistance == 10.0)
         #expect(SimilarPhotoMatchMode.broad.maximumVisionDistance == nil)
+    }
+
+    @Test func similarPhotoAnalysisProgressClampsAndCompletes() async throws {
+        #expect(SimilarPhotoAnalysisProgress.fraction(completedAssetCount: 0, totalAssetCount: 4) == 0)
+        #expect(SimilarPhotoAnalysisProgress.fraction(completedAssetCount: 2, totalAssetCount: 4) == 0.5)
+        #expect(SimilarPhotoAnalysisProgress.fraction(completedAssetCount: 8, totalAssetCount: 4) == 1)
+        #expect(SimilarPhotoAnalysisProgress.fraction(completedAssetCount: 0, totalAssetCount: 0) == 1)
     }
 
     @Test func recentOrganizedPhotoHistoryKeepsLatestActionPerPhoto() async throws {
@@ -2596,9 +2701,19 @@ struct PhotoDeleteTests {
     @Test func albumShortcutLayoutUsesCompactTwoRowsFromFourAlbums() async throws {
         #expect(!AlbumShortcutLayout.usesTwoRows(albumCount: 3))
         #expect(AlbumShortcutLayout.usesTwoRows(albumCount: 4))
-        #expect(AlbumShortcutLayout.stripHeight(albumCount: 3) == 44)
+        #expect(AlbumShortcutLayout.stripHeight(albumCount: 3) == 88)
         #expect(AlbumShortcutLayout.stripHeight(albumCount: 4) == 88)
+        #expect(AlbumShortcutLayout.controlStackSpacing == 0)
         #expect(AlbumShortcutLayout.rowSpacing <= 2)
+    }
+
+    @Test func albumShortcutPresentationCanCollapseWithoutRemovingItsRevealControl() async throws {
+        #expect(AlbumShortcutPresentationPolicy.showsStrip(isExpanded: true, isAvailable: true))
+        #expect(!AlbumShortcutPresentationPolicy.showsRevealButton(isExpanded: true, isAvailable: true))
+        #expect(!AlbumShortcutPresentationPolicy.showsStrip(isExpanded: false, isAvailable: true))
+        #expect(AlbumShortcutPresentationPolicy.showsRevealButton(isExpanded: false, isAvailable: true))
+        #expect(!AlbumShortcutPresentationPolicy.showsStrip(isExpanded: true, isAvailable: false))
+        #expect(!AlbumShortcutPresentationPolicy.showsRevealButton(isExpanded: false, isAvailable: false))
     }
 
     @Test func albumShortcutEligibilityOnlyIncludesWritableUserAlbums() async throws {

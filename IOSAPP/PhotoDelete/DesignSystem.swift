@@ -429,6 +429,7 @@ enum AppConstants {
     static let randomReviewHideFiledPhotosKey = "photoDeleteRandomReviewHideFiledPhotos"
     static let reviewVideoMutedKey = "photoDeleteReviewVideoMuted"
     static let reviewModeKey = "photoDeleteReviewMode"
+    static let reviewAlbumShortcutsExpandedKey = "photoDeleteReviewAlbumShortcutsExpanded"
     static let hasSeenReviewModeHintKey = "photoDeleteHasSeenReviewModeHint"
     static let hasSeenAlbumShortcutHintKey = "photoDeleteHasSeenAlbumShortcutHintV2"
     static let hasSeenAlbumDownSwipeHintKey = "photoDeleteHasSeenAlbumDownSwipeHint"
@@ -439,9 +440,16 @@ enum AppConstants {
     static let appThemeKey = "photoDeleteAppTheme"
     static let similarPhotoMatchModeKey = "photoDeleteSimilarPhotoMatchMode"
     static let openAlbumsTabNotificationName = Notification.Name("photoDeleteOpenAlbumsTab")
-    static let supporterProductID = "com.01mvp.photodelete.supporter.stats"
+    static let supporterAnnualProductID = "com.01mvp.photodelete.pro.annual"
+    static let supporterLifetimeProductID = "com.01mvp.photodelete.supporter.stats"
+    static let supporterProductIDs: Set<String> = [
+        supporterAnnualProductID,
+        supporterLifetimeProductID
+    ]
     static let supporterEntitlementKey = "photoDeleteSupporterUnlocked"
     static let supporterPurchaseDateKey = "photoDeleteSupporterPurchaseDate"
+    static let supporterProductIDKey = "photoDeleteSupporterProductID"
+    static let supporterExpirationDateKey = "photoDeleteSupporterExpirationDate"
     static let supporterTrialStartDateKey = "photoDeleteSupporterTrialStartDate"
     static let supporterTrialDuration: TimeInterval = 3 * 24 * 60 * 60
     static let isImageCompressionVisible = true

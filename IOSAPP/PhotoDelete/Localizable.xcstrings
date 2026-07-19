@@ -78,6 +78,20 @@
         "zh-Hant": { "stringUnit": { "state": "translated", "value": "正在分析相似畫面" } }
       }
     },
+    "正在分析相似画面 %lld%%": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Analyzing similar images %lld%%" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "正在分析相似画面 %lld%%" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "正在分析相似畫面 %lld%%" } }
+      }
+    },
+    "正在整理拍摄时间和尺寸相近的照片。": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Grouping photos with similar capture times and dimensions." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "正在整理拍摄时间和尺寸相近的照片。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "正在整理拍攝時間和尺寸相近的照片。" } }
+      }
+    },
     "使用系统 Vision 在本机比对照片，不会上传照片。": {
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "System Vision compares photos on device. Nothing is uploaded." } },
@@ -34243,6 +34257,86 @@
         }
       }
     },
+    "显示相册归类": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "إظهار تصنيف الألبومات"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Albumablage anzeigen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show album filing"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アルバム仕分けを表示"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "显示相册归类"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "顯示相冊歸類"
+          }
+        }
+      }
+    },
+    "隐藏相册归类": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "إخفاء تصنيف الألبومات"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Albumablage ausblenden"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hide album filing"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アルバム仕分けを隠す"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "隐藏相册归类"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隱藏相冊歸類"
+          }
+        }
+      }
+    },
     "管理相册": {
       "localizations": {
         "ar": {
@@ -43238,6 +43332,1086 @@
           "stringUnit": {
             "state": "translated",
             "value": "移出相冊，不刪除照片"
+          }
+        }
+      }
+    },
+    "3 天体验已结束，基础整理仍可继续使用。开通年度或永久 Pro 后可继续使用进阶功能。": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "انتهت التجربة لمدة 3 أيام. يظل التنظيف الأساسي مجانيًا. اختر Pro السنوي أو الدائم لمواصلة استخدام الميزات المتقدمة."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die 3-tägige Testphase ist beendet. Die Basisbereinigung bleibt kostenlos. Mit Pro jährlich oder dauerhaft bleiben erweiterte Funktionen verfügbar."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The 3-day trial has ended. Basic cleanup remains free. Choose Annual or Lifetime Pro to keep using advanced features."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "3日間の体験が終了しました。基本整理は引き続き無料です。年間または永久Proで高度な機能を利用できます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "3 天体验已结束，基础整理仍可继续使用。开通年度或永久 Pro 后可继续使用进阶功能。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "3 天體驗已結束，基礎整理仍可繼續使用。開通年度或永久 Pro 後可繼續使用進階功能。"
+          }
+        }
+      }
+    },
+    "OnePhoto Pro": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OnePhoto Pro"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OnePhoto Pro"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OnePhoto Pro"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OnePhoto Pro"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "OnePhoto Pro"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OnePhoto Pro"
+          }
+        }
+      }
+    },
+    "免费体验 3 天进阶功能，之后可选择年度 Pro 或永久 Pro。": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "جرّب الميزات المتقدمة مجانًا لمدة 3 أيام، ثم اختر Pro السنوي أو الدائم."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erweiterte Funktionen 3 Tage kostenlos testen, danach Pro jährlich oder dauerhaft wählen."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try advanced features free for 3 days, then choose Annual or Lifetime Pro."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高度な機能を3日間無料で体験し、その後は年間Proまたは永久Proを選べます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "免费体验 3 天进阶功能，之后可选择年度 Pro 或永久 Pro。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "免費體驗 3 天進階功能，之後可選擇年度 Pro 或永久 Pro。"
+          }
+        }
+      }
+    },
+    "年度 Pro 和永久 Pro 均可解锁完整时间列表、压缩、相似照片清理和主题切换。": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يفتح كل من Pro السنوي والدائم المخطط الزمني الكامل والضغط وتنظيف الصور المتشابهة والسمات."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro jährlich und Pro dauerhaft schalten die vollständige Zeitleiste, Komprimierung, ähnliche Fotos und Designs frei."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Both Annual and Lifetime Pro unlock the full timeline, compression, similar-photo cleanup, and themes."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "年間Proと永久Proのどちらでも、完全な時間リスト、圧縮、類似写真整理、テーマを利用できます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "年度 Pro 和永久 Pro 均可解锁完整时间列表、压缩、相似照片清理和主题切换。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "年度 Pro 和永久 Pro 均可解鎖完整時間列表、壓縮、相似照片清理和主題切換。"
+          }
+        }
+      }
+    },
+    "年度 Pro": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro السنوي"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro jährlich"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Annual Pro"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "年間 Pro"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "年度 Pro"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "年度 Pro"
+          }
+        }
+      }
+    },
+    "每年 · 自动续订": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "سنويًا · يتجدد تلقائيًا"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro Jahr · Verlängert sich automatisch"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Per year · Auto-renews"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "年額 · 自動更新"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "每年 · 自动续订"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每年 · 自動續訂"
+          }
+        }
+      }
+    },
+    "永久 Pro": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro الدائم"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro dauerhaft"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lifetime Pro"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "永久 Pro"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "永久 Pro"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "永久 Pro"
+          }
+        }
+      }
+    },
+    "一次购买 · 永久使用": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "شراء مرة واحدة · استخدام دائم"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einmal kaufen · Dauerhaft nutzen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One purchase · Lifetime access"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一度購入 · 永久に利用"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "一次购买 · 永久使用"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一次購買 · 永久使用"
+          }
+        }
+      }
+    },
+    "3 天体验到期不会扣费；年度 Pro 会自动续订，可随时在 Apple ID 设置中取消。基础整理始终免费。": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لن يتم تحصيل رسوم بعد تجربة 3 أيام. يتجدد Pro السنوي تلقائيًا ويمكن إلغاؤه في أي وقت من إعدادات Apple ID. يظل التنظيف الأساسي مجانيًا."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Für die 3-tägige Testphase fallen keine Kosten an. Pro jährlich verlängert sich automatisch und kann jederzeit in den Apple-ID-Einstellungen gekündigt werden. Die Basisbereinigung bleibt kostenlos."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The 3-day trial does not charge you. Annual Pro auto-renews and can be canceled anytime in Apple ID settings. Basic cleanup is always free."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "3日間の体験では課金されません。年間Proは自動更新され、Apple ID設定でいつでも解約できます。基本整理は常に無料です。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "3 天体验到期不会扣费；年度 Pro 会自动续订，可随时在 Apple ID 设置中取消。基础整理始终免费。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "3 天體驗到期不會扣費；年度 Pro 會自動續訂，可隨時在 Apple ID 設定中取消。基礎整理始終免費。"
+          }
+        }
+      }
+    },
+    "开通年度 Pro %@/年": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "اشترك في Pro السنوي مقابل %@/سنة"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro jährlich für %@/Jahr starten"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start Annual Pro %@/year"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "年間 Pro を開始 %@/年"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "开通年度 Pro %@/年"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開通年度 Pro %@/年"
+          }
+        }
+      }
+    },
+    "解锁永久 Pro %@": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "افتح Pro الدائم مقابل %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro dauerhaft für %@ freischalten"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlock Lifetime Pro %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "永久 Pro を解除 %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "解锁永久 Pro %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "解鎖永久 Pro %@"
+          }
+        }
+      }
+    },
+    "年度 Pro 已启用": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro السنوي نشط"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro jährlich aktiv"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Annual Pro Active"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "年間 Pro が有効"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "年度 Pro 已启用"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "年度 Pro 已啟用"
+          }
+        }
+      }
+    },
+    "永久 Pro 已解锁": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تم فتح Pro الدائم"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro dauerhaft freigeschaltet"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lifetime Pro Unlocked"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "永久 Pro を解除済み"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "永久 Pro 已解锁"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "永久 Pro 已解鎖"
+          }
+        }
+      }
+    },
+    "订阅有效期内可使用全部进阶功能。": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تتوفر جميع الميزات المتقدمة ما دام اشتراكك نشطًا."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle erweiterten Funktionen sind während des aktiven Abonnements verfügbar."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All advanced features are available while your subscription is active."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サブスクリプションの有効期間中は、すべての高度な機能を利用できます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "订阅有效期内可使用全部进阶功能。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "訂閱有效期內可使用全部進階功能。"
+          }
+        }
+      }
+    },
+    "一次购买，全部进阶功能永久可用。": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يمنحك شراء واحد وصولاً دائمًا إلى جميع الميزات المتقدمة."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein Kauf schaltet alle erweiterten Funktionen dauerhaft frei."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One purchase gives you lifetime access to all advanced features."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一度の購入で、すべての高度な機能を永久に利用できます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "一次购买，全部进阶功能永久可用。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一次購買，全部進階功能永久可用。"
+          }
+        }
+      }
+    },
+    "年度 Pro 已启用，订阅状态会由 App Store 自动更新。": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro السنوي نشط. يتم تحديث حالة الاشتراك تلقائيًا بواسطة App Store."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro jährlich ist aktiv. Der Abostatus wird automatisch vom App Store aktualisiert."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Annual Pro is active. Subscription status is updated automatically by the App Store."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "年間Proは有効です。サブスクリプション状況はApp Storeによって自動更新されます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "年度 Pro 已启用，订阅状态会由 App Store 自动更新。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "年度 Pro 已啟用，訂閱狀態會由 App Store 自動更新。"
+          }
+        }
+      }
+    },
+    "年度 Pro 当前有效至 %@，续订状态以 App Store 为准。": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro السنوي نشط حاليًا حتى %@. تعتمد حالة التجديد على App Store."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro jährlich ist derzeit bis %@ aktiv. Der Verlängerungsstatus wird vom App Store verwaltet."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Annual Pro is currently active through %@. Renewal status is provided by the App Store."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "年間Proは現在%@まで有効です。更新状況はApp Storeをご確認ください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "年度 Pro 当前有效至 %@，续订状态以 App Store 为准。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "年度 Pro 目前有效至 %@，續訂狀態以 App Store 為準。"
+          }
+        }
+      }
+    },
+    "永久 Pro 已解锁，所有进阶功能可长期使用。": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تم فتح Pro الدائم. جميع الميزات المتقدمة متاحة بشكل دائم."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro dauerhaft ist freigeschaltet. Alle erweiterten Funktionen bleiben dauerhaft verfügbar."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lifetime Pro is unlocked. All advanced features are available permanently."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "永久Proを解除しました。すべての高度な機能を永久に利用できます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "永久 Pro 已解锁，所有进阶功能可长期使用。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "永久 Pro 已解鎖，所有進階功能可長期使用。"
+          }
+        }
+      }
+    },
+    "已于 %@ 解锁永久 Pro，可长期使用。": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تم فتح Pro الدائم في %@ وسيظل متاحًا بشكل دائم."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro dauerhaft wurde am %@ freigeschaltet und bleibt dauerhaft verfügbar."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lifetime Pro was unlocked on %@ and remains available permanently."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@に永久Proを解除しました。今後も永久に利用できます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "已于 %@ 解锁永久 Pro，可长期使用。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已於 %@ 解鎖永久 Pro，可長期使用。"
+          }
+        }
+      }
+    },
+    "Pro": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Pro"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro"
+          }
+        }
+      }
+    },
+    "查看年度与永久 Pro 方案": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "عرض خطط Pro السنوية والدائمة"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro jährlich und dauerhaft anzeigen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View Annual and Lifetime Pro plans"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "年間・永久 Pro プランを見る"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "查看年度与永久 Pro 方案"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看年度與永久 Pro 方案"
+          }
+        }
+      }
+    },
+    "免费体验 3 天进阶功能，或开通年度 Pro；永久方案可在方案页选择。": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "جرّب الميزات المتقدمة مجانًا لمدة 3 أيام أو اشترك في Pro السنوي. يتوفر Pro الدائم في صفحة الخطط."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erweiterte Funktionen 3 Tage kostenlos testen oder Pro jährlich starten. Pro dauerhaft ist auf der Tarifseite verfügbar."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try advanced features free for 3 days or start Annual Pro. Lifetime Pro is available on the plans screen."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高度な機能を3日間無料で体験するか、年間Proを開始できます。永久Proはプラン画面で選べます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "免费体验 3 天进阶功能，或开通年度 Pro；永久方案可在方案页选择。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "免費體驗 3 天進階功能，或開通年度 Pro；永久方案可在方案頁選擇。"
+          }
+        }
+      }
+    },
+    "年度 Pro 解锁完整时间列表、大文件清理、视频压缩、相似照片清理和主题切换。": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يفتح Pro السنوي المخطط الزمني الكامل وتنظيف الملفات الكبيرة وضغط الفيديو والصور المتشابهة والسمات."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro jährlich schaltet die vollständige Zeitleiste, große Dateien, Videokomprimierung, ähnliche Fotos und Designs frei."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Annual Pro unlocks the full timeline, large-file cleanup, video compression, similar-photo cleanup, and themes."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "年間Proで、完全な時間リスト、大容量ファイル整理、動画圧縮、類似写真整理、テーマを利用できます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "年度 Pro 解锁完整时间列表、大文件清理、视频压缩、相似照片清理和主题切换。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "年度 Pro 解鎖完整時間列表、大檔案清理、影片壓縮、相似照片清理和主題切換。"
+          }
+        }
+      }
+    },
+    "查看订阅状态和功能区别": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "عرض حالة الاشتراك وميزات الخطة"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abostatus und Funktionen anzeigen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View subscription status and plan features"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サブスクリプション状況と機能を見る"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "查看订阅状态和功能区别"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看訂閱狀態和功能差異"
+          }
+        }
+      }
+    },
+    "还剩 %lld 天，可选择年度或永久 Pro": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "متبقي %lld أيام. يمكنك اختيار Pro السنوي أو الدائم في أي وقت."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noch %lld Tage. Pro jährlich oder dauerhaft kann jederzeit gewählt werden."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld days remaining. Choose Annual or Lifetime Pro anytime."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "残り%lld日。いつでも年間または永久Proを選べます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "还剩 %lld 天，可选择年度或永久 Pro"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還剩 %lld 天，可選擇年度或永久 Pro"
+          }
+        }
+      }
+    },
+    "3 天体验已结束，可选择年度或永久 Pro": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "انتهت التجربة لمدة 3 أيام. اختر Pro السنوي أو الدائم."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die 3-tägige Testphase ist beendet. Pro jährlich oder dauerhaft wählen."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The 3-day trial has ended. Choose Annual or Lifetime Pro."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "3日間の体験が終了しました。年間または永久Proを選べます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "3 天体验已结束，可选择年度或永久 Pro"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "3 天體驗已結束，可選擇年度或永久 Pro"
+          }
+        }
+      }
+    },
+    "可先免费体验 3 天，也可选择年度或永久 Pro": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "جرّب مجانًا لمدة 3 أيام، أو اختر Pro السنوي أو الدائم."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "3 Tage kostenlos testen oder Pro jährlich bzw. dauerhaft wählen."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try free for 3 days, or choose Annual or Lifetime Pro."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "3日間無料で体験するか、年間または永久Proを選べます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "可先免费体验 3 天，也可选择年度或永久 Pro"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可先免費體驗 3 天，也可選擇年度或永久 Pro"
           }
         }
       }

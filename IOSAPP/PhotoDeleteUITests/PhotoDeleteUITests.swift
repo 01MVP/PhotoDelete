@@ -57,6 +57,38 @@ final class PhotoDeleteUITests: XCTestCase {
     }
 
     @MainActor
+    func testProPaywallOffersAnnualAndLifetimePlans() throws {
+        let app = makeApp(completedOnboarding: true)
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["整理"].waitForExistence(timeout: 10))
+        openSettingsTab(in: app)
+
+        guard let proEntry = waitForHittableButtonLabelContaining(
+            in: app,
+            substring: "解锁进阶功能",
+            timeout: 10
+        ) else {
+            XCTFail("Expected the OnePhoto Pro settings entry")
+            return
+        }
+        proEntry.tap()
+
+        XCTAssertTrue(app.staticTexts["OnePhoto Pro"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "年度 Pro")).firstMatch.waitForExistence(timeout: 10))
+        let lifetimePlan = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "永久 Pro")).firstMatch
+        XCTAssertTrue(lifetimePlan.waitForExistence(timeout: 10))
+        sleep(2)
+        let paywallScreenshot = XCTAttachment(screenshot: app.screenshot())
+        paywallScreenshot.name = "OnePhoto Pro Paywall"
+        paywallScreenshot.lifetime = .keepAlways
+        add(paywallScreenshot)
+        lifetimePlan.tap()
+        XCTAssertNotNil(waitForAnyElementLabelContaining(in: app, substring: "解锁永久 Pro", timeout: 5))
+        XCTAssertTrue(app.buttons["恢复购买"].exists)
+    }
+
+    @MainActor
     func testSeededAlbumsTabAndReviewAlbumFilingShortcut() throws {
         installPhotoLibraryInterruptionMonitor(allowDeletionConfirmation: true)
 
@@ -164,8 +196,31 @@ final class PhotoDeleteUITests: XCTestCase {
             dismissHintButton.tap()
         }
 
-        let albumShortcutButton = waitForHittableButton(in: app, label: "归类到 旅行照片", timeout: 15)
-        XCTAssertNotNil(albumShortcutButton)
+        guard let albumShortcutButton = waitForHittableButton(
+            in: app,
+            label: "归类到 旅行照片",
+            timeout: 15
+        ) else {
+            XCTFail("Expected the album shortcut strip to appear")
+            return
+        }
+
+        let visibilityButton = app.buttons["album-shortcut-visibility-button"].firstMatch
+        let manageButton = app.buttons["album-shortcut-manage-button"].firstMatch
+        XCTAssertTrue(visibilityButton.waitForExistence(timeout: 5))
+        XCTAssertTrue(manageButton.waitForExistence(timeout: 5))
+        XCTAssertEqual(manageButton.frame.midX, visibilityButton.frame.midX, accuracy: 2)
+        XCTAssertLessThan(manageButton.frame.midY, visibilityButton.frame.midY)
+        XCTAssertEqual(visibilityButton.label, "隐藏相册归类")
+        visibilityButton.tap()
+
+        XCTAssertTrue(albumShortcutButton.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(visibilityButton.waitForExistence(timeout: 5))
+        XCTAssertEqual(visibilityButton.label, "显示相册归类")
+        visibilityButton.tap()
+
+        XCTAssertNotNil(waitForHittableButton(in: app, label: "归类到 旅行照片", timeout: 8))
+        XCTAssertEqual(visibilityButton.label, "隐藏相册归类")
     }
 
     @MainActor
@@ -279,6 +334,23 @@ final class PhotoDeleteUITests: XCTestCase {
         XCTAssertTrue(app.buttons["标准"].exists)
         let broadModeButton = app.buttons["宽泛"]
         XCTAssertTrue(broadModeButton.exists)
+        XCTAssertTrue(app.buttons["保留首张"].waitForExistence(timeout: 30))
+
+        app.buttons["标准"].tap()
+        let analysisProgress = app.progressIndicators["similar-photo-analysis-progress"]
+        let emptyAnalysisResult = app.staticTexts["暂未发现相似照片"]
+        XCTAssertTrue(
+            analysisProgress.waitForExistence(timeout: 3) ||
+                app.buttons["保留首张"].exists ||
+                emptyAnalysisResult.exists
+        )
+        XCTAssertTrue(
+            waitForAnyElementToExist(
+                [app.buttons["保留首张"], emptyAnalysisResult],
+                timeout: 60
+            )
+        )
+
         broadModeButton.tap()
         XCTAssertTrue(app.buttons["保留首张"].waitForExistence(timeout: 30))
         guard let previewButton = waitForHittableButton(in: app, label: "预览", timeout: 30) else {
@@ -303,6 +375,20 @@ final class PhotoDeleteUITests: XCTestCase {
                     .matching(NSPredicate(format: "label BEGINSWITH %@", "已加入待删除"))
                     .firstMatch.exists
         )
+    }
+
+    private func waitForAnyElementToExist(
+        _ elements: [XCUIElement],
+        timeout: TimeInterval
+    ) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if elements.contains(where: \.exists) {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        } while Date() < deadline
+        return elements.contains(where: \.exists)
     }
 
     @MainActor

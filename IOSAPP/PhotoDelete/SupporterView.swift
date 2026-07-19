@@ -14,6 +14,7 @@ struct SupporterView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var showingOfferCodeRedemption = false
+    @State private var selectedPlan: SupporterPurchasePlan = .annual
 
     private var entitlementStatusMessage: String? {
         switch purchaseManager.entitlementState {
@@ -31,7 +32,7 @@ struct SupporterView: View {
     }
 
     private var contentBottomPadding: CGFloat {
-        showsBottomActionBar ? 210 : 40
+        showsBottomActionBar ? 300 : 40
     }
 
     var body: some View {
@@ -44,6 +45,8 @@ struct SupporterView: View {
                         if purchaseManager.hasPaidSupporterAccess {
                             SupporterUnlockedContent(
                                 purchaseDate: purchaseManager.supporterPurchaseDate,
+                                expirationDate: purchaseManager.supporterExpirationDate,
+                                accessKind: purchaseManager.supporterAccessKind,
                                 accessNotice: purchaseManager.isUsingCachedSupporterAccess ? entitlementStatusMessage : nil
                             )
                         } else if purchaseManager.isUsingTrialSupporterAccess {
@@ -68,7 +71,9 @@ struct SupporterView: View {
                     SupporterBottomActionBar(
                         isTrialActive: purchaseManager.isUsingTrialSupporterAccess,
                         canStartTrial: purchaseManager.canStartSupporterTrial,
-                        priceText: purchaseManager.supporterPriceText,
+                        selectedPlan: $selectedPlan,
+                        annualPriceText: purchaseManager.supporterAnnualPriceText,
+                        lifetimePriceText: purchaseManager.supporterLifetimePriceText,
                         isLoading: purchaseManager.isLoading,
                         statusMessage: purchaseManager.supporterTrialStatusText ?? entitlementStatusMessage,
                         errorMessage: purchaseManager.errorMessage,
@@ -76,7 +81,7 @@ struct SupporterView: View {
                             purchaseManager.startSupporterTrial()
                         },
                         onPurchase: {
-                            Task { await purchaseManager.purchaseSupporter() }
+                            Task { await purchaseManager.purchaseSupporter(plan: selectedPlan) }
                         },
                         onRestore: {
                             Task { await purchaseManager.restorePurchases() }
@@ -87,7 +92,7 @@ struct SupporterView: View {
                     )
                 }
             }
-            .navigationTitle(L10n.string("支持者版"))
+            .navigationTitle(L10n.string("OnePhoto Pro"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -160,7 +165,7 @@ private struct SupporterPaywallContent: View {
                 }
 
                 VStack(spacing: 8) {
-                    Text(L10n.string("删图支持者版"))
+                    Text(L10n.string("OnePhoto Pro"))
                         .font(.system(size: 28, weight: .semibold))
                         .foregroundColor(PhotoDeleteStyle.primaryText)
 
@@ -180,17 +185,19 @@ private struct SupporterPaywallContent: View {
 
     private var heroSubtitle: String {
         if canStartTrial {
-            return L10n.string("免费体验 3 天进阶功能，也可以直接一次性解锁。")
+            return L10n.string("免费体验 3 天进阶功能，之后可选择年度 Pro 或永久 Pro。")
         }
 
-        return L10n.string("一次性解锁完整时间列表、大文件清理、图片压缩、视频压缩、相似照片清理和主题切换。")
+        return L10n.string("年度 Pro 和永久 Pro 均可解锁完整时间列表、压缩、相似照片清理和主题切换。")
     }
 }
 
 private struct SupporterBottomActionBar: View {
     let isTrialActive: Bool
     let canStartTrial: Bool
-    let priceText: String
+    @Binding var selectedPlan: SupporterPurchasePlan
+    let annualPriceText: String
+    let lifetimePriceText: String
     let isLoading: Bool
     let statusMessage: String?
     let errorMessage: String?
@@ -205,6 +212,21 @@ private struct SupporterBottomActionBar: View {
                 .fill(PhotoDeleteStyle.hairline)
                 .frame(width: 38, height: 4)
                 .padding(.bottom, 2)
+
+            HStack(spacing: 10) {
+                planButton(
+                    plan: .annual,
+                    title: L10n.string("年度 Pro"),
+                    price: annualPriceText,
+                    detail: L10n.string("每年 · 自动续订")
+                )
+                planButton(
+                    plan: .lifetime,
+                    title: L10n.string("永久 Pro"),
+                    price: lifetimePriceText,
+                    detail: L10n.string("一次购买 · 永久使用")
+                )
+            }
 
             if isTrialActive {
                 purchaseButton(style: .primary)
@@ -227,7 +249,7 @@ private struct SupporterBottomActionBar: View {
                 onRedeemCode: onRedeemCode
             )
 
-            Text(L10n.string("体验到期不会自动扣费，基础整理始终免费。"))
+            Text(L10n.string("3 天体验到期不会扣费；年度 Pro 会自动续订，可随时在 Apple ID 设置中取消。基础整理始终免费。"))
                 .font(.system(size: 12, weight: .regular))
                 .foregroundColor(PhotoDeleteStyle.secondaryText)
                 .multilineTextAlignment(.center)
@@ -275,11 +297,67 @@ private struct SupporterBottomActionBar: View {
                         .progressViewStyle(CircularProgressViewStyle(tint: loadingTint))
                         .scaleEffect(0.78)
                 }
-                Text(isLoading ? L10n.string("处理中...") : String(format: L10n.string("一次性解锁 %@"), priceText))
+                Text(isLoading ? L10n.string("处理中...") : purchaseButtonTitle)
             }
         }
         .modifier(PurchaseButtonModifier(style: style))
         .disabled(isLoading)
+    }
+
+    private var purchaseButtonTitle: String {
+        switch selectedPlan {
+        case .annual:
+            String(format: L10n.string("开通年度 Pro %@/年"), annualPriceText)
+        case .lifetime:
+            String(format: L10n.string("解锁永久 Pro %@"), lifetimePriceText)
+        }
+    }
+
+    private func planButton(
+        plan: SupporterPurchasePlan,
+        title: String,
+        price: String,
+        detail: String
+    ) -> some View {
+        let isSelected = selectedPlan == plan
+
+        return Button {
+            selectedPlan = plan
+        } label: {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 5) {
+                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    Text(title)
+                        .font(.system(size: 14, weight: .semibold))
+                }
+                .foregroundColor(isSelected ? PhotoDeleteStyle.accent : PhotoDeleteStyle.primaryText)
+
+                Text(price)
+                    .font(.system(size: 19, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.primaryText)
+
+                Text(detail)
+                    .font(.system(size: 11, weight: .regular))
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+            .frame(maxWidth: .infinity, minHeight: 70, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(isSelected ? PhotoDeleteStyle.accent.opacity(0.1) : PhotoDeleteStyle.elevatedSurface)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(isSelected ? PhotoDeleteStyle.accent : PhotoDeleteStyle.hairline, lineWidth: isSelected ? 1.5 : 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(isLoading)
+        .accessibilityLabel("\(title)，\(price)，\(detail)")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 
@@ -347,13 +425,19 @@ private struct PurchaseButtonModifier: ViewModifier {
 
 private struct SupporterUnlockedContent: View {
     let purchaseDate: Date?
+    let expirationDate: Date?
+    let accessKind: SupporterAccessKind?
     let accessNotice: String?
 
     var body: some View {
         VStack(spacing: 20) {
-            SupporterBadgeCard()
+            SupporterBadgeCard(accessKind: accessKind)
 
-            SupporterPurchaseStatusCard(purchaseDate: purchaseDate)
+            SupporterPurchaseStatusCard(
+                purchaseDate: purchaseDate,
+                expirationDate: expirationDate,
+                accessKind: accessKind
+            )
 
             if let accessNotice {
                 SupporterEntitlementNotice(message: accessNotice)
@@ -385,6 +469,8 @@ private struct SupporterEntitlementNotice: View {
 }
 
 private struct SupporterBadgeCard: View {
+    let accessKind: SupporterAccessKind?
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 12) {
@@ -399,11 +485,11 @@ private struct SupporterBadgeCard: View {
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(L10n.string("支持者版已完整解锁"))
+                    Text(accessKind == .annual ? L10n.string("年度 Pro 已启用") : L10n.string("永久 Pro 已解锁"))
                         .font(.system(size: 22, weight: .semibold))
                         .foregroundColor(PhotoDeleteStyle.primaryText)
 
-                    Text(L10n.string("支持者版已完整解锁，可长期使用。"))
+                    Text(accessKind == .annual ? L10n.string("订阅有效期内可使用全部进阶功能。") : L10n.string("一次购买，全部进阶功能永久可用。"))
                         .font(.system(size: 15, weight: .regular))
                         .foregroundColor(PhotoDeleteStyle.secondaryText)
                 }
@@ -417,6 +503,8 @@ private struct SupporterBadgeCard: View {
 
 private struct SupporterPurchaseStatusCard: View {
     let purchaseDate: Date?
+    let expirationDate: Date?
+    let accessKind: SupporterAccessKind?
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -443,11 +531,21 @@ private struct SupporterPurchaseStatusCard: View {
     }
 
     private var statusText: String {
+        if accessKind == .annual {
+            guard let expirationDate else {
+                return L10n.string("年度 Pro 已启用，订阅状态会由 App Store 自动更新。")
+            }
+            return String(
+                format: L10n.string("年度 Pro 当前有效至 %@，续订状态以 App Store 为准。"),
+                CleanupStatsFormatter.sessionDate.string(from: expirationDate)
+            )
+        }
+
         guard let purchaseDate else {
-            return L10n.string("支持者版已完整解锁，所有进阶功能可长期使用。")
+            return L10n.string("永久 Pro 已解锁，所有进阶功能可长期使用。")
         }
         return String(
-            format: L10n.string("已于 %@ 完整解锁支持者版，可长期使用。"),
+            format: L10n.string("已于 %@ 解锁永久 Pro，可长期使用。"),
             CleanupStatsFormatter.sessionDate.string(from: purchaseDate)
         )
     }
@@ -609,7 +707,7 @@ struct SupporterPlanComparisonCard: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Text(L10n.string("免费版"))
                     .frame(width: 64)
-                Text(L10n.string("支持者版"))
+                Text(L10n.string("Pro"))
                     .frame(width: 64)
             }
             .font(.caption.bold())
