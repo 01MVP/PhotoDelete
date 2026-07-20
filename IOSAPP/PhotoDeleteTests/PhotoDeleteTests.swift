@@ -3079,6 +3079,19 @@ struct PhotoDeleteTests {
         #expect(AdvancedSelectableThumbnailSelectionButtonStyle.visualSize <= 30)
     }
 
+    @Test func advancedSimilarPhotoPreviewRecognizesAndLoadsLivePhotosSafely() async throws {
+        #expect(AdvancedLivePhotoPreviewPolicy.networkAccessAllowed)
+        #expect(AdvancedLivePhotoPreviewPolicy.deliveryMode == .highQualityFormat)
+        #expect(AdvancedLivePhotoPreviewPolicy.shouldRequestLivePhoto(isLivePhoto: true, motionEnabled: true))
+        #expect(!AdvancedLivePhotoPreviewPolicy.shouldRequestLivePhoto(isLivePhoto: true, motionEnabled: false))
+        #expect(!AdvancedLivePhotoPreviewPolicy.shouldRequestLivePhoto(isLivePhoto: false, motionEnabled: true))
+        #expect(AdvancedLivePhotoPreviewPolicy.shouldDisplayLivePhoto(isDegraded: false))
+        #expect(!AdvancedLivePhotoPreviewPolicy.shouldDisplayLivePhoto(isDegraded: true))
+        #expect(AdvancedLivePhotoPreviewPolicy.badgeSystemImage(mediaType: .image, isLivePhoto: true) == "livephoto")
+        #expect(AdvancedLivePhotoPreviewPolicy.badgeSystemImage(mediaType: .video, isLivePhoto: false) == "play.fill")
+        #expect(AdvancedLivePhotoPreviewPolicy.badgeSystemImage(mediaType: .image, isLivePhoto: false) == nil)
+    }
+
     @Test func visibleListPaginationFiltersBeforePagingAndClampsLimit() async throws {
         let summaries = [
             makePeriodSummary(index: 0, assetCount: 0),

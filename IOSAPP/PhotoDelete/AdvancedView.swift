@@ -5621,6 +5621,16 @@ private struct AdvancedSelectableThumbnail: View {
     let onToggleSelection: () -> Void
     let onPreview: () -> Void
 
+    private var previewAccessibilityLabel: String {
+        if asset.mediaType == .video {
+            return L10n.string("视频预览")
+        }
+        if photoLibraryManager.isLivePhoto(asset) {
+            return L10n.string("实况照片")
+        }
+        return L10n.string("照片预览")
+    }
+
     var body: some View {
         ZStack(alignment: .topTrailing) {
             Button(action: onPreview) {
@@ -5631,7 +5641,7 @@ private struct AdvancedSelectableThumbnail: View {
                 )
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(asset.mediaType == .video ? L10n.string("视频预览") : L10n.string("照片预览"))
+            .accessibilityLabel(previewAccessibilityLabel)
 
             AdvancedSelectableThumbnailSelectionButton(
                 isSelected: isSelected,
@@ -5721,6 +5731,26 @@ enum AdvancedSelectableThumbnailSelectionButtonStyle {
     }
 }
 
+enum AdvancedLivePhotoPreviewPolicy {
+    static let networkAccessAllowed = true
+    static let deliveryMode: PHImageRequestOptionsDeliveryMode = .highQualityFormat
+
+    static func shouldRequestLivePhoto(isLivePhoto: Bool, motionEnabled: Bool) -> Bool {
+        isLivePhoto && motionEnabled
+    }
+
+    static func shouldDisplayLivePhoto(isDegraded: Bool) -> Bool {
+        !isDegraded
+    }
+
+    static func badgeSystemImage(mediaType: PHAssetMediaType, isLivePhoto: Bool) -> String? {
+        if mediaType == .video {
+            return "play.fill"
+        }
+        return isLivePhoto ? "livephoto" : nil
+    }
+}
+
 private struct AdvancedAssetThumbnail: View {
     let asset: PHAsset
     let photoLibraryManager: PhotoLibraryManager
@@ -5729,6 +5759,17 @@ private struct AdvancedAssetThumbnail: View {
     @State private var image: UIImage?
     @State private var requestID: PHImageRequestID?
     @State private var loadingAssetID: String?
+
+    private var badgeSystemImage: String? {
+        AdvancedLivePhotoPreviewPolicy.badgeSystemImage(
+            mediaType: asset.mediaType,
+            isLivePhoto: photoLibraryManager.isLivePhoto(asset)
+        )
+    }
+
+    private var badgeAccessibilityLabel: String {
+        asset.mediaType == .video ? L10n.string("视频") : L10n.string("实况照片")
+    }
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -5750,13 +5791,14 @@ private struct AdvancedAssetThumbnail: View {
             .frame(width: size, height: size)
             .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
 
-            if asset.mediaType == .video {
-                Image(systemName: "play.fill")
+            if let badgeSystemImage {
+                Image(systemName: badgeSystemImage)
                     .font(.system(size: 8, weight: .bold))
                     .foregroundColor(.white)
                     .frame(width: 20, height: 20)
                     .background(Circle().fill(PhotoDeleteStyle.background.opacity(0.72)))
                     .padding(5)
+                    .accessibilityLabel(badgeAccessibilityLabel)
             }
         }
         .frame(width: size, height: size)
@@ -5841,7 +5883,7 @@ private struct AdvancedAssetPreviewView: View {
                     }
                 }
             }
-            .navigationTitle(selectedAsset.mediaType == .video ? L10n.string("视频预览") : L10n.string("照片预览"))
+            .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -5856,6 +5898,16 @@ private struct AdvancedAssetPreviewView: View {
 
     private var selectedAsset: PHAsset {
         assets.first { $0.localIdentifier == selectedAssetID } ?? asset
+    }
+
+    private var navigationTitle: String {
+        if selectedAsset.mediaType == .video {
+            return L10n.string("视频预览")
+        }
+        if photoLibraryManager.isLivePhoto(selectedAsset) {
+            return L10n.string("实况照片")
+        }
+        return L10n.string("照片预览")
     }
 
     private var assetIdentifiers: [String] {
@@ -6073,13 +6125,20 @@ private struct AdvancedPreviewPagingButton: View {
 
 private struct AdvancedAssetPreviewPage: View {
     @Environment(\.displayScale) private var displayScale
+    @AppStorage(AppConstants.reviewLivePhotoAutoPlayKey) private var reviewLivePhotoAutoPlay = false
     let asset: PHAsset
     let photoLibraryManager: PhotoLibraryManager
     let viewportSize: CGSize
 
     @State private var image: UIImage?
+    @State private var livePhoto: PHLivePhoto?
     @State private var isLoading = true
     @State private var requestID: PHImageRequestID?
+    @State private var livePhotoRequestID: PHImageRequestID?
+    @State private var loadingLivePhotoAssetID: String?
+    @State private var failedToLoadLivePhoto = false
+    @State private var isLivePhotoMotionEnabled = false
+    @State private var livePhotoPlaybackTrigger = 0
 
     var body: some View {
         ZStack {
@@ -6088,6 +6147,18 @@ private struct AdvancedAssetPreviewPage: View {
                     asset: asset,
                     photoLibraryManager: photoLibraryManager
                 )
+            } else if isLivePhotoMotionEnabled, let livePhoto {
+                LivePhotoPreviewRepresentable(
+                    livePhoto: livePhoto,
+                    contentIdentifier: asset.localIdentifier,
+                    autoPlay: true,
+                    isMuted: true,
+                    playbackTrigger: livePhotoPlaybackTrigger,
+                    contentMode: .scaleAspectFit
+                )
+                .allowsHitTesting(false)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .accessibilityLabel(L10n.string("实况照片"))
             } else if let image {
                 ZoomablePhotoPreview(image: image)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -6108,15 +6179,52 @@ private struct AdvancedAssetPreviewPage: View {
                 }
             }
         }
+        .overlay(alignment: .topLeading) {
+            if isLivePhotoAsset {
+                LivePhotoMotionControlButton(
+                    isEnabled: isLivePhotoMotionEnabled,
+                    isLoading: livePhotoRequestID != nil && livePhoto == nil,
+                    action: toggleLivePhotoMotion
+                )
+                .padding(.top, 14)
+                .padding(.leading, 16)
+            }
+        }
         .onAppear {
+            if isLivePhotoAsset {
+                isLivePhotoMotionEnabled = LivePhotoPlaybackDefaultPolicy.initialMotionEnabled(
+                    isLivePhoto: true,
+                    autoPlayPreference: reviewLivePhotoAutoPlay
+                )
+                livePhotoPlaybackTrigger = isLivePhotoMotionEnabled ? 1 : 0
+            }
+
             if asset.mediaType != .video {
                 loadImage()
+            }
+
+            if AdvancedLivePhotoPreviewPolicy.shouldRequestLivePhoto(
+                isLivePhoto: isLivePhotoAsset,
+                motionEnabled: isLivePhotoMotionEnabled
+            ) {
+                loadLivePhoto()
             }
         }
         .onDisappear {
             photoLibraryManager.cancelImageRequest(requestID)
+            photoLibraryManager.cancelImageRequest(livePhotoRequestID)
             requestID = nil
+            livePhotoRequestID = nil
+            loadingLivePhotoAssetID = nil
+            livePhoto = nil
+            failedToLoadLivePhoto = false
+            isLivePhotoMotionEnabled = false
+            livePhotoPlaybackTrigger = 0
         }
+    }
+
+    private var isLivePhotoAsset: Bool {
+        photoLibraryManager.isLivePhoto(asset)
     }
 
     private func loadImage() {
@@ -6131,6 +6239,60 @@ private struct AdvancedAssetPreviewPage: View {
             isLoading = false
             requestID = nil
         }
+    }
+
+    private func loadLivePhoto() {
+        guard AdvancedLivePhotoPreviewPolicy.shouldRequestLivePhoto(
+            isLivePhoto: isLivePhotoAsset,
+            motionEnabled: isLivePhotoMotionEnabled
+        ), livePhotoRequestID == nil, livePhoto == nil, !failedToLoadLivePhoto else {
+            return
+        }
+
+        let requestedAssetID = asset.localIdentifier
+        loadingLivePhotoAssetID = requestedAssetID
+        let targetSize = photoPreviewTargetSize(for: asset, viewport: viewportSize, displayScale: displayScale)
+
+        livePhotoRequestID = photoLibraryManager.loadLivePhotoResult(
+            for: asset,
+            size: targetSize,
+            networkAccessAllowed: AdvancedLivePhotoPreviewPolicy.networkAccessAllowed,
+            deliveryMode: AdvancedLivePhotoPreviewPolicy.deliveryMode
+        ) { result in
+            guard loadingLivePhotoAssetID == requestedAssetID else { return }
+
+            if let loadedLivePhoto = result.livePhoto,
+               AdvancedLivePhotoPreviewPolicy.shouldDisplayLivePhoto(isDegraded: result.isDegraded) {
+                livePhoto = loadedLivePhoto
+                isLoading = false
+            } else if result.isFinal {
+                failedToLoadLivePhoto = true
+            }
+
+            if result.isFinal {
+                livePhotoRequestID = nil
+                loadingLivePhotoAssetID = nil
+            }
+        }
+    }
+
+    private func toggleLivePhotoMotion() {
+        guard isLivePhotoAsset else { return }
+        HapticManager.impact(.light)
+        isLivePhotoMotionEnabled = LivePhotoPlaybackDefaultPolicy.motionEnabledAfterManualAction(
+            current: isLivePhotoMotionEnabled,
+            previousLoadFailed: failedToLoadLivePhoto
+        )
+
+        guard isLivePhotoMotionEnabled else {
+            photoLibraryManager.cancelImageRequest(livePhotoRequestID)
+            livePhotoRequestID = nil
+            loadingLivePhotoAssetID = nil
+            return
+        }
+        livePhotoPlaybackTrigger += 1
+        failedToLoadLivePhoto = false
+        loadLivePhoto()
     }
 }
 

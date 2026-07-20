@@ -4788,8 +4788,9 @@ struct RealPhotoCard: View {
     }
 }
 
-private struct LivePhotoMotionControlButton: View {
+struct LivePhotoMotionControlButton: View {
     let isEnabled: Bool
+    var isLoading = false
     let action: () -> Void
 
     var body: some View {
@@ -4799,14 +4800,24 @@ private struct LivePhotoMotionControlButton: View {
                     .fill(PhotoDeleteStyle.background.opacity(isEnabled ? 0.72 : 0.62))
                     .frame(width: 30, height: 30)
 
-                Image(systemName: isEnabled ? "livephoto" : "livephoto.slash")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.white)
+                if isLoading {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .scaleEffect(0.62)
+                } else {
+                    Image(systemName: isEnabled ? "livephoto" : "livephoto.slash")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.white)
+                }
             }
         }
         .buttonStyle(.plain)
         .photoDeleteMinimumTapTarget()
-        .accessibilityLabel(isEnabled ? L10n.string("关闭实况照片动态") : L10n.string("播放实况照片"))
+        .accessibilityLabel(
+            isLoading
+                ? L10n.string("正在读取照片")
+                : (isEnabled ? L10n.string("关闭实况照片动态") : L10n.string("播放实况照片"))
+        )
         .accessibilityIdentifier("live-photo-motion-toggle")
     }
 }
