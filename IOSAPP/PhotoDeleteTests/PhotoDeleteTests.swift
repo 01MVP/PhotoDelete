@@ -2430,37 +2430,6 @@ struct PhotoDeleteTests {
         #expect(groups.isEmpty)
     }
 
-    @Test func strictSimilarPhotoGroupingRequiresEveryPhotoInAGroupToMatch() async throws {
-        let distances: [Set<String>: Float] = [
-            Set(["a", "b"]): 0.4,
-            Set(["b", "c"]): 0.4,
-            Set(["a", "c"]): 1.4
-        ]
-
-        let groups = DataManager.strictSimilarIdentifierGroups(
-            from: ["a", "b", "c"],
-            maximumDistance: 1.0
-        ) { lhs, rhs in
-            lhs == rhs ? 0 : distances[Set([lhs, rhs])]
-        }
-
-        #expect(groups == [["a", "b"]])
-    }
-
-    @Test func similarPhotoMatchModesUseBroadAsTheDefault() async throws {
-        #expect(SimilarPhotoMatchMode.defaultMode == .broad)
-        #expect(SimilarPhotoMatchMode.strict.maximumVisionDistance == 5.0)
-        #expect(SimilarPhotoMatchMode.standard.maximumVisionDistance == 10.0)
-        #expect(SimilarPhotoMatchMode.broad.maximumVisionDistance == nil)
-    }
-
-    @Test func similarPhotoAnalysisProgressClampsAndCompletes() async throws {
-        #expect(SimilarPhotoAnalysisProgress.fraction(completedAssetCount: 0, totalAssetCount: 4) == 0)
-        #expect(SimilarPhotoAnalysisProgress.fraction(completedAssetCount: 2, totalAssetCount: 4) == 0.5)
-        #expect(SimilarPhotoAnalysisProgress.fraction(completedAssetCount: 8, totalAssetCount: 4) == 1)
-        #expect(SimilarPhotoAnalysisProgress.fraction(completedAssetCount: 0, totalAssetCount: 0) == 1)
-    }
-
     @Test func recentOrganizedPhotoHistoryKeepsLatestActionPerPhoto() async throws {
         let earlier = Date(timeIntervalSince1970: 1_000)
         let later = Date(timeIntervalSince1970: 2_000)

@@ -438,7 +438,6 @@ enum AppConstants {
     static let reviewProgressByScopeKey = "photoDeleteReviewProgressByScope"
     static let appAppearanceKey = "photoDeleteAppAppearance"
     static let appThemeKey = "photoDeleteAppTheme"
-    static let similarPhotoMatchModeKey = "photoDeleteSimilarPhotoMatchMode"
     static let openAlbumsTabNotificationName = Notification.Name("photoDeleteOpenAlbumsTab")
     static let supporterAnnualProductID = "com.01mvp.photodelete.pro.annual"
     static let supporterLifetimeProductID = "com.01mvp.photodelete.supporter.stats"

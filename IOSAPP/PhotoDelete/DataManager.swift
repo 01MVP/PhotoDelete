@@ -11,7 +11,6 @@ import UIKit
 import Combine
 import CoreLocation
 import OSLog
-import Vision
 
 private let dataManagerLogger = Logger(
     subsystem: Bundle.main.bundleIdentifier ?? "PhotoDelete",
@@ -59,56 +58,6 @@ struct SimilarPhotoAssetFingerprint: Equatable {
 
     var isEligibleImage: Bool {
         mediaType == .image && creationDate != nil && !isScreenshot
-    }
-}
-
-enum SimilarPhotoMatchMode: String, CaseIterable, Identifiable {
-    case strict
-    case standard
-    case broad
-
-    static let defaultMode = SimilarPhotoMatchMode.broad
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .strict:
-            return L10n.string("严格")
-        case .standard:
-            return L10n.string("标准")
-        case .broad:
-            return L10n.string("宽泛")
-        }
-    }
-
-    var detail: String {
-        switch self {
-        case .strict:
-            return L10n.string("使用系统 Vision，只保留非常接近的画面。")
-        case .standard:
-            return L10n.string("使用系统 Vision 识别相似画面，兼顾准确和数量。")
-        case .broad:
-            return L10n.string("按连拍、拍摄时间和尺寸寻找更多候选，建议逐组确认。")
-        }
-    }
-
-    var maximumVisionDistance: Float? {
-        switch self {
-        case .strict:
-            return 5.0
-        case .standard:
-            return 10.0
-        case .broad:
-            return nil
-        }
-    }
-}
-
-enum SimilarPhotoAnalysisProgress {
-    static func fraction(completedAssetCount: Int, totalAssetCount: Int) -> Double {
-        guard totalAssetCount > 0 else { return 1 }
-        return min(max(Double(completedAssetCount) / Double(totalAssetCount), 0), 1)
     }
 }
 
@@ -273,7 +222,6 @@ class DataManager: ObservableObject {
     private var pendingDeleteCandidateIDs: Set<String> = []
     private var pendingFavoriteCandidateIDs: Set<String> = []
     private var videoFileSizeEstimateCache: [String: VideoFileSizeEstimate] = [:]
-    private let similarPhotoFeaturePrintCache = NSCache<NSString, VNFeaturePrintObservation>()
     private var imageCompressionTask: Task<Void, Never>?
     private var videoCompressionTask: Task<Void, Never>?
     private var cancellables: Set<AnyCancellable> = []
@@ -361,7 +309,6 @@ class DataManager: ObservableObject {
         self.cachedCustomAlbumOrder = Self.decodeCustomAlbumOrder(
             userDefaults.string(forKey: AppConstants.customAlbumOrderKey)
         )
-        similarPhotoFeaturePrintCache.countLimit = 600
         loadReviewedAssetIDs()
         loadRecentOrganizedPhotoRecords()
         loadPendingCandidateIDs()
@@ -1810,84 +1757,6 @@ class DataManager: ObservableObject {
         )
     }
 
-    func makeSimilarPhotoGroups(
-        mode: SimilarPhotoMatchMode,
-        maxGroups: Int? = nil,
-        progressHandler: (@MainActor (Double) -> Void)? = nil
-    ) async -> [AdvancedSimilarPhotoGroup] {
-        let broadGroups = makeSimilarPhotoGroups(maxGroups: nil)
-        guard let maximumDistance = mode.maximumVisionDistance else {
-            await progressHandler?(1)
-            guard let maxGroups else { return broadGroups }
-            return Array(broadGroups.prefix(max(maxGroups, 0)))
-        }
-
-        let totalAssetCount = broadGroups.reduce(0) { $0 + $1.assets.count }
-        var completedAssetCount = 0
-        await progressHandler?(
-            SimilarPhotoAnalysisProgress.fraction(
-                completedAssetCount: completedAssetCount,
-                totalAssetCount: totalAssetCount
-            )
-        )
-
-        var refinedGroups: [AdvancedSimilarPhotoGroup] = []
-        for broadGroup in broadGroups {
-            guard !Task.isCancelled else { return [] }
-
-            var observations: [String: VNFeaturePrintObservation] = [:]
-            await withTaskGroup(of: (String, VNFeaturePrintObservation?).self) { taskGroup in
-                for asset in broadGroup.assets {
-                    taskGroup.addTask { [weak self] in
-                        guard let self else { return (asset.localIdentifier, nil) }
-                        return (asset.localIdentifier, await self.similarPhotoFeaturePrint(for: asset))
-                    }
-                }
-
-                for await (identifier, observation) in taskGroup {
-                    if let observation {
-                        observations[identifier] = observation
-                    }
-                    completedAssetCount += 1
-                    await progressHandler?(
-                        SimilarPhotoAnalysisProgress.fraction(
-                            completedAssetCount: completedAssetCount,
-                            totalAssetCount: totalAssetCount
-                        )
-                    )
-                }
-            }
-
-            let identifiers = broadGroup.assets.map(\.localIdentifier)
-            let refinedIdentifierGroups = Self.strictSimilarIdentifierGroups(
-                from: identifiers,
-                maximumDistance: maximumDistance
-            ) { lhsID, rhsID in
-                guard let lhs = observations[lhsID], let rhs = observations[rhsID] else { return nil }
-                var distance: Float = 0
-                do {
-                    try lhs.computeDistance(&distance, to: rhs)
-                    return distance
-                } catch {
-                    dataManagerLogger.error("Failed to compare similar-photo feature prints: \(error.localizedDescription, privacy: .public)")
-                    return nil
-                }
-            }
-
-            let assetsByID = Dictionary(
-                uniqueKeysWithValues: broadGroup.assets.map { ($0.localIdentifier, $0) }
-            )
-            refinedGroups.append(contentsOf: refinedIdentifierGroups.compactMap { identifiers in
-                Self.makeSimilarPhotoGroup(assets: identifiers.compactMap { assetsByID[$0] })
-            })
-        }
-
-        await progressHandler?(1)
-        let sortedGroups = Self.sortedSimilarPhotoGroups(refinedGroups)
-        guard let maxGroups else { return sortedGroups }
-        return Array(sortedGroups.prefix(max(maxGroups, 0)))
-    }
-
     private static func makeSimilarPhotoGroups(
         photos allPhotos: [PHAsset],
         screenshotIDs: Set<String>,
@@ -2006,60 +1875,6 @@ class DataManager: ObservableObject {
         flushCluster()
 
         return groups
-    }
-
-    static func strictSimilarIdentifierGroups(
-        from identifiers: [String],
-        maximumDistance: Float,
-        distance: (String, String) -> Float?
-    ) -> [[String]] {
-        var clusters: [[String]] = []
-
-        for identifier in identifiers {
-            if let clusterIndex = clusters.firstIndex(where: { cluster in
-                cluster.allSatisfy { existingIdentifier in
-                    guard let pairDistance = distance(identifier, existingIdentifier) else { return false }
-                    return pairDistance <= maximumDistance
-                }
-            }) {
-                clusters[clusterIndex].append(identifier)
-            } else {
-                clusters.append([identifier])
-            }
-        }
-
-        return clusters.filter { $0.count >= 2 }
-    }
-
-    private func similarPhotoFeaturePrint(for asset: PHAsset) async -> VNFeaturePrintObservation? {
-        let cacheKey = asset.localIdentifier as NSString
-        if let cached = similarPhotoFeaturePrintCache.object(forKey: cacheKey) {
-            return cached
-        }
-
-        guard let image = await photoLibraryManager.loadVisionAnalysisImage(for: asset) else {
-            return nil
-        }
-
-        let observation = await Task.detached(priority: .userInitiated) {
-            let request = VNGenerateImageFeaturePrintRequest()
-            request.revision = VNGenerateImageFeaturePrintRequestRevision1
-            request.imageCropAndScaleOption = .scaleFit
-
-            do {
-                let handler = VNImageRequestHandler(cgImage: image, options: [:])
-                try handler.perform([request])
-                return request.results?.first
-            } catch {
-                dataManagerLogger.error("Failed to create similar-photo feature print: \(error.localizedDescription, privacy: .public)")
-                return nil
-            }
-        }.value
-
-        if let observation {
-            similarPhotoFeaturePrintCache.setObject(observation, forKey: cacheKey)
-        }
-        return observation
     }
 
     private func similarPhotoCandidates(maxCount: Int? = nil) -> [PHAsset] {

@@ -330,29 +330,12 @@ final class PhotoDeleteUITests: XCTestCase {
         similarPhotosButton.tap()
 
         XCTAssertTrue(app.staticTexts["相似照片"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["严格"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["标准"].exists)
-        let broadModeButton = app.buttons["宽泛"]
-        XCTAssertTrue(broadModeButton.exists)
+        XCTAssertFalse(app.buttons["严格"].exists)
+        XCTAssertFalse(app.buttons["标准"].exists)
+        XCTAssertFalse(app.buttons["宽泛"].exists)
+        XCTAssertFalse(app.progressIndicators["similar-photo-analysis-progress"].exists)
         XCTAssertTrue(app.buttons["保留首张"].waitForExistence(timeout: 30))
 
-        app.buttons["标准"].tap()
-        let analysisProgress = app.progressIndicators["similar-photo-analysis-progress"]
-        let emptyAnalysisResult = app.staticTexts["暂未发现相似照片"]
-        XCTAssertTrue(
-            analysisProgress.waitForExistence(timeout: 3) ||
-                app.buttons["保留首张"].exists ||
-                emptyAnalysisResult.exists
-        )
-        XCTAssertTrue(
-            waitForAnyElementToExist(
-                [app.buttons["保留首张"], emptyAnalysisResult],
-                timeout: 60
-            )
-        )
-
-        broadModeButton.tap()
-        XCTAssertTrue(app.buttons["保留首张"].waitForExistence(timeout: 30))
         guard let previewButton = waitForHittableButton(in: app, label: "预览", timeout: 30) else {
             XCTFail("Expected a similar-photo group preview button")
             return

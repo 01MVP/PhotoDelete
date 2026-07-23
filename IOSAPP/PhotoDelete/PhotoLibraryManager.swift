@@ -1203,21 +1203,6 @@ class PhotoLibraryManager: NSObject, ObservableObject {
 
     // MARK: - Image Loading
 
-    func loadVisionAnalysisImage(for asset: PHAsset) async -> CGImage? {
-        guard let data = try? await requestImageData(for: asset),
-              let source = CGImageSourceCreateWithData(data as CFData, nil) else {
-            return nil
-        }
-
-        let options: [CFString: Any] = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceThumbnailMaxPixelSize: 512,
-            kCGImageSourceShouldCacheImmediately: true
-        ]
-        return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
-    }
-
     @discardableResult
     func loadImage(for asset: PHAsset, size: CGSize, completion: @escaping (UIImage?) -> Void) -> PHImageRequestID? {
         let cacheKey = imageCacheKey(for: asset, purpose: "image", size: size)

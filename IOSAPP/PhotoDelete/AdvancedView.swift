@@ -4995,26 +4995,14 @@ private struct AdvancedSimilarGroupSnapshot {
 
 private struct AdvancedSimilarPhotoGroupsView: View {
     @EnvironmentObject var dataManager: DataManager
-    @AppStorage(AppConstants.similarPhotoMatchModeKey) private var matchModeValue = SimilarPhotoMatchMode.defaultMode.rawValue
     @State private var groups: [AdvancedSimilarPhotoGroup] = []
     @State private var selectedAssetIDs: Set<String> = []
     @State private var selectedFilter: AdvancedCleanupFilter = .all
     @State private var showBatchConfirm = false
     @State private var previewAsset: AdvancedPreviewAsset?
     @State private var visibleGroupLimit = 24
-    @State private var isAnalyzing = false
-    @State private var analysisProgress = 0.0
-    @State private var reloadGeneration = 0
 
     private let groupLimitStep = 24
-
-    private var matchMode: SimilarPhotoMatchMode {
-        SimilarPhotoMatchMode(rawValue: matchModeValue) ?? .defaultMode
-    }
-
-    private var reloadID: String {
-        "\(matchMode.rawValue)-\(reloadGeneration)"
-    }
 
     private var selectedAssets: [PHAsset] {
         makeGroupSnapshot().groups.flatMap(\.assets).filter { selectedAssetIDs.contains($0.localIdentifier) }
@@ -5038,82 +5026,57 @@ private struct AdvancedSimilarPhotoGroupsView: View {
 
             ScrollView {
                 VStack(spacing: 14) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Picker(L10n.string("相似照片宽泛度"), selection: $matchModeValue) {
-                            ForEach(SimilarPhotoMatchMode.allCases) { mode in
-                                Text(mode.title).tag(mode.rawValue)
-                            }
-                        }
-                        .pickerStyle(.segmented)
+                    AdvancedFilterPills(kind: .similarPhotos, selection: $selectedFilter)
 
-                        Text(matchMode.detail)
-                            .font(.system(size: 12, weight: .regular))
-                            .foregroundColor(PhotoDeleteStyle.secondaryText)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .padding(14)
-                    .photoDeleteCard()
+                    AdvancedAssetListSummaryCard(
+                        title: String(format: L10n.string("发现 %lld 组相似照片"), Int64(snapshot.groups.count)),
+                        subtitle: String(
+                            format: L10n.string("预计可减少 %lld 张，逐组确认更稳妥。"),
+                            Int64(snapshot.suggestedDeleteCount)
+                        ),
+                        buttonTitle: selectedAssetIDs.isEmpty ? L10n.string("建议选择") : L10n.string("取消"),
+                        action: toggleRecommendedSelection
+                    )
 
-                    if isAnalyzing {
-                        AdvancedSimilarPhotoAnalysisProgressView(
-                            progress: analysisProgress,
-                            usesVision: matchMode != .broad
+                    if groups.isEmpty {
+                        AdvancedEmptyState(
+                            icon: AdvancedCleanupKind.similarPhotos.icon,
+                            title: L10n.string("暂未发现相似照片"),
+                            subtitle: L10n.string("会把拍摄时间接近的照片放在一起，方便逐组确认。")
+                        )
+                    } else if snapshot.groups.isEmpty {
+                        AdvancedEmptyState(
+                            icon: AdvancedCleanupKind.similarPhotos.icon,
+                            title: L10n.string("当前筛选没有内容"),
+                            subtitle: L10n.string("可以切换到全部，或稍后再回来查看。")
                         )
                     } else {
-                        AdvancedFilterPills(kind: .similarPhotos, selection: $selectedFilter)
-
-                        AdvancedAssetListSummaryCard(
-                            title: String(format: L10n.string("发现 %lld 组相似照片"), Int64(snapshot.groups.count)),
-                            subtitle: String(
-                                format: L10n.string("预计可减少 %lld 张，逐组确认更稳妥。"),
-                                Int64(snapshot.suggestedDeleteCount)
-                            ),
-                            buttonTitle: selectedAssetIDs.isEmpty ? L10n.string("建议选择") : L10n.string("取消"),
-                            action: toggleRecommendedSelection
-                        )
-
-                        if groups.isEmpty {
-                            AdvancedEmptyState(
-                                icon: AdvancedCleanupKind.similarPhotos.icon,
-                                title: L10n.string("暂未发现相似照片"),
-                                subtitle: matchMode == .broad
-                                    ? L10n.string("会把拍摄时间接近的照片放在一起，方便逐组确认。")
-                                    : L10n.string("可以切换到宽泛模式，查看更多可能相似的候选。")
-                            )
-                        } else if snapshot.groups.isEmpty {
-                            AdvancedEmptyState(
-                                icon: AdvancedCleanupKind.similarPhotos.icon,
-                                title: L10n.string("当前筛选没有内容"),
-                                subtitle: L10n.string("可以切换到全部，或稍后再回来查看。")
-                            )
-                        } else {
-                            LazyVStack(spacing: 10) {
-                                ForEach(snapshot.visibleGroups) { group in
-                                    AdvancedSimilarPhotoGroupCard(
-                                        group: group,
-                                        photoLibraryManager: dataManager.photoLibraryManager,
-                                        selectedAssetIDs: selectedAssetIDs,
-                                        onSelectRecommended: { selectRecommended(in: group) },
-                                        onPreviewGroup: {
-                                            guard let firstAsset = group.assets.first else { return }
-                                            previewAsset = AdvancedPreviewAsset(asset: firstAsset, assets: group.assets)
-                                        },
-                                        onToggleAsset: toggleSelection,
-                                        onPreview: { previewAsset = AdvancedPreviewAsset(asset: $0, assets: group.assets) }
-                                    )
-                                    .onAppear {
-                                        showMoreGroupsIfNeeded(currentGroup: group)
-                                    }
+                        LazyVStack(spacing: 10) {
+                            ForEach(snapshot.visibleGroups) { group in
+                                AdvancedSimilarPhotoGroupCard(
+                                    group: group,
+                                    photoLibraryManager: dataManager.photoLibraryManager,
+                                    selectedAssetIDs: selectedAssetIDs,
+                                    onSelectRecommended: { selectRecommended(in: group) },
+                                    onPreviewGroup: {
+                                        guard let firstAsset = group.assets.first else { return }
+                                        previewAsset = AdvancedPreviewAsset(asset: firstAsset, assets: group.assets)
+                                    },
+                                    onToggleAsset: toggleSelection,
+                                    onPreview: { previewAsset = AdvancedPreviewAsset(asset: $0, assets: group.assets) }
+                                )
+                                .onAppear {
+                                    showMoreGroupsIfNeeded(currentGroup: group)
                                 }
                             }
+                        }
 
-                            if snapshot.hasMoreGroups {
-                                Text(L10n.string("继续向下滚动加载更多"))
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundColor(PhotoDeleteStyle.secondaryText)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 10)
-                            }
+                        if snapshot.hasMoreGroups {
+                            Text(L10n.string("继续向下滚动加载更多"))
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(PhotoDeleteStyle.secondaryText)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
                         }
                     }
 
@@ -5135,7 +5098,7 @@ private struct AdvancedSimilarPhotoGroupsView: View {
         .advancedDetailNavigation(title: L10n.string("相似照片"))
         .fullScreenCover(isPresented: $showBatchConfirm, onDismiss: {
             syncSelectionWithPendingDeleteCandidates()
-            reloadGeneration += 1
+            reloadGroups()
         }) {
             BatchConfirmView()
                 .environmentObject(dataManager)
@@ -5148,8 +5111,8 @@ private struct AdvancedSimilarPhotoGroupsView: View {
                 selectedAssetIDs: $selectedAssetIDs
             )
         }
-        .task(id: reloadID) {
-            await reloadGroups()
+        .task {
+            reloadGroups()
         }
         .onChange(of: selectedFilter) { _ in
             visibleGroupLimit = groupLimitStep
@@ -5202,20 +5165,8 @@ private struct AdvancedSimilarPhotoGroupsView: View {
         selectedAssetIDs = selectedAssetIDs.filter { pendingDeleteIDs.contains($0) }
     }
 
-    @MainActor
-    private func reloadGroups() async {
-        let requestedReloadID = reloadID
-        isAnalyzing = true
-        analysisProgress = 0
-        selectedAssetIDs.removeAll()
-        let loadedGroups = await dataManager.makeSimilarPhotoGroups(mode: matchMode) { progress in
-            guard requestedReloadID == reloadID, !Task.isCancelled else { return }
-            analysisProgress = progress
-        }
-        guard requestedReloadID == reloadID, !Task.isCancelled else { return }
-        analysisProgress = 1
-        groups = loadedGroups
-        isAnalyzing = false
+    private func reloadGroups() {
+        groups = dataManager.makeSimilarPhotoGroups()
         visibleGroupLimit = groupLimitStep
         pruneSelectionToFilteredGroups()
     }
@@ -5273,49 +5224,6 @@ private struct AdvancedSimilarPhotoGroupsView: View {
     private func pruneSelectionToFilteredGroups() {
         let visibleIDs = Set(makeGroupSnapshot().groups.flatMap { $0.assets.map(\.localIdentifier) })
         selectedAssetIDs = selectedAssetIDs.filter { visibleIDs.contains($0) }
-    }
-}
-
-private struct AdvancedSimilarPhotoAnalysisProgressView: View {
-    let progress: Double
-    let usesVision: Bool
-
-    private var normalizedProgress: Double {
-        min(max(progress, 0), 1)
-    }
-
-    private var percentage: Int64 {
-        Int64((normalizedProgress * 100).rounded())
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.accent)
-
-                Text(String(format: L10n.string("正在分析相似画面 %lld%%"), percentage))
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.primaryText)
-            }
-
-            ProgressView(value: max(normalizedProgress, 0.02))
-                .progressViewStyle(LinearProgressViewStyle(tint: PhotoDeleteStyle.accent))
-                .accessibilityIdentifier("similar-photo-analysis-progress")
-                .accessibilityValue(Text("\(percentage)%"))
-
-            Text(
-                usesVision
-                    ? L10n.string("使用系统 Vision 在本机比对照片，不会上传照片。")
-                    : L10n.string("正在整理拍摄时间和尺寸相近的照片。")
-            )
-            .font(.system(size: 12, weight: .regular))
-            .foregroundColor(PhotoDeleteStyle.secondaryText)
-            .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(16)
-        .photoDeleteCard()
     }
 }
 

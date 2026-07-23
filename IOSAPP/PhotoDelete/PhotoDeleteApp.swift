@@ -120,7 +120,6 @@ private enum PhotoDeleteUITestDefaults {
             AppConstants.customAlbumOrderKey,
             AppConstants.appAppearanceKey,
             AppConstants.appThemeKey,
-            AppConstants.similarPhotoMatchModeKey,
             AppConstants.supporterEntitlementKey,
             AppConstants.supporterPurchaseDateKey,
             AppConstants.supporterProductIDKey,
