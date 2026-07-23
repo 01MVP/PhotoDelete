@@ -107,6 +107,7 @@ final class PurchaseManager: ObservableObject {
     private let productIDs = Array(AppConstants.supporterProductIDs)
     private let userDefaults: UserDefaults
     private let nowProvider: () -> Date
+    private let allowsLocalSupporterTrial: Bool
     private var updatesTask: Task<Void, Never>?
     private var productLoadRequest: (id: UUID, task: Task<[Product], Error>)?
     private var externalEntitlementRefreshTask: Task<Void, Never>?
@@ -151,11 +152,12 @@ final class PurchaseManager: ObservableObject {
     }
 
     var canStartSupporterTrial: Bool {
-        !hasPaidSupporterAccess && supporterTrialStartDate == nil
+        allowsLocalSupporterTrial && !hasPaidSupporterAccess && supporterTrialStartDate == nil
     }
 
     var isSupporterTrialActive: Bool {
-        guard !hasPaidSupporterAccess,
+        guard allowsLocalSupporterTrial,
+              !hasPaidSupporterAccess,
               let supporterTrialEndDate else {
             return false
         }
@@ -198,10 +200,12 @@ final class PurchaseManager: ObservableObject {
     init(
         userDefaults: UserDefaults = .standard,
         nowProvider: @escaping () -> Date = { Date.now },
-        startsStoreKitTasks: Bool = false
+        startsStoreKitTasks: Bool = false,
+        allowsLocalSupporterTrial: Bool = PurchaseManager.defaultAllowsLocalSupporterTrial
     ) {
         self.userDefaults = userDefaults
         self.nowProvider = nowProvider
+        self.allowsLocalSupporterTrial = allowsLocalSupporterTrial
         let cachedProductID = userDefaults.string(forKey: AppConstants.supporterProductIDKey)
         let cachedExpirationDate = userDefaults.object(forKey: AppConstants.supporterExpirationDateKey) as? Date
         let hasCachedEntitlement = SupporterCachedEntitlementPolicy.isValid(
@@ -216,7 +220,7 @@ final class PurchaseManager: ObservableObject {
         self.supporterAccessKind = hasCachedEntitlement
             ? (cachedProductID.flatMap(SupporterAccessKind.init(productID:)) ?? .lifetime)
             : nil
-        if hasCachedEntitlement {
+        if hasCachedEntitlement || !allowsLocalSupporterTrial {
             self.supporterTrialStartDate = nil
             userDefaults.removeObject(forKey: AppConstants.supporterTrialStartDateKey)
         } else {
@@ -236,11 +240,19 @@ final class PurchaseManager: ObservableObject {
     }
 
     func startSupporterTrial() {
-        guard canStartSupporterTrial else { return }
+        guard allowsLocalSupporterTrial, canStartSupporterTrial else { return }
 
         let startDate = nowProvider()
         supporterTrialStartDate = startDate
         userDefaults.set(startDate, forKey: AppConstants.supporterTrialStartDateKey)
+    }
+
+    nonisolated private static var defaultAllowsLocalSupporterTrial: Bool {
+        #if DEBUG
+        true
+        #else
+        false
+        #endif
     }
 
     func activateStoreKit() async {

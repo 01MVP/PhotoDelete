@@ -267,7 +267,11 @@ struct SettingsView: View {
             return L10n.string("3 天体验已结束，可选择年度或永久 Pro")
         }
 
-        return L10n.string("可先免费体验 3 天，也可选择年度或永久 Pro")
+        if purchaseManager.canStartSupporterTrial {
+            return L10n.string("可先免费体验 3 天，也可选择年度或永久 Pro")
+        }
+
+        return L10n.string("可选择年度订阅或一次购买的永久 Pro")
     }
 
     // MARK: - 关于与支持

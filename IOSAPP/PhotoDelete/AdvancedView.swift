@@ -1061,7 +1061,7 @@ private struct AdvancedBottomPaywall: View {
                 onRedeemCode: onRedeemCode
             )
 
-            Text(L10n.string("3 天体验到期不会扣费；年度 Pro 会自动续订，可随时在 Apple ID 设置中取消。基础整理始终免费。"))
+            Text(billingDisclosure)
                 .font(.system(size: 12, weight: .regular))
                 .foregroundColor(PhotoDeleteStyle.secondaryText)
                 .multilineTextAlignment(.center)
@@ -1113,6 +1113,17 @@ private struct AdvancedBottomPaywall: View {
         }
 
         return L10n.string("年度 Pro 解锁完整时间列表、大文件清理、视频压缩、相似照片清理和主题切换。")
+    }
+
+    private var billingDisclosure: String {
+        if canStartTrial {
+            return L10n.string("3 天体验到期不会扣费；年度 Pro 会自动续订，可随时在 Apple ID 设置中取消。基础整理始终免费。")
+        }
+
+        return String(
+            format: L10n.string("年度 Pro 为 %@/年；确认购买后开始计费并自动续订，可随时在 Apple ID 设置中取消。永久 Pro 为一次购买。基础整理始终免费。"),
+            priceText
+        )
     }
 }
 

@@ -43696,6 +43696,46 @@
         }
       }
     },
+    "年度 Pro 为 %@/年；确认购买后开始计费并自动续订，可随时在 Apple ID 设置中取消。永久 Pro 为一次购买。基础整理始终免费。": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "اشتراك Pro السنوي بسعر %@ سنويًا. يبدأ الخصم عند تأكيد الشراء ويتجدد تلقائيًا ما لم يتم إلغاؤه من إعدادات Apple ID. Pro الدائم عملية شراء لمرة واحدة. يظل التنظيم الأساسي مجانيًا."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro jährlich kostet %@ pro Jahr. Die Abrechnung beginnt nach der Kaufbestätigung und verlängert sich automatisch, sofern nicht in den Apple-ID-Einstellungen gekündigt wird. Pro dauerhaft ist ein Einmalkauf. Die Basisbereinigung bleibt kostenlos."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Annual Pro is %@/year. Billing starts when you confirm and renews automatically unless canceled in Apple ID settings. Lifetime Pro is a one-time purchase. Basic cleanup remains free."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "年間 Pro は年額 %@ です。購入を確定すると課金が始まり、Apple ID 設定で解約しない限り自動更新されます。永久 Pro は一度限りの購入です。基本整理は無料です。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "年度 Pro 为 %@/年；确认购买后开始计费并自动续订，可随时在 Apple ID 设置中取消。永久 Pro 为一次购买。基础整理始终免费。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "年度 Pro 為 %@/年；確認購買後開始計費並自動續訂，可隨時在 Apple ID 設定中取消。永久 Pro 為一次購買。基礎整理始終免費。"
+          }
+        }
+      }
+    },
     "开通年度 Pro %@/年": {
       "localizations": {
         "ar": {
@@ -44412,6 +44452,46 @@
           "stringUnit": {
             "state": "translated",
             "value": "可先免費體驗 3 天，也可選擇年度或永久 Pro"
+          }
+        }
+      }
+    },
+    "可选择年度订阅或一次购买的永久 Pro": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "اختر اشتراكًا سنويًا أو Pro الدائم كعملية شراء لمرة واحدة."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wähle ein Jahresabo oder Pro dauerhaft als Einmalkauf."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose an annual subscription or a one-time Lifetime Pro purchase."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "年間サブスクリプション、または一度限りの永久 Pro を選べます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可选择年度订阅或一次购买的永久 Pro"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可選擇年度訂閱或一次購買的永久 Pro"
           }
         }
       }

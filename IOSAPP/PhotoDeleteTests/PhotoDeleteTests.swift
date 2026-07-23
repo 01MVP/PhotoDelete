@@ -768,6 +768,30 @@ struct PhotoDeleteTests {
     }
 
     @MainActor
+    @Test func releaseConfigurationRetiresLegacyLocalTrialWithoutGrantingAccess() async throws {
+        let suiteName = "PhotoDeleteRetiredSupporterTrial-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        defaults.set(Date(), forKey: AppConstants.supporterTrialStartDateKey)
+
+        let manager = PurchaseManager(
+            userDefaults: defaults,
+            startsStoreKitTasks: false,
+            allowsLocalSupporterTrial: false
+        )
+
+        #expect(manager.supporterTrialStartDate == nil)
+        #expect(defaults.object(forKey: AppConstants.supporterTrialStartDateKey) == nil)
+        #expect(!manager.canStartSupporterTrial)
+        #expect(!manager.isUsingTrialSupporterAccess)
+        #expect(!manager.isSupporter)
+
+        manager.startSupporterTrial()
+        #expect(manager.supporterTrialStartDate == nil)
+    }
+
+    @MainActor
     @Test func cachedPaidSupporterDoesNotStartTrial() async throws {
         let suiteName = "PhotoDeletePaidSupporterTrial-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suiteName))
