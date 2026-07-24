@@ -400,6 +400,11 @@ enum AppConstants {
     static let appStoreProductURL = URL(string: "https://apps.apple.com/app/id6779493280")!
     static let appStoreReviewURL = URL(string: "itms-apps://itunes.apple.com/app/id6779493280?action=write-review")!
     static let oneZenAppStoreURL = URL(string: "https://apps.apple.com/cn/app/id6780318004")!
+    static var privacyPolicyURL: URL {
+        let path = AppLanguage.current.usesChineseText ? "privacy/" : "en/privacy/"
+        return URL(string: "https://photodelete.01mvp.com/\(path)")!
+    }
+    static let termsOfUseURL = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
     static let technicalAppName = "PhotoDelete"
     static let zhHansAppStoreName = "删图"
     static let enAppStoreName = "OnePhoto"

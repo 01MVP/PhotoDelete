@@ -1067,6 +1067,8 @@ private struct AdvancedBottomPaywall: View {
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
 
+            SupporterLegalLinksRow()
+
             Button(action: onShowBenefits) {
                 Text(L10n.string("查看年度与永久 Pro 方案"))
                     .font(.system(size: 12, weight: .semibold))

@@ -255,6 +255,8 @@ private struct SupporterBottomActionBar: View {
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
 
+            SupporterLegalLinksRow()
+
             if let statusMessage {
                 Text(statusMessage)
                     .font(.system(size: 12, weight: .regular))
@@ -413,6 +415,23 @@ struct SupporterPurchaseAuxiliaryActionsRow: View {
         }
         .buttonStyle(.plain)
         .disabled(isLoading)
+    }
+}
+
+struct SupporterLegalLinksRow: View {
+    var body: some View {
+        HStack(spacing: 8) {
+            Link(L10n.string("隐私政策"), destination: AppConstants.privacyPolicyURL)
+                .accessibilityIdentifier("supporter-privacy-policy-link")
+
+            Text("·")
+                .accessibilityHidden(true)
+
+            Link(L10n.string("使用条款"), destination: AppConstants.termsOfUseURL)
+                .accessibilityIdentifier("supporter-terms-of-use-link")
+        }
+        .font(.system(size: 12, weight: .semibold))
+        .foregroundColor(PhotoDeleteStyle.secondaryText)
     }
 }
 

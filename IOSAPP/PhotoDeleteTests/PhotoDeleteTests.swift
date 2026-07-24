@@ -576,6 +576,8 @@ struct PhotoDeleteTests {
         #expect(AppConstants.appStoreReviewURL.absoluteString.contains(AppConstants.appStoreID))
         #expect(AppConstants.appStoreReviewURL.absoluteString.contains("action=write-review"))
         #expect(AppConstants.appStoreProductURL.absoluteString.contains(AppConstants.appStoreID))
+        #expect(AppConstants.privacyPolicyURL.scheme == "https")
+        #expect(AppConstants.termsOfUseURL.host == "www.apple.com")
     }
 
     @Test func supporterEntitlementStateOnlyUnlocksVerifiedOrCachedOffline() async throws {

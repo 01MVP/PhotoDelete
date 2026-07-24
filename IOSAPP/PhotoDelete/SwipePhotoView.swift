@@ -383,6 +383,7 @@ struct SwipePhotoView: View {
     @State private var pendingDeleteCount = 0
     @State private var pendingFavoriteCount = 0
     @State private var favoriteMutationTargets: [String: Bool] = [:]
+    @State private var queuedFavoriteMutationTargets: [String: Bool] = [:]
     @State private var pendingSwipeMutations: [String: PendingSwipeMutation] = [:]
     @State private var sessionProgressSaveWorkItem: DispatchWorkItem?
     @State private var previewAsset: CandidatePreviewAsset?
@@ -640,11 +641,15 @@ struct SwipePhotoView: View {
     }
 
     private var canPerformPhotoAction: Bool {
+        canPerformPhotoAction(.keep)
+    }
+
+    private func canPerformPhotoAction(_ action: SwipeGestureAction) -> Bool {
         currentRealPhoto != nil &&
             !showCompletionMessage &&
             !isCurrentPhotoBeingFiled &&
             !isCurrentPhotoBeingRemovedFromAlbum &&
-            canStartReviewAction
+            canStartReviewAction(action)
     }
 
     private var canStartReviewAction: Bool {
@@ -652,6 +657,14 @@ struct SwipePhotoView: View {
             isUndoInProgress: isUndoInProgress,
             pendingFavoriteMutationCount: favoriteMutationTargets.count
         )
+    }
+
+    private func canStartReviewAction(_ action: SwipeGestureAction) -> Bool {
+        if action == .favorite ||
+            (action == .close && albumReviewDownSwipeBehavior == .removeFromFavorites) {
+            return !isUndoInProgress
+        }
+        return canStartReviewAction
     }
 
     private var reviewMode: PhotoReviewMode {
@@ -2678,8 +2691,7 @@ struct SwipePhotoView: View {
             return
         }
 
-        guard canPerformPhotoAction,
-              let asset = currentRealPhoto,
+        guard let asset = currentRealPhoto,
               isValidPhotoIndex(currentPhotoIndex) else {
             resetCardPosition()
             return
@@ -2690,6 +2702,10 @@ struct SwipePhotoView: View {
             predictedEndTranslation: predictedEndTranslation
         ) {
             let action = configuredAction(for: direction)
+            guard canPerformPhotoAction(action) else {
+                resetCardPosition()
+                return
+            }
             completeCommittedSwipe(action: action, asset: asset)
             return
         }
@@ -2728,7 +2744,7 @@ struct SwipePhotoView: View {
     private func completeCommittedSwipe(action: SwipeGestureAction, asset: PHAsset) {
         hasPreparedSwipeCommit = false
         clearDragOffsetWithoutAnimation()
-        guard canStartReviewAction else { return }
+        guard canStartReviewAction(action) else { return }
         performConfiguredSwipeAction(action, asset: asset)
     }
 
@@ -3088,7 +3104,7 @@ struct SwipePhotoView: View {
     }
 
     private func handleFavoriteAction() {
-        guard canPerformPhotoAction, let asset = currentRealPhoto else { return }
+        guard canPerformPhotoAction(.favorite), let asset = currentRealPhoto else { return }
         toggleFavoriteStatus(asset)
     }
 
@@ -3281,7 +3297,14 @@ struct SwipePhotoView: View {
 
     private func setFavoriteStatus(_ asset: PHAsset, to targetStatus: Bool) {
         let assetID = asset.localIdentifier
-        guard favoriteMutationTargets[assetID] == nil else { return }
+        if let inFlightTarget = favoriteMutationTargets[assetID] {
+            if targetStatus == inFlightTarget {
+                queuedFavoriteMutationTargets.removeValue(forKey: assetID)
+            } else {
+                queuedFavoriteMutationTargets[assetID] = targetStatus
+            }
+            return
+        }
 
         let previousStatus = effectiveFavoriteStatus(for: asset)
         guard previousStatus != targetStatus else { return }
@@ -3294,6 +3317,7 @@ struct SwipePhotoView: View {
         favoriteMutationTargets[assetID] = targetStatus
         dataManager.setPhotoFavoriteImmediately(asset, isFavorite: targetStatus) { success in
             favoriteMutationTargets.removeValue(forKey: assetID)
+            let queuedTarget = queuedFavoriteMutationTargets.removeValue(forKey: assetID)
             if success {
                 actionHistory.append(.favorite(
                     asset,
@@ -3316,6 +3340,9 @@ struct SwipePhotoView: View {
                     icon: "exclamationmark.triangle",
                     style: .warning
                 )
+            }
+            if let queuedTarget {
+                setFavoriteStatus(asset, to: queuedTarget)
             }
         }
     }
@@ -3353,6 +3380,9 @@ struct SwipePhotoView: View {
     }
 
     private func effectiveFavoriteStatus(for asset: PHAsset) -> Bool {
+        if let queuedTargetStatus = queuedFavoriteMutationTargets[asset.localIdentifier] {
+            return queuedTargetStatus
+        }
         if let targetStatus = favoriteMutationTargets[asset.localIdentifier] {
             return targetStatus
         }

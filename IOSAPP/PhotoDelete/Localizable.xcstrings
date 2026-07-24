@@ -1,6 +1,26 @@
 {
   "sourceLanguage": "zh-Hans",
   "strings": {
+    "使用条款": {
+      "localizations": {
+        "ar": { "stringUnit": { "state": "translated", "value": "شروط الاستخدام" } },
+        "de": { "stringUnit": { "state": "translated", "value": "Nutzungsbedingungen" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Terms of Use" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "利用規約" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "使用条款" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "使用條款" } }
+      }
+    },
+    "隐私政策": {
+      "localizations": {
+        "ar": { "stringUnit": { "state": "translated", "value": "سياسة الخصوصية" } },
+        "de": { "stringUnit": { "state": "translated", "value": "Datenschutzrichtlinie" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Privacy Policy" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "プライバシーポリシー" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "隐私政策" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "隱私權政策" } }
+      }
+    },
     "查看价格": {
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "View Price" } },

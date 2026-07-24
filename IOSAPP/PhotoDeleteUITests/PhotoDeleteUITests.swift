@@ -86,6 +86,8 @@ final class PhotoDeleteUITests: XCTestCase {
         lifetimePlan.tap()
         XCTAssertNotNil(waitForAnyElementLabelContaining(in: app, substring: "解锁永久 Pro", timeout: 5))
         XCTAssertTrue(app.buttons["恢复购买"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["supporter-privacy-policy-link"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["supporter-terms-of-use-link"].exists)
     }
 
     @MainActor
@@ -247,6 +249,18 @@ final class PhotoDeleteUITests: XCTestCase {
             return
         }
         startCleanupButton.tap()
+
+        if let existingUnfavoriteButton = waitForHittableButton(in: app, label: "取消收藏", timeout: 3) {
+            existingUnfavoriteButton.tap()
+            XCTAssertTrue(
+                app.staticTexts["已取消收藏"].waitForExistence(timeout: 10),
+                "Expected test setup favorite mutation to finish"
+            )
+            XCTAssertNotNil(
+                waitForHittableButton(in: app, label: "收藏", timeout: 10),
+                "Expected test setup to normalize the current photo to unfavorited"
+            )
+        }
 
         guard let favoriteButton = waitForHittableButton(in: app, label: "收藏", timeout: 30) else {
             XCTFail("Expected a favorite button in review")
