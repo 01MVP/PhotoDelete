@@ -34,8 +34,6 @@ struct AlbumsView: View {
     @State private var sortMode: AlbumSortMode = .custom
     @State private var editMode: EditMode = .inactive
     @State private var albumToast: PhotoDeleteToast?
-    @State private var albumProgressByID: [String: AlbumProgressSnapshot] = [:]
-    @State private var albumProgressGeneration = 0
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
@@ -98,10 +96,6 @@ struct AlbumsView: View {
         }
         .onAppear {
             dataManager.loadAlbumsIfNeeded()
-            refreshAlbumProgress()
-        }
-        .onChange(of: albumProgressRefreshToken) { _ in
-            refreshAlbumProgress()
         }
     }
 
@@ -238,8 +232,9 @@ struct AlbumsView: View {
                             }
                         }
 
-                        ForEach(userAlbums) { albumInfo in
+                        ForEach(userAlbums, id: \.id) { albumInfo in
                             albumRow(albumInfo, allowsActions: true)
+                                .id(albumInfo.id)
                         }
                         .onMove(perform: moveUserAlbums)
                     }
@@ -349,19 +344,35 @@ struct AlbumsView: View {
             AlbumInfoRow(
                 albumInfo: albumInfo,
                 photoLibraryManager: dataManager.photoLibraryManager,
-                progress: albumProgressByID[albumInfo.id],
                 showsChevron: editMode != .active
             )
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .simultaneousGesture(
-            LongPressGesture(minimumDuration: 0.55)
-                .onEnded { _ in
+        .contextMenu {
+            if editMode != .active {
+                Button {
                     startReorderingFromAlbumRow()
+                } label: {
+                    Label(L10n.string("调整顺序"), systemImage: "line.3.horizontal")
                 }
-        )
+            }
+
+            if canEditAlbum {
+                Button {
+                    editAlbum(albumInfo)
+                } label: {
+                    Label(L10n.string("编辑"), systemImage: "pencil")
+                }
+
+                Button(role: .destructive) {
+                    deleteAlbum(albumInfo)
+                } label: {
+                    Label(L10n.string("删除"), systemImage: "trash")
+                }
+            }
+        }
         .accessibilityHint(L10n.string("点按整理这个相册，长按调整排序"))
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             if canEditAlbum {
@@ -433,12 +444,6 @@ struct AlbumsView: View {
         filteredAlbums(dataManager.getUserAlbums())
     }
 
-    private var albumProgressRefreshToken: [String] {
-        dataManager.userAlbums.map { album in
-            "\(album.id)|\(album.title)|\(album.photosCount)|\(album.thumbnailAsset?.localIdentifier ?? "")"
-        }
-    }
-
     private var shouldShowAlbumSwipeHint: Bool {
         !hasDismissedAlbumSwipeHint &&
             searchText.isEmpty &&
@@ -497,11 +502,6 @@ struct AlbumsView: View {
         albums.move(fromOffsets: source, toOffset: destination)
         dataManager.saveCustomAlbumOrder(albums.map(\.id))
         HapticManager.impact(.light)
-    }
-
-    private func refreshAlbumProgress() {
-        albumProgressGeneration += 1
-        albumProgressByID = [:]
     }
 
     private func openAlbum(_ albumInfo: AlbumInfo) {
@@ -744,11 +744,14 @@ struct AlbumProgressSnapshot: Equatable {
 struct AlbumInfoRow: View {
     let albumInfo: AlbumInfo
     let photoLibraryManager: PhotoLibraryManager
-    let progress: AlbumProgressSnapshot?
+    var progress: AlbumProgressSnapshot? = nil
     var showsChevron = true
 
     @State private var thumbnailImage: UIImage?
     @State private var requestID: PHImageRequestID?
+    @State private var loadedThumbnailAssetID: String?
+
+    private static let thumbnailPixelSize = CGSize(width: 72, height: 72)
 
     var body: some View {
         rowContent
@@ -756,35 +759,22 @@ struct AlbumInfoRow: View {
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
         .onAppear {
-            loadAlbumThumbnail()
+            loadAlbumThumbnailIfNeeded()
+        }
+        .onChange(of: albumInfo.thumbnailAsset?.localIdentifier) { _ in
+            cancelThumbnailRequest()
+            thumbnailImage = nil
+            loadedThumbnailAssetID = nil
+            loadAlbumThumbnailIfNeeded()
         }
         .onDisappear {
-            if let requestID { photoLibraryManager.cancelImageRequest(requestID) }
+            cancelThumbnailRequest()
         }
     }
 
     private var rowContent: some View {
         HStack(spacing: 9) {
-            Group {
-                if let image = thumbnailImage {
-                    Image(uiImage: image)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 36, height: 36)
-                        .clipped()
-                        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-                } else {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .fill(PhotoDeleteStyle.elevatedSurface)
-                            .frame(width: 36, height: 36)
-
-                        Image(systemName: albumInfo.type.icon)
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundColor(albumIconTint)
-                    }
-                }
-            }
+            albumThumbnail
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(albumInfo.title)
@@ -797,7 +787,7 @@ struct AlbumInfoRow: View {
                     .foregroundColor(PhotoDeleteStyle.secondaryText)
             }
 
-            Spacer()
+            Spacer(minLength: 8)
 
             if let progressText {
                 Text(progressText)
@@ -818,12 +808,51 @@ struct AlbumInfoRow: View {
         .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
     }
 
-    private func loadAlbumThumbnail() {
-        if let thumbnailAsset = albumInfo.thumbnailAsset {
-            requestID = photoLibraryManager.loadImage(for: thumbnailAsset, size: CGSize(width: 120, height: 120)) { image in
-                self.thumbnailImage = image
+    @ViewBuilder
+    private var albumThumbnail: some View {
+        if let image = thumbnailImage {
+            Image(uiImage: image)
+                .resizable()
+                .interpolation(.medium)
+                .aspectRatio(contentMode: .fill)
+                .frame(width: 36, height: 36)
+                .clipped()
+                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        } else {
+            ZStack {
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(PhotoDeleteStyle.elevatedSurface)
+                    .frame(width: 36, height: 36)
+
+                Image(systemName: albumInfo.type.icon)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundColor(albumIconTint)
             }
         }
+    }
+
+    private func loadAlbumThumbnailIfNeeded() {
+        guard let thumbnailAsset = albumInfo.thumbnailAsset else { return }
+        let assetID = thumbnailAsset.localIdentifier
+        if loadedThumbnailAssetID == assetID, thumbnailImage != nil { return }
+
+        cancelThumbnailRequest()
+        requestID = photoLibraryManager.loadAlbumListThumbnail(
+            for: thumbnailAsset,
+            size: Self.thumbnailPixelSize
+        ) { image in
+            guard let image else { return }
+            self.thumbnailImage = image
+            self.loadedThumbnailAssetID = assetID
+            self.requestID = nil
+        }
+    }
+
+    private func cancelThumbnailRequest() {
+        if let requestID {
+            photoLibraryManager.cancelImageRequest(requestID)
+        }
+        requestID = nil
     }
 
     private var albumIconTint: Color {

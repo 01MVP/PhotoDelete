@@ -542,6 +542,12 @@ struct PhotoDeleteTests {
             hasLoadedAlbumMembership: false,
             isFetchingAlbums: true
         ))
+        #expect(!AlbumLoadNeededPolicy.shouldLoad(
+            hasLoadedAlbums: true,
+            hasLoadedAlbumMembership: false,
+            isFetchingAlbums: false,
+            isFetchingAlbumMembership: true
+        ))
     }
 
     @Test func appLanguageSupportsMainLocalizedLanguages() async throws {

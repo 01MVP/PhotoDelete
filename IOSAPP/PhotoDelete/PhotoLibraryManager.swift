@@ -1242,6 +1242,47 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         }
     }
 
+    /// Lightweight local-first thumbnail loader for dense album lists.
+    @discardableResult
+    func loadAlbumListThumbnail(
+        for asset: PHAsset,
+        size: CGSize,
+        completion: @escaping (UIImage?) -> Void
+    ) -> PHImageRequestID? {
+        let cacheKey = imageCacheKey(for: asset, purpose: "albumList", size: size)
+
+        if let cachedImage = imageCache.object(forKey: cacheKey) {
+            completion(cachedImage)
+            return nil
+        }
+
+        let options = PHImageRequestOptions()
+        options.deliveryMode = .fastFormat
+        options.resizeMode = .fast
+        options.isNetworkAccessAllowed = false
+        options.isSynchronous = false
+
+        return imageManager.requestImage(
+            for: asset,
+            targetSize: size,
+            contentMode: .aspectFill,
+            options: options
+        ) { [weak self] image, info in
+            DispatchQueue.main.async {
+                let isCancelled = (info?[PHImageCancelledKey] as? Bool) == true
+                let isDegraded = (info?[PHImageResultIsDegradedKey] as? Bool) == true
+                guard !isCancelled else { return }
+
+                if let image {
+                    self?.cacheImage(image, forKey: cacheKey, isDegraded: isDegraded)
+                    completion(image)
+                } else {
+                    completion(nil)
+                }
+            }
+        }
+    }
+
     @discardableResult
     func loadSwipePreview(for asset: PHAsset, size: CGSize, completion: @escaping (UIImage?) -> Void) -> PHImageRequestID? {
         let cacheKey = imageCacheKey(for: asset, purpose: "swipe", size: size)

@@ -133,9 +133,10 @@ enum AlbumLoadNeededPolicy {
     static func shouldLoad(
         hasLoadedAlbums: Bool,
         hasLoadedAlbumMembership: Bool,
-        isFetchingAlbums: Bool
+        isFetchingAlbums: Bool,
+        isFetchingAlbumMembership: Bool = false
     ) -> Bool {
-        guard !isFetchingAlbums else { return false }
+        guard !isFetchingAlbums, !isFetchingAlbumMembership else { return false }
         return !hasLoadedAlbums || !hasLoadedAlbumMembership
     }
 }
@@ -193,6 +194,7 @@ class DataManager: ObservableObject {
     private var isReloadingLibrary = false
     private var hasLoadedAlbums = false
     private var isFetchingAlbums = false
+    private var isFetchingAlbumMembership = false
     private var pendingAlbumRefresh = false
     private var pendingAlbumRefreshShouldShowLoading = false
     private var isCommittingLegacyFavoriteCandidates = false
@@ -1068,6 +1070,7 @@ class DataManager: ObservableObject {
         hasLoadedAlbums = false
         isLoadingAlbums = false
         isFetchingAlbums = false
+        isFetchingAlbumMembership = false
         albumLoadingProgress = 0
     }
 
@@ -2816,7 +2819,8 @@ class DataManager: ObservableObject {
         guard AlbumLoadNeededPolicy.shouldLoad(
             hasLoadedAlbums: hasLoadedAlbums,
             hasLoadedAlbumMembership: hasLoadedAlbumMembership,
-            isFetchingAlbums: isFetchingAlbums
+            isFetchingAlbums: isFetchingAlbums,
+            isFetchingAlbumMembership: isFetchingAlbumMembership
         ) else { return }
 
         if !hasLoadedAlbums, restoreCachedAlbums() {
@@ -2836,6 +2840,7 @@ class DataManager: ObservableObject {
             isLoadingAlbums = false
             hasLoadedAlbums = false
             isFetchingAlbums = false
+            isFetchingAlbumMembership = false
             pendingAlbumRefresh = false
             pendingAlbumRefreshShouldShowLoading = false
             albumLoadingProgress = 0
@@ -2872,8 +2877,7 @@ class DataManager: ObservableObject {
 
             var systemAlbums: [AlbumInfo] = []
             var userAlbums: [AlbumInfo] = []
-            var albumMembershipCountsByAssetID: [String: Int] = [:]
-            var albumTitlesByAssetID: [String: [String]] = [:]
+            var userCollectionsForMembership: [PHAssetCollection] = []
 
             // 系统相册
             let smartAlbumTypes: [PHAssetCollectionSubtype] = [
@@ -2890,18 +2894,20 @@ class DataManager: ObservableObject {
                 subtype: .any,
                 options: nil
             )
+            // Fast path: only count + cover per album so the list can scroll quickly.
+            // Membership scanning is deferred after the list is published.
             let totalSteps = max(smartAlbumTypes.count + userCollections.count, 1)
             var completedSteps = 0
             var lastPublishedProgress = 0.0
 
-            func publishProgress() {
+            func publishProgress(scale: Double = 0.7) {
                 completedSteps += 1
                 guard AlbumScanProgressPublishPolicy.shouldPublish(
                     completedSteps: completedSteps,
                     totalSteps: totalSteps,
                     lastPublishedProgress: lastPublishedProgress
                 ) else { return }
-                let progress = min(Double(completedSteps) / Double(totalSteps), 0.98)
+                let progress = min(Double(completedSteps) / Double(totalSteps) * scale, scale)
                 lastPublishedProgress = progress
                 DispatchQueue.main.async {
                     if shouldShowLoading {
@@ -2918,12 +2924,11 @@ class DataManager: ObservableObject {
                 )
 
                 collections.enumerateObjects { collection, _, _ in
-                    let fetchOptions = PHFetchOptions()
-                    let assets = PHAsset.fetchAssets(in: collection, options: fetchOptions)
+                    let assets = PHAsset.fetchAssets(in: collection, options: nil)
 
                     if assets.count > 0 {
                         let albumType = self.getAlbumType(for: subtype)
-                        let thumbnailAsset = assets.firstObject
+                        let thumbnailAsset = self.firstAsset(in: collection)
                         let albumInfo = AlbumInfo(
                             assetCollection: collection,
                             type: albumType,
@@ -2936,25 +2941,19 @@ class DataManager: ObservableObject {
                 publishProgress()
             }
 
-            // 用户创建的相册
+            // 用户创建的相册：先快速拿到标题/数量/封面，立刻刷新列表
             userCollections.enumerateObjects { collection, _, _ in
-                let albumData = self.makeUserAlbumInfoAndAssetIdentifiers(from: collection)
-                userAlbums.append(albumData.albumInfo)
-                for identifier in albumData.assetIdentifiers {
-                    albumMembershipCountsByAssetID[identifier, default: 0] += 1
-                    albumTitlesByAssetID[identifier, default: []].append(albumData.albumInfo.title)
-                }
+                userCollectionsForMembership.append(collection)
+                userAlbums.append(self.makeUserAlbumInfo(from: collection))
                 publishProgress()
             }
 
             DispatchQueue.main.async {
                 self.systemAlbums = systemAlbums
                 self.userAlbums = userAlbums
-                self.setAlbumMembershipCounts(albumMembershipCountsByAssetID)
-                self.albumTitlesByAssetID = albumTitlesByAssetID.mapValues { Array(Set($0)).sorted() }
                 self.hasLoadedAlbums = true
                 self.isFetchingAlbums = false
-                self.albumLoadingProgress = 1
+                self.albumLoadingProgress = max(self.albumLoadingProgress, 0.72)
                 self.isLoadingAlbums = false
                 self.saveAlbumSnapshot()
                 if self.pendingAlbumRefresh {
@@ -2962,7 +2961,61 @@ class DataManager: ObservableObject {
                     self.pendingAlbumRefresh = false
                     self.pendingAlbumRefreshShouldShowLoading = false
                     self.loadAlbums(showLoading: showPendingLoading)
+                    return
                 }
+
+                self.loadAlbumMembershipInBackground(from: userCollectionsForMembership)
+            }
+        }
+    }
+
+    private func loadAlbumMembershipInBackground(from collections: [PHAssetCollection]) {
+        guard !isFetchingAlbumMembership else { return }
+
+        guard !collections.isEmpty else {
+            setAlbumMembershipCounts([:])
+            albumTitlesByAssetID = [:]
+            albumLoadingProgress = 1
+            return
+        }
+
+        isFetchingAlbumMembership = true
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            guard let self else { return }
+
+            var albumMembershipCountsByAssetID: [String: Int] = [:]
+            var albumTitlesByAssetID: [String: [String]] = [:]
+            let totalSteps = max(collections.count, 1)
+            var completedSteps = 0
+            var lastPublishedProgress = 0.72
+
+            for collection in collections {
+                let albumData = self.makeUserAlbumInfoAndAssetIdentifiers(from: collection)
+                for identifier in albumData.assetIdentifiers {
+                    albumMembershipCountsByAssetID[identifier, default: 0] += 1
+                    albumTitlesByAssetID[identifier, default: []].append(albumData.albumInfo.title)
+                }
+
+                completedSteps += 1
+                if AlbumScanProgressPublishPolicy.shouldPublish(
+                    completedSteps: completedSteps,
+                    totalSteps: totalSteps,
+                    lastPublishedProgress: lastPublishedProgress
+                ) {
+                    let progress = 0.72 + (Double(completedSteps) / Double(totalSteps) * 0.27)
+                    lastPublishedProgress = progress
+                    DispatchQueue.main.async {
+                        self.albumLoadingProgress = max(self.albumLoadingProgress, progress)
+                    }
+                }
+            }
+
+            let sortedTitles = albumTitlesByAssetID.mapValues { Array(Set($0)).sorted() }
+            DispatchQueue.main.async {
+                self.setAlbumMembershipCounts(albumMembershipCountsByAssetID)
+                self.albumTitlesByAssetID = sortedTitles
+                self.albumLoadingProgress = 1
+                self.isFetchingAlbumMembership = false
             }
         }
     }
@@ -3023,7 +3076,20 @@ class DataManager: ObservableObject {
     }
 
     private func makeUserAlbumInfo(from collection: PHAssetCollection) -> AlbumInfo {
-        makeUserAlbumInfoAndAssetIdentifiers(from: collection).albumInfo
+        let assets = PHAsset.fetchAssets(in: collection, options: nil)
+        return AlbumInfo(
+            assetCollection: collection,
+            type: .userCreated,
+            photosCount: assets.count,
+            thumbnailAsset: firstAsset(in: collection)
+        )
+    }
+
+    private func firstAsset(in collection: PHAssetCollection) -> PHAsset? {
+        let fetchOptions = PHFetchOptions()
+        fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+        fetchOptions.fetchLimit = 1
+        return PHAsset.fetchAssets(in: collection, options: fetchOptions).firstObject
     }
 
     private func makeUserAlbumInfoAndAssetIdentifiers(from collection: PHAssetCollection) -> (albumInfo: AlbumInfo, assetIdentifiers: [String]) {

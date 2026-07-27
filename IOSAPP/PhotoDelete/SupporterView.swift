@@ -32,7 +32,7 @@ struct SupporterView: View {
     }
 
     private var contentBottomPadding: CGFloat {
-        showsBottomActionBar ? 300 : 40
+        showsBottomActionBar ? 320 : 40
     }
 
     var body: some View {
@@ -47,7 +47,13 @@ struct SupporterView: View {
                                 purchaseDate: purchaseManager.supporterPurchaseDate,
                                 expirationDate: purchaseManager.supporterExpirationDate,
                                 accessKind: purchaseManager.supporterAccessKind,
-                                accessNotice: purchaseManager.isUsingCachedSupporterAccess ? entitlementStatusMessage : nil
+                                accessNotice: purchaseManager.isUsingCachedSupporterAccess ? entitlementStatusMessage : nil,
+                                isLoading: purchaseManager.isLoading,
+                                errorMessage: purchaseManager.errorMessage,
+                                onRestore: {
+                                    Task { await purchaseManager.restorePurchases() }
+                                },
+                                onRedeemCode: presentOfferCodeRedemption
                             )
                         } else if purchaseManager.isUsingTrialSupporterAccess {
                             SupporterTrialContent(
@@ -86,16 +92,22 @@ struct SupporterView: View {
                         onRestore: {
                             Task { await purchaseManager.restorePurchases() }
                         },
-                        onRedeemCode: {
-                            showingOfferCodeRedemption = true
-                        }
+                        onRedeemCode: presentOfferCodeRedemption
                     )
                 }
             }
             .navigationTitle(L10n.string("OnePhoto Pro"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    if #available(iOS 16.3, *) {
+                        Button(L10n.string("兑换代码")) {
+                            presentOfferCodeRedemption()
+                        }
+                        .foregroundColor(PhotoDeleteStyle.accent)
+                        .accessibilityIdentifier("supporter-redeem-code-button")
+                    }
+
                     Button(L10n.string("完成")) {
                         dismiss()
                     }
@@ -109,6 +121,10 @@ struct SupporterView: View {
         .offerCodeRedemption(isPresented: $showingOfferCodeRedemption) { result in
             purchaseManager.handleOfferCodeRedemptionCompletion(result)
         }
+    }
+
+    private func presentOfferCodeRedemption() {
+        showingOfferCodeRedemption = true
     }
 }
 
@@ -207,76 +223,79 @@ private struct SupporterBottomActionBar: View {
     let onRedeemCode: () -> Void
 
     var body: some View {
-        VStack(spacing: 11) {
-            Capsule(style: .continuous)
-                .fill(PhotoDeleteStyle.hairline)
-                .frame(width: 38, height: 4)
-                .padding(.bottom, 2)
+        ScrollView {
+            VStack(spacing: 11) {
+                Capsule(style: .continuous)
+                    .fill(PhotoDeleteStyle.hairline)
+                    .frame(width: 38, height: 4)
+                    .padding(.bottom, 2)
 
-            HStack(spacing: 10) {
-                planButton(
-                    plan: .annual,
-                    title: L10n.string("年度 Pro"),
-                    price: annualPriceText,
-                    detail: L10n.string("每年 · 自动续订")
-                )
-                planButton(
-                    plan: .lifetime,
-                    title: L10n.string("永久 Pro"),
-                    price: lifetimePriceText,
-                    detail: L10n.string("一次购买 · 永久使用")
-                )
-            }
-
-            if isTrialActive {
-                purchaseButton(style: .primary)
-            } else if canStartTrial {
-                Button(action: onStartTrial) {
-                    Label(L10n.string("开始 3 天免费体验"), systemImage: "timer")
-                        .labelStyle(.titleAndIcon)
+                HStack(spacing: 10) {
+                    planButton(
+                        plan: .annual,
+                        title: L10n.string("年度 Pro"),
+                        price: annualPriceText,
+                        detail: L10n.string("每年 · 自动续订")
+                    )
+                    planButton(
+                        plan: .lifetime,
+                        title: L10n.string("永久 Pro"),
+                        price: lifetimePriceText,
+                        detail: L10n.string("一次购买 · 永久使用")
+                    )
                 }
-                .photoDeletePrimaryButton()
-                .disabled(isLoading)
 
-                purchaseButton(style: .secondary)
-            } else {
-                purchaseButton(style: .primary)
-            }
+                if isTrialActive {
+                    purchaseButton(style: .primary)
+                } else if canStartTrial {
+                    Button(action: onStartTrial) {
+                        Label(L10n.string("开始 3 天免费体验"), systemImage: "timer")
+                            .labelStyle(.titleAndIcon)
+                    }
+                    .photoDeletePrimaryButton()
+                    .disabled(isLoading)
 
-            SupporterPurchaseAuxiliaryActionsRow(
-                isLoading: isLoading,
-                onRestore: onRestore,
-                onRedeemCode: onRedeemCode
-            )
+                    purchaseButton(style: .secondary)
+                } else {
+                    purchaseButton(style: .primary)
+                }
 
-            Text(billingDisclosure)
-                .font(.system(size: 12, weight: .regular))
-                .foregroundColor(PhotoDeleteStyle.secondaryText)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
+                SupporterPurchaseAuxiliaryActionsRow(
+                    isLoading: isLoading,
+                    onRestore: onRestore,
+                    onRedeemCode: onRedeemCode
+                )
 
-            SupporterLegalLinksRow()
-
-            if let statusMessage {
-                Text(statusMessage)
+                Text(billingDisclosure)
                     .font(.system(size: 12, weight: .regular))
                     .foregroundColor(PhotoDeleteStyle.secondaryText)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
-            }
 
-            if let errorMessage {
-                Text(errorMessage)
-                    .font(.system(size: 12, weight: .regular))
-                    .foregroundColor(PhotoDeleteStyle.warning)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
+                SupporterLegalLinksRow()
+
+                if let statusMessage {
+                    Text(statusMessage)
+                        .font(.system(size: 12, weight: .regular))
+                        .foregroundColor(PhotoDeleteStyle.secondaryText)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(.system(size: 12, weight: .regular))
+                        .foregroundColor(PhotoDeleteStyle.warning)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
+            .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
+            .padding(.top, 14)
+            .padding(.bottom, 18)
+            .frame(maxWidth: .infinity)
         }
-        .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
-        .padding(.top, 14)
-        .padding(.bottom, 18)
-        .frame(maxWidth: .infinity)
+        .frame(maxHeight: 360)
         .background(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .fill(PhotoDeleteStyle.background.opacity(0.98))
@@ -380,7 +399,7 @@ struct SupporterPurchaseAuxiliaryActionsRow: View {
     let onRedeemCode: () -> Void
 
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 10) {
             auxiliaryButton(
                 title: L10n.string("恢复购买"),
                 systemImage: "arrow.clockwise",
@@ -388,15 +407,12 @@ struct SupporterPurchaseAuxiliaryActionsRow: View {
             )
 
             if #available(iOS 16.3, *) {
-                Rectangle()
-                    .fill(PhotoDeleteStyle.hairline)
-                    .frame(width: 1, height: 14)
-
                 auxiliaryButton(
                     title: L10n.string("兑换代码"),
                     systemImage: "ticket",
                     action: onRedeemCode
                 )
+                .accessibilityIdentifier("supporter-redeem-code-action")
             }
         }
     }
@@ -412,9 +428,19 @@ struct SupporterPurchaseAuxiliaryActionsRow: View {
                 .foregroundColor(PhotoDeleteStyle.accent)
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)
+                .frame(maxWidth: .infinity, minHeight: 40)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(PhotoDeleteStyle.elevatedSurface)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(PhotoDeleteStyle.hairline, lineWidth: 1)
+                        )
+                )
         }
         .buttonStyle(.plain)
         .disabled(isLoading)
+        .accessibilityLabel(title)
     }
 }
 
@@ -458,6 +484,10 @@ private struct SupporterUnlockedContent: View {
     let expirationDate: Date?
     let accessKind: SupporterAccessKind?
     let accessNotice: String?
+    let isLoading: Bool
+    let errorMessage: String?
+    let onRestore: () -> Void
+    let onRedeemCode: () -> Void
 
     var body: some View {
         VStack(spacing: 20) {
@@ -472,6 +502,24 @@ private struct SupporterUnlockedContent: View {
             if let accessNotice {
                 SupporterEntitlementNotice(message: accessNotice)
             }
+
+            VStack(spacing: 10) {
+                SupporterPurchaseAuxiliaryActionsRow(
+                    isLoading: isLoading,
+                    onRestore: onRestore,
+                    onRedeemCode: onRedeemCode
+                )
+
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(.system(size: 12, weight: .regular))
+                        .foregroundColor(PhotoDeleteStyle.warning)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(16)
+            .photoDeleteCard()
 
             SupporterPlanComparisonCard()
         }
