@@ -45543,6 +45543,424 @@
           }
         }
       }
+    },
+    "更多 App": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "More Apps"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更多 App"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更多 App"
+          }
+        }
+      }
+    },
+    "系列简洁好用的 App": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A series of simple, useful apps"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "系列简洁好用的 App"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "系列簡潔好用的 App"
+          }
+        }
+      }
+    },
+    "打开完整的 App 列表": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens the full app list"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开完整的 App 列表"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打開完整的 App 列表"
+          }
+        }
+      }
+    },
+    "独立小而美的 App，专注、私密、好用。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Independent, focused apps that are private and easy to use."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "独立小而美的 App，专注、私密、好用。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "獨立小而美的 App，專注、私密、好用。"
+          }
+        }
+      }
+    },
+    "每个 App 只解决一个小痛点，基础功能无广告、无限制。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Each app solves one small pain point, with unlimited core features and no ads."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每个 App 只解决一个小痛点，基础功能无广告、无限制。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每個 App 只解決一個小痛點，基礎功能無廣告、無限制。"
+          }
+        }
+      }
+    },
+    "访问 OneApps.Studio": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Visit OneApps.Studio"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "访问 OneApps.Studio"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "造訪 OneApps.Studio"
+          }
+        }
+      }
+    },
+    "在 App Store 查看": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View on the App Store"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 App Store 查看"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 App Store 查看"
+          }
+        }
+      }
+    },
+    "查看产品页": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View product page"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看产品页"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看產品頁"
+          }
+        }
+      }
+    },
+    "扫描纸质文档，在本地整理最近扫描，并按需导出清晰 PDF。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scan paper documents, keep recent scans locally, and export clear PDFs when needed."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "扫描纸质文档，在本地整理最近扫描，并按需导出清晰 PDF。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "掃描紙本文件，在本地整理最近掃描，並按需匯出清晰 PDF。"
+          }
+        }
+      }
+    },
+    "用灵活计划、清晰进度和私有同步，建立真正适合日常生活的习惯。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Build habits that fit real life with flexible plans, clear progress, and private sync."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用灵活计划、清晰进度和私有同步，建立真正适合日常生活的习惯。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用靈活計畫、清晰進度與私有同步，建立真正適合日常生活的習慣。"
+          }
+        }
+      }
+    },
+    "从模板创建本次打包清单，逐项勾选，完成后归档，下次还能继续用。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start from a template, check items off, archive the list, and reuse it next time."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从模板创建本次打包清单，逐项勾选，完成后归档，下次还能继续用。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "從模板建立本次打包清單，逐項勾選，完成後封存，下次還能繼續用。"
+          }
+        }
+      }
+    },
+    "在 iPhone、iPad 与 Mac 上开始同一场专注，并查看真实保护状态。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start one focus session across iPhone, iPad, and Mac with honest protection status."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 iPhone、iPad 与 Mac 上开始同一场专注，并查看真实保护状态。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 iPhone、iPad 與 Mac 上開始同一場專注，並查看真實保護狀態。"
+          }
+        }
+      }
+    },
+    "离线乐器调音器，提供形象化指引、节拍器与常用和弦。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An offline instrument tuner with visual guidance, a metronome, and common chords."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "离线乐器调音器，提供形象化指引、节拍器与常用和弦。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "離線樂器調音器，提供形象化指引、節拍器與常用和弦。"
+          }
+        }
+      }
+    },
+    "从调音、节奏与和弦开始，逐步弹出第一首熟悉旋律。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start with tuning, rhythm, and chords, then play your first familiar melody."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从调音、节奏与和弦开始，逐步弹出第一首熟悉旋律。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "從調音、節奏與和弦開始，逐步彈出第一首熟悉旋律。"
+          }
+        }
+      }
+    },
+    "快速打开、编辑并分享 Markdown、HTML、SVG 与纯文本，私密且离线。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open, edit, and share Markdown, HTML, SVG, and plain text—privately and offline."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "快速打开、编辑并分享 Markdown、HTML、SVG 与纯文本，私密且离线。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "快速開啟、編輯並分享 Markdown、HTML、SVG 與純文字，私密且離線。"
+          }
+        }
+      }
+    },
+    "录音、离线转写，并在 Apple 设备间通过私有 iCloud 同步。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Record, transcribe offline, and sync privately over iCloud across Apple devices."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音、离线转写，并在 Apple 设备间通过私有 iCloud 同步。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "錄音、離線轉寫，並在 Apple 裝置間透過私有 iCloud 同步。"
+          }
+        }
+      }
+    },
+    "十款为两台附近 iPhone 打造的插画游戏，无需互联网或账号。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ten illustrated games for two nearby iPhones, with no internet or account required."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "十款为两台附近 iPhone 打造的插画游戏，无需互联网或账号。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "十款為兩台附近 iPhone 打造的插畫遊戲，無需網際網路或帳號。"
+          }
+        }
+      }
+    },
+    "隐私优先的本地姿势监控，减少误报并提供可靠提醒。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Privacy-first local posture monitoring with fewer false alerts and reliable reminders."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隐私优先的本地姿势监控，减少误报并提供可靠提醒。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隱私優先的本地姿勢監控，減少誤報並提供可靠提醒。"
+          }
+        }
+      }
+    },
+    "用简短的冥想与呼吸练习，帮你更快安静下来。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Short meditation and breathing practices to help you settle more quickly."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用简短的冥想与呼吸练习，帮你更快安静下来。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用簡短的冥想與呼吸練習，幫你更快安靜下來。"
+          }
+        }
+      }
     }
   },
   "version": "1.2"

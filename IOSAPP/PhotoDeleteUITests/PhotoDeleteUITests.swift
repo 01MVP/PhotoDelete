@@ -564,14 +564,13 @@ final class PhotoDeleteUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["邮件反馈"].exists)
         XCTAssertTrue(app.staticTexts["关于创作者"].exists)
         app.swipeUp()
-        XCTAssertTrue(app.staticTexts["One Apps 系列"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["更多 App"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.staticTexts["One Apps Studio"].waitForExistence(timeout: 2))
-        let oneScanAppRow = app.descendants(matching: .any)["settings-oneapps-onescan-row"]
-        if !oneScanAppRow.waitForExistence(timeout: 1) {
+        let catalogEntry = app.descendants(matching: .any)["settings-oneapps-catalog-entry"]
+        if !catalogEntry.waitForExistence(timeout: 1) {
             app.swipeUp()
         }
-        XCTAssertTrue(oneScanAppRow.waitForExistence(timeout: 2))
-        XCTAssertTrue(app.descendants(matching: .any)["settings-oneapps-studio-link"].waitForExistence(timeout: 2))
+        XCTAssertTrue(catalogEntry.waitForExistence(timeout: 2))
         XCTAssertFalse(app.staticTexts["微信反馈"].exists)
         XCTAssertFalse(app.staticTexts["MVP 教程"].exists)
         XCTAssertFalse(app.staticTexts["创作理念"].exists)
