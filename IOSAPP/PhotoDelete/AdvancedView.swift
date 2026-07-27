@@ -5665,6 +5665,19 @@ enum AdvancedLivePhotoPreviewPolicy {
         !isDegraded
     }
 
+    /// TabView preloads adjacent pages; only the selected page should autoplay Live motion.
+    static func shouldAutoPlay(isSelected: Bool, motionEnabled: Bool) -> Bool {
+        isSelected && motionEnabled
+    }
+
+    /// When a preloaded page becomes selected, bump the playback trigger so autoplay can restart.
+    static func shouldRestartPlaybackOnBecomingSelected(
+        isSelected: Bool,
+        motionEnabled: Bool
+    ) -> Bool {
+        isSelected && motionEnabled
+    }
+
     static func badgeSystemImage(mediaType: PHAssetMediaType, isLivePhoto: Bool) -> String? {
         if mediaType == .video {
             return "play.fill"
@@ -5782,7 +5795,8 @@ private struct AdvancedAssetPreviewView: View {
                                 AdvancedAssetPreviewPage(
                                     asset: asset,
                                     photoLibraryManager: photoLibraryManager,
-                                    viewportSize: geometry.size
+                                    viewportSize: geometry.size,
+                                    isSelected: selectedAssetID == asset.localIdentifier
                                 )
                                 .tag(asset.localIdentifier)
                             }
@@ -5792,7 +5806,8 @@ private struct AdvancedAssetPreviewView: View {
                         AdvancedAssetPreviewPage(
                             asset: selectedAsset,
                             photoLibraryManager: photoLibraryManager,
-                            viewportSize: geometry.size
+                            viewportSize: geometry.size,
+                            isSelected: true
                         )
                     }
 
@@ -6051,6 +6066,8 @@ private struct AdvancedAssetPreviewPage: View {
     let asset: PHAsset
     let photoLibraryManager: PhotoLibraryManager
     let viewportSize: CGSize
+    /// TabView keeps neighboring pages alive; autoplay must only run on the selected page.
+    let isSelected: Bool
 
     @State private var image: UIImage?
     @State private var livePhoto: PHLivePhoto?
@@ -6061,6 +6078,7 @@ private struct AdvancedAssetPreviewPage: View {
     @State private var failedToLoadLivePhoto = false
     @State private var isLivePhotoMotionEnabled = false
     @State private var livePhotoPlaybackTrigger = 0
+    @State private var didConfigureLivePhotoMotion = false
 
     var body: some View {
         ZStack {
@@ -6073,7 +6091,10 @@ private struct AdvancedAssetPreviewPage: View {
                 LivePhotoPreviewRepresentable(
                     livePhoto: livePhoto,
                     contentIdentifier: asset.localIdentifier,
-                    autoPlay: true,
+                    autoPlay: AdvancedLivePhotoPreviewPolicy.shouldAutoPlay(
+                        isSelected: isSelected,
+                        motionEnabled: isLivePhotoMotionEnabled
+                    ),
                     isMuted: true,
                     playbackTrigger: livePhotoPlaybackTrigger,
                     contentMode: .scaleAspectFit
@@ -6113,13 +6134,7 @@ private struct AdvancedAssetPreviewPage: View {
             }
         }
         .onAppear {
-            if isLivePhotoAsset {
-                isLivePhotoMotionEnabled = LivePhotoPlaybackDefaultPolicy.initialMotionEnabled(
-                    isLivePhoto: true,
-                    autoPlayPreference: reviewLivePhotoAutoPlay
-                )
-                livePhotoPlaybackTrigger = isLivePhotoMotionEnabled ? 1 : 0
-            }
+            configureLivePhotoMotionIfNeeded()
 
             if asset.mediaType != .video {
                 loadImage()
@@ -6132,6 +6147,9 @@ private struct AdvancedAssetPreviewPage: View {
                 loadLivePhoto()
             }
         }
+        .onChange(of: isSelected) { selected in
+            handleSelectionChange(isSelected: selected)
+        }
         .onDisappear {
             photoLibraryManager.cancelImageRequest(requestID)
             photoLibraryManager.cancelImageRequest(livePhotoRequestID)
@@ -6142,11 +6160,47 @@ private struct AdvancedAssetPreviewPage: View {
             failedToLoadLivePhoto = false
             isLivePhotoMotionEnabled = false
             livePhotoPlaybackTrigger = 0
+            didConfigureLivePhotoMotion = false
         }
     }
 
     private var isLivePhotoAsset: Bool {
         photoLibraryManager.isLivePhoto(asset)
+    }
+
+    private func configureLivePhotoMotionIfNeeded() {
+        guard isLivePhotoAsset, !didConfigureLivePhotoMotion else { return }
+        didConfigureLivePhotoMotion = true
+        isLivePhotoMotionEnabled = LivePhotoPlaybackDefaultPolicy.initialMotionEnabled(
+            isLivePhoto: true,
+            autoPlayPreference: reviewLivePhotoAutoPlay
+        )
+        // Only arm autoplay for the currently selected page. Neighbor pages may appear early
+        // via TabView preloading; their trigger is bumped when they become selected.
+        if AdvancedLivePhotoPreviewPolicy.shouldRestartPlaybackOnBecomingSelected(
+            isSelected: isSelected,
+            motionEnabled: isLivePhotoMotionEnabled
+        ) {
+            livePhotoPlaybackTrigger = 1
+        } else {
+            livePhotoPlaybackTrigger = 0
+        }
+    }
+
+    private func handleSelectionChange(isSelected selected: Bool) {
+        guard isLivePhotoAsset else { return }
+        configureLivePhotoMotionIfNeeded()
+
+        guard AdvancedLivePhotoPreviewPolicy.shouldRestartPlaybackOnBecomingSelected(
+            isSelected: selected,
+            motionEnabled: isLivePhotoMotionEnabled
+        ) else {
+            return
+        }
+
+        livePhotoPlaybackTrigger += 1
+        failedToLoadLivePhoto = false
+        loadLivePhoto()
     }
 
     private func loadImage() {

@@ -3147,6 +3147,41 @@ struct PhotoDeleteTests {
         #expect(AdvancedLivePhotoPreviewPolicy.badgeSystemImage(mediaType: .image, isLivePhoto: false) == nil)
     }
 
+    @Test func advancedLivePhotoPreviewOnlyAutoPlaysSelectedPage() async throws {
+        // TabView preloads neighbors; unselected pages must not consume autoplay.
+        #expect(!AdvancedLivePhotoPreviewPolicy.shouldAutoPlay(isSelected: false, motionEnabled: true))
+        #expect(!AdvancedLivePhotoPreviewPolicy.shouldAutoPlay(isSelected: true, motionEnabled: false))
+        #expect(AdvancedLivePhotoPreviewPolicy.shouldAutoPlay(isSelected: true, motionEnabled: true))
+
+        #expect(!AdvancedLivePhotoPreviewPolicy.shouldRestartPlaybackOnBecomingSelected(
+            isSelected: false,
+            motionEnabled: true
+        ))
+        #expect(!AdvancedLivePhotoPreviewPolicy.shouldRestartPlaybackOnBecomingSelected(
+            isSelected: true,
+            motionEnabled: false
+        ))
+        #expect(AdvancedLivePhotoPreviewPolicy.shouldRestartPlaybackOnBecomingSelected(
+            isSelected: true,
+            motionEnabled: true
+        ))
+
+        // Simulates third preloaded page: content already tracked, then selection restarts via trigger.
+        var state = LivePhotoPlaybackRequestState()
+        let preloadedNeighbor = state.shouldStartPlayback(
+            contentIdentifier: "live-3",
+            autoPlay: false,
+            playbackTrigger: 0
+        )
+        let becameSelected = state.shouldStartPlayback(
+            contentIdentifier: "live-3",
+            autoPlay: true,
+            playbackTrigger: 1
+        )
+        #expect(!preloadedNeighbor)
+        #expect(becameSelected)
+    }
+
     @Test func visibleListPaginationFiltersBeforePagingAndClampsLimit() async throws {
         let summaries = [
             makePeriodSummary(index: 0, assetCount: 0),
