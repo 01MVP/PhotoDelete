@@ -5,6 +5,7 @@
 //  Created by PhotoDelete Team on 11/7/25.
 //
 
+import Combine
 import SwiftUI
 import Photos
 #if canImport(UIKit)
@@ -24,6 +25,25 @@ enum EmptyAlbumCleanupPlanner {
     }
 }
 
+/// Lightweight, equatable row model so List rows only rebuild when display data changes.
+private struct AlbumListRowModel: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let photosCount: Int
+    let type: AlbumType
+    let thumbnailAssetID: String?
+    let canEdit: Bool
+
+    static func == (lhs: AlbumListRowModel, rhs: AlbumListRowModel) -> Bool {
+        lhs.id == rhs.id
+            && lhs.title == rhs.title
+            && lhs.photosCount == rhs.photosCount
+            && lhs.type == rhs.type
+            && lhs.thumbnailAssetID == rhs.thumbnailAssetID
+            && lhs.canEdit == rhs.canEdit
+    }
+}
+
 struct AlbumsView: View {
     @EnvironmentObject var dataManager: DataManager
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -34,48 +54,51 @@ struct AlbumsView: View {
     @State private var sortMode: AlbumSortMode = .custom
     @State private var editMode: EditMode = .inactive
     @State private var albumToast: PhotoDeleteToast?
+    @State private var displayedRows: [AlbumListRowModel] = []
+    @State private var albumsByID: [String: AlbumInfo] = [:]
+    @State private var displayedAlbumCount = 0
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
-            ZStack {
-                PhotoDeleteScreenBackground()
-
-                rootContent
+            rootContent
                 .frame(maxWidth: PhotoDeleteAdaptiveLayout.listContentMaxWidth(horizontalSizeClass: horizontalSizeClass))
                 .frame(maxWidth: .infinity)
-
-                if let albumToast {
-                    albumToastView(albumToast)
+                .background {
+                    PhotoDeleteScreenBackground()
                 }
-            }
-            .navigationTitle(L10n.string("相册"))
-            .navigationBarTitleDisplayMode(.large)
-            .searchable(
-                text: $searchText,
-                placement: .navigationBarDrawer(displayMode: .automatic),
-                prompt: Text(L10n.string("搜索相册"))
-            )
-            .toolbar {
-                if dataManager.photoLibraryManager.hasPhotoLibraryAccess {
-                    ToolbarItemGroup(placement: .topBarTrailing) {
-                        if editMode == .active {
-                            Button(L10n.string("完成"), action: toggleReordering)
-                                .font(.body.weight(.semibold))
-                        } else {
-                            sortMenu
-                            albumActionsMenu
-                            createAlbumButton
+                .overlay {
+                    if let albumToast {
+                        albumToastView(albumToast)
+                    }
+                }
+                .navigationTitle(L10n.string("相册"))
+                .navigationBarTitleDisplayMode(.large)
+                .searchable(
+                    text: $searchText,
+                    placement: .navigationBarDrawer(displayMode: .automatic),
+                    prompt: Text(L10n.string("搜索相册"))
+                )
+                .toolbar {
+                    if dataManager.photoLibraryManager.hasPhotoLibraryAccess {
+                        ToolbarItemGroup(placement: .topBarTrailing) {
+                            if editMode == .active {
+                                Button(L10n.string("完成"), action: toggleReordering)
+                                    .font(.body.weight(.semibold))
+                            } else {
+                                sortMenu
+                                albumActionsMenu
+                                createAlbumButton
+                            }
                         }
                     }
                 }
-            }
-            .navigationDestination(for: AlbumNavigationDestination.self) { destination in
-                switch destination {
-                case .swipeAlbum(let selectedSwipeAlbum):
-                    SwipePhotoView(selectedCategory: nil, selectedTimeGroup: nil, selectedAlbumInfo: selectedSwipeAlbum)
-                        .environmentObject(dataManager)
+                .navigationDestination(for: AlbumNavigationDestination.self) { destination in
+                    switch destination {
+                    case .swipeAlbum(let selectedSwipeAlbum):
+                        SwipePhotoView(selectedCategory: nil, selectedTimeGroup: nil, selectedAlbumInfo: selectedSwipeAlbum)
+                            .environmentObject(dataManager)
+                    }
                 }
-            }
         }
         .sheet(item: $activeSheet) { sheet in
             switch sheet {
@@ -93,9 +116,17 @@ struct AlbumsView: View {
         .onChange(of: sortMode) { mode in
             guard mode != .custom else { return }
             editMode = .inactive
+            rebuildDisplayedRows()
+        }
+        .onChange(of: searchText) { _ in
+            rebuildDisplayedRows()
+        }
+        .onReceive(dataManager.$userAlbums) { _ in
+            rebuildDisplayedRows()
         }
         .onAppear {
             dataManager.loadAlbumsIfNeeded()
+            rebuildDisplayedRows()
         }
     }
 
@@ -144,24 +175,6 @@ struct AlbumsView: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(L10n.string("相册操作"))
-    }
-
-    private var albumTopSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            albumCountRow
-        }
-        .padding(.horizontal, PhotoDeleteStyle.screenHorizontalPadding)
-        .padding(.top, PhotoDeleteStyle.rootContentTopSpacing)
-        .padding(.bottom, 10)
-        .contentShape(Rectangle())
-    }
-
-    private var albumCountRow: some View {
-        Text(albumHeaderSubtitle)
-            .font(.subheadline)
-            .foregroundStyle(PhotoDeleteStyle.secondaryText)
-            .lineLimit(1)
-            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var createAlbumButton: some View {
@@ -214,49 +227,48 @@ struct AlbumsView: View {
     // MARK: - 相册列表
     @ViewBuilder
     private var albumsList: some View {
-        let userAlbums = filteredUserAlbums
         List {
-            albumTopSection
-                .listRowInsets(EdgeInsets())
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
+            Section {
+                Text(albumHeaderSubtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(PhotoDeleteStyle.secondaryText)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .listRowInsets(EdgeInsets(
+                        top: PhotoDeleteStyle.rootContentTopSpacing,
+                        leading: PhotoDeleteStyle.screenHorizontalPadding,
+                        bottom: 6,
+                        trailing: PhotoDeleteStyle.screenHorizontalPadding
+                    ))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+            }
 
             if isLoadingAlbums {
                 loadingRow
+            } else if displayedRows.isEmpty {
+                emptyRow
             } else {
-                if !userAlbums.isEmpty {
-                    Section {
-                        if shouldShowAlbumSwipeHint {
-                            AlbumSwipeHintRow {
-                                hasDismissedAlbumSwipeHint = true
-                            }
+                Section {
+                    if shouldShowAlbumSwipeHint {
+                        AlbumSwipeHintRow {
+                            hasDismissedAlbumSwipeHint = true
                         }
-
-                        ForEach(userAlbums, id: \.id) { albumInfo in
-                            albumRow(albumInfo, allowsActions: true)
-                                .id(albumInfo.id)
-                        }
-                        .onMove(perform: moveUserAlbums)
                     }
 
-                } else {
-                    emptyRow
+                    ForEach(displayedRows) { row in
+                        albumRow(row)
+                    }
+                    .onMove(perform: moveUserAlbums)
                 }
             }
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
-        .background(Color.clear)
-        .environment(\.defaultMinListRowHeight, 0)
         .environment(\.editMode, $editMode)
-        .photoDeleteAlbumListTopMargin()
-        .photoDeleteAlbumListSectionSpacing()
         .scrollDismissesKeyboard(.immediately)
         .refreshable {
             dataManager.loadAlbums(showLoading: false)
-        }
-        .safeAreaInset(edge: .bottom) {
-            Color.clear.frame(height: 88)
         }
     }
 
@@ -335,56 +347,35 @@ struct AlbumsView: View {
         searchText.isEmpty ? L10n.string("可以点右上角加号创建一个新相册。") : L10n.string("换个关键词试试。")
     }
 
-    private func albumRow(_ albumInfo: AlbumInfo, allowsActions: Bool) -> some View {
-        let canEditAlbum = editableAssetCollection(for: albumInfo, allowsActions: allowsActions) != nil
-
-        return Button(action: {
-            openAlbum(albumInfo)
-        }) {
+    private func albumRow(_ row: AlbumListRowModel) -> some View {
+        Button {
+            openAlbum(id: row.id)
+        } label: {
             AlbumInfoRow(
-                albumInfo: albumInfo,
+                id: row.id,
+                title: row.title,
+                photosCount: row.photosCount,
+                type: row.type,
+                thumbnailAssetID: row.thumbnailAssetID,
                 photoLibraryManager: dataManager.photoLibraryManager,
                 showsChevron: editMode != .active
             )
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .equatable()
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .contextMenu {
-            if editMode != .active {
-                Button {
-                    startReorderingFromAlbumRow()
-                } label: {
-                    Label(L10n.string("调整顺序"), systemImage: "line.3.horizontal")
-                }
-            }
-
-            if canEditAlbum {
-                Button {
-                    editAlbum(albumInfo)
-                } label: {
-                    Label(L10n.string("编辑"), systemImage: "pencil")
-                }
-
-                Button(role: .destructive) {
-                    deleteAlbum(albumInfo)
-                } label: {
-                    Label(L10n.string("删除"), systemImage: "trash")
-                }
-            }
-        }
-        .accessibilityHint(L10n.string("点按整理这个相册，长按调整排序"))
+        .accessibilityHint(L10n.string("点按整理这个相册"))
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            if canEditAlbum {
+            if row.canEdit {
                 Button(role: .destructive) {
-                    deleteAlbum(albumInfo)
+                    deleteAlbum(id: row.id)
                 } label: {
                     Label(L10n.string("删除"), systemImage: "trash")
                 }
                 .tint(PhotoDeleteStyle.destructive)
 
                 Button {
-                    editAlbum(albumInfo)
+                    editAlbum(id: row.id)
                 } label: {
                     Label(L10n.string("编辑"), systemImage: "pencil")
                 }
@@ -396,20 +387,20 @@ struct AlbumsView: View {
     }
 
     private var albumHeaderSubtitle: String {
-        let albumCount = dataManager.getUserAlbums().count
         if isLoadingPhotoLibraryForAlbums {
             return L10n.string("正在初始化照片库")
         }
-        if dataManager.isLoadingAlbums && albumCount == 0 {
+        if dataManager.isLoadingAlbums && displayedAlbumCount == 0 {
             return L10n.string("正在更新相册列表")
         }
-        return L10n.string("\(albumCount) 个相册")
+        return L10n.string("\(displayedAlbumCount) 个相册")
     }
 
     // MARK: - 计算属性
     private var isLoadingAlbums: Bool {
-        dataManager.getUserAlbums().isEmpty &&
-            (dataManager.isLoadingAlbums || isLoadingPhotoLibraryForAlbums)
+        displayedRows.isEmpty &&
+            (dataManager.isLoadingAlbums || isLoadingPhotoLibraryForAlbums) &&
+            searchText.isEmpty
     }
 
     private var isLoadingPhotoLibraryForAlbums: Bool {
@@ -434,16 +425,6 @@ struct AlbumsView: View {
             : L10n.string("正在统计相册数量和封面。")
     }
 
-    private func filteredAlbums(_ albums: [AlbumInfo]) -> [AlbumInfo] {
-        let sorted = sortedAlbums(albums)
-        if searchText.isEmpty { return sorted }
-        return sorted.filter { $0.title.localizedStandardContains(searchText) }
-    }
-
-    private var filteredUserAlbums: [AlbumInfo] {
-        filteredAlbums(dataManager.getUserAlbums())
-    }
-
     private var shouldShowAlbumSwipeHint: Bool {
         !hasDismissedAlbumSwipeHint &&
             searchText.isEmpty &&
@@ -451,6 +432,50 @@ struct AlbumsView: View {
     }
 
     // MARK: - 方法
+    private func rebuildDisplayedRows() {
+        let sourceAlbums = dataManager.getUserAlbums()
+        displayedAlbumCount = sourceAlbums.count
+
+        let sorted = sortedAlbums(sourceAlbums)
+        let filtered: [AlbumInfo]
+        if searchText.isEmpty {
+            filtered = sorted
+        } else {
+            filtered = sorted.filter { $0.title.localizedStandardContains(searchText) }
+        }
+
+        var nextAlbumsByID: [String: AlbumInfo] = [:]
+        nextAlbumsByID.reserveCapacity(filtered.count)
+
+        let rows: [AlbumListRowModel] = filtered.map { album in
+            nextAlbumsByID[album.id] = album
+            let canEdit: Bool = {
+                guard let collection = album.assetCollection,
+                      collection.assetCollectionType == .album else {
+                    return false
+                }
+                // Defer expensive canPerform checks: album type is enough for swipe affordance;
+                // Photos will refuse the write if unsupported.
+                return true
+            }()
+
+            return AlbumListRowModel(
+                id: album.id,
+                title: album.title,
+                photosCount: album.photosCount,
+                type: album.type,
+                thumbnailAssetID: album.thumbnailAsset?.localIdentifier,
+                canEdit: canEdit && album.type == .userCreated
+            )
+        }
+
+        // Avoid redundant state writes that force List to re-diff every unrelated DataManager publish.
+        if rows != displayedRows {
+            displayedRows = rows
+        }
+        albumsByID = nextAlbumsByID
+    }
+
     private func sortedAlbums(_ albums: [AlbumInfo]) -> [AlbumInfo] {
         switch sortMode {
         case .custom:
@@ -475,39 +500,31 @@ struct AlbumsView: View {
         }
     }
 
-    private func startReorderingFromAlbumRow() {
-        guard searchText.isEmpty else {
-            showAlbumToast(L10n.string("请先清除搜索再调整顺序"), icon: "magnifyingglass", style: .warning)
-            return
-        }
-
-        if sortMode != .custom {
-            sortMode = .custom
-        }
-
-        guard editMode != .active else { return }
-        HapticManager.impact(.light)
-        withAnimation(.easeInOut(duration: 0.18)) {
-            editMode = .active
-        }
-    }
-
     private func moveUserAlbums(from source: IndexSet, to destination: Int) {
         guard sortMode == .custom, searchText.isEmpty else {
             showAlbumToast(L10n.string("请先清除搜索再调整顺序"), icon: "magnifyingglass", style: .warning)
             return
         }
 
-        var albums = filteredUserAlbums
-        albums.move(fromOffsets: source, toOffset: destination)
-        dataManager.saveCustomAlbumOrder(albums.map(\.id))
+        var rows = displayedRows
+        rows.move(fromOffsets: source, toOffset: destination)
+        displayedRows = rows
+        dataManager.saveCustomAlbumOrder(rows.map(\.id))
         HapticManager.impact(.light)
     }
 
-    private func openAlbum(_ albumInfo: AlbumInfo) {
+    private func openAlbum(id: String) {
+        guard let albumInfo = albumsByID[id] ?? dataManager.userAlbums.first(where: { $0.id == id }) else {
+            HapticManager.impact(.light)
+            showAlbumToast(L10n.string("这个相册已不存在，列表已更新"), icon: "arrow.clockwise", style: .warning)
+            rebuildDisplayedRows()
+            return
+        }
+
         guard let currentAlbumInfo = dataManager.currentUserAlbumInfo(for: albumInfo) else {
             HapticManager.impact(.light)
             showAlbumToast(L10n.string("这个相册已不存在，列表已更新"), icon: "arrow.clockwise", style: .warning)
+            rebuildDisplayedRows()
             return
         }
 
@@ -521,34 +538,26 @@ struct AlbumsView: View {
         navigationPath.append(AlbumNavigationDestination.swipeAlbum(currentAlbumInfo))
     }
 
-    private func editableAssetCollection(
-        for albumInfo: AlbumInfo,
-        allowsActions: Bool
-    ) -> PHAssetCollection? {
-        guard allowsActions,
-              let collection = albumInfo.assetCollection,
-              collection.assetCollectionType == .album else {
-            return nil
-        }
-        return collection
-    }
-
-    private func editAlbum(_ albumInfo: AlbumInfo) {
-        guard let currentAlbumInfo = dataManager.currentUserAlbumInfo(for: albumInfo),
+    private func editAlbum(id: String) {
+        guard let albumInfo = albumsByID[id] ?? dataManager.userAlbums.first(where: { $0.id == id }),
+              let currentAlbumInfo = dataManager.currentUserAlbumInfo(for: albumInfo),
               let album = currentAlbumInfo.assetCollection else {
             HapticManager.impact(.light)
             showAlbumToast(L10n.string("这个相册已不存在，列表已更新"), icon: "arrow.clockwise", style: .warning)
+            rebuildDisplayedRows()
             return
         }
 
         activeSheet = .edit(album)
     }
 
-    private func deleteAlbum(_ albumInfo: AlbumInfo) {
-        guard let currentAlbumInfo = dataManager.currentUserAlbumInfo(for: albumInfo),
+    private func deleteAlbum(id: String) {
+        guard let albumInfo = albumsByID[id] ?? dataManager.userAlbums.first(where: { $0.id == id }),
+              let currentAlbumInfo = dataManager.currentUserAlbumInfo(for: albumInfo),
               let album = currentAlbumInfo.assetCollection else {
             HapticManager.impact(.light)
             showAlbumToast(L10n.string("这个相册已不存在，列表已更新"), icon: "arrow.clockwise", style: .warning)
+            rebuildDisplayedRows()
             return
         }
 
@@ -560,6 +569,7 @@ struct AlbumsView: View {
                 HapticManager.notify(.error)
                 self.showAlbumToast(L10n.string("相册列表已更新，请再试一次"), icon: "arrow.clockwise", style: .warning)
             }
+            self.rebuildDisplayedRows()
         }
     }
 
@@ -584,68 +594,7 @@ struct AlbumsView: View {
                 .padding(.bottom, 96)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
         }
-    }
-
-}
-
-private extension View {
-    @ViewBuilder
-    func photoDeleteAlbumListTopMargin() -> some View {
-        if #available(iOS 17.0, *) {
-            contentMargins(.top, 0, for: .scrollContent)
-        } else {
-            self
-        }
-    }
-
-    @ViewBuilder
-    func photoDeleteAlbumListSectionSpacing() -> some View {
-        if #available(iOS 17.0, *) {
-            listSectionSpacing(10)
-        } else {
-            self
-        }
-    }
-}
-
-private struct AlbumSwipeHintRow: View {
-    let onDismiss: () -> Void
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "hand.draw")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundColor(PhotoDeleteStyle.accent)
-                .frame(width: 24, height: 24)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(L10n.string("长按相册可自定义排序"))
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.primaryText)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
-
-                Text(L10n.string("左滑相册可编辑或删除"))
-                    .font(.system(size: 12, weight: .regular))
-                    .foregroundColor(PhotoDeleteStyle.secondaryText)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
-            }
-
-            Spacer(minLength: 8)
-
-            Button(action: onDismiss) {
-                Text(L10n.string("知道了"))
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(PhotoDeleteStyle.accent)
-                    .frame(minWidth: 44, minHeight: 44)
-            }
-            .buttonStyle(.borderless)
-        }
-        .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
-        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
-        .listRowBackground(PhotoDeleteStyle.surface)
-        .listRowSeparator(.hidden)
+        .allowsHitTesting(false)
     }
 }
 
@@ -715,6 +664,51 @@ private enum AlbumSortMode: String, CaseIterable, Identifiable {
     }
 }
 
+private struct AlbumSwipeHintRow: View {
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "hand.draw")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(PhotoDeleteStyle.accent)
+                .frame(width: 24, height: 24)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(L10n.string("可在右上角排序里调整顺序"))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.primaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+
+                Text(L10n.string("左滑相册可编辑或删除"))
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+            }
+
+            Spacer(minLength: 8)
+
+            Button(action: onDismiss) {
+                Text(L10n.string("知道了"))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(PhotoDeleteStyle.accent)
+                    .frame(minWidth: 44, minHeight: 44)
+            }
+            .buttonStyle(.borderless)
+        }
+        .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+        .listRowBackground(PhotoDeleteStyle.surface)
+        .listRowSeparator(.hidden)
+    }
+}
+
+private final class ThumbnailRequestBox: @unchecked Sendable {
+    var id: PHImageRequestID?
+}
+
 // MARK: - 相册信息行
 struct AlbumProgressSnapshot: Equatable {
     let totalCount: Int
@@ -741,8 +735,12 @@ struct AlbumProgressSnapshot: Equatable {
     }
 }
 
-struct AlbumInfoRow: View {
-    let albumInfo: AlbumInfo
+struct AlbumInfoRow: View, Equatable {
+    let id: String
+    let title: String
+    let photosCount: Int
+    let type: AlbumType
+    let thumbnailAssetID: String?
     let photoLibraryManager: PhotoLibraryManager
     var progress: AlbumProgressSnapshot? = nil
     var showsChevron = true
@@ -751,25 +749,27 @@ struct AlbumInfoRow: View {
     @State private var requestID: PHImageRequestID?
     @State private var loadedThumbnailAssetID: String?
 
-    private static let thumbnailPixelSize = CGSize(width: 72, height: 72)
+    private static let thumbnailPointSize: CGFloat = 36
+
+    static func == (lhs: AlbumInfoRow, rhs: AlbumInfoRow) -> Bool {
+        lhs.id == rhs.id
+            && lhs.title == rhs.title
+            && lhs.photosCount == rhs.photosCount
+            && lhs.type == rhs.type
+            && lhs.thumbnailAssetID == rhs.thumbnailAssetID
+            && lhs.progress == rhs.progress
+            && lhs.showsChevron == rhs.showsChevron
+    }
 
     var body: some View {
         rowContent
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isButton)
-        .onAppear {
-            loadAlbumThumbnailIfNeeded()
-        }
-        .onChange(of: albumInfo.thumbnailAsset?.localIdentifier) { _ in
-            cancelThumbnailRequest()
-            thumbnailImage = nil
-            loadedThumbnailAssetID = nil
-            loadAlbumThumbnailIfNeeded()
-        }
-        .onDisappear {
-            cancelThumbnailRequest()
-        }
+            .contentShape(Rectangle())
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel("\(title), \(L10n.photoCount(photosCount))")
+            .task(id: thumbnailAssetID) {
+                await loadAlbumThumbnail()
+            }
     }
 
     private var rowContent: some View {
@@ -777,12 +777,12 @@ struct AlbumInfoRow: View {
             albumThumbnail
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(albumInfo.title)
+                Text(title)
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(PhotoDeleteStyle.primaryText)
                     .lineLimit(1)
 
-                Text(L10n.photoCount(albumInfo.photosCount))
+                Text(L10n.photoCount(photosCount))
                     .font(.system(size: 12, weight: .regular))
                     .foregroundColor(PhotoDeleteStyle.secondaryText)
             }
@@ -810,42 +810,83 @@ struct AlbumInfoRow: View {
 
     @ViewBuilder
     private var albumThumbnail: some View {
-        if let image = thumbnailImage {
-            Image(uiImage: image)
-                .resizable()
-                .interpolation(.medium)
-                .aspectRatio(contentMode: .fill)
-                .frame(width: 36, height: 36)
-                .clipped()
-                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-        } else {
-            ZStack {
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(PhotoDeleteStyle.elevatedSurface)
-                    .frame(width: 36, height: 36)
+        ZStack {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(PhotoDeleteStyle.elevatedSurface)
+                .frame(width: Self.thumbnailPointSize, height: Self.thumbnailPointSize)
 
-                Image(systemName: albumInfo.type.icon)
+            if let image = thumbnailImage {
+                Image(uiImage: image)
+                    .resizable()
+                    .interpolation(.low)
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: Self.thumbnailPointSize, height: Self.thumbnailPointSize)
+                    .clipped()
+                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    .transaction { $0.animation = nil }
+            } else {
+                Image(systemName: type.icon)
                     .font(.system(size: 15, weight: .medium))
                     .foregroundColor(albumIconTint)
             }
         }
+        .frame(width: Self.thumbnailPointSize, height: Self.thumbnailPointSize)
     }
 
-    private func loadAlbumThumbnailIfNeeded() {
-        guard let thumbnailAsset = albumInfo.thumbnailAsset else { return }
-        let assetID = thumbnailAsset.localIdentifier
-        if loadedThumbnailAssetID == assetID, thumbnailImage != nil { return }
+    @MainActor
+    private func loadAlbumThumbnail() async {
+        guard let thumbnailAssetID else {
+            thumbnailImage = nil
+            loadedThumbnailAssetID = nil
+            return
+        }
+
+        if loadedThumbnailAssetID == thumbnailAssetID, thumbnailImage != nil {
+            return
+        }
 
         cancelThumbnailRequest()
-        requestID = photoLibraryManager.loadAlbumListThumbnail(
-            for: thumbnailAsset,
-            size: Self.thumbnailPixelSize
-        ) { image in
-            guard let image else { return }
-            self.thumbnailImage = image
-            self.loadedThumbnailAssetID = assetID
-            self.requestID = nil
+
+        let scale = UIScreen.main.scale
+        let pixel = Self.thumbnailPointSize * scale
+        let targetSize = CGSize(width: pixel, height: pixel)
+
+        let assets = PHAsset.fetchAssets(withLocalIdentifiers: [thumbnailAssetID], options: nil)
+        guard let asset = assets.firstObject else {
+            thumbnailImage = nil
+            loadedThumbnailAssetID = nil
+            return
         }
+
+        let requestBox = ThumbnailRequestBox()
+        let manager = photoLibraryManager
+        let image: UIImage? = await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                var hasResumed = false
+                let resumeOnce: (UIImage?) -> Void = { image in
+                    guard !hasResumed else { return }
+                    hasResumed = true
+                    continuation.resume(returning: image)
+                }
+
+                let id = manager.loadAlbumListThumbnail(for: asset, size: targetSize) { image in
+                    resumeOnce(image)
+                }
+                requestBox.id = id
+                requestID = id
+            }
+        } onCancel: {
+            if let id = requestBox.id {
+                manager.cancelImageRequest(id)
+            }
+        }
+
+        guard !Task.isCancelled else { return }
+        if let image {
+            thumbnailImage = image
+            loadedThumbnailAssetID = thumbnailAssetID
+        }
+        requestID = nil
     }
 
     private func cancelThumbnailRequest() {
@@ -856,7 +897,7 @@ struct AlbumInfoRow: View {
     }
 
     private var albumIconTint: Color {
-        switch albumInfo.type {
+        switch type {
         case .favorites:
             return PhotoDeleteStyle.iconTint(for: "favorite")
         case .videos:

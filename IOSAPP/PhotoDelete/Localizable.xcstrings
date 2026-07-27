@@ -40847,6 +40847,28 @@
         }
       }
     },
+    "可在右上角排序里调整顺序": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use Sort in the top right to reorder"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可在右上角排序里调整顺序"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可在右上角排序裡調整順序"
+          }
+        }
+      }
+    },
     "长按相册可自定义排序": {
       "localizations": {
         "ar": {
