@@ -1014,9 +1014,10 @@ class PhotoLibraryManager: NSObject, ObservableObject {
                 if shouldPublishPartialPhotos || shouldPublishProgress {
                     DispatchQueue.main.async {
                         self.loadingProgress = max(self.loadingProgress, loadingProgress)
+                        // Warm the in-memory buffer for progress, but do not mark the library
+                        // as fully loaded or expose partial counts (e.g. first 500) in Home UI.
                         if shouldPublishPartialPhotos, self.hasPhotoLibraryAccess {
                             self.allPhotos = partialPhotos
-                            self.hasLoadedPhotoLibrary = !partialPhotos.isEmpty
                         }
                     }
                 }

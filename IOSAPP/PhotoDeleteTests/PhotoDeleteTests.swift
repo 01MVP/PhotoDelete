@@ -1521,22 +1521,31 @@ struct PhotoDeleteTests {
         #expect(traditionalMonth.contains("月"))
     }
 
-    @Test func homeLibraryStateAllowsEntryBeforeInitialLoadCompletes() async throws {
-        #expect(HomeLibraryContentState.resolve(
-            hasPhotoLibraryAccess: true,
-            isPreparingLibrary: false,
-            isLoadingPhotoLibrary: false,
-            hasLoadedPhotoLibrary: false,
-            totalPhotosCount: 0
-        ) == .available)
-
+    @Test func homeLibraryStateShowsPreparingDuringColdScanEvenWithPartialCounts() async throws {
         #expect(HomeLibraryContentState.resolve(
             hasPhotoLibraryAccess: true,
             isPreparingLibrary: false,
             isLoadingPhotoLibrary: true,
             hasLoadedPhotoLibrary: false,
             totalPhotosCount: 0
-        ) == .available)
+        ) == .preparing)
+
+        // First published batch must not look like the final library size.
+        #expect(HomeLibraryContentState.resolve(
+            hasPhotoLibraryAccess: true,
+            isPreparingLibrary: false,
+            isLoadingPhotoLibrary: true,
+            hasLoadedPhotoLibrary: false,
+            totalPhotosCount: 500
+        ) == .preparing)
+
+        #expect(HomeLibraryContentState.resolve(
+            hasPhotoLibraryAccess: true,
+            isPreparingLibrary: true,
+            isLoadingPhotoLibrary: false,
+            hasLoadedPhotoLibrary: false,
+            totalPhotosCount: 0
+        ) == .preparing)
     }
 
     @Test func homeLibraryStateAllowsOrganizingWhileMetadataFinishesLoading() async throws {
@@ -1554,21 +1563,25 @@ struct PhotoDeleteTests {
             category: .all,
             count: 500,
             isPreparingLibrary: true,
-            isLoadingPhotoLibrary: true
+            isLoadingPhotoLibrary: true,
+            hasLoadedPhotoLibrary: false
         ))
 
         #expect(HomeCategoryCountDetailResolver.shouldShowLibraryLoading(
             category: .unclassified,
             count: 406,
             isPreparingLibrary: true,
-            isLoadingPhotoLibrary: true
+            isLoadingPhotoLibrary: true,
+            hasLoadedPhotoLibrary: false
         ))
 
+        // Background refresh after a completed load may keep showing known counts.
         #expect(!HomeCategoryCountDetailResolver.shouldShowLibraryLoading(
             category: .all,
             count: 500,
             isPreparingLibrary: false,
-            isLoadingPhotoLibrary: true
+            isLoadingPhotoLibrary: true,
+            hasLoadedPhotoLibrary: true
         ))
     }
 

@@ -88,8 +88,17 @@ enum HomeLibraryContentState: Equatable {
         totalPhotosCount: Int
     ) -> HomeLibraryContentState {
         guard hasPhotoLibraryAccess else { return .needsAuthorization }
+
+        // First-time / cold scan: keep Home in "processing" until the full library is ready.
+        // Avoid flashing partial batch counts like the first 500 photos.
+        let isColdScanInProgress = isLoadingPhotoLibrary && !hasLoadedPhotoLibrary
+        if isColdScanInProgress || (isPreparingLibrary && !hasLoadedPhotoLibrary) {
+            return .preparing
+        }
+
         if totalPhotosCount > 0 { return .available }
-        if isPreparingLibrary || isLoadingPhotoLibrary || !hasLoadedPhotoLibrary { return .available }
+        if isPreparingLibrary || isLoadingPhotoLibrary { return .available }
+        if !hasLoadedPhotoLibrary { return .preparing }
         return .empty
     }
 }
@@ -99,8 +108,14 @@ enum HomeCategoryCountDetailResolver {
         category _: PhotoCategory,
         count: Int,
         isPreparingLibrary: Bool,
-        isLoadingPhotoLibrary: Bool
+        isLoadingPhotoLibrary: Bool,
+        hasLoadedPhotoLibrary: Bool = true
     ) -> Bool {
+        // While the cold scan is still running, never show intermediate counts.
+        if isLoadingPhotoLibrary && !hasLoadedPhotoLibrary {
+            return true
+        }
+
         if isPreparingLibrary && isLoadingPhotoLibrary {
             return true
         }
@@ -651,7 +666,8 @@ struct HomeView: View {
             category: category,
             count: count,
             isPreparingLibrary: dataManager.isPreparingLibrary,
-            isLoadingPhotoLibrary: dataManager.photoLibraryManager.isLoading
+            isLoadingPhotoLibrary: dataManager.photoLibraryManager.isLoading,
+            hasLoadedPhotoLibrary: dataManager.photoLibraryManager.hasLoadedPhotoLibrary
         ) {
             return L10n.string("读取中 \(libraryLoadingProgressText)")
         }
