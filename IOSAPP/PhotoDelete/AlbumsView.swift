@@ -228,27 +228,21 @@ struct AlbumsView: View {
     @ViewBuilder
     private var albumsList: some View {
         List {
-            Section {
-                Text(albumHeaderSubtitle)
-                    .font(.subheadline)
-                    .foregroundStyle(PhotoDeleteStyle.secondaryText)
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .listRowInsets(EdgeInsets(
-                        top: PhotoDeleteStyle.rootContentTopSpacing,
-                        leading: PhotoDeleteStyle.screenHorizontalPadding,
-                        bottom: 6,
-                        trailing: PhotoDeleteStyle.screenHorizontalPadding
-                    ))
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
-            }
-
             if isLoadingAlbums {
-                loadingRow
+                Section {
+                    loadingRow
+                } header: {
+                    albumCountHeader
+                }
             } else if displayedRows.isEmpty {
-                emptyRow
+                Section {
+                    emptyRow
+                } header: {
+                    albumCountHeader
+                }
             } else {
+                // Keep count in the section header (not its own Section) so insetGrouped
+                // does not leave a large empty gap under "N 个相册".
                 Section {
                     if shouldShowAlbumSwipeHint {
                         AlbumSwipeHintRow {
@@ -256,10 +250,19 @@ struct AlbumsView: View {
                         }
                     }
 
-                    ForEach(displayedRows) { row in
-                        albumRow(row)
+                    if editMode == .active {
+                        ForEach(displayedRows) { row in
+                            albumRow(row)
+                        }
+                        .onMove(perform: moveUserAlbums)
+                    } else {
+                        // Avoid always-on reorder handlers while scrolling.
+                        ForEach(displayedRows) { row in
+                            albumRow(row)
+                        }
                     }
-                    .onMove(perform: moveUserAlbums)
+                } header: {
+                    albumCountHeader
                 }
             }
         }
@@ -270,6 +273,16 @@ struct AlbumsView: View {
         .refreshable {
             dataManager.loadAlbums(showLoading: false)
         }
+    }
+
+    private var albumCountHeader: some View {
+        Text(albumHeaderSubtitle)
+            .font(.subheadline)
+            .foregroundStyle(PhotoDeleteStyle.secondaryText)
+            .lineLimit(1)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .textCase(nil)
+            .padding(.bottom, 2)
     }
 
     private var loadingRow: some View {
@@ -299,7 +312,7 @@ struct AlbumsView: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, 48)
+        .padding(.vertical, 28)
         .listRowInsets(EdgeInsets(top: 0, leading: PhotoDeleteStyle.screenHorizontalPadding, bottom: 0, trailing: PhotoDeleteStyle.screenHorizontalPadding))
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
