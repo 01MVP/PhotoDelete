@@ -347,26 +347,9 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - 作者的更多 App
+    // MARK: - One Apps 系列
     private var moreAppsSection: some View {
-        VStack(spacing: 16) {
-            HStack {
-                Text(L10n.string("作者的更多 App"))
-                    .photoDeleteSectionHeading()
-                Spacer()
-            }
-
-            VStack(spacing: 0) {
-                AppPromotionRow(
-                    imageName: "OneZenAppIcon",
-                    title: L10n.string("OneZen 一念"),
-                    subtitle: L10n.string("冥想、呼吸与专注练习"),
-                    accessibilityIdentifier: "settings-onezen-app-row",
-                    action: openOneZenAppStore
-                )
-            }
-            .photoDeleteCard()
-        }
+        OneAppsPromotionSection()
     }
 
     // MARK: - 偏好设置
@@ -695,12 +678,6 @@ struct SettingsView: View {
             UIApplication.shared.open(url)
             #endif
         }
-    }
-
-    private func openOneZenAppStore() {
-        #if canImport(UIKit)
-        UIApplication.shared.open(AppConstants.oneZenAppStoreURL)
-        #endif
     }
 
     private func clearLocalOrganizeData() {
