@@ -1,5 +1,6 @@
 temp/
 temp.*
+.asc
 .vscode/
 .wrangler/
 
