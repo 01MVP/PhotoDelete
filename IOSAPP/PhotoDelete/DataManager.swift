@@ -203,6 +203,8 @@ class DataManager: ObservableObject {
     @Published private(set) var albumMemberAssetIDs: Set<String> = []
     @Published private(set) var albumTitlesByAssetID: [String: [String]] = [:]
     @Published private(set) var hasLoadedAlbumMembership = false
+    /// Cached so Home does not re-filter the full library on every body refresh.
+    @Published private(set) var unclassifiedPhotosCount = 0
     @Published private(set) var cleanupStatsRevision = UUID()
     @Published private(set) var videoCompressionHistoryRevision = UUID()
     @Published private(set) var imageCompressionHistoryRevision = UUID()
@@ -258,6 +260,8 @@ class DataManager: ObservableObject {
     private var libraryDataRefreshWorkItem: DispatchWorkItem?
     private var nextLibraryDataRefreshDelay: TimeInterval?
     private var suppressNextDerivedLibraryRefresh = false
+    /// After local batch photo edits, skip expensive full album/location rebuilds for a few change pulses.
+    private var suppressHeavyLibraryRefreshRemaining = 0
     private var reviewedAssetIDsSaveWorkItem: DispatchWorkItem?
     private var recentOrganizedPhotoRecordsSaveWorkItem: DispatchWorkItem?
     private var pendingCandidateIDsSaveWorkItem: DispatchWorkItem?
@@ -380,7 +384,18 @@ class DataManager: ObservableObject {
             self.videoFileSizeEstimateCache.removeAll()
             let shouldRefreshDerivedData = !self.suppressNextDerivedLibraryRefresh
             self.suppressNextDerivedLibraryRefresh = false
-            self.scheduleLibraryDataRefresh(refreshDerivedData: shouldRefreshDerivedData)
+
+            let shouldSkipHeavyRefresh = self.suppressHeavyLibraryRefreshRemaining > 0
+            if shouldSkipHeavyRefresh {
+                self.suppressHeavyLibraryRefreshRemaining -= 1
+            }
+
+            self.scheduleLibraryDataRefresh(
+                refreshDerivedData: shouldRefreshDerivedData,
+                reloadAlbums: !shouldSkipHeavyRefresh,
+                reloadLocations: !shouldSkipHeavyRefresh
+            )
+            self.refreshUnclassifiedPhotosCount()
         }
 
         NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)
@@ -702,12 +717,19 @@ class DataManager: ObservableObject {
         }
 
         nextLibraryDataRefreshDelay = 0.65
+        // Local delete/favorite often emits more than one Photos change pulse (device + iCloud).
+        // Keep enough budget for incremental updates instead of full library rebuilds.
+        photoLibraryManager.expectLocalLibraryChange(count: 3)
+        // Skip full album membership / location rebuilds for the immediate local change pulses.
+        suppressHeavyLibraryRefreshRemaining = max(suppressHeavyLibraryRefreshRemaining, 2)
+
         photoLibraryManager.commitBatchChanges(
             deleteAssets: Array(committedDeleteCandidates),
             favoriteAssets: Array(committedFavoriteCandidates)
         ) { success, error in
             guard success else {
                 self.nextLibraryDataRefreshDelay = nil
+                self.suppressHeavyLibraryRefreshRemaining = 0
                 self.deleteCandidates = originalDeleteCandidates
                 self.favoriteCandidates = originalFavoriteCandidates
                 self.savePendingCandidateIDsNow()
@@ -724,11 +746,19 @@ class DataManager: ObservableObject {
                 return
             }
 
+            let deletedIDs = Set(committedDeleteCandidates.map(\.localIdentifier))
+
             // 操作成功后先做本地增量更新，避免重新跑整库索引。
             self.photoLibraryManager.applyCommittedBatchChanges(
                 deletedAssets: Array(committedDeleteCandidates),
                 favoritedAssets: Array(committedFavoriteCandidates)
             )
+            // Keep membership / reviewed state coherent without a full album re-scan.
+            self.removeDeletedAssetsFromMembership(deletedIDs)
+            if !deletedIDs.isEmpty {
+                self.reviewedAssetIDs.subtract(deletedIDs)
+                self.saveReviewedAssetIDsNow()
+            }
             let completedAt = Date()
             let newAchievements = self.cleanupStatsStore.recordSession(
                 deletedPhotos: committedDeleteCandidates.count,
@@ -755,11 +785,12 @@ class DataManager: ObservableObject {
                 date: completedAt
             )
             self.removeCommittedCandidates(
-                deleteIDs: Set(committedDeleteCandidates.map(\.localIdentifier)),
+                deleteIDs: deletedIDs,
                 favoriteIDs: Set(committedFavoriteCandidates.map(\.localIdentifier))
             )
             self.updateStats()
             self.cleanupStatsRevision = UUID()
+            self.refreshUnclassifiedPhotosCount()
             completion(true, nil, celebration)
         }
     }
@@ -1337,8 +1368,50 @@ class DataManager: ObservableObject {
         }
     }
 
-    var unclassifiedPhotosCount: Int {
-        getUnclassifiedPhotos().count
+    private func refreshUnclassifiedPhotosCount() {
+        guard hasLoadedAlbumMembership else {
+            if unclassifiedPhotosCount != 0 {
+                unclassifiedPhotosCount = 0
+            }
+            return
+        }
+
+        let members = albumMemberAssetIDs
+        let photos = photoLibraryManager.allPhotos
+        // Counting over a large library is O(n); keep it off the main thread so Home stays responsive.
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let count = photos.reduce(into: 0) { partial, asset in
+                if !members.contains(asset.localIdentifier) {
+                    partial += 1
+                }
+            }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if self.unclassifiedPhotosCount != count {
+                    self.unclassifiedPhotosCount = count
+                }
+            }
+        }
+    }
+
+    private func removeDeletedAssetsFromMembership(_ deletedIDs: Set<String>) {
+        guard !deletedIDs.isEmpty else { return }
+        var didChange = false
+        for identifier in deletedIDs {
+            if albumMembershipCountsByAssetID.removeValue(forKey: identifier) != nil {
+                didChange = true
+            }
+            if albumTitlesByAssetID.removeValue(forKey: identifier) != nil {
+                didChange = true
+            }
+            if albumMemberAssetIDs.remove(identifier) != nil {
+                didChange = true
+            }
+        }
+        if didChange {
+            // Published membership set already mutated; force observers that depend on count.
+            albumMemberAssetIDs = albumMemberAssetIDs
+        }
     }
 
     func getPhotosForRandomReviewScope(_ scope: PhotoRandomReviewScope) -> [PHAsset] {
@@ -2797,13 +2870,23 @@ class DataManager: ObservableObject {
 
     private func pruneReviewedAssetIDs() {
         guard !reviewedAssetIDs.isEmpty else { return }
-        let validAssetIDs = Set(photoLibraryManager.allPhotos.map(\.localIdentifier))
-        guard !validAssetIDs.isEmpty || photoLibraryManager.hasLoadedPhotoLibrary else { return }
+        let photos = photoLibraryManager.allPhotos
+        guard !photos.isEmpty || photoLibraryManager.hasLoadedPhotoLibrary else { return }
 
-        let prunedAssetIDs = reviewedAssetIDs.intersection(validAssetIDs)
-        guard prunedAssetIDs.count != reviewedAssetIDs.count else { return }
-        reviewedAssetIDs = prunedAssetIDs
-        saveReviewedAssetIDsNow()
+        let currentReviewed = reviewedAssetIDs
+        // Building a Set over tens of thousands of IDs on the main thread freezes Home after cleanup.
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let validAssetIDs = Set(photos.map(\.localIdentifier))
+            let prunedAssetIDs = currentReviewed.intersection(validAssetIDs)
+            guard prunedAssetIDs.count != currentReviewed.count else { return }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                // Ignore stale results if reviewed set changed while pruning.
+                guard self.reviewedAssetIDs == currentReviewed else { return }
+                self.reviewedAssetIDs = prunedAssetIDs
+                self.saveReviewedAssetIDsNow()
+            }
+        }
     }
 
     private func prunePendingCandidates() {
@@ -2826,7 +2909,11 @@ class DataManager: ObservableObject {
         savePendingCandidateIDsNow()
     }
 
-    private func scheduleLibraryDataRefresh(refreshDerivedData: Bool = true) {
+    private func scheduleLibraryDataRefresh(
+        refreshDerivedData: Bool = true,
+        reloadAlbums: Bool = true,
+        reloadLocations: Bool = true
+    ) {
         libraryDataRefreshWorkItem?.cancel()
         let delay = nextLibraryDataRefreshDelay ?? 0.15
         nextLibraryDataRefreshDelay = nil
@@ -2835,11 +2922,15 @@ class DataManager: ObservableObject {
             if refreshDerivedData {
                 self.refreshDerivedLibraryData()
             }
-            if self.hasLoadedLocationGroups {
+            // Full album membership scans are expensive; only do them when albums may have changed.
+            if reloadLocations, self.hasLoadedLocationGroups {
                 self.loadLocationGroups(force: true)
             }
-            if self.hasLoadedAlbums {
+            if reloadAlbums, self.hasLoadedAlbums {
                 self.loadAlbums(showLoading: false)
+            } else if !reloadAlbums {
+                // Still refresh cheap unclassified count from current membership.
+                self.refreshUnclassifiedPhotosCount()
             }
         }
         libraryDataRefreshWorkItem = workItem
@@ -3174,6 +3265,7 @@ class DataManager: ObservableObject {
         albumMembershipCountsByAssetID = counts.filter { $0.value > 0 }
         albumMemberAssetIDs = Set(albumMembershipCountsByAssetID.keys)
         hasLoadedAlbumMembership = true
+        refreshUnclassifiedPhotosCount()
     }
 
     private func resetAlbumMembershipState() {
@@ -3181,6 +3273,7 @@ class DataManager: ObservableObject {
         albumMemberAssetIDs = []
         albumTitlesByAssetID = [:]
         hasLoadedAlbumMembership = false
+        unclassifiedPhotosCount = 0
     }
 
     private func recordAlbumMembershipAdded(for assetIdentifier: String, albumTitle: String) {

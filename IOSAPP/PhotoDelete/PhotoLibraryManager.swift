@@ -1158,7 +1158,8 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             return
         }
 
-        expectLocalLibraryChange()
+        // commitBatchChanges callers may also pre-arm this; keep a baseline here.
+        expectLocalLibraryChange(count: 1)
         PHPhotoLibrary.shared().performChanges({
             if !uniqueDeleteAssets.isEmpty {
                 PHAssetChangeRequest.deleteAssets(uniqueDeleteAssets as NSArray)
@@ -1190,7 +1191,7 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             return
         }
 
-        expectLocalLibraryChange()
+        expectLocalLibraryChange(count: 1)
         PHPhotoLibrary.shared().performChanges({
             let request = PHAssetChangeRequest(for: asset)
             request.isFavorite = isFavorite
@@ -2576,10 +2577,11 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         }
     }
 
-    private func expectLocalLibraryChange() {
+    func expectLocalLibraryChange(count: Int = 1) {
+        let clampedCount = max(count, 1)
         let updateCounter = { [weak self] in
             guard let self else { return }
-            self.localChangeNotificationsRemaining += 1
+            self.localChangeNotificationsRemaining += clampedCount
             self.localChangeResetWorkItem?.cancel()
 
             let resetWorkItem = DispatchWorkItem { [weak self] in
