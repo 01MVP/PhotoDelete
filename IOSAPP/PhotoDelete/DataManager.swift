@@ -141,6 +141,45 @@ enum AlbumLoadNeededPolicy {
     }
 }
 
+enum AlbumMembershipScanCompletionPolicy {
+    /// Only the newest membership scan may publish results.
+    static func shouldApply(completedGeneration: Int, currentGeneration: Int) -> Bool {
+        completedGeneration == currentGeneration
+    }
+}
+
+enum AlbumMembershipMutation {
+    /// Decrements membership counts and removes a deleted album title when provided.
+    static func removing(
+        identifiers: [String],
+        albumTitle: String?,
+        counts: [String: Int],
+        titles: [String: [String]]
+    ) -> (counts: [String: Int], titles: [String: [String]], memberIDs: Set<String>) {
+        var nextCounts = counts
+        var nextTitles = titles
+
+        for identifier in identifiers {
+            let nextCount = max((nextCounts[identifier] ?? 0) - 1, 0)
+            if nextCount > 0 {
+                nextCounts[identifier] = nextCount
+            } else {
+                nextCounts.removeValue(forKey: identifier)
+                nextTitles.removeValue(forKey: identifier)
+            }
+
+            if let albumTitle {
+                nextTitles[identifier]?.removeAll { $0 == albumTitle }
+                if nextTitles[identifier]?.isEmpty == true {
+                    nextTitles.removeValue(forKey: identifier)
+                }
+            }
+        }
+
+        return (nextCounts, nextTitles, Set(nextCounts.keys))
+    }
+}
+
 class DataManager: ObservableObject {
     @Published var organizeStats = OrganizeStats()
 
@@ -195,6 +234,7 @@ class DataManager: ObservableObject {
     private var hasLoadedAlbums = false
     private var isFetchingAlbums = false
     private var isFetchingAlbumMembership = false
+    private var albumMembershipGeneration = 0
     private var pendingAlbumRefresh = false
     private var pendingAlbumRefreshShouldShowLoading = false
     private var isCommittingLegacyFavoriteCandidates = false
@@ -1071,6 +1111,7 @@ class DataManager: ObservableObject {
         isLoadingAlbums = false
         isFetchingAlbums = false
         isFetchingAlbumMembership = false
+        albumMembershipGeneration += 1
         albumLoadingProgress = 0
     }
 
@@ -2841,6 +2882,7 @@ class DataManager: ObservableObject {
             hasLoadedAlbums = false
             isFetchingAlbums = false
             isFetchingAlbumMembership = false
+            albumMembershipGeneration += 1
             pendingAlbumRefresh = false
             pendingAlbumRefreshShouldShowLoading = false
             albumLoadingProgress = 0
@@ -2970,12 +3012,15 @@ class DataManager: ObservableObject {
     }
 
     private func loadAlbumMembershipInBackground(from collections: [PHAssetCollection]) {
-        guard !isFetchingAlbumMembership else { return }
+        // Bump generation so in-flight scans never overwrite a newer album list.
+        albumMembershipGeneration += 1
+        let generation = albumMembershipGeneration
 
         guard !collections.isEmpty else {
             setAlbumMembershipCounts([:])
             albumTitlesByAssetID = [:]
             albumLoadingProgress = 1
+            isFetchingAlbumMembership = false
             return
         }
 
@@ -3005,6 +3050,10 @@ class DataManager: ObservableObject {
                     let progress = 0.72 + (Double(completedSteps) / Double(totalSteps) * 0.27)
                     lastPublishedProgress = progress
                     DispatchQueue.main.async {
+                        guard AlbumMembershipScanCompletionPolicy.shouldApply(
+                            completedGeneration: generation,
+                            currentGeneration: self.albumMembershipGeneration
+                        ) else { return }
                         self.albumLoadingProgress = max(self.albumLoadingProgress, progress)
                     }
                 }
@@ -3012,6 +3061,14 @@ class DataManager: ObservableObject {
 
             let sortedTitles = albumTitlesByAssetID.mapValues { Array(Set($0)).sorted() }
             DispatchQueue.main.async {
+                guard AlbumMembershipScanCompletionPolicy.shouldApply(
+                    completedGeneration: generation,
+                    currentGeneration: self.albumMembershipGeneration
+                ) else {
+                    // A newer scan superseded this one; leave state to the latest generation.
+                    return
+                }
+
                 self.setAlbumMembershipCounts(albumMembershipCountsByAssetID)
                 self.albumTitlesByAssetID = sortedTitles
                 self.albumLoadingProgress = 1
@@ -3136,22 +3193,15 @@ class DataManager: ObservableObject {
 
     private func recordAlbumMembershipRemoved(for assetIdentifiers: [String], albumTitle: String? = nil) {
         guard !assetIdentifiers.isEmpty else { return }
-        for identifier in assetIdentifiers {
-            let nextCount = max((albumMembershipCountsByAssetID[identifier] ?? 0) - 1, 0)
-            if nextCount > 0 {
-                albumMembershipCountsByAssetID[identifier] = nextCount
-            } else {
-                albumMembershipCountsByAssetID.removeValue(forKey: identifier)
-                albumTitlesByAssetID.removeValue(forKey: identifier)
-            }
-            if let albumTitle {
-                albumTitlesByAssetID[identifier]?.removeAll { $0 == albumTitle }
-                if albumTitlesByAssetID[identifier]?.isEmpty == true {
-                    albumTitlesByAssetID.removeValue(forKey: identifier)
-                }
-            }
-        }
-        albumMemberAssetIDs = Set(albumMembershipCountsByAssetID.keys)
+        let updated = AlbumMembershipMutation.removing(
+            identifiers: assetIdentifiers,
+            albumTitle: albumTitle,
+            counts: albumMembershipCountsByAssetID,
+            titles: albumTitlesByAssetID
+        )
+        albumMembershipCountsByAssetID = updated.counts
+        albumTitlesByAssetID = updated.titles
+        albumMemberAssetIDs = updated.memberIDs
     }
 
     private func saveAlbumSnapshot() {
@@ -3380,13 +3430,14 @@ class DataManager: ObservableObject {
 
     func deleteUserAlbum(_ album: PHAssetCollection, completion: @escaping (Bool) -> Void) {
         let removedAssetIdentifiers = makeUserAlbumInfoAndAssetIdentifiers(from: album).assetIdentifiers
+        let albumTitle = album.localizedTitle
         photoLibraryManager.deleteAlbum(album) { success, error in
             if let error {
                 dataManagerLogger.error("Failed to delete album: \(error.localizedDescription, privacy: .public)")
             }
             if success {
                 self.removeUserAlbum(id: album.localIdentifier)
-                self.recordAlbumMembershipRemoved(for: removedAssetIdentifiers)
+                self.recordAlbumMembershipRemoved(for: removedAssetIdentifiers, albumTitle: albumTitle)
             } else {
                 self.refreshAlbumsFromLibrary(showLoading: false)
             }

@@ -24,6 +24,9 @@ struct MainTabView: View {
         .onAppear {
             configureTabBarAppearance()
             dataManager.syncPhotoLibraryAuthorization()
+            Task {
+                await purchaseManager.activateStoreKit()
+            }
             #if DEBUG
             UITestPhotoLibrarySeeder.seedIfRequested {
                 dataManager.syncPhotoLibraryAuthorization(showPreparing: true)
@@ -44,6 +47,7 @@ struct MainTabView: View {
             }
             configureTabBarAppearance()
             dataManager.syncPhotoLibraryAuthorization()
+            purchaseManager.refreshEntitlementsAfterForegroundActivationIfNeeded()
         }
         .onReceive(NotificationCenter.default.publisher(for: AppConstants.openAlbumsTabNotificationName)) { _ in
             selectedTab = .albums

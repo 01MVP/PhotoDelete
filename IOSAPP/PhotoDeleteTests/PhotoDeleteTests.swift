@@ -550,6 +550,47 @@ struct PhotoDeleteTests {
         ))
     }
 
+    @Test func albumMembershipScanOnlyAppliesMatchingGeneration() async throws {
+        #expect(AlbumMembershipScanCompletionPolicy.shouldApply(
+            completedGeneration: 3,
+            currentGeneration: 3
+        ))
+        #expect(!AlbumMembershipScanCompletionPolicy.shouldApply(
+            completedGeneration: 2,
+            currentGeneration: 3
+        ))
+        #expect(!AlbumMembershipScanCompletionPolicy.shouldApply(
+            completedGeneration: 4,
+            currentGeneration: 3
+        ))
+    }
+
+    @Test func albumMembershipRemovalDropsDeletedAlbumTitleWhenAssetStillInOtherAlbums() async throws {
+        let result = AlbumMembershipMutation.removing(
+            identifiers: ["photo-1"],
+            albumTitle: "旅行",
+            counts: ["photo-1": 2],
+            titles: ["photo-1": ["旅行", "家庭"]]
+        )
+
+        #expect(result.counts["photo-1"] == 1)
+        #expect(result.titles["photo-1"] == ["家庭"])
+        #expect(result.memberIDs == ["photo-1"])
+    }
+
+    @Test func albumMembershipRemovalClearsAssetWhenLastAlbumMembershipEnds() async throws {
+        let result = AlbumMembershipMutation.removing(
+            identifiers: ["photo-1"],
+            albumTitle: "旅行",
+            counts: ["photo-1": 1],
+            titles: ["photo-1": ["旅行"]]
+        )
+
+        #expect(result.counts["photo-1"] == nil)
+        #expect(result.titles["photo-1"] == nil)
+        #expect(result.memberIDs.isEmpty)
+    }
+
     @Test func appLanguageSupportsMainLocalizedLanguages() async throws {
         #expect(AppLanguage.allCases.first == .system)
         #expect(AppLanguage.allCases.contains(.en))

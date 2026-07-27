@@ -362,7 +362,10 @@ final class PurchaseManager: ObservableObject {
     func handleOfferCodeRedemptionCompletion(_ result: Result<Void, Error>) {
         switch result {
         case .success:
-            Task { await refreshEntitlementsAfterOfferCodeRedemption() }
+            Task {
+                await activateStoreKit()
+                await refreshEntitlementsAfterOfferCodeRedemption()
+            }
         case .failure(let error):
             guard !(error is CancellationError) else { return }
             errorMessage = L10n.string("无法打开兑换页面，请稍后再试。")
