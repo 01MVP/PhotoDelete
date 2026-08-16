@@ -105,11 +105,12 @@ xcodebuild test \
 
 ## 许可证
 
-[GNU Affero General Public License v3.0](LICENSE)。
+默认协议是 [GNU Affero General Public License v3.0](LICENSE)。
 
-- 可以免费使用、修改，也可以基于它做商业产品
-- 如果你发布了基于这份代码的 App 或服务，源码也必须按 AGPL-3.0 开源
-- 不能改完做成闭源产品
+- **开源商用：免费。** 基于这份代码做产品、收费都可以，只要你的代码同样按 AGPL-3.0 开源。
+- **闭源商用：¥299。** 如果要商用且闭源，需要获得作者授权，授权费 299 元，一次买断。
+
+想申请闭源授权，请联系 MakerJackie。
 
 Copyright (c) 2025-2026 MakerJackie / 01MVP.
 

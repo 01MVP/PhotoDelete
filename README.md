@@ -105,11 +105,12 @@ xcodebuild test \
 
 ## License
 
-[GNU Affero General Public License v3.0](LICENSE).
+The default license is the [GNU Affero General Public License v3.0](LICENSE).
 
-- You may use, modify, and sell products based on this code.
-- If you distribute an app or a service based on this code, you must also release your source under AGPL-3.0.
-- Closed-source forks are not allowed.
+- **Open-source commercial use is free.** You may ship and sell a product based on this code if you also release your source under AGPL-3.0.
+- **Closed-source commercial use is CNY 299.** If you want to sell a closed-source product, you need a license from the author. The fee is 299 yuan, paid once.
+
+Contact MakerJackie for a closed-source license.
 
 Copyright (c) 2025-2026 MakerJackie / 01MVP.
 
