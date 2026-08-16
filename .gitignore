@@ -3,6 +3,17 @@ temp.*
 .asc
 .vscode/
 .wrangler/
+.agents/
+skills/
+skills-lock.json
+tmp-*.png
+tmp-*.jpg
+xhs-*/
+
+# Local campaign binaries. Keep them on disk; do not ship them in git.
+Marketing/
+
+
 
 # Generated marketing/ASO workspace artifacts
 Marketing/PhotoDeleteCampaign/aso-skill/

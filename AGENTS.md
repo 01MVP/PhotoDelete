@@ -1,7 +1,8 @@
 # AGENTS.md
-DO NOT send optional commentary
 
-This file provides guidance to Codex when working in this repository.
+This file provides guidance when working in this repository.
+
+The project is licensed under AGPL-3.0. Do not relicense it, and do not describe closed-source forks as allowed.
 
 ## Repository Rules
 
