@@ -126,23 +126,22 @@ struct PhotoDeleteTests {
     // MARK: - OrganizeStats tests
 
     @Test func organizeStatsFormatsSavedSpace() async throws {
-        #expect(OrganizeStats(spaceSaved: 42).formattedSpaceSaved == "42.0 MB")
-        #expect(OrganizeStats(spaceSaved: 1536).formattedSpaceSaved == "1.5 GB")
+        #expect(OrganizeStats(spaceSaved: 42).formattedSpaceSaved == "44.0 MB")
+        #expect(OrganizeStats(spaceSaved: 1536).formattedSpaceSaved == "1.6 GB")
     }
 
     @Test func organizeStatsFormattedSpaceSavedEdgeCases() async throws {
         // 0 MB
         #expect(OrganizeStats(spaceSaved: 0).formattedSpaceSaved == "0.0 MB")
 
-        // Just under the GB threshold
-        #expect(OrganizeStats(spaceSaved: 999).formattedSpaceSaved == "999.0 MB")
+        // Stored values are MiB and displayed with decimal file-size units.
+        #expect(OrganizeStats(spaceSaved: 953).formattedSpaceSaved == "999.3 MB")
 
-        // Exactly at the GB boundary (1000 MB = 1.0 GB)
-        #expect(OrganizeStats(spaceSaved: 1000).formattedSpaceSaved == "1.0 GB")
+        #expect(OrganizeStats(spaceSaved: 954).formattedSpaceSaved == "1.0 GB")
 
         // Very large values
         let huge = OrganizeStats(spaceSaved: 1_000_000)
-        #expect(huge.formattedSpaceSaved == "1000.0 GB")
+        #expect(huge.formattedSpaceSaved == "1048.6 GB")
     }
 
     @Test func organizeStatsDefaultValues() async throws {
@@ -373,6 +372,48 @@ struct PhotoDeleteTests {
                 coordinate: CLLocationCoordinate2D(latitude: 31.2304, longitude: 121.4737)
             ) == nil
         )
+    }
+
+    @Test func photoReviewSortOrderDefaultsAndKeepsUnknownDatesLast() async throws {
+        struct DatedItem: Equatable {
+            let id: String
+            let date: Date?
+        }
+
+        let earlier = Date(timeIntervalSince1970: 100)
+        let later = Date(timeIntervalSince1970: 200)
+        let newestFirst = [
+            DatedItem(id: "later", date: later),
+            DatedItem(id: "earlier", date: earlier),
+            DatedItem(id: "unknown-a", date: nil),
+            DatedItem(id: "unknown-b", date: nil)
+        ]
+
+        #expect(PhotoReviewSortOrder.normalized("invalid") == .newestFirst)
+        #expect(
+            PhotoReviewSortOrder.newestFirst
+                .apply(to: newestFirst, date: \.date)
+                .map(\.id) == ["later", "earlier", "unknown-a", "unknown-b"]
+        )
+        #expect(
+            PhotoReviewSortOrder.oldestFirst
+                .apply(to: newestFirst, date: \.date)
+                .map(\.id) == ["earlier", "later", "unknown-a", "unknown-b"]
+        )
+    }
+
+    @Test func photoAssetSourceFormatterUsesOnlyPublicPhotoKitMetadata() async throws {
+        #expect(
+            PhotoAssetSourceFormatter.sourceDescription(for: .typeUserLibrary) ==
+                L10n.string("个人图库")
+        )
+        #expect(
+            PhotoAssetSourceFormatter.sourceDescription(for: [.typeCloudShared, .typeiTunesSynced]) ==
+                "\(L10n.string("iCloud 共享相册")) · \(L10n.string("Mac 或 PC 同步"))"
+        )
+        #expect(PhotoAssetSourceFormatter.sourceDescription(for: []) == nil)
+        #expect(PhotoAssetSourceFormatter.cleanedFilename(" /tmp/QQ Image.jpg ") == "QQ Image.jpg")
+        #expect(PhotoAssetSourceFormatter.cleanedFilename("   ") == nil)
     }
 
     @Test func photoLocationGroupingOnlyShowsResolvedPlaceNames() async throws {
@@ -889,6 +930,26 @@ struct PhotoDeleteTests {
 
     // MARK: - CleanupStatsStore tests
 
+    @Test func cleanupSessionExcludesLegacyHeuristicSpaceFromCurrentTotals() async throws {
+        let legacy = CleanupSession(
+            deletedPhotos: 4,
+            favoritedPhotos: 0,
+            organizedPhotos: 4,
+            estimatedSpaceSavedMB: 80,
+            sizeMeasurementVersion: nil
+        )
+        let measured = CleanupSession(
+            deletedPhotos: 2,
+            favoritedPhotos: 0,
+            organizedPhotos: 2,
+            estimatedSpaceSavedMB: 12
+        )
+
+        #expect(legacy.countedDeletedContentSizeMB == 0)
+        #expect(legacy.formattedSpaceSaved == "0.0 MB")
+        #expect(measured.countedDeletedContentSizeMB == 12)
+    }
+
     @Test func cleanupStatsStoreRecordsAndPersistsSessions() async throws {
         let fileURL = temporaryStatsURL()
         defer { try? FileManager.default.removeItem(at: fileURL) }
@@ -907,7 +968,7 @@ struct PhotoDeleteTests {
         #expect(store.summary.deletedPhotos == 3)
         #expect(store.summary.favoritedPhotos == 2)
         #expect(store.summary.organizedPhotos == 5)
-        #expect(store.summary.formattedSpaceSaved == "9.0 MB")
+        #expect(store.summary.formattedSpaceSaved == "9.4 MB")
 
         let reloadedStore = CleanupStatsStore(fileURL: fileURL)
         #expect(reloadedStore.sessions.count == 1)
@@ -1881,7 +1942,7 @@ struct PhotoDeleteTests {
         #expect(summary.deletedAssets == 2)
         #expect(summary.organizedAssets == 4)
         #expect(summary.estimatedSpaceSavedMB == 6)
-        #expect(summary.formattedSpaceSaved == "6.0 MB")
+        #expect(summary.formattedSpaceSaved == "6.3 MB")
     }
 
     // MARK: - DataManager candidate operations
@@ -2119,19 +2180,42 @@ struct PhotoDeleteTests {
         #expect(first == ["asset-b", "asset-c", "asset-a", "asset-d", "asset-e"])
     }
 
-    @Test func randomReviewFallbackCanIncludeReviewedPhotosAfterUnreviewedCandidates() async throws {
-        let candidateIDs = ["candidate-a", "candidate-b", "candidate-reviewed"]
-        let resolved = PhotoRandomReviewPlanner.resolvedIdentifiers(
-            candidateIdentifiers: candidateIDs,
-            fallbackCandidateIdentifiers: candidateIDs,
-            excludedIdentifiers: ["candidate-reviewed"],
-            fallbackExcludedIdentifiers: [],
-            seed: "fallback",
-            limit: Int.max
+    @Test func randomReviewPlannerDoesNotRefillRoundWithReviewedPhotos() async throws {
+        let planned = PhotoRandomReviewPlanner.plannedIdentifiers(
+            from: ["candidate-a", "candidate-reviewed", "candidate-b"],
+            excluding: ["candidate-reviewed"],
+            seed: "no-reviewed-fallback",
+            limit: 50
         )
 
-        #expect(Set(resolved.prefix(2)) == ["candidate-a", "candidate-b"])
-        #expect(resolved.last == "candidate-reviewed")
+        #expect(Set(planned) == ["candidate-a", "candidate-b"])
+        #expect(!planned.contains("candidate-reviewed"))
+    }
+
+    @Test func randomReviewPlannerCapsEachRound() async throws {
+        let identifiers = (0..<250).map { "asset-\($0)" }
+        let planned = PhotoRandomReviewPlanner.plannedIdentifiers(
+            from: identifiers,
+            excluding: [],
+            seed: "bounded-round",
+            limit: PhotoRandomReviewBatchSize.defaultValue.rawValue
+        )
+
+        #expect(planned.count == 50)
+        #expect(Set(planned).count == planned.count)
+    }
+
+    @Test func randomReviewBatchSizeNormalizesInvalidStoredValue() async throws {
+        #expect(PhotoRandomReviewBatchSize.defaultValue == .standard)
+        #expect(PhotoRandomReviewBatchSize.normalized(20) == .small)
+        #expect(PhotoRandomReviewBatchSize.normalized(4_000) == .standard)
+    }
+
+    @Test func randomReviewNavigationStopsAtRoundBoundaries() async throws {
+        #expect(PhotoRandomReviewNavigationPolicy.previousIndex(currentIndex: 0, count: 50) == nil)
+        #expect(PhotoRandomReviewNavigationPolicy.previousIndex(currentIndex: 1, count: 50) == 0)
+        #expect(PhotoRandomReviewNavigationPolicy.nextIndex(currentIndex: 48, count: 50) == 49)
+        #expect(PhotoRandomReviewNavigationPolicy.nextIndex(currentIndex: 49, count: 50) == nil)
     }
 
     @Test func randomReviewWaitsForTheCompleteLibraryEvenWhenPartialPhotosExist() async throws {
@@ -2149,6 +2233,47 @@ struct PhotoDeleteTests {
             isRandomReview: false,
             hasPhotos: true,
             isWaitingForSourceData: true
+        ))
+    }
+
+    @Test func allPhotosSessionInitializationRequiresCompleteSource() async throws {
+        #expect(PhotoReviewSessionInitializationPolicy.shouldWaitForSource(
+            isRandomReview: false,
+            hasPhotos: true,
+            isWaitingForSourceData: true,
+            requiresCompleteSource: true,
+            isSourceComplete: false
+        ))
+        #expect(PhotoReviewSessionInitializationPolicy.shouldWaitForSource(
+            isRandomReview: false,
+            hasPhotos: true,
+            isWaitingForSourceData: false,
+            requiresCompleteSource: true,
+            isSourceComplete: false
+        ))
+        let canInitializeAfterCompleteSource = !PhotoReviewSessionInitializationPolicy.shouldWaitForSource(
+            isRandomReview: false,
+            hasPhotos: true,
+            isWaitingForSourceData: false,
+            requiresCompleteSource: true,
+            isSourceComplete: true
+        )
+        #expect(canInitializeAfterCompleteSource)
+        // A later readiness check must not ask for a second initialization once
+        // the complete source remains available.
+        #expect(!PhotoReviewSessionInitializationPolicy.shouldWaitForSource(
+            isRandomReview: false,
+            hasPhotos: true,
+            isWaitingForSourceData: false,
+            requiresCompleteSource: true,
+            isSourceComplete: true
+        ))
+        #expect(PhotoReviewSessionInitializationPolicy.shouldWaitForSource(
+            isRandomReview: false,
+            hasPhotos: true,
+            isWaitingForSourceData: true,
+            requiresCompleteSource: true,
+            isSourceComplete: true
         ))
     }
 
@@ -2340,12 +2465,26 @@ struct PhotoDeleteTests {
     }
 
     @Test func photoReviewReadinessAllowsAllPhotosDuringBackgroundLoading() async throws {
-        #expect(!PhotoReviewSourceReadiness.isWaiting(
+        #expect(PhotoReviewSourceReadiness.isWaiting(
             selectedCategory: .all,
             selectedLocationGroupID: nil,
             hasLoadedAllCategoryPhotos: true,
             isPhotoLibraryLoading: true,
             isPreparingLibrary: true,
+            isRestoringLibrarySnapshot: false,
+            isLoadingLocationGroups: false,
+            isResolvingLocationTitles: false,
+            isLoadingAdvancedCleanupQueues: false,
+            hasLoadedAlbumMembership: true,
+            isLoadingAlbums: false
+        ))
+
+        #expect(!PhotoReviewSourceReadiness.isWaiting(
+            selectedCategory: .all,
+            selectedLocationGroupID: nil,
+            hasLoadedAllCategoryPhotos: true,
+            isPhotoLibraryLoading: false,
+            isPreparingLibrary: false,
             isRestoringLibrarySnapshot: false,
             isLoadingLocationGroups: false,
             isResolvingLocationTitles: false,
@@ -2439,6 +2578,224 @@ struct PhotoDeleteTests {
             hasLoadedAlbumMembership: true,
             isLoadingAlbums: false
         ))
+    }
+
+    @Test func photoLibraryChangeRoutingTreatsEmptyDetailsAsAlbumOnly() async throws {
+        #expect(
+            PhotoLibraryChangeRoutingPolicy.route(
+                hasChangeDetails: false,
+                insertedCount: 1,
+                removedCount: 0,
+                changedCount: 0,
+                hasMoves: true
+            ) == .albumOnly
+        )
+        #expect(
+            PhotoLibraryChangeRoutingPolicy.route(
+                hasChangeDetails: true,
+                insertedCount: 0,
+                removedCount: 0,
+                changedCount: 0,
+                hasMoves: false
+            ) == .albumOnly
+        )
+        #expect(
+            PhotoLibraryChangeRoutingPolicy.route(
+                hasChangeDetails: true,
+                insertedCount: 1,
+                removedCount: 0,
+                changedCount: 0,
+                hasMoves: false
+            ) == .library
+        )
+        #expect(
+            PhotoLibraryChangeRoutingPolicy.route(
+                hasChangeDetails: true,
+                insertedCount: 0,
+                removedCount: 1,
+                changedCount: 0,
+                hasMoves: false
+            ) == .library
+        )
+        #expect(
+            PhotoLibraryChangeRoutingPolicy.route(
+                hasChangeDetails: true,
+                insertedCount: 0,
+                removedCount: 0,
+                changedCount: 1,
+                hasMoves: false
+            ) == .library
+        )
+        #expect(
+            PhotoLibraryChangeRoutingPolicy.route(
+                hasChangeDetails: true,
+                insertedCount: 0,
+                removedCount: 0,
+                changedCount: 0,
+                hasMoves: true
+            ) == .library
+        )
+        #expect(
+            PhotoLibraryChangeRoutingPolicy.route(
+                hasChangeDetails: true,
+                insertedCount: 2,
+                removedCount: 3,
+                changedCount: 4,
+                hasMoves: true
+            ) == .library
+        )
+        #expect(
+            PhotoLibraryChangeRoutingPolicy.route(
+                insertedCount: 2,
+                removedCount: 1,
+                changedCount: 0,
+                hasMoves: false
+            ) == .library
+        )
+    }
+
+    @Test func localAlbumChangePulseIsConsumedOnceAndExpires() async throws {
+        let now = Date(timeIntervalSince1970: 10_000)
+        var deadlines: [Date] = []
+        PhotoLibraryLocalAlbumChangePulsePolicy.appendExpectedPulses(
+            expectedDeadlines: &deadlines,
+            count: 1,
+            now: now
+        )
+
+        #expect(PhotoLibraryLocalAlbumChangePulsePolicy.consumeExpectedPulse(
+            expectedDeadlines: &deadlines,
+            now: now,
+            hasResourceChanges: false
+        ))
+        #expect(deadlines.isEmpty)
+        #expect(!PhotoLibraryLocalAlbumChangePulsePolicy.consumeExpectedPulse(
+            expectedDeadlines: &deadlines,
+            now: now,
+            hasResourceChanges: false
+        ))
+
+        deadlines = [now.addingTimeInterval(-0.01)]
+        #expect(!PhotoLibraryLocalAlbumChangePulsePolicy.consumeExpectedPulse(
+            expectedDeadlines: &deadlines,
+            now: now,
+            hasResourceChanges: false
+        ))
+        #expect(deadlines.isEmpty)
+    }
+
+    @Test func localAlbumChangePulseNeverConsumesRealResourceChanges() async throws {
+        let now = Date(timeIntervalSince1970: 10_000)
+        var deadlines: [Date] = []
+        PhotoLibraryLocalAlbumChangePulsePolicy.appendExpectedPulses(
+            expectedDeadlines: &deadlines,
+            count: 2,
+            now: now
+        )
+
+        #expect(!PhotoLibraryLocalAlbumChangePulsePolicy.consumeExpectedPulse(
+            expectedDeadlines: &deadlines,
+            now: now,
+            hasResourceChanges: true
+        ))
+        #expect(deadlines.count == 2)
+        #expect(PhotoLibraryLocalAlbumChangePulsePolicy.consumeExpectedPulse(
+            expectedDeadlines: &deadlines,
+            now: now,
+            hasResourceChanges: false
+        ))
+        #expect(deadlines.count == 1)
+    }
+
+    @Test func localAlbumChangePulseFailureRollbackCancelsOnlyUnusedToken() async throws {
+        let now = Date(timeIntervalSince1970: 10_000)
+        var deadlines = [
+            now.addingTimeInterval(1),
+            now.addingTimeInterval(2),
+            now.addingTimeInterval(3)
+        ]
+
+        // Observer consumed the oldest token; a failed transaction must cancel
+        // the latest still-unused token, not the oldest deadline.
+        #expect(PhotoLibraryLocalAlbumChangePulsePolicy.consumeExpectedPulse(
+            expectedDeadlines: &deadlines,
+            now: now,
+            hasResourceChanges: false
+        ))
+        #expect(deadlines == [now.addingTimeInterval(2), now.addingTimeInterval(3)])
+
+        #expect(PhotoLibraryLocalAlbumChangePulsePolicy.cancelOneExpectedPulse(
+            expectedDeadlines: &deadlines
+        ))
+        #expect(deadlines == [now.addingTimeInterval(2)])
+
+        #expect(PhotoLibraryLocalAlbumChangePulsePolicy.cancelOneExpectedPulse(
+            expectedDeadlines: &deadlines
+        ))
+        #expect(deadlines.isEmpty)
+
+        #expect(!PhotoLibraryLocalAlbumChangePulsePolicy.cancelOneExpectedPulse(
+            expectedDeadlines: &deadlines
+        ))
+        #expect(deadlines.isEmpty)
+    }
+
+    @Test func localAlbumChangePulseUsesIndependentFIFODeadlines() async throws {
+        let now = Date(timeIntervalSince1970: 10_000)
+        var deadlines: [Date] = []
+        PhotoLibraryLocalAlbumChangePulsePolicy.appendExpectedPulses(
+            expectedDeadlines: &deadlines,
+            count: 1,
+            now: now
+        )
+        let later = now.addingTimeInterval(1)
+        PhotoLibraryLocalAlbumChangePulsePolicy.appendExpectedPulses(
+            expectedDeadlines: &deadlines,
+            count: 1,
+            now: later
+        )
+
+        // The first token is expired, while the second remains valid. The
+        // expired token must not be used to swallow a later external pulse.
+        #expect(PhotoLibraryLocalAlbumChangePulsePolicy.consumeExpectedPulse(
+            expectedDeadlines: &deadlines,
+            now: now.addingTimeInterval(PhotoLibraryLocalAlbumChangePulsePolicy.timeout + 0.1),
+            hasResourceChanges: false
+        ))
+        #expect(deadlines.isEmpty)
+        #expect(!PhotoLibraryLocalAlbumChangePulsePolicy.consumeExpectedPulse(
+            expectedDeadlines: &deadlines,
+            now: later.addingTimeInterval(PhotoLibraryLocalAlbumChangePulsePolicy.timeout + 0.1),
+            hasResourceChanges: false
+        ))
+    }
+
+    @Test func localAlbumChangePulseResourceChangesNeverConsumeOrReorderTokens() async throws {
+        let now = Date(timeIntervalSince1970: 10_000)
+        var deadlines = [now.addingTimeInterval(1), now.addingTimeInterval(3)]
+
+        #expect(!PhotoLibraryLocalAlbumChangePulsePolicy.consumeExpectedPulse(
+            expectedDeadlines: &deadlines,
+            now: now.addingTimeInterval(0.5),
+            hasResourceChanges: true
+        ))
+        #expect(deadlines == [now.addingTimeInterval(1), now.addingTimeInterval(3)])
+    }
+
+    @Test func albumWriteAdmissionBoundsWaitingRequestsWithOneActiveRequest() async throws {
+        let policy = PhotoLibraryAlbumWriteAdmissionPolicy.self
+
+        #expect(policy.canEnqueue(waitingRequestCount: 0, hasActiveRequest: false))
+        #expect(policy.canEnqueue(waitingRequestCount: 31, hasActiveRequest: false))
+        #expect(!policy.canEnqueue(waitingRequestCount: 32, hasActiveRequest: false))
+        #expect(!policy.canEnqueue(waitingRequestCount: 33, hasActiveRequest: false))
+
+        #expect(policy.canEnqueue(waitingRequestCount: 0, hasActiveRequest: true))
+        #expect(policy.canEnqueue(waitingRequestCount: 31, hasActiveRequest: true))
+        #expect(!policy.canEnqueue(waitingRequestCount: 32, hasActiveRequest: true))
+        #expect(!policy.canEnqueue(waitingRequestCount: 33, hasActiveRequest: true))
+        #expect(policy.outstandingRequestCount(waitingRequestCount: 32, hasActiveRequest: true) == 33)
+        #expect(!policy.canEnqueue(waitingRequestCount: -1, hasActiveRequest: true))
     }
 
     @Test func similarPhotoGroupingUsesBurstIdentifierForTwoItemGroups() async throws {
@@ -2536,6 +2893,43 @@ struct PhotoDeleteTests {
         #expect(updated.map(\.assetIdentifier) == ["a", "b"])
         #expect(updated.first?.action == .queuedForDeletion)
         #expect(updated.first?.date == later)
+    }
+
+    @Test func recentOrganizedPhotoHistoryAppliesLargeBatchOnceWithStableOrder() async throws {
+        let earlier = Date(timeIntervalSince1970: 1_000)
+        let later = Date(timeIntervalSince1970: 2_000)
+        let initial = [
+            RecentOrganizedPhotoRecord(assetIdentifier: "a", action: .kept, date: earlier),
+            RecentOrganizedPhotoRecord(assetIdentifier: "b", action: .favorited, date: earlier),
+            RecentOrganizedPhotoRecord(assetIdentifier: "c", action: .kept, date: earlier)
+        ]
+        let batch = [
+            RecentOrganizedPhotoRecord(assetIdentifier: "c", action: .queuedForDeletion, date: later),
+            RecentOrganizedPhotoRecord(assetIdentifier: "d", action: .queuedForDeletion, date: later),
+            RecentOrganizedPhotoRecord(assetIdentifier: "c", action: .queuedForDeletion, date: later)
+        ]
+
+        let updated = RecentOrganizedPhotoHistory.updated(initial, with: batch, limit: 3)
+
+        #expect(updated.map(\.assetIdentifier) == ["c", "d", "a"])
+        #expect(updated.prefix(2).allSatisfy { $0.action == .queuedForDeletion })
+    }
+
+    @Test func deletedContentSizeSummaryCountsOnlyReliableUniqueMeasurements() async throws {
+        let summary = DeletedContentSizeSummary.make(
+            assetIdentifiers: ["photo", "photo", "video", "cloud", "invalid", "missing"],
+            estimatesByAssetID: [
+                "photo": AssetFileSizeEstimate(sizeMB: 1.25, source: .assetResource),
+                "video": AssetFileSizeEstimate(sizeMB: 3.5, source: .assetResource),
+                "cloud": AssetFileSizeEstimate(sizeMB: 800, source: .iCloud),
+                "invalid": AssetFileSizeEstimate(sizeMB: .infinity, source: .assetResource)
+            ]
+        )
+
+        #expect(summary.knownSizeMB == 4.75)
+        #expect(summary.knownAssetCount == 2)
+        #expect(summary.unknownAssetCount == 3)
+        #expect(summary.totalAssetCount == 5)
     }
 
     @Test func videoPlaybackProgressMapperClampsDragLocations() async throws {
@@ -3234,6 +3628,15 @@ struct PhotoDeleteTests {
         #expect(PhotoMemoryCaptionFormatter.relativeTitle(for: now, now: now, calendar: calendar) == L10n.string("今天"))
         #expect(PhotoMemoryCaptionFormatter.relativeTitle(for: threeYearsAgo, now: now, calendar: calendar) == String(format: L10n.string("%lld 年前"), Int64(3)))
         #expect(PhotoMemoryCaptionFormatter.dateSubtitle(for: threeYearsAgo) != nil)
+    }
+
+    @Test func promotedAppsExcludeOnePackAndUseNeutralProductDescriptions() async throws {
+        let apps = OneAppsPromotionCatalog.apps
+
+        #expect(!apps.contains(where: { $0.id == "onepack" }))
+        #expect(apps.first(where: { $0.id == "onescan" })?.subtitleKey == "PDF 扫描")
+        #expect(apps.first(where: { $0.id == "onehabit" })?.subtitleKey == "习惯追踪")
+        #expect(apps.allSatisfy { !$0.subtitleKey.contains("私密") && !$0.summaryKey.contains("私密") })
     }
 
     // MARK: - Helpers

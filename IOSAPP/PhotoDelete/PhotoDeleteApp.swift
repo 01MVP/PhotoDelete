@@ -9,15 +9,24 @@ import SwiftUI
 
 @main
 struct PhotoDeleteApp: App {
-    @AppStorage(AppConstants.appLanguageKey) private var appLanguageValue = AppLanguage.system.rawValue
-    @AppStorage(AppConstants.appAppearanceKey) private var appAppearanceValue = AppAppearance.system.rawValue
-    @AppStorage(AppConstants.appThemeKey) private var appThemeValue = PhotoDeleteTheme.defaultTheme.rawValue
+    @AppStorage(AppConstants.appLanguageKey) private var appLanguageValue =
+        PhotoDeleteLaunchDefaults.string(
+            forKey: AppConstants.appLanguageKey,
+            fallback: AppLanguage.system.rawValue
+        )
+    @AppStorage(AppConstants.appAppearanceKey) private var appAppearanceValue =
+        PhotoDeleteLaunchDefaults.string(
+            forKey: AppConstants.appAppearanceKey,
+            fallback: AppAppearance.system.rawValue
+        )
+    @AppStorage(AppConstants.appThemeKey) private var appThemeValue =
+        PhotoDeleteLaunchDefaults.string(
+            forKey: AppConstants.appThemeKey,
+            fallback: PhotoDeleteTheme.defaultTheme.rawValue
+        )
     @StateObject private var purchaseManager = PurchaseManager()
 
     init() {
-        #if DEBUG
-        PhotoDeleteUITestDefaults.applyIfNeeded()
-        #endif
         SwipeGesturePreferences.migrateStoredDefaultsIfNeeded()
         ReviewPlaybackPreferences.applyLaunchDefaults()
     }
@@ -46,6 +55,19 @@ struct PhotoDeleteApp: App {
     private var selectedTheme: PhotoDeleteTheme {
         guard purchaseManager.isSupporter else { return .defaultTheme }
         return PhotoDeleteTheme.normalized(appThemeValue)
+    }
+}
+
+private enum PhotoDeleteLaunchDefaults {
+    private static let prepared: Void = {
+        #if DEBUG
+        PhotoDeleteUITestDefaults.applyIfNeeded()
+        #endif
+    }()
+
+    static func string(forKey key: String, fallback: String) -> String {
+        _ = prepared
+        return UserDefaults.standard.string(forKey: key) ?? fallback
     }
 }
 
@@ -111,6 +133,7 @@ private enum PhotoDeleteUITestDefaults {
             AppConstants.reviewLivePhotoAutoPlayKey,
             AppConstants.reviewVideoMutedKey,
             AppConstants.reviewModeKey,
+            AppConstants.reviewSortOrderKey,
             AppConstants.reviewAlbumShortcutsExpandedKey,
             AppConstants.gestureUpdateNoticePendingKey,
             AppConstants.hasSeenAlbumShortcutHintKey,

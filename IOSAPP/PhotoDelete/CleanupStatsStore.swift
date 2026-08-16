@@ -21,6 +21,7 @@ struct CleanupSession: Codable, Identifiable, Equatable {
     let favoritedPhotos: Int
     let organizedPhotos: Int
     let estimatedSpaceSavedMB: Double
+    let sizeMeasurementVersion: Int?
 
     init(
         id: UUID = UUID(),
@@ -28,7 +29,8 @@ struct CleanupSession: Codable, Identifiable, Equatable {
         deletedPhotos: Int,
         favoritedPhotos: Int,
         organizedPhotos: Int,
-        estimatedSpaceSavedMB: Double
+        estimatedSpaceSavedMB: Double,
+        sizeMeasurementVersion: Int? = 2
     ) {
         self.id = id
         self.date = date
@@ -36,6 +38,7 @@ struct CleanupSession: Codable, Identifiable, Equatable {
         self.favoritedPhotos = favoritedPhotos
         self.organizedPhotos = organizedPhotos
         self.estimatedSpaceSavedMB = estimatedSpaceSavedMB
+        self.sizeMeasurementVersion = sizeMeasurementVersion
     }
 
     var monthKey: String {
@@ -50,7 +53,15 @@ struct CleanupSession: Codable, Identifiable, Equatable {
     }
 
     var formattedSpaceSaved: String {
-        CleanupStatsFormatter.space(estimatedSpaceSavedMB)
+        CleanupStatsFormatter.fileSize(countedDeletedContentSizeMB)
+    }
+
+    var countedDeletedContentSizeMB: Double {
+        guard sizeMeasurementVersion == 2,
+              estimatedSpaceSavedMB.isFinite else {
+            return 0
+        }
+        return max(estimatedSpaceSavedMB, 0)
     }
 }
 
@@ -75,7 +86,7 @@ struct CleanupMonthlySummary: Identifiable, Equatable {
     }
 
     var formattedSpaceSaved: String {
-        CleanupStatsFormatter.space(estimatedSpaceSavedMB)
+        CleanupStatsFormatter.fileSize(estimatedSpaceSavedMB)
     }
 }
 
@@ -95,7 +106,7 @@ struct CleanupStatsSummary: Equatable {
     )
 
     var formattedSpaceSaved: String {
-        CleanupStatsFormatter.space(estimatedSpaceSavedMB)
+        CleanupStatsFormatter.fileSize(estimatedSpaceSavedMB)
     }
 }
 
@@ -122,7 +133,7 @@ final class CleanupStatsStore: ObservableObject {
                 deletedPhotos: partial.deletedPhotos + session.deletedPhotos,
                 favoritedPhotos: partial.favoritedPhotos + session.favoritedPhotos,
                 organizedPhotos: partial.organizedPhotos + session.organizedPhotos,
-                estimatedSpaceSavedMB: partial.estimatedSpaceSavedMB + session.estimatedSpaceSavedMB
+                estimatedSpaceSavedMB: partial.estimatedSpaceSavedMB + session.countedDeletedContentSizeMB
             )
         }
     }
@@ -136,7 +147,7 @@ final class CleanupStatsStore: ObservableObject {
                 deletedPhotos: sessions.reduce(0) { $0 + $1.deletedPhotos },
                 favoritedPhotos: sessions.reduce(0) { $0 + $1.favoritedPhotos },
                 organizedPhotos: sessions.reduce(0) { $0 + $1.organizedPhotos },
-                estimatedSpaceSavedMB: sessions.reduce(0) { $0 + $1.estimatedSpaceSavedMB }
+                estimatedSpaceSavedMB: sessions.reduce(0) { $0 + $1.countedDeletedContentSizeMB }
             )
         }
         .sorted { $0.monthKey > $1.monthKey }
@@ -198,12 +209,15 @@ final class CleanupStatsStore: ObservableObject {
         let previousSummary = summary
         let previousStreakDays = streakDays(referenceDate: date)
 
+        let safeDeletedContentSizeMB = estimatedSpaceSavedMB.isFinite
+            ? max(estimatedSpaceSavedMB, 0)
+            : 0
         let session = CleanupSession(
             date: date,
             deletedPhotos: max(deletedPhotos, 0),
             favoritedPhotos: max(favoritedPhotos, 0),
             organizedPhotos: max(organizedPhotos, 0),
-            estimatedSpaceSavedMB: max(estimatedSpaceSavedMB, 0)
+            estimatedSpaceSavedMB: safeDeletedContentSizeMB
         )
         sessions.insert(session, at: 0)
         save()

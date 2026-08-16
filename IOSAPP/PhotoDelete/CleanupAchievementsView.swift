@@ -175,7 +175,7 @@ struct CleanupAchievementsView: View {
                     )
 
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(L10n.string("徽章、连续整理和节省空间进度"))
+                        Text(L10n.string("徽章、连续整理和删除内容进度"))
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundColor(PhotoDeleteStyle.primaryText)
                             .lineLimit(2)
@@ -220,7 +220,7 @@ struct CleanupAchievementsView: View {
                     )
                     StatCard(
                         value: summary.formattedSpaceSaved,
-                        label: L10n.string("累计节省"),
+                        label: L10n.string("累计删除内容"),
                         color: PhotoDeleteStyle.positive
                     )
                 }

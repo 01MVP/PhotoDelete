@@ -30897,6 +30897,86 @@
         }
       }
     },
+    "每轮照片数量": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "عدد الصور في كل جولة"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fotos pro Runde"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photos per round"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1回あたりの写真数"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每轮照片数量"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每輪照片數量"
+          }
+        }
+      }
+    },
+    "每轮最多 %lld 张": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "بحد أقصى %lld صورة في كل جولة"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bis zu %lld Fotos pro Runde"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Up to %lld photos per round"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1回につき最大%lld枚"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每轮最多 %lld 张"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每輪最多 %lld 張"
+          }
+        }
+      }
+    },
     "每次打开默认静音，可临时关闭听声音": {
       "localizations": {
         "ar": {
@@ -45324,46 +45404,46 @@
         }
       }
     },
-    "私密文档扫描": {
+    "PDF 扫描": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Private document scanning"
+            "value": "PDF scanning"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "私密文档扫描"
+            "value": "PDF 扫描"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "私密文件掃描"
+            "value": "PDF 掃描"
           }
         }
       }
     },
-    "私密习惯追踪": {
+    "习惯追踪": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Private habit tracker"
+            "value": "Habit tracking"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "私密习惯追踪"
+            "value": "习惯追踪"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "私密習慣追蹤"
+            "value": "習慣追蹤"
           }
         }
       }
@@ -45610,24 +45690,24 @@
         }
       }
     },
-    "独立小而美的 App，专注、私密、好用。": {
+    "独立小而美的 App，专注、简洁、好用。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Independent, focused apps that are private and easy to use."
+            "value": "Independent apps that are focused, simple, and easy to use."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "独立小而美的 App，专注、私密、好用。"
+            "value": "独立小而美的 App，专注、简洁、好用。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "獨立小而美的 App，專注、私密、好用。"
+            "value": "獨立小而美的 App，專注、簡潔、好用。"
           }
         }
       }
@@ -45742,24 +45822,24 @@
         }
       }
     },
-    "用灵活计划、清晰进度和私有同步，建立真正适合日常生活的习惯。": {
+    "用灵活计划、清晰进度和 iCloud 同步，建立真正适合日常生活的习惯。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Build habits that fit real life with flexible plans, clear progress, and private sync."
+            "value": "Build habits that fit real life with flexible plans, clear progress, and iCloud sync."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "用灵活计划、清晰进度和私有同步，建立真正适合日常生活的习惯。"
+            "value": "用灵活计划、清晰进度和 iCloud 同步，建立真正适合日常生活的习惯。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "用靈活計畫、清晰進度與私有同步，建立真正適合日常生活的習慣。"
+            "value": "用靈活計畫、清晰進度與 iCloud 同步，建立真正適合日常生活的習慣。"
           }
         }
       }
@@ -45852,46 +45932,46 @@
         }
       }
     },
-    "快速打开、编辑并分享 Markdown、HTML、SVG 与纯文本，私密且离线。": {
+    "快速打开、编辑并分享 Markdown、HTML、SVG 与纯文本；内容在本地处理，也可离线使用。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Open, edit, and share Markdown, HTML, SVG, and plain text—privately and offline."
+            "value": "Open, edit, and share Markdown, HTML, SVG, and plain text. Content is processed locally and works offline."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "快速打开、编辑并分享 Markdown、HTML、SVG 与纯文本，私密且离线。"
+            "value": "快速打开、编辑并分享 Markdown、HTML、SVG 与纯文本；内容在本地处理，也可离线使用。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "快速開啟、編輯並分享 Markdown、HTML、SVG 與純文字，私密且離線。"
+            "value": "快速開啟、編輯並分享 Markdown、HTML、SVG 與純文字；內容在本機處理，也可離線使用。"
           }
         }
       }
     },
-    "录音、离线转写，并在 Apple 设备间通过私有 iCloud 同步。": {
+    "录音、离线转写，并通过 iCloud 在 Apple 设备间同步。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Record, transcribe offline, and sync privately over iCloud across Apple devices."
+            "value": "Record, transcribe offline, and sync across Apple devices with iCloud."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "录音、离线转写，并在 Apple 设备间通过私有 iCloud 同步。"
+            "value": "录音、离线转写，并通过 iCloud 在 Apple 设备间同步。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "錄音、離線轉寫，並在 Apple 裝置間透過私有 iCloud 同步。"
+            "value": "錄音、離線轉寫，並透過 iCloud 在 Apple 裝置間同步。"
           }
         }
       }
@@ -45918,24 +45998,24 @@
         }
       }
     },
-    "隐私优先的本地姿势监控，减少误报并提供可靠提醒。": {
+    "在设备本地监测坐姿，减少误报并提供可靠提醒。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Privacy-first local posture monitoring with fewer false alerts and reliable reminders."
+            "value": "Monitor posture on your device with fewer false alerts and reliable reminders."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "隐私优先的本地姿势监控，减少误报并提供可靠提醒。"
+            "value": "在设备本地监测坐姿，减少误报并提供可靠提醒。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "隱私優先的本地姿勢監控，減少誤報並提供可靠提醒。"
+            "value": "在裝置本機監測坐姿，減少誤報並提供可靠提醒。"
           }
         }
       }
@@ -45958,6 +46038,960 @@
           "stringUnit": {
             "state": "translated",
             "value": "用簡短的冥想與呼吸練習，幫你更快安靜下來。"
+          }
+        }
+      }
+    },
+    "照片顺序": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ترتيب الصور"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fotoreihenfolge"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo Order"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "写真の順序"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "照片顺序"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "照片順序"
+          }
+        }
+      }
+    },
+    "最新照片优先": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "الأحدث أولاً"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neueste Fotos zuerst"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Newest Photos First"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新しい写真を優先"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最新照片优先"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最新照片優先"
+          }
+        }
+      }
+    },
+    "最早照片优先": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "الأقدم أولاً"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Älteste Fotos zuerst"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oldest Photos First"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "古い写真を優先"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最早照片优先"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最早照片優先"
+          }
+        }
+      }
+    },
+    "浏览顺序": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ترتيب التصفح"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anzeigereihenfolge"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Browsing Order"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "表示順序"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "浏览顺序"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "瀏覽順序"
+          }
+        }
+      }
+    },
+    "个人图库": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "المكتبة الشخصية"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Persönliche Mediathek"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Personal Library"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "個人用ライブラリ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "个人图库"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "個人圖庫"
+          }
+        }
+      }
+    },
+    "iCloud 共享相册": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ألبوم iCloud مشترك"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geteiltes iCloud-Album"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iCloud Shared Album"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iCloud共有アルバム"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iCloud 共享相册"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iCloud 共享相簿"
+          }
+        }
+      }
+    },
+    "Mac 或 PC 同步": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تمت المزامنة من Mac أو PC"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Von Mac oder PC synchronisiert"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Synced from Mac or PC"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MacまたはPCから同期"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac 或 PC 同步"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac 或 PC 同步"
+          }
+        }
+      }
+    },
+    "图库来源": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "مصدر المكتبة"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mediatheksquelle"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Library Source"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ライブラリの出所"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "图库来源"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "圖庫來源"
+          }
+        }
+      }
+    },
+    "原始文件名": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "اسم الملف الأصلي"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ursprünglicher Dateiname"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Original Filename"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "元のファイル名"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原始文件名"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原始檔名"
+          }
+        }
+      }
+    },
+    "删除后会进入系统“最近删除”，空间可能不会立即释放。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deleted items move to Recently Deleted, so storage may not be freed immediately."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除后会进入系统“最近删除”，空间可能不会立即释放。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刪除後會進入系統「最近刪除」，空間可能不會立即釋放。"
+          }
+        }
+      }
+    },
+    "已知删除内容约 %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Known deleted content: about %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已知删除内容约 %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已知刪除內容約 %@"
+          }
+        }
+      }
+    },
+    "正在读取文件大小 %lld/%lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading file sizes %lld/%lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在读取文件大小 %lld/%lld"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在讀取檔案大小 %lld/%lld"
+          }
+        }
+      }
+    },
+    "%lld 项大小暂时无法读取": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Size unavailable for %lld items"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 项大小暂时无法读取"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個項目的大小暫時無法讀取"
+          }
+        }
+      }
+    },
+    "正在读取文件大小": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading file sizes"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在读取文件大小"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在讀取檔案大小"
+          }
+        }
+      }
+    },
+    "暂时无法读取文件大小": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File sizes are currently unavailable"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂时无法读取文件大小"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暫時無法讀取檔案大小"
+          }
+        }
+      }
+    },
+    "删除内容约 %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deleted content: about %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除内容约 %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刪除內容約 %@"
+          }
+        }
+      }
+    },
+    "删除内容": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deleted Content"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除内容"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刪除內容"
+          }
+        }
+      }
+    },
+    "累计删除内容": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Total Deleted Content"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "累计删除内容"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "累計刪除內容"
+          }
+        }
+      }
+    },
+    "徽章、连续整理和删除内容进度": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Badges, cleanup streaks, and deleted content progress"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "徽章、连续整理和删除内容进度"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "徽章、連續整理和刪除內容進度"
+          }
+        }
+      }
+    },
+    "基础删除内容统计": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Basic Deleted Content Stats"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "基础删除内容统计"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "基礎刪除內容統計"
+          }
+        }
+      }
+    },
+    "清理 100 MB": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clean Up 100 MB"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清理 100 MB"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清理 100 MB"
+          }
+        }
+      }
+    },
+    "累计删除内容约 100 MB": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "About 100 MB of content deleted"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "累计删除内容约 100 MB"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "累計刪除內容約 100 MB"
+          }
+        }
+      }
+    },
+    "清理 1 GB": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clean Up 1 GB"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清理 1 GB"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清理 1 GB"
+          }
+        }
+      }
+    },
+    "累计删除内容约 1 GB": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "About 1 GB of content deleted"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "累计删除内容约 1 GB"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "累計刪除內容約 1 GB"
+          }
+        }
+      }
+    },
+    "清理 10 GB": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clean Up 10 GB"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清理 10 GB"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清理 10 GB"
+          }
+        }
+      }
+    },
+    "累计删除内容约 10 GB": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "About 10 GB of content deleted"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "累计删除内容约 10 GB"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "累計刪除內容約 10 GB"
+          }
+        }
+      }
+    },
+    "清理 100 GB": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clean Up 100 GB"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清理 100 GB"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清理 100 GB"
+          }
+        }
+      }
+    },
+    "累计删除内容约 100 GB": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "About 100 GB of content deleted"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "累计删除内容约 100 GB"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "累計刪除內容約 100 GB"
+          }
+        }
+      }
+    },
+    "已整理 %lld/%lld 项": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld/%lld items organized"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已整理 %lld/%lld 项"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已整理 %lld/%lld 個項目"
+          }
+        }
+      }
+    },
+    "剩余 %lld 张": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld remaining"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "剩余 %lld 张"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "剩餘 %lld 張"
+          }
+        }
+      }
+    },
+    "%lld 项 · 已整理 %lld%%": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld items · %lld%% organized"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 项 · 已整理 %lld%%"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個項目 · 已整理 %lld%%"
+          }
+        }
+      }
+    },
+    "正在读取真实文件大小": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading actual file sizes"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在读取真实文件大小"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在讀取實際檔案大小"
+          }
+        }
+      }
+    },
+    "已读取 %lld/%lld 项，已知约 %@。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld/%lld items read. Known size is about %@."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已读取 %lld/%lld 项，已知约 %@。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已讀取 %lld/%lld 個項目，已知約 %@。"
+          }
+        }
+      }
+    },
+    "选择要压缩的图片，完成后显示实际文件大小。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select images to compress. Actual file sizes appear when complete."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择要压缩的图片，完成后显示实际文件大小。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇要壓縮的圖片，完成後顯示實際檔案大小。"
+          }
+        }
+      }
+    },
+    "选择要压缩的视频，完成后显示实际文件大小。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select videos to compress. Actual file sizes appear when complete."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择要压缩的视频，完成后显示实际文件大小。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇要壓縮的影片，完成後顯示實際檔案大小。"
+          }
+        }
+      }
+    },
+    "建议逐项确认后加入待删除。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review items before adding them to the delete queue."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "建议逐项确认后加入待删除。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "建議逐項確認後加入待刪除。"
           }
         }
       }

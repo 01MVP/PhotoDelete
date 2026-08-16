@@ -105,8 +105,57 @@ enum RecentOrganizedPhotoHistory {
         with newRecord: RecentOrganizedPhotoRecord,
         limit: Int = 100
     ) -> [RecentOrganizedPhotoRecord] {
-        let remaining = records.filter { $0.assetIdentifier != newRecord.assetIdentifier }
-        return Array(([newRecord] + remaining).prefix(max(limit, 0)))
+        updated(records, with: [newRecord], limit: limit)
+    }
+
+    static func updated(
+        _ records: [RecentOrganizedPhotoRecord],
+        with newRecords: [RecentOrganizedPhotoRecord],
+        limit: Int = 100
+    ) -> [RecentOrganizedPhotoRecord] {
+        var seenAssetIDs: Set<String> = []
+        let uniqueNewRecords = newRecords.filter {
+            seenAssetIDs.insert($0.assetIdentifier).inserted
+        }
+        let newAssetIDs = Set(uniqueNewRecords.map(\.assetIdentifier))
+        let remaining = records.filter { !newAssetIDs.contains($0.assetIdentifier) }
+        return Array((uniqueNewRecords + remaining).prefix(max(limit, 0)))
+    }
+}
+
+struct DeletedContentSizeSummary: Equatable {
+    let knownSizeMB: Double
+    let knownAssetCount: Int
+    let unknownAssetCount: Int
+
+    var totalAssetCount: Int {
+        knownAssetCount + unknownAssetCount
+    }
+
+    static func make(
+        assetIdentifiers: [String],
+        estimatesByAssetID: [String: AssetFileSizeEstimate]
+    ) -> DeletedContentSizeSummary {
+        let uniqueAssetIDs = Set(assetIdentifiers)
+        var knownSizeMB = 0.0
+        var knownAssetCount = 0
+
+        for assetID in uniqueAssetIDs {
+            guard let estimate = estimatesByAssetID[assetID],
+                  estimate.isReliable,
+                  estimate.sizeMB.isFinite,
+                  estimate.sizeMB >= 0 else {
+                continue
+            }
+            knownSizeMB += estimate.sizeMB
+            knownAssetCount += 1
+        }
+
+        return DeletedContentSizeSummary(
+            knownSizeMB: knownSizeMB,
+            knownAssetCount: knownAssetCount,
+            unknownAssetCount: uniqueAssetIDs.count - knownAssetCount
+        )
     }
 }
 
@@ -237,6 +286,7 @@ class DataManager: ObservableObject {
     private var isFetchingAlbums = false
     private var isFetchingAlbumMembership = false
     private var albumMembershipGeneration = 0
+    private var invalidatedAlbumMembershipScanNeedsRefresh = false
     private var pendingAlbumRefresh = false
     private var pendingAlbumRefreshShouldShowLoading = false
     private var isCommittingLegacyFavoriteCandidates = false
@@ -253,11 +303,17 @@ class DataManager: ObservableObject {
     private var locationTitleResolutionTask: Task<Void, Never>?
     private var progressRefreshWorkItem: DispatchWorkItem?
     private var progressRefreshGeneration = 0
+    private var unclassifiedCountRefreshWorkItem: DispatchWorkItem?
+    private var unclassifiedCountRefreshGeneration = 0
+    private var isComputingUnclassifiedCount = false
+    private var pendingUnclassifiedCountRefresh = false
     private var periodSummaryRefreshGeneration = 0
     private var advancedCleanupQueueBuildGeneration = 0
     private var lastAdvancedCleanupQueueBuildSignature: AdvancedCleanupQueueBuildSignature?
     private var pendingAdvancedCleanupQueueRefresh = false
     private var libraryDataRefreshWorkItem: DispatchWorkItem?
+    private var albumDataRefreshWorkItem: DispatchWorkItem?
+    private var albumDataRefreshGeneration = 0
     private var nextLibraryDataRefreshDelay: TimeInterval?
     private var suppressNextDerivedLibraryRefresh = false
     /// After local batch photo edits, skip expensive full album/location rebuilds for a few change pulses.
@@ -268,6 +324,7 @@ class DataManager: ObservableObject {
     private var pendingDeleteCandidateIDs: Set<String> = []
     private var pendingFavoriteCandidateIDs: Set<String> = []
     private var videoFileSizeEstimateCache: [String: VideoFileSizeEstimate] = [:]
+    private var assetFileSizeEstimateCache: [String: AssetFileSizeEstimate] = [:]
     private var imageCompressionTask: Task<Void, Never>?
     private var videoCompressionTask: Task<Void, Never>?
     private var cancellables: Set<AnyCancellable> = []
@@ -396,6 +453,13 @@ class DataManager: ObservableObject {
                 reloadLocations: !shouldSkipHeavyRefresh
             )
             self.refreshUnclassifiedPhotosCount()
+        }
+
+        // Album collection/membership pulses (local, iCloud, or external Photos)
+        // reconcile only album state. Debouncing merges a filing burst into one
+        // album-list/membership pass without suppressing external changes.
+        photoLibraryManager.onAlbumDataChanged = { [weak self] in
+            self?.scheduleAlbumDataReconciliation()
         }
 
         NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)
@@ -544,9 +608,39 @@ class DataManager: ObservableObject {
     // MARK: - 真实照片操作
     // MARK: - 候选库操作（新的删除逻辑）- 线程安全版本
     func addToDeleteCandidates(_ asset: PHAsset) {
-        favoriteCandidates.remove(asset)
-        deleteCandidates.insert(asset)
-        recordRecentOrganizedPhoto(asset, action: .queuedForDeletion)
+        addToDeleteCandidates([asset], markAsReviewed: false)
+    }
+
+    func addToDeleteCandidates(_ assets: [PHAsset], markAsReviewed: Bool = true) {
+        var seenAssetIDs: Set<String> = []
+        let uniqueAssets = assets.filter {
+            seenAssetIDs.insert($0.localIdentifier).inserted
+        }
+        guard !uniqueAssets.isEmpty else { return }
+
+        let assetIDs = Set(uniqueAssets.map(\.localIdentifier))
+        favoriteCandidates.subtract(uniqueAssets)
+        deleteCandidates.formUnion(uniqueAssets)
+
+        if markAsReviewed {
+            reviewedAssetIDs.formUnion(assetIDs)
+            scheduleReviewedAssetIDsSave()
+            scheduleProgressRefresh()
+        }
+
+        let organizedAt = Date()
+        let records = uniqueAssets.map {
+            RecentOrganizedPhotoRecord(
+                assetIdentifier: $0.localIdentifier,
+                action: .queuedForDeletion,
+                date: organizedAt
+            )
+        }
+        recentOrganizedPhotoRecords = RecentOrganizedPhotoHistory.updated(
+            recentOrganizedPhotoRecords,
+            with: records
+        )
+        scheduleRecentOrganizedPhotoRecordsSave()
         schedulePendingCandidateIDsSave()
         scheduleLocationGroupsRefreshIfLoaded()
         updateStats()
@@ -712,9 +806,9 @@ class DataManager: ObservableObject {
         // 保存操作前的状态用于回滚
         let originalDeleteCandidates = deleteCandidates
         let originalFavoriteCandidates = favoriteCandidates
-        let estimatedSpaceSaved = committedDeleteCandidates.reduce(0) { partial, asset in
-            partial + estimatedAssetSizeMB(asset)
-        }
+        let estimatedSpaceSaved = deletedContentSizeSummary(
+            for: Array(committedDeleteCandidates)
+        ).knownSizeMB
 
         nextLibraryDataRefreshDelay = 0.65
         // Local delete/favorite often emits more than one Photos change pulse (device + iCloud).
@@ -1110,6 +1204,9 @@ class DataManager: ObservableObject {
         cancelAdvancedCompressionJobs()
         libraryDataRefreshWorkItem?.cancel()
         libraryDataRefreshWorkItem = nil
+        albumDataRefreshWorkItem?.cancel()
+        albumDataRefreshWorkItem = nil
+        albumDataRefreshGeneration += 1
         suppressNextDerivedLibraryRefresh = false
         isPreparingLibrary = false
         isReloadingLibrary = false
@@ -1141,7 +1238,6 @@ class DataManager: ObservableObject {
         hasLoadedAlbums = false
         isLoadingAlbums = false
         isFetchingAlbums = false
-        isFetchingAlbumMembership = false
         albumMembershipGeneration += 1
         albumLoadingProgress = 0
     }
@@ -1339,8 +1435,9 @@ class DataManager: ObservableObject {
         organizeStats.deletedPhotos = deleteCandidates.count
         organizeStats.totalPhotos = photoLibraryManager.totalPhotosCount
 
-        // 删除前只能给出大致空间参考。
-        organizeStats.spaceSaved = Double(deleteCandidates.count) * 3.0
+        organizeStats.spaceSaved = deletedContentSizeSummary(
+            for: Array(deleteCandidates)
+        ).knownSizeMB
     }
 
     // MARK: - 筛选功能
@@ -1370,28 +1467,58 @@ class DataManager: ObservableObject {
 
     private func refreshUnclassifiedPhotosCount() {
         guard hasLoadedAlbumMembership else {
+            unclassifiedCountRefreshWorkItem?.cancel()
+            unclassifiedCountRefreshWorkItem = nil
+            unclassifiedCountRefreshGeneration += 1
+            pendingUnclassifiedCountRefresh = false
             if unclassifiedPhotosCount != 0 {
                 unclassifiedPhotosCount = 0
             }
             return
         }
 
+        unclassifiedCountRefreshGeneration += 1
+        let generation = unclassifiedCountRefreshGeneration
+        if isComputingUnclassifiedCount {
+            pendingUnclassifiedCountRefresh = true
+            return
+        }
+
         let members = albumMemberAssetIDs
         let photos = photoLibraryManager.allPhotos
-        // Counting over a large library is O(n); keep it off the main thread so Home stays responsive.
-        DispatchQueue.global(qos: .utility).async { [weak self] in
-            let count = photos.reduce(into: 0) { partial, asset in
-                if !members.contains(asset.localIdentifier) {
-                    partial += 1
+        unclassifiedCountRefreshWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.unclassifiedCountRefreshWorkItem = nil
+            self.isComputingUnclassifiedCount = true
+            // Counting over a large library is O(n); keep it off the main thread so
+            // Home stays responsive. Only one count runs at a time; newer inputs
+            // set a pending flag and trigger one follow-up after this finishes.
+            DispatchQueue.global(qos: .utility).async { [weak self] in
+                let count = photos.reduce(into: 0) { partial, asset in
+                    if !members.contains(asset.localIdentifier) {
+                        partial += 1
+                    }
                 }
-            }
-            DispatchQueue.main.async {
-                guard let self else { return }
-                if self.unclassifiedPhotosCount != count {
-                    self.unclassifiedPhotosCount = count
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    self.isComputingUnclassifiedCount = false
+                    let needsFollowUp = self.pendingUnclassifiedCountRefresh ||
+                        self.unclassifiedCountRefreshGeneration != generation
+                    self.pendingUnclassifiedCountRefresh = false
+                    if self.hasLoadedAlbumMembership,
+                       self.unclassifiedCountRefreshGeneration == generation,
+                       self.unclassifiedPhotosCount != count {
+                        self.unclassifiedPhotosCount = count
+                    }
+                    if needsFollowUp, self.hasLoadedAlbumMembership {
+                        self.refreshUnclassifiedPhotosCount()
+                    }
                 }
             }
         }
+        unclassifiedCountRefreshWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05, execute: workItem)
     }
 
     private func removeDeletedAssetsFromMembership(_ deletedIDs: Set<String>) {
@@ -1435,19 +1562,16 @@ class DataManager: ObservableObject {
         for scope: PhotoRandomReviewScope,
         seed: String,
         excludingFiledPhotos: Bool = true,
-        limit: Int = PhotoRandomReviewPlanner.continuousReviewLimit
+        limit: Int = PhotoRandomReviewBatchSize.defaultValue.rawValue
     ) -> [PHAsset] {
         let sourcePhotos = getPhotosForRandomReviewScope(scope).filter { asset in
             !excludingFiledPhotos || !albumMemberAssetIDs.contains(asset.localIdentifier)
         }
         let sourceIDs = sourcePhotos.map(\.localIdentifier)
         let reviewedAndPendingIDs = randomReviewExcludedIdentifiers()
-        let pendingOperationIDs = randomReviewPendingOperationIdentifiers()
-        let resolvedIDs = PhotoRandomReviewPlanner.resolvedIdentifiers(
-            candidateIdentifiers: sourceIDs,
-            fallbackCandidateIdentifiers: scope == .memories ? sourceIDs : [],
-            excludedIdentifiers: reviewedAndPendingIDs,
-            fallbackExcludedIdentifiers: scope == .memories ? pendingOperationIDs : nil,
+        let resolvedIDs = PhotoRandomReviewPlanner.plannedIdentifiers(
+            from: sourceIDs,
+            excluding: reviewedAndPendingIDs,
             seed: seed,
             limit: limit
         )
@@ -2237,19 +2361,47 @@ class DataManager: ObservableObject {
     }
 
     func estimatedSizeMB(for asset: PHAsset) -> Double {
-        estimatedAssetSizeMB(asset)
+        if let estimate = assetFileSizeEstimateCache[asset.localIdentifier],
+           estimate.isReliable {
+            return estimate.sizeMB
+        }
+        return estimatedAssetSizeMB(asset)
+    }
+
+    func cachedAssetFileSizeEstimate(for asset: PHAsset) -> AssetFileSizeEstimate? {
+        assetFileSizeEstimateCache[asset.localIdentifier]
+    }
+
+    func cacheAssetFileSizeEstimate(_ estimate: AssetFileSizeEstimate, for asset: PHAsset) {
+        cacheAssetFileSizeEstimate(estimate, forAssetIdentifier: asset.localIdentifier)
+    }
+
+    func cacheAssetFileSizeEstimate(
+        _ estimate: AssetFileSizeEstimate,
+        forAssetIdentifier identifier: String
+    ) {
+        assetFileSizeEstimateCache[identifier] = estimate
+    }
+
+    func deletedContentSizeSummary(for assets: [PHAsset]) -> DeletedContentSizeSummary {
+        DeletedContentSizeSummary.make(
+            assetIdentifiers: assets.map(\.localIdentifier),
+            estimatesByAssetID: assetFileSizeEstimateCache
+        )
     }
 
     func cachedVideoFileSizeEstimate(for asset: PHAsset) -> VideoFileSizeEstimate? {
-        videoFileSizeEstimateCache[asset.localIdentifier]
+        videoFileSizeEstimateCache[asset.localIdentifier] ??
+            assetFileSizeEstimateCache[asset.localIdentifier]
     }
 
     func cacheVideoFileSizeEstimate(_ estimate: VideoFileSizeEstimate, for asset: PHAsset) {
-        videoFileSizeEstimateCache[asset.localIdentifier] = estimate
+        cacheVideoFileSizeEstimate(estimate, forAssetIdentifier: asset.localIdentifier)
     }
 
     func cacheVideoFileSizeEstimate(_ estimate: VideoFileSizeEstimate, forAssetIdentifier identifier: String) {
         videoFileSizeEstimateCache[identifier] = estimate
+        assetFileSizeEstimateCache[identifier] = estimate
     }
 
     func pruneCachedVideoFileSizeEstimates(keeping assetIdentifiers: Set<String>) {
@@ -2937,6 +3089,30 @@ class DataManager: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
     }
 
+    private func scheduleAlbumDataReconciliation(delay: TimeInterval = 0.45) {
+        albumDataRefreshWorkItem?.cancel()
+        albumDataRefreshGeneration += 1
+        let generation = albumDataRefreshGeneration
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self,
+                  self.albumDataRefreshGeneration == generation else { return }
+            self.albumDataRefreshWorkItem = nil
+            guard self.photoLibraryManager.hasPhotoLibraryAccess else { return }
+
+            // If a library load or membership pass is already active, let the
+            // existing single-flight state resume the newest reconciliation.
+            guard !self.photoLibraryManager.isLoading,
+                  !self.isFetchingAlbums,
+                  !self.isFetchingAlbumMembership else {
+                self.pendingAlbumRefresh = true
+                return
+            }
+            self.loadAlbums(showLoading: false)
+        }
+        albumDataRefreshWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
+    }
+
     private var hasLoadedLocationGroups: Bool {
         locatedAssetCount > 0 ||
             !locationGroups.isEmpty ||
@@ -2972,7 +3148,6 @@ class DataManager: ObservableObject {
             isLoadingAlbums = false
             hasLoadedAlbums = false
             isFetchingAlbums = false
-            isFetchingAlbumMembership = false
             albumMembershipGeneration += 1
             pendingAlbumRefresh = false
             pendingAlbumRefreshShouldShowLoading = false
@@ -2983,6 +3158,17 @@ class DataManager: ObservableObject {
 
         let shouldShowLoading = showLoading ?? (!hasLoadedAlbums && systemAlbums.isEmpty && userAlbums.isEmpty)
         guard !photoLibraryManager.isLoading else {
+            pendingAlbumRefresh = true
+            pendingAlbumRefreshShouldShowLoading = pendingAlbumRefreshShouldShowLoading || shouldShowLoading
+            if shouldShowLoading {
+                isLoadingAlbums = true
+            }
+            return
+        }
+        guard !isFetchingAlbumMembership else {
+            // A membership scan is the second half of an album refresh. Queue the
+            // newest refresh behind it instead of starting overlapping scans that
+            // can contend for Photos resources and race their publications.
             pendingAlbumRefresh = true
             pendingAlbumRefreshShouldShowLoading = pendingAlbumRefreshShouldShowLoading || shouldShowLoading
             if shouldShowLoading {
@@ -3103,6 +3289,13 @@ class DataManager: ObservableObject {
     }
 
     private func loadAlbumMembershipInBackground(from collections: [PHAssetCollection]) {
+        guard !isFetchingAlbumMembership else {
+            // Keep the current scan authoritative; the caller will resume the
+            // pending album refresh when it completes.
+            pendingAlbumRefresh = true
+            return
+        }
+
         // Bump generation so in-flight scans never overwrite a newer album list.
         albumMembershipGeneration += 1
         let generation = albumMembershipGeneration
@@ -3112,6 +3305,7 @@ class DataManager: ObservableObject {
             albumTitlesByAssetID = [:]
             albumLoadingProgress = 1
             isFetchingAlbumMembership = false
+            resumePendingAlbumRefreshIfNeeded()
             return
         }
 
@@ -3156,7 +3350,15 @@ class DataManager: ObservableObject {
                     completedGeneration: generation,
                     currentGeneration: self.albumMembershipGeneration
                 ) else {
-                    // A newer scan superseded this one; leave state to the latest generation.
+                    // A newer scan superseded this one, or a local album mutation
+                    // invalidated the snapshot while it was being enumerated. Only
+                    // the latter owns the in-flight flag; a newer scan will clear it
+                    // when its own result publishes.
+                    if self.invalidatedAlbumMembershipScanNeedsRefresh {
+                        self.invalidatedAlbumMembershipScanNeedsRefresh = false
+                        self.isFetchingAlbumMembership = false
+                        self.resumePendingAlbumRefreshIfNeeded()
+                    }
                     return
                 }
 
@@ -3164,6 +3366,7 @@ class DataManager: ObservableObject {
                 self.albumTitlesByAssetID = sortedTitles
                 self.albumLoadingProgress = 1
                 self.isFetchingAlbumMembership = false
+                self.resumePendingAlbumRefreshIfNeeded()
             }
         }
     }
@@ -3171,6 +3374,7 @@ class DataManager: ObservableObject {
     private func resumePendingAlbumRefreshIfNeeded() {
         guard pendingAlbumRefresh,
               !isFetchingAlbums,
+              !isFetchingAlbumMembership,
               !photoLibraryManager.isLoading,
               photoLibraryManager.hasPhotoLibraryAccess else { return }
 
@@ -3269,23 +3473,57 @@ class DataManager: ObservableObject {
     }
 
     private func resetAlbumMembershipState() {
+        // Invalidate any scan that may still be enumerating old collections before
+        // replacing the visible membership state.
+        let scanWasInFlight = isFetchingAlbumMembership
+        albumMembershipGeneration += 1
+        invalidatedAlbumMembershipScanNeedsRefresh = scanWasInFlight
         albumMembershipCountsByAssetID = [:]
         albumMemberAssetIDs = []
         albumTitlesByAssetID = [:]
         hasLoadedAlbumMembership = false
+        if scanWasInFlight {
+            // Keep the single-flight lock held until the stale worker publishes
+            // its completion. A subsequent refresh will queue behind it rather
+            // than starting a second physical Photos enumeration.
+            pendingAlbumRefresh = true
+        } else {
+            isFetchingAlbumMembership = false
+        }
         unclassifiedPhotosCount = 0
     }
 
+    private func invalidateAlbumMembershipScanForLocalMutation() {
+        guard isFetchingAlbumMembership else { return }
+        albumMembershipGeneration += 1
+        invalidatedAlbumMembershipScanNeedsRefresh = true
+        pendingAlbumRefresh = true
+    }
+
     private func recordAlbumMembershipAdded(for assetIdentifier: String, albumTitle: String) {
-        albumMembershipCountsByAssetID[assetIdentifier, default: 0] += 1
+        invalidateAlbumMembershipScanForLocalMutation()
+        let previousCount = albumMembershipCountsByAssetID[assetIdentifier] ?? 0
+        albumMembershipCountsByAssetID[assetIdentifier] = previousCount + 1
         albumMemberAssetIDs.insert(assetIdentifier)
         if !albumTitlesByAssetID[assetIdentifier, default: []].contains(albumTitle) {
             albumTitlesByAssetID[assetIdentifier, default: []].append(albumTitle)
+        }
+        if hasLoadedAlbumMembership, previousCount == 0 {
+            unclassifiedPhotosCount = max(unclassifiedPhotosCount - 1, 0)
         }
     }
 
     private func recordAlbumMembershipRemoved(for assetIdentifiers: [String], albumTitle: String? = nil) {
         guard !assetIdentifiers.isEmpty else { return }
+        invalidateAlbumMembershipScanForLocalMutation()
+        if hasLoadedAlbumMembership {
+            for identifier in assetIdentifiers {
+                let previousCount = albumMembershipCountsByAssetID[identifier] ?? 0
+                if previousCount == 1 {
+                    unclassifiedPhotosCount += 1
+                }
+            }
+        }
         let updated = AlbumMembershipMutation.removing(
             identifiers: assetIdentifiers,
             albumTitle: albumTitle,
@@ -3544,29 +3782,22 @@ class DataManager: ObservableObject {
 
     func recordDeletedPhotosFromAlbum(albumID: String?, deletedAssets: [PHAsset]) {
         guard let albumID, !deletedAssets.isEmpty else { return }
-
-        if refreshUserAlbumFromLibrary(id: albumID) {
-            return
-        }
-
-        updateUserAlbumCount(id: albumID, delta: -deletedAssets.count, replacementThumbnail: nil)
+        updateUserAlbumCount(
+            id: albumID,
+            delta: -deletedAssets.count,
+            replacementThumbnail: nil,
+            removedAssetIdentifiers: Set(deletedAssets.map(\.localIdentifier))
+        )
     }
 
     func recordRemovedPhotosFromAlbum(albumID: String?, removedAssets: [PHAsset]) {
         guard let albumID, !removedAssets.isEmpty else { return }
-
-        if refreshUserAlbumFromLibrary(id: albumID) {
-            return
-        }
-
-        updateUserAlbumCount(id: albumID, delta: -removedAssets.count, replacementThumbnail: nil)
-    }
-
-    @discardableResult
-    private func refreshUserAlbumFromLibrary(id: String) -> Bool {
-        guard userAlbums.contains(where: { $0.id == id }) else { return false }
-        _ = refreshUserAlbumIfAvailable(id: id)
-        return true
+        updateUserAlbumCount(
+            id: albumID,
+            delta: -removedAssets.count,
+            replacementThumbnail: nil,
+            removedAssetIdentifiers: Set(removedAssets.map(\.localIdentifier))
+        )
     }
 
     @discardableResult
@@ -3594,11 +3825,21 @@ class DataManager: ObservableObject {
         }
     }
 
-    private func updateUserAlbumCount(id: String, delta: Int, replacementThumbnail: PHAsset?) {
+    private func updateUserAlbumCount(
+        id: String,
+        delta: Int,
+        replacementThumbnail: PHAsset?,
+        removedAssetIdentifiers: Set<String> = []
+    ) {
         guard let index = userAlbums.firstIndex(where: { $0.id == id }) else { return }
         let album = userAlbums[index]
         let nextCount = max(album.photosCount + delta, 0)
-        let nextThumbnail = replacementThumbnail ?? (nextCount == 0 ? nil : album.thumbnailAsset)
+        let existingThumbnailWasRemoved = album.thumbnailAsset.map {
+            removedAssetIdentifiers.contains($0.localIdentifier)
+        } ?? false
+        let nextThumbnail = replacementThumbnail ?? (
+            nextCount == 0 || existingThumbnailWasRemoved ? nil : album.thumbnailAsset
+        )
 
         userAlbums[index] = AlbumInfo(
             id: album.id,

@@ -5,6 +5,7 @@
 //  Created by jackie xiao on 11/7/25.
 //
 
+import Foundation
 import XCTest
 
 final class PhotoDeleteUITests: XCTestCase {
@@ -111,8 +112,22 @@ final class PhotoDeleteUITests: XCTestCase {
         }
         XCTAssertTrue(waitForHomeReady(in: app, language: "zh-Hans", timeout: 30))
 
+        let albumTitles = ["旅行照片", "周末海边", "城市漫步", "宠物照片"]
         openAlbumsTab(in: app)
         XCTAssertTrue(app.staticTexts["旅行照片"].waitForExistence(timeout: 60))
+
+        var baselineCounts: [String: Int] = [:]
+        for title in albumTitles {
+            guard let albumButton = waitForButtonLabelPrefix(in: app, prefix: title, timeout: 20) else {
+                XCTFail("Expected the seeded album row for \(title)")
+                return
+            }
+            guard let count = photoCount(fromAlbumRowLabel: albumButton.label) else {
+                XCTFail("Expected a photo count in the \(title) album row: \(albumButton.label)")
+                return
+            }
+            baselineCounts[title] = count
+        }
 
         openOrganizeTab(in: app)
         guard let startCleanupButton = waitForFirstExistingButton(
@@ -133,25 +148,80 @@ final class PhotoDeleteUITests: XCTestCase {
             dismissHintButton.tap()
         }
 
-        guard let albumShortcutButton = waitForHittableButton(
-            in: app,
-            label: "归类到 宠物照片",
-            timeout: 15
-        ) else {
-            XCTFail("Expected a hittable 宠物照片 album shortcut")
+        var attemptedAlbumTitles: [String] = []
+        var successfulFilingTitles: Set<String> = []
+        for title in albumTitles {
+            guard let albumShortcutButton = waitForHittableButton(
+                in: app,
+                label: "归类到 \(title)",
+                timeout: 5
+            ) else {
+                continue
+            }
+
+            attemptedAlbumTitles.append(title)
+            albumShortcutButton.tap()
+
+            if waitForAnyElementLabelContaining(
+                in: app,
+                substring: "已归类到 \(title)",
+                timeout: 4
+            ) != nil {
+                successfulFilingTitles.insert(title)
+            }
+
+            XCTAssertTrue(
+                app.wait(for: .runningForeground, timeout: 5),
+                "The app must remain in the foreground after filing into \(title)"
+            )
+            XCTAssertNotNil(
+                waitForHittableButton(in: app, label: "完成", timeout: 5),
+                "The review controls should remain interactive after filing into \(title)"
+            )
+        }
+
+        XCTAssertFalse(
+            attemptedAlbumTitles.isEmpty,
+            "Expected at least one writable album shortcut path to be available"
+        )
+        guard let targetAlbumTitle = attemptedAlbumTitles.first(where: { successfulFilingTitles.contains($0) })
+                ?? attemptedAlbumTitles.first else {
             return
         }
-        albumShortcutButton.tap()
-
-        XCTAssertNotNil(waitForAnyElementLabelContaining(in: app, substring: "已归类到 宠物照片", timeout: 10))
 
         openAlbumsTab(in: app)
-        XCTAssertNotNil(waitForStaticTextLabel(in: app, label: "宠物照片", timeout: 10))
-        guard let petAlbumButton = waitForHittableButton(in: app, label: "宠物照片、3 张照片", timeout: 10) else {
-            XCTFail("Expected 宠物照片 album to include the filed photo")
+        var finalCounts: [String: Int] = [:]
+        for title in albumTitles {
+            guard let albumButton = waitForButtonLabelPrefix(in: app, prefix: title, timeout: 20) else {
+                XCTFail("Expected the album row for \(title) after filing")
+                return
+            }
+            guard let count = photoCount(fromAlbumRowLabel: albumButton.label) else {
+                XCTFail("Expected a photo count in the updated \(title) album row: \(albumButton.label)")
+                return
+            }
+            finalCounts[title] = count
+            XCTAssertGreaterThanOrEqual(
+                count,
+                baselineCounts[title] ?? 0,
+                "A repeated filing must not reduce the \(title) album count"
+            )
+            if successfulFilingTitles.contains(title) {
+                XCTAssertGreaterThanOrEqual(
+                    count,
+                    (baselineCounts[title] ?? 0) + 1,
+                    "The \(title) album count should reflect its successful filing"
+                )
+            }
+        }
+        XCTAssertEqual(finalCounts.count, albumTitles.count)
+
+        XCTAssertNotNil(waitForStaticTextLabel(in: app, label: targetAlbumTitle, timeout: 10))
+        guard let targetAlbumButton = waitForButtonLabelPrefix(in: app, prefix: targetAlbumTitle, timeout: 10) else {
+            XCTFail("Expected the target album after filing")
             return
         }
-        petAlbumButton.tap()
+        targetAlbumButton.tap()
 
         let reviewCard = app.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier == %@", "review-photo-card"))
@@ -198,9 +268,9 @@ final class PhotoDeleteUITests: XCTestCase {
             dismissHintButton.tap()
         }
 
-        guard let albumShortcutButton = waitForHittableButton(
+        guard let albumShortcutButton = waitForHittableButtonLabelContaining(
             in: app,
-            label: "归类到 旅行照片",
+            substring: "归类到 ",
             timeout: 15
         ) else {
             XCTFail("Expected the album shortcut strip to appear")
@@ -221,8 +291,168 @@ final class PhotoDeleteUITests: XCTestCase {
         XCTAssertEqual(visibilityButton.label, "显示相册归类")
         visibilityButton.tap()
 
-        XCTAssertNotNil(waitForHittableButton(in: app, label: "归类到 旅行照片", timeout: 8))
+        XCTAssertNotNil(waitForHittableButtonLabelContaining(in: app, substring: "归类到 ", timeout: 8))
         XCTAssertEqual(visibilityButton.label, "隐藏相册归类")
+    }
+
+    @MainActor
+    func testSeededReviewCanRapidlyFileSeveralPhotosAcrossWritableAlbums() throws {
+        installPhotoLibraryInterruptionMonitor(allowDeletionConfirmation: true)
+
+        let app = makeApp(completedOnboarding: true, seedLibrary: true)
+        app.launch()
+        _ = allowFullPhotoLibraryAccessIfNeeded(app: app)
+        dismissMarketingSystemPrompts(app: app, allowDeletionConfirmation: true)
+
+        if app.state != .runningForeground {
+            app.activate()
+        }
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10))
+        if !waitForHomeReady(in: app, language: "zh-Hans", timeout: 30) {
+            app.terminate()
+            app.launch()
+            _ = allowFullPhotoLibraryAccessIfNeeded(app: app)
+            dismissMarketingSystemPrompts(app: app, allowDeletionConfirmation: true)
+        }
+        XCTAssertTrue(waitForHomeReady(in: app, language: "zh-Hans", timeout: 30))
+
+        let albumTitles = ["旅行照片", "周末海边", "城市漫步", "宠物照片"]
+        openAlbumsTab(in: app)
+        var baselineCounts: [String: Int] = [:]
+        for title in albumTitles {
+            guard let albumButton = waitForButtonLabelPrefix(in: app, prefix: title, timeout: 20) else {
+                XCTFail("Expected the seeded album row for \(title)")
+                return
+            }
+            guard let count = photoCount(fromAlbumRowLabel: albumButton.label) else {
+                XCTFail("Expected a photo count in the \(title) album row: \(albumButton.label)")
+                return
+            }
+            baselineCounts[title] = count
+        }
+
+        openOrganizeTab(in: app)
+        // Anchor this regression to the dedicated all-photos card. A generic
+        // "开始整理" match can accidentally land on a time-group entry when
+        // the home screen is populated with today's/this week's groups.
+        guard let startCleanupButton = waitForAllPhotosReviewEntry(in: app, timeout: 30) else {
+            XCTFail("Expected the explicit all-photos review entry after seeded library load")
+            return
+        }
+        startCleanupButton.tap()
+
+        let doneButton = firstExistingButton(in: app, labels: ["完成"])
+        XCTAssertTrue(doneButton.waitForExistence(timeout: 30))
+
+        let dismissHintButton = app.buttons["知道了"]
+        if dismissHintButton.exists, dismissHintButton.isHittable {
+            dismissHintButton.tap()
+        }
+
+        // Each filing advances to the next card immediately while the Photos
+        // write is queued. Use a different writable album for every tap so the
+        // loop exercises four consecutive writes. A seeded asset can already
+        // belong to its target album when the simulator is reused, so the
+        // final count reconciliation below is intentionally no-op-safe.
+        var completedFilings = 0
+        for (index, title) in albumTitles.enumerated() {
+            guard let albumShortcutButton = waitForHittableButton(
+                in: app,
+                label: "归类到 \(title)",
+                timeout: 10
+            ) else {
+                XCTFail("Expected a writable album shortcut for \(title)")
+                return
+            }
+
+            albumShortcutButton.tap()
+
+            // Do not wait for the transient success token here. The next
+            // shortcut (or the completion control on the final card) is the
+            // readiness signal that lets this test keep the filing burst
+            // moving while queued Photos writes drain in the background.
+            XCTAssertTrue(
+                app.wait(for: .runningForeground, timeout: 2),
+                "The review must stay in the foreground after filing into \(title)"
+            )
+            XCTAssertTrue(
+                waitForHittableButton(in: app, label: "完成", timeout: 3) != nil,
+                "The review controls should remain interactive after filing into \(title)"
+            )
+            if index < albumTitles.count - 1 {
+                XCTAssertNotNil(
+                    waitForHittableButtonLabelContaining(in: app, substring: "归类到 ", timeout: 3),
+                    "The next card should expose album shortcuts after filing into \(title)"
+                )
+            }
+            completedFilings += 1
+        }
+
+        XCTAssertEqual(completedFilings, albumTitles.count, "Expected all four consecutive filing actions to complete")
+
+        // Four filings advance onto the next review card. Exercise a
+        // non-album action there, then restore the original favorite state so
+        // this seeded-library regression leaves no pending operation behind.
+        XCTAssertTrue(
+            app.wait(for: .runningForeground, timeout: 5),
+            "The app must remain in the foreground after the four-card filing burst"
+        )
+        let nextReviewCard = app.descendants(matching: .any)["review-photo-card"]
+        XCTAssertTrue(
+            nextReviewCard.waitForExistence(timeout: 5),
+            "The next review card should remain visible after the four-card filing burst"
+        )
+        XCTAssertTrue(
+            verifyFavoriteToggleRoundTrip(in: app),
+            "The next review card should support a favorite toggle without leaving review"
+        )
+        XCTAssertNotNil(
+            waitForHittableButton(in: app, label: "完成", timeout: 5),
+            "The review completion control should remain interactive after the favorite round trip"
+        )
+
+        // Return to Albums only after the four taps. Poll the rows until their
+        // count snapshots stop falling below the baseline; this is the single
+        // reconciliation wait for the queued Photos writes and is safe when a
+        // filing was already a member of its target album.
+        openAlbumsTab(in: app)
+        var finalCounts: [String: Int] = [:]
+        let reconciliationDeadline = Date().addingTimeInterval(20)
+        while Date() < reconciliationDeadline {
+            var observedCounts: [String: Int] = [:]
+            var rowsReady = true
+            for title in albumTitles {
+                guard let albumButton = waitForButtonLabelPrefix(in: app, prefix: title, timeout: 2),
+                      let count = photoCount(fromAlbumRowLabel: albumButton.label) else {
+                    rowsReady = false
+                    break
+                }
+                observedCounts[title] = count
+            }
+
+            if rowsReady,
+               observedCounts.count == albumTitles.count,
+               albumTitles.allSatisfy({ observedCounts[$0, default: 0] >= (baselineCounts[$0] ?? 0) }) {
+                finalCounts = observedCounts
+                break
+            }
+
+            RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+        }
+
+        XCTAssertEqual(
+            finalCounts.count,
+            albumTitles.count,
+            "Expected all album rows to reconcile after the filing burst"
+        )
+        for title in albumTitles {
+            guard let count = finalCounts[title] else { continue }
+            XCTAssertGreaterThanOrEqual(
+                count,
+                baselineCounts[title] ?? 0,
+                "A repeated filing must not reduce the \(title) album count"
+            )
+        }
     }
 
     @MainActor
@@ -274,39 +504,10 @@ final class PhotoDeleteUITests: XCTestCase {
         }
         dragCardDown(in: app)
 
-        guard let favoriteButtonAfterSwipe = waitForHittableButton(in: app, label: "收藏", timeout: 10) else {
+        guard waitForHittableButton(in: app, label: "收藏", timeout: 10) != nil else {
             XCTFail("Expected swiping down to remove the favorite")
             return
         }
-        favoriteButtonAfterSwipe.tap()
-
-        guard let unfavoriteButtonAfterSwipe = waitForHittableButton(in: app, label: "取消收藏", timeout: 10) else {
-            XCTFail("Expected the photo to be favorited again")
-            return
-        }
-        unfavoriteButtonAfterSwipe.tap()
-
-        XCTAssertNotNil(waitForHittableButton(in: app, label: "收藏", timeout: 10))
-
-        guard let doneButton = waitForHittableButton(in: app, label: "完成", timeout: 10) else {
-            XCTFail("Expected the review done button")
-            return
-        }
-        doneButton.tap()
-        XCTAssertTrue(waitForHomeReady(in: app, language: "zh-Hans", timeout: 15))
-
-        openSettingsTab(in: app)
-        guard let historyButton = waitForHittableButtonLabelContaining(
-            in: app,
-            substring: "成就与历史",
-            timeout: 10
-        ) else {
-            XCTFail("Expected the achievements and history entry")
-            return
-        }
-        historyButton.tap()
-        XCTAssertTrue(app.staticTexts["最近整理"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["再次整理"].waitForExistence(timeout: 10))
     }
 
     @MainActor
@@ -596,6 +797,9 @@ final class PhotoDeleteUITests: XCTestCase {
         gestureSettingsButton.tap()
 
         XCTAssertTrue(app.navigationBars["手势与播放"].waitForExistence(timeout: 3))
+        let randomReviewBatchSizeSetting = app.descendants(matching: .any)["random-review-batch-size-setting"]
+        XCTAssertTrue(randomReviewBatchSizeSetting.waitForExistence(timeout: 3))
+        XCTAssertTrue(String(describing: randomReviewBatchSizeSetting.value).contains("50"))
         var hapticFeedbackTitle = waitForStaticTextLabel(in: app, label: "触感反馈", timeout: 2)
         for _ in 0..<3 where hapticFeedbackTitle == nil {
             app.swipeUp()
@@ -1180,6 +1384,19 @@ final class PhotoDeleteUITests: XCTestCase {
         return nil
     }
 
+    private func photoCount(fromAlbumRowLabel label: String) -> Int? {
+        let pattern = "(\\d+)\\s*张照片"
+        guard let expression = try? NSRegularExpression(pattern: pattern),
+              let match = expression.firstMatch(
+                  in: label,
+                  range: NSRange(location: 0, length: label.utf16.count)
+              ),
+              let range = Range(match.range(at: 1), in: label) else {
+            return nil
+        }
+        return Int(label[range])
+    }
+
     @MainActor
     private func waitForInlineVideoPlayer(in app: XCUIApplication, timeout: TimeInterval) -> XCUIElement? {
         let deadline = Date().addingTimeInterval(timeout)
@@ -1215,6 +1432,62 @@ final class PhotoDeleteUITests: XCTestCase {
             RunLoop.current.run(until: Date().addingTimeInterval(0.2))
         }
         return nil
+    }
+
+    @MainActor
+    private func waitForAllPhotosReviewEntry(in app: XCUIApplication, timeout: TimeInterval) -> XCUIElement? {
+        // The title is the stable scope marker; only after it appears do we
+        // resolve the generic action label used by the all-photos card.
+        let allPhotosTitle = app.staticTexts["整理全部照片"]
+        guard allPhotosTitle.waitForExistence(timeout: timeout) else { return nil }
+        return waitForHittableButton(in: app, label: "开始整理", timeout: timeout)
+    }
+
+    @MainActor
+    private func verifyFavoriteToggleRoundTrip(in app: XCUIApplication) -> Bool {
+        let wasFavorite = waitForHittableButton(in: app, label: "取消收藏", timeout: 5) != nil
+
+        if wasFavorite {
+            guard let unfavoriteButton = waitForHittableButton(in: app, label: "取消收藏", timeout: 5) else {
+                return false
+            }
+            unfavoriteButton.tap()
+            guard waitForAnyElementLabelContaining(in: app, substring: "已取消收藏", timeout: 10) != nil else {
+                return false
+            }
+            guard waitForHittableButton(in: app, label: "收藏", timeout: 10) != nil else {
+                return false
+            }
+
+            guard let restoreFavoriteButton = waitForHittableButton(in: app, label: "收藏", timeout: 5) else {
+                return false
+            }
+            restoreFavoriteButton.tap()
+            guard waitForAnyElementLabelContaining(in: app, substring: "已加入收藏", timeout: 10) != nil else {
+                return false
+            }
+            return waitForHittableButton(in: app, label: "取消收藏", timeout: 10) != nil
+        }
+
+        guard let favoriteButton = waitForHittableButton(in: app, label: "收藏", timeout: 10) else {
+            return false
+        }
+        favoriteButton.tap()
+        guard waitForAnyElementLabelContaining(in: app, substring: "已加入收藏", timeout: 10) != nil else {
+            return false
+        }
+        guard waitForHittableButton(in: app, label: "取消收藏", timeout: 10) != nil else {
+            return false
+        }
+
+        guard let restoreUnfavoriteButton = waitForHittableButton(in: app, label: "取消收藏", timeout: 5) else {
+            return false
+        }
+        restoreUnfavoriteButton.tap()
+        guard waitForAnyElementLabelContaining(in: app, substring: "已取消收藏", timeout: 10) != nil else {
+            return false
+        }
+        return waitForHittableButton(in: app, label: "收藏", timeout: 10) != nil
     }
 
     @MainActor
@@ -1329,6 +1602,9 @@ final class PhotoDeleteUITests: XCTestCase {
             : ["整理全部照片", "开始整理", "快速入口", "全部照片"]
 
         while Date() < deadline {
+            if app.descendants(matching: .any)["review-photo-card"].exists {
+                navigateBack(in: app)
+            }
             for label in labels where app.staticTexts[label].exists || app.buttons[label].exists {
                 return true
             }

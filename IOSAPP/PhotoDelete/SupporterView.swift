@@ -679,7 +679,7 @@ struct SupporterMonthlySection: View {
 
                             Spacer()
 
-                            Text(summary.formattedSpaceSaved)
+                            Text(L10n.string("删除内容约 \(summary.formattedSpaceSaved)"))
                                 .font(.system(size: 14, weight: .semibold))
                                 .foregroundColor(PhotoDeleteStyle.positive)
                         }
@@ -729,7 +729,7 @@ struct SupporterHistorySection: View {
 
                             Spacer()
 
-                            Text(session.formattedSpaceSaved)
+                            Text(L10n.string("删除内容约 \(session.formattedSpaceSaved)"))
                                 .font(.system(size: 13, weight: .semibold))
                                 .foregroundColor(PhotoDeleteStyle.positive)
                         }
@@ -834,7 +834,7 @@ enum SupporterPlanFeatureTitle: String {
         case .confirmedDeleteAndFavorite: return L10n.string("确认后删除和收藏")
         case .basicTimeOrganizing: return L10n.string("按时间整理")
         case .localCleanupHistory: return L10n.string("本机清理历史")
-        case .basicSpaceSavedStats: return L10n.string("基础节省空间统计")
+        case .basicSpaceSavedStats: return L10n.string("基础删除内容统计")
         case .fullTimeList: return L10n.string("完整时间列表")
         case .largeFileCleanup: return L10n.string("大文件清理")
         case .imageCompression: return L10n.string("图片压缩")
@@ -970,7 +970,7 @@ struct CleanupHistoryView: View {
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                             SupporterMetricCard(value: "\(summary.organizedPhotos)", label: L10n.string("累计整理"), tint: PhotoDeleteStyle.accent)
                             SupporterMetricCard(value: "\(summary.deletedPhotos)", label: L10n.string("累计删除"), tint: PhotoDeleteStyle.destructive)
-                            SupporterMetricCard(value: summary.formattedSpaceSaved, label: L10n.string("节省空间"), tint: PhotoDeleteStyle.positive)
+                            SupporterMetricCard(value: summary.formattedSpaceSaved, label: L10n.string("删除内容"), tint: PhotoDeleteStyle.positive)
                             SupporterMetricCard(value: "\(summary.sessions)", label: L10n.string("清理次数"), tint: PhotoDeleteStyle.warning)
                         }
 

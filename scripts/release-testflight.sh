@@ -115,6 +115,7 @@ MARKETING_VERSION_WAS_EXPLICIT="${MARKETING_VERSION+x}"
 MARKETING_VERSION="${MARKETING_VERSION:-$(resolve_project_marketing_version)}"
 BUILD_NUMBER="${BUILD_NUMBER:-$(TZ=Asia/Shanghai date +%Y%m%d%H%M)}"
 RELEASE_DIR="${PHOTO_DELETE_RELEASE_DIR:-/tmp/PhotoDeleteRelease}"
+DERIVED_DATA_PATH="${PHOTO_DELETE_DERIVED_DATA_PATH:-$ROOT_DIR/IOSAPP/DerivedData}"
 ARCHIVE_PATH="$RELEASE_DIR/PhotoDelete.xcarchive"
 EXPORT_PATH="$RELEASE_DIR/export"
 EXPORT_OPTIONS="$RELEASE_DIR/ExportOptions.plist"
@@ -220,7 +221,8 @@ if [[ "$SKIP_TESTS" != "1" ]]; then
   xcodebuild test \
     -project "$PROJECT_PATH" \
     -scheme "$SCHEME" \
-    -destination "$SIMULATOR_DESTINATION"
+    -destination "$SIMULATOR_DESTINATION" \
+    -derivedDataPath "$DERIVED_DATA_PATH"
 fi
 
 check_icon_alpha
@@ -255,6 +257,7 @@ archive_and_upload() {
     -scheme "$SCHEME" \
     -configuration Release \
     -destination 'generic/platform=iOS' \
+    -derivedDataPath "$DERIVED_DATA_PATH" \
     -archivePath "$ARCHIVE_PATH" \
     -allowProvisioningUpdates \
     "${archive_signing_args[@]}"

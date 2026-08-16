@@ -119,7 +119,7 @@ enum CleanupAchievementCategory: String, CaseIterable, Identifiable, Equatable {
         case .deletion:
             return L10n.string("删除数量")
         case .space:
-            return L10n.string("空间节省")
+            return L10n.string("删除内容")
         case .streak:
             return L10n.string("连续整理")
         }
@@ -222,8 +222,8 @@ enum CleanupAchievementEvaluator {
             achievement: CleanupAchievement(
                 id: "save_100mb",
                 category: .space,
-                titleKey: "腾出空间",
-                subtitleKey: "累计节省 100 MB",
+                titleKey: "清理 100 MB",
+                subtitleKey: "累计删除内容约 100 MB",
                 systemImage: "internaldrive",
                 tint: .positive
             ),
@@ -246,8 +246,8 @@ enum CleanupAchievementEvaluator {
             achievement: CleanupAchievement(
                 id: "save_1gb",
                 category: .space,
-                titleKey: "空间回收者",
-                subtitleKey: "累计节省 1 GB",
+                titleKey: "清理 1 GB",
+                subtitleKey: "累计删除内容约 1 GB",
                 systemImage: "externaldrive.badge.checkmark",
                 tint: .positive
             ),
@@ -258,8 +258,8 @@ enum CleanupAchievementEvaluator {
             achievement: CleanupAchievement(
                 id: "save_10gb",
                 category: .space,
-                titleKey: "释放 10 GB",
-                subtitleKey: "累计节省 10 GB",
+                titleKey: "清理 10 GB",
+                subtitleKey: "累计删除内容约 10 GB",
                 systemImage: "externaldrive.fill",
                 tint: .positive
             ),
@@ -270,8 +270,8 @@ enum CleanupAchievementEvaluator {
             achievement: CleanupAchievement(
                 id: "save_100gb",
                 category: .space,
-                titleKey: "释放 100 GB",
-                subtitleKey: "累计节省 100 GB",
+                titleKey: "清理 100 GB",
+                subtitleKey: "累计删除内容约 100 GB",
                 systemImage: "archivebox.fill",
                 tint: .positive
             ),

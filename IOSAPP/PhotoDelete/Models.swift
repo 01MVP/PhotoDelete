@@ -561,7 +561,7 @@ struct OrganizeStats {
     var spaceSaved: Double = 0.0 // MB
 
     var formattedSpaceSaved: String {
-        CleanupStatsFormatter.space(spaceSaved)
+        CleanupStatsFormatter.fileSize(spaceSaved)
     }
 }
 
@@ -882,7 +882,7 @@ struct AdvancedLibraryStats: Equatable {
     let storageSnapshot: DeviceStorageSnapshot
 
     var formattedSpaceSaved: String {
-        CleanupStatsFormatter.space(estimatedSpaceSavedMB)
+        CleanupStatsFormatter.fileSize(estimatedSpaceSavedMB)
     }
 }
 
@@ -1026,11 +1026,11 @@ struct CleanupCelebration: Identifiable, Equatable {
     }
 
     var formattedSpaceSaved: String {
-        CleanupStatsFormatter.space(estimatedSpaceSavedMB)
+        CleanupStatsFormatter.fileSize(estimatedSpaceSavedMB)
     }
 
     var formattedTotalSpaceSaved: String {
-        CleanupStatsFormatter.space(totalSpaceSavedMB)
+        CleanupStatsFormatter.fileSize(totalSpaceSavedMB)
     }
 }
 

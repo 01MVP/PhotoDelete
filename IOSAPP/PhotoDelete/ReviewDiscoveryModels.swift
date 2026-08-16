@@ -7,6 +7,60 @@
 
 import CoreLocation
 import Foundation
+import Photos
+
+enum PhotoReviewSortOrder: String, CaseIterable, Identifiable {
+    case newestFirst
+    case oldestFirst
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .newestFirst:
+            return L10n.string("最新照片优先")
+        case .oldestFirst:
+            return L10n.string("最早照片优先")
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .newestFirst:
+            return "calendar.badge.clock"
+        case .oldestFirst:
+            return "calendar"
+        }
+    }
+
+    static func normalized(_ rawValue: String) -> PhotoReviewSortOrder {
+        PhotoReviewSortOrder(rawValue: rawValue) ?? .newestFirst
+    }
+
+    func apply<Element>(
+        to newestFirstElements: [Element],
+        date: (Element) -> Date?
+    ) -> [Element] {
+        switch self {
+        case .newestFirst:
+            return newestFirstElements
+        case .oldestFirst:
+            var datedElements: [Element] = []
+            var undatedElements: [Element] = []
+            datedElements.reserveCapacity(newestFirstElements.count)
+            undatedElements.reserveCapacity(newestFirstElements.count)
+
+            for element in newestFirstElements {
+                if date(element) == nil {
+                    undatedElements.append(element)
+                } else {
+                    datedElements.append(element)
+                }
+            }
+            return Array(datedElements.reversed()) + undatedElements
+        }
+    }
+}
 
 enum PhotoRandomReviewScope: String, CaseIterable, Identifiable, Codable, Hashable {
     case memories
@@ -70,9 +124,30 @@ enum PhotoRandomReviewScope: String, CaseIterable, Identifiable, Codable, Hashab
     }
 }
 
-enum PhotoRandomReviewPlanner {
-    static let continuousReviewLimit = Int.max
+enum PhotoRandomReviewBatchSize: Int, CaseIterable, Identifiable {
+    case small = 20
+    case standard = 50
+    case large = 100
+    case extraLarge = 200
 
+    static let defaultValue = PhotoRandomReviewBatchSize.standard
+
+    var id: Int { rawValue }
+
+    var title: String {
+        String(format: L10n.string("%lld 张"), Int64(rawValue))
+    }
+
+    var subtitle: String {
+        String(format: L10n.string("每轮最多 %lld 张"), Int64(rawValue))
+    }
+
+    static func normalized(_ rawValue: Int) -> PhotoRandomReviewBatchSize {
+        PhotoRandomReviewBatchSize(rawValue: rawValue) ?? defaultValue
+    }
+}
+
+enum PhotoRandomReviewPlanner {
     static func plannedIdentifiers(
         from candidateIdentifiers: [String],
         excluding excludedIdentifiers: Set<String>,
@@ -108,35 +183,6 @@ enum PhotoRandomReviewPlanner {
             .prefix(limit)
             .map(\.identifier)
         )
-    }
-
-    static func resolvedIdentifiers(
-        candidateIdentifiers: [String],
-        fallbackCandidateIdentifiers: [String] = [],
-        excludedIdentifiers: Set<String>,
-        fallbackExcludedIdentifiers: Set<String>? = nil,
-        seed: String,
-        limit: Int
-    ) -> [String] {
-        guard limit > 0 else { return [] }
-
-        var resolved = plannedIdentifiers(
-            from: candidateIdentifiers,
-            excluding: excludedIdentifiers,
-            seed: seed,
-            limit: limit
-        )
-        guard resolved.count < limit else { return resolved }
-
-        let fallbackExclusions = fallbackExcludedIdentifiers ?? excludedIdentifiers
-        let fallbackFill = plannedIdentifiers(
-            from: fallbackCandidateIdentifiers,
-            excluding: fallbackExclusions.union(resolved),
-            seed: seed,
-            limit: limit - resolved.count
-        )
-        resolved.append(contentsOf: fallbackFill)
-        return resolved
     }
 
     private static func stableHash(seed: String, identifier: String) -> UInt64 {
@@ -691,5 +737,48 @@ enum PhotoAssetMetadataFormatter {
         }
 
         return nil
+    }
+}
+
+enum PhotoAssetSourceFormatter {
+    static func sourceDescription(for sourceType: PHAssetSourceType) -> String? {
+        var descriptions: [String] = []
+        if sourceType.contains(.typeUserLibrary) {
+            descriptions.append(L10n.string("个人图库"))
+        }
+        if sourceType.contains(.typeCloudShared) {
+            descriptions.append(L10n.string("iCloud 共享相册"))
+        }
+        if sourceType.contains(.typeiTunesSynced) {
+            descriptions.append(L10n.string("Mac 或 PC 同步"))
+        }
+        return descriptions.isEmpty ? nil : descriptions.joined(separator: " · ")
+    }
+
+    static func originalFilename(for asset: PHAsset) -> String? {
+        let resources = PHAssetResource.assetResources(for: asset)
+        let preferredTypes: [PHAssetResourceType]
+        if asset.mediaType == .video {
+            preferredTypes = [.video, .fullSizeVideo]
+        } else {
+            preferredTypes = [.photo, .fullSizePhoto]
+        }
+
+        for type in preferredTypes {
+            if let resource = resources.first(where: { $0.type == type }),
+               let filename = cleanedFilename(resource.originalFilename) {
+                return filename
+            }
+        }
+
+        return resources.lazy.compactMap { cleanedFilename($0.originalFilename) }.first
+    }
+
+    static func cleanedFilename(_ filename: String?) -> String? {
+        guard let filename else { return nil }
+        let value = URL(fileURLWithPath: filename)
+            .lastPathComponent
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty ? nil : value
     }
 }

@@ -776,10 +776,9 @@ private struct AdvancedPeriodProgressCard: View {
                     }
 
                     Text(String(
-                        format: L10n.string("已整理 %lld/%lld 项，合计约 %@。"),
+                        format: L10n.string("已整理 %lld/%lld 项"),
                         Int64(summary.reviewedCount),
-                        Int64(summary.assetCount),
-                        summary.formattedEstimatedSize
+                        Int64(summary.assetCount)
                     ))
                         .font(.system(size: 12, weight: .regular))
                         .foregroundColor(PhotoDeleteStyle.secondaryText)
@@ -915,16 +914,7 @@ private struct AdvancedCleanupEntryRow: View {
     }
 
     private var detailText: String {
-        switch queue.kind {
-        case .similarPhotos, .largeFiles:
-            return String(
-                format: L10n.string("%lld 项 · %@"),
-                Int64(queue.assetCount),
-                queue.formattedSpace
-            )
-        case .imageCompression, .videoCompression, .videos:
-            return String(format: L10n.string("%lld 项"), Int64(queue.assetCount))
-        }
+        String(format: L10n.string("%lld 项"), Int64(queue.assetCount))
     }
 }
 
@@ -963,9 +953,8 @@ private struct AdvancedTimePeriodRow: View {
 
     private var detailText: String {
         String(
-            format: L10n.string("剩余 %lld 张 · 合计约 %@"),
-            Int64(summary.remainingCount),
-            summary.formattedEstimatedSize
+            format: L10n.string("剩余 %lld 张"),
+            Int64(summary.remainingCount)
         )
     }
 }
@@ -1304,10 +1293,9 @@ private struct AdvancedPeriodListRow: View {
                     .foregroundColor(PhotoDeleteStyle.primaryText)
 
                 Text(String(
-                    format: L10n.string("%lld 项 · 已整理 %lld%% · %@"),
+                    format: L10n.string("%lld 项 · 已整理 %lld%%"),
                     Int64(summary.assetCount),
-                    Int64(summary.progress * 100),
-                    summary.formattedEstimatedSize
+                    Int64(summary.progress * 100)
                 ))
                     .font(.system(size: 12, weight: .regular))
                     .foregroundColor(PhotoDeleteStyle.secondaryText)
@@ -1331,6 +1319,7 @@ private struct AdvancedFilteredAssetSnapshot {
     let visibleAssets: [PHAsset]
     let videoAssets: [PHAsset]
     let totalSizeMB: Double
+    let loadedReliableSizeCount: Int
     let loadedReliableVideoSizeCount: Int
     let iCloudVideoCount: Int
     let hasMoreAssets: Bool
@@ -1391,9 +1380,13 @@ private struct AdvancedAssetListView: View {
         let filteredAssets = filteredAssetCandidates()
         let visibleAssets = VisibleListPagination.visibleItems(filteredAssets, limit: visibleAssetLimit)
         let videoAssets = filteredAssets.filter { $0.mediaType == .video }
-        let totalSizeMB = filteredAssets.reduce(0) { partial, asset in
-            partial + displaySizeMB(for: asset)
+        let reliableSizes = filteredAssets.compactMap { asset -> Double? in
+            if asset.mediaType == .video {
+                return reliableVideoSizeMB(for: asset)
+            }
+            return reliablePhotoSizeMB(for: asset)
         }
+        let totalSizeMB = reliableSizes.reduce(0, +)
         let loadedReliableVideoSizeCount = videoAssets.reduce(0) { partial, asset in
             reliableVideoSizeMB(for: asset) == nil ? partial : partial + 1
         }
@@ -1406,6 +1399,7 @@ private struct AdvancedAssetListView: View {
             visibleAssets: visibleAssets,
             videoAssets: videoAssets,
             totalSizeMB: totalSizeMB,
+            loadedReliableSizeCount: reliableSizes.count,
             loadedReliableVideoSizeCount: loadedReliableVideoSizeCount,
             iCloudVideoCount: iCloudVideoCount,
             hasMoreAssets: VisibleListPagination.hasMore(totalCount: filteredAssets.count, limit: visibleAssetLimit)
@@ -1558,26 +1552,36 @@ private struct AdvancedAssetListView: View {
     private func summarySubtitle(for snapshot: AdvancedFilteredAssetSnapshot) -> String {
         switch mode {
         case .cleanup(.largeFiles):
-            if snapshot.hasUnresolvedVideoSizes {
-                return String(format: L10n.string("部分视频大小会在处理时确认，已知约 %@。"), CleanupStatsFormatter.space(snapshot.totalSizeMB))
+            guard snapshot.loadedReliableSizeCount > 0 else {
+                return L10n.string("正在读取真实文件大小")
             }
-            return String(format: L10n.string("按占用空间从大到小排序，合计约 %@。"), CleanupStatsFormatter.space(snapshot.totalSizeMB))
+            return String(
+                format: L10n.string("已读取 %lld/%lld 项，已知约 %@。"),
+                Int64(snapshot.loadedReliableSizeCount),
+                Int64(snapshot.assets.count),
+                CleanupStatsFormatter.fileSize(snapshot.totalSizeMB)
+            )
         case .cleanup(.imageCompression):
-            return String(format: L10n.string("选择要压缩的图片，合计约 %@。"), CleanupStatsFormatter.space(snapshot.totalSizeMB))
+            return L10n.string("选择要压缩的图片，完成后显示实际文件大小。")
         case .cleanup(.videoCompression):
-            return String(format: L10n.string("选择要压缩的视频，合计约 %@。"), CleanupStatsFormatter.space(snapshot.totalSizeMB))
+            return L10n.string("选择要压缩的视频，完成后显示实际文件大小。")
         case .cleanup(.videos):
             if snapshot.hasUnresolvedVideoSizes {
                 return String(
                     format: L10n.string("已读取 %lld/%lld 个视频大小，已知约 %@。"),
                     Int64(snapshot.loadedReliableVideoSizeCount),
                     Int64(snapshot.videoAssets.count),
-                    CleanupStatsFormatter.space(snapshot.totalSizeMB)
+                    CleanupStatsFormatter.fileSize(snapshot.totalSizeMB)
                 )
             }
-            return String(format: L10n.string("按视频占用优先处理，合计约 %@。"), CleanupStatsFormatter.space(snapshot.totalSizeMB))
+            return String(
+                format: L10n.string("已读取 %lld/%lld 个视频大小，已知约 %@。"),
+                Int64(snapshot.loadedReliableVideoSizeCount),
+                Int64(snapshot.videoAssets.count),
+                CleanupStatsFormatter.fileSize(snapshot.totalSizeMB)
+            )
         case .cleanup(.similarPhotos):
-            return String(format: L10n.string("建议优先处理相似组，合计约 %@。"), CleanupStatsFormatter.space(snapshot.totalSizeMB))
+            return L10n.string("建议逐项确认后加入待删除。")
         }
     }
 
@@ -1775,6 +1779,10 @@ private struct AdvancedAssetListView: View {
     ) {
         guard generation == sizeLoadGeneration, !estimatesByAssetID.isEmpty else { return }
         for (assetID, estimate) in estimatesByAssetID {
+            dataManager.cacheAssetFileSizeEstimate(
+                estimate,
+                forAssetIdentifier: assetID
+            )
             photoSizeEstimatesByAssetID[assetID] = estimate
         }
         refreshOrderedAssets()
@@ -1921,10 +1929,7 @@ private struct AdvancedAssetListView: View {
     private func addSelectedAssetsToDeleteCandidates() {
         let assets = selectedAssets
         guard !assets.isEmpty else { return }
-        for asset in assets {
-            _ = dataManager.markReviewed(asset)
-            dataManager.addToDeleteCandidates(asset)
-        }
+        dataManager.addToDeleteCandidates(assets)
         HapticManager.notify(.success)
         showBatchConfirm = true
     }
@@ -2307,10 +2312,7 @@ private struct AdvancedImageCompressionView: View {
         let images = selectedAssets
         guard !images.isEmpty, !isCompressing else { return }
 
-        for asset in images {
-            _ = dataManager.markReviewed(asset)
-            dataManager.addToDeleteCandidates(asset)
-        }
+        dataManager.addToDeleteCandidates(images)
         HapticManager.notify(.warning)
         showBatchConfirm = true
     }
@@ -2347,10 +2349,7 @@ private struct AdvancedImageCompressionView: View {
             return
         }
 
-        for asset in originalAssets {
-            _ = dataManager.markReviewed(asset)
-            dataManager.addToDeleteCandidates(asset)
-        }
+        dataManager.addToDeleteCandidates(originalAssets)
         HapticManager.notify(.warning)
         dismissCompressionResultAfterBatch = true
         showBatchConfirm = true
@@ -2370,10 +2369,7 @@ private struct AdvancedImageCompressionView: View {
             return
         }
 
-        for asset in originalAssets {
-            _ = dataManager.markReviewed(asset)
-            dataManager.addToDeleteCandidates(asset)
-        }
+        dataManager.addToDeleteCandidates(originalAssets)
         HapticManager.notify(.warning)
         dismissCompressionResultAfterBatch = false
         showBatchConfirm = true
@@ -3806,10 +3802,7 @@ private struct AdvancedVideoCompressionView: View {
         let videos = selectedAssets
         guard !videos.isEmpty, !isCompressing else { return }
 
-        for asset in videos {
-            _ = dataManager.markReviewed(asset)
-            dataManager.addToDeleteCandidates(asset)
-        }
+        dataManager.addToDeleteCandidates(videos)
         HapticManager.notify(.warning)
         showBatchConfirm = true
     }
@@ -3850,10 +3843,7 @@ private struct AdvancedVideoCompressionView: View {
             return
         }
 
-        for asset in originalAssets {
-            _ = dataManager.markReviewed(asset)
-            dataManager.addToDeleteCandidates(asset)
-        }
+        dataManager.addToDeleteCandidates(originalAssets)
         HapticManager.notify(.warning)
         dismissCompressionResultAfterBatch = true
         showBatchConfirm = true
@@ -3873,10 +3863,7 @@ private struct AdvancedVideoCompressionView: View {
             return
         }
 
-        for asset in originalAssets {
-            _ = dataManager.markReviewed(asset)
-            dataManager.addToDeleteCandidates(asset)
-        }
+        dataManager.addToDeleteCandidates(originalAssets)
         HapticManager.notify(.warning)
         dismissCompressionResultAfterBatch = false
         showBatchConfirm = true
@@ -5166,10 +5153,7 @@ private struct AdvancedSimilarPhotoGroupsView: View {
     private func addSelectedAssetsToDeleteCandidates() {
         let assets = selectedAssets
         guard !assets.isEmpty else { return }
-        for asset in assets {
-            _ = dataManager.markReviewed(asset)
-            dataManager.addToDeleteCandidates(asset)
-        }
+        dataManager.addToDeleteCandidates(assets)
         HapticManager.notify(.success)
         showBatchConfirm = true
     }
@@ -5265,6 +5249,18 @@ private struct AdvancedSimilarPhotoGroupCard: View {
     let onToggleAsset: (PHAsset) -> Void
     let onPreview: (PHAsset) -> Void
 
+    @State private var visibleAssetLimit = 24
+
+    private let assetLimitStep = 24
+
+    private var visibleAssets: [PHAsset] {
+        VisibleListPagination.visibleItems(group.assets, limit: visibleAssetLimit)
+    }
+
+    private var hasMoreAssets: Bool {
+        VisibleListPagination.hasMore(totalCount: group.assets.count, limit: visibleAssetLimit)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 10) {
@@ -5299,8 +5295,8 @@ private struct AdvancedSimilarPhotoGroupCard: View {
             }
 
             ScrollView(.horizontal) {
-                HStack(spacing: 8) {
-                    ForEach(group.assets, id: \.localIdentifier) { asset in
+                LazyHStack(spacing: 8) {
+                    ForEach(visibleAssets, id: \.localIdentifier) { asset in
                         AdvancedSelectableThumbnail(
                             asset: asset,
                             photoLibraryManager: photoLibraryManager,
@@ -5310,12 +5306,37 @@ private struct AdvancedSimilarPhotoGroupCard: View {
                             onPreview: { onPreview(asset) }
                         )
                     }
+
+                    if hasMoreAssets {
+                        Button(action: showMoreAssets) {
+                            Label(L10n.string("显示更多"), systemImage: "chevron.right")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(PhotoDeleteStyle.accent)
+                                .padding(.horizontal, 12)
+                                .frame(height: 66)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 13, style: .continuous)
+                                        .fill(PhotoDeleteStyle.accent.opacity(0.12))
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .id(visibleAssetLimit)
+                        .onAppear(perform: showMoreAssets)
+                    }
                 }
             }
             .scrollIndicators(.hidden)
         }
         .padding(14)
         .photoDeleteCard()
+    }
+
+    private func showMoreAssets() {
+        visibleAssetLimit = VisibleListPagination.advancedLimit(
+            totalCount: group.assets.count,
+            currentLimit: visibleAssetLimit,
+            step: assetLimitStep
+        )
     }
 }
 
@@ -5740,7 +5761,9 @@ private struct AdvancedAssetThumbnail: View {
         .onAppear(perform: loadImage)
         .onDisappear {
             photoLibraryManager.cancelImageRequest(requestID)
+            requestID = nil
             loadingAssetID = nil
+            image = nil
         }
     }
 

@@ -24,6 +24,8 @@ struct BatchConfirmView: View {
     @State private var selectedDeleteIDs: Set<String> = []
     @State private var selectedFavoriteIDs: Set<String> = []
     @State private var completedDeletedIDs: Set<String> = []
+    @State private var fileSizeEstimatesByAssetID: [String: AssetFileSizeEstimate] = [:]
+    @State private var isLoadingFileSizes = false
     let albumInfo: AlbumInfo?
     let onComplete: ((Set<String>) -> Void)?
 
@@ -55,18 +57,25 @@ struct BatchConfirmView: View {
                 let favoriteAssets = sortedAssets(Array(dataManager.favoriteCandidates))
                 let selectedDeleteAssets = deleteAssets.filter { selectedDeleteIDs.contains($0.localIdentifier) }
                 let selectedFavoriteAssets = favoriteAssets.filter { selectedFavoriteIDs.contains($0.localIdentifier) }
-                let estimatedSpaceSaved = selectedDeleteAssets.reduce(0) { $0 + dataManager.estimatedSizeMB(for: $1) }
+                let deletedContentSizeSummary = DeletedContentSizeSummary.make(
+                    assetIdentifiers: selectedDeleteAssets.map(\.localIdentifier),
+                    estimatesByAssetID: fileSizeEstimatesByAssetID
+                )
 
                 confirmationContent(
                     deleteAssets: deleteAssets,
                     favoriteAssets: favoriteAssets,
                     selectedDeleteAssets: selectedDeleteAssets,
                     selectedFavoriteAssets: selectedFavoriteAssets,
-                    estimatedSpaceSaved: estimatedSpaceSaved
+                    deletedContentSizeSummary: deletedContentSizeSummary
                 )
             }
         }
         .onAppear(perform: selectAllPendingCandidates)
+        .task(id: isProcessing) {
+            guard !isProcessing else { return }
+            await loadDeleteCandidateFileSizes()
+        }
         .sheet(item: $previewAsset) { previewAsset in
             CandidatePhotoPreviewView(
                 asset: previewAsset.asset,
@@ -88,7 +97,7 @@ struct BatchConfirmView: View {
         favoriteAssets: [PHAsset],
         selectedDeleteAssets: [PHAsset],
         selectedFavoriteAssets: [PHAsset],
-        estimatedSpaceSaved: Double
+        deletedContentSizeSummary: DeletedContentSizeSummary
     ) -> some View {
         VStack(spacing: 22) {
             VStack(spacing: 16) {
@@ -111,7 +120,7 @@ struct BatchConfirmView: View {
                                 .font(.system(size: 14, weight: .regular))
                                 .foregroundColor(PhotoDeleteStyle.secondaryText)
                         } else {
-                            Text(L10n.string("预计节省 \(CleanupStatsFormatter.space(estimatedSpaceSaved))"))
+                            deletedContentSizeText(deletedContentSizeSummary)
                                 .font(.system(size: 14, weight: .semibold))
                                 .foregroundColor(PhotoDeleteStyle.positive)
                         }
@@ -139,11 +148,14 @@ struct BatchConfirmView: View {
                 }
 
                 if hasPendingOperations {
-                    Label(L10n.string("默认已勾选，取消勾选后不会执行。"), systemImage: "checkmark.circle.fill")
-                        .font(.system(size: 13, weight: .regular))
-                        .foregroundColor(PhotoDeleteStyle.secondaryText)
-                        .multilineTextAlignment(.center)
-                        .labelStyle(.titleAndIcon)
+                    VStack(spacing: 6) {
+                        Label(L10n.string("默认已勾选，取消勾选后不会执行。"), systemImage: "checkmark.circle.fill")
+                        Label(L10n.string("删除后会进入系统“最近删除”，空间可能不会立即释放。"), systemImage: "info.circle")
+                    }
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .labelStyle(.titleAndIcon)
                 }
             }
 
@@ -228,7 +240,9 @@ struct BatchConfirmView: View {
 
         isProcessing = true
         errorMessage = nil
-        let estimatedSpaceSaved = deletedAssets.reduce(0) { $0 + dataManager.estimatedSizeMB(for: $1) }
+        let estimatedSpaceSaved = dataManager.deletedContentSizeSummary(
+            for: deletedAssets
+        ).knownSizeMB
         dataManager.executeBatchOperations(
             deleteAssets: deletedAssets,
             favoriteAssets: favoriteAssets
@@ -266,6 +280,85 @@ struct BatchConfirmView: View {
         selectedFavoriteIDs = Set(dataManager.favoriteCandidates.map(\.localIdentifier))
     }
 
+    @ViewBuilder
+    private func deletedContentSizeText(_ summary: DeletedContentSizeSummary) -> some View {
+        if summary.knownAssetCount > 0 {
+            VStack(spacing: 3) {
+                Text(L10n.string("已知删除内容约 \(CleanupStatsFormatter.fileSize(summary.knownSizeMB))"))
+                if isLoadingFileSizes {
+                    Text(
+                        L10n.string(
+                            "正在读取文件大小 \(summary.knownAssetCount)/\(summary.totalAssetCount)"
+                        )
+                    )
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundColor(PhotoDeleteStyle.secondaryText)
+                } else if summary.unknownAssetCount > 0 {
+                    Text(L10n.string("\(summary.unknownAssetCount) 项大小暂时无法读取"))
+                        .font(.system(size: 12, weight: .regular))
+                        .foregroundColor(PhotoDeleteStyle.secondaryText)
+                }
+            }
+        } else if isLoadingFileSizes {
+            Text(L10n.string("正在读取文件大小"))
+                .foregroundColor(PhotoDeleteStyle.secondaryText)
+        } else {
+            Text(L10n.string("暂时无法读取文件大小"))
+                .foregroundColor(PhotoDeleteStyle.secondaryText)
+        }
+    }
+
+    private func loadDeleteCandidateFileSizes() async {
+        let assets = sortedAssets(Array(dataManager.deleteCandidates))
+        guard !assets.isEmpty else { return }
+
+        var accumulatedEstimates: [String: AssetFileSizeEstimate] = [:]
+        for asset in assets {
+            if let cached = dataManager.cachedAssetFileSizeEstimate(for: asset) {
+                accumulatedEstimates[asset.localIdentifier] = cached
+            }
+        }
+        fileSizeEstimatesByAssetID = accumulatedEstimates
+
+        let missingAssets = assets.filter {
+            accumulatedEstimates[$0.localIdentifier] == nil
+        }
+        guard !missingAssets.isEmpty else { return }
+
+        isLoadingFileSizes = true
+        defer { isLoadingFileSizes = false }
+
+        var pendingEstimates: [String: AssetFileSizeEstimate] = [:]
+        for asset in missingAssets {
+            guard !Task.isCancelled else { return }
+
+            let estimate: AssetFileSizeEstimate
+            do {
+                if asset.mediaType == .video {
+                    estimate = try await dataManager.photoLibraryManager.videoFileSizeEstimate(for: asset)
+                } else {
+                    estimate = try await dataManager.photoLibraryManager.photoFileSizeEstimate(for: asset)
+                }
+            } catch is CancellationError {
+                return
+            } catch {
+                estimate = AssetFileSizeEstimate(sizeMB: 0, source: .unavailable)
+            }
+
+            dataManager.cacheAssetFileSizeEstimate(estimate, for: asset)
+            pendingEstimates[asset.localIdentifier] = estimate
+
+            if pendingEstimates.count >= 12 {
+                fileSizeEstimatesByAssetID.merge(pendingEstimates) { _, latest in latest }
+                pendingEstimates.removeAll(keepingCapacity: true)
+            }
+        }
+
+        if !pendingEstimates.isEmpty {
+            fileSizeEstimatesByAssetID.merge(pendingEstimates) { _, latest in latest }
+        }
+    }
+
     private func toggleDeleteSelection(_ asset: PHAsset) {
         HapticManager.impact(.light)
         let id = asset.localIdentifier
@@ -297,8 +390,8 @@ struct BatchConfirmView: View {
     }
 
     private func finishCompletedFlow() {
-        dismiss()
         onComplete?(completedDeletedIDs)
+        dismiss()
     }
 
     private func cancelOperations() {
@@ -441,7 +534,7 @@ private struct BatchCleanupCompletionView: View {
                 icon: "trash.fill",
                 title: L10n.string("本次删除"),
                 value: L10n.shortPhotoCount(celebration.deletedPhotos),
-                detail: "\(L10n.string("节省")) \(celebration.formattedSpaceSaved)",
+                detail: L10n.string("删除内容约 \(celebration.formattedSpaceSaved)"),
                 tint: PhotoDeleteStyle.destructive
             )
 
@@ -454,7 +547,7 @@ private struct BatchCleanupCompletionView: View {
                 icon: "chart.bar.fill",
                 title: L10n.string("累计删除"),
                 value: L10n.shortPhotoCount(celebration.totalDeletedPhotos),
-                detail: "\(L10n.string("节省")) \(celebration.formattedTotalSpaceSaved)",
+                detail: L10n.string("删除内容约 \(celebration.formattedTotalSpaceSaved)"),
                 tint: PhotoDeleteStyle.accent
             )
         }
@@ -670,10 +763,23 @@ private struct CandidatePreviewSection: View {
     let deselectAccessibilityLabel: String
     let onPreview: (PHAsset) -> Void
     let onToggleSelection: (PHAsset) -> Void
+    @State private var visibleAssetLimit = 48
 
     private let columns = [
         GridItem(.adaptive(minimum: 64, maximum: 76), spacing: 8)
     ]
+    private let assetLimitStep = 48
+
+    private var visibleAssets: [PHAsset] {
+        VisibleListPagination.visibleItems(assets, limit: visibleAssetLimit)
+    }
+
+    private var hasMoreAssets: Bool {
+        VisibleListPagination.hasMore(
+            totalCount: assets.count,
+            limit: visibleAssetLimit
+        )
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -690,7 +796,7 @@ private struct CandidatePreviewSection: View {
             }
 
             LazyVGrid(columns: columns, spacing: 8) {
-                ForEach(assets, id: \.localIdentifier) { asset in
+                ForEach(visibleAssets, id: \.localIdentifier) { asset in
                     CandidateThumbnailView(
                         asset: asset,
                         photoLibraryManager: photoLibraryManager,
@@ -704,6 +810,17 @@ private struct CandidatePreviewSection: View {
                     )
                 }
             }
+
+            if hasMoreAssets {
+                Button(action: showMoreAssets) {
+                    Label(L10n.string("显示更多"), systemImage: "chevron.down")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(color)
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: 44)
+                }
+                .buttonStyle(.plain)
+            }
         }
         .padding(12)
         .background(
@@ -713,6 +830,14 @@ private struct CandidatePreviewSection: View {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .stroke(color.opacity(0.24), lineWidth: 1)
                 )
+        )
+    }
+
+    private func showMoreAssets() {
+        visibleAssetLimit = VisibleListPagination.advancedLimit(
+            totalCount: assets.count,
+            currentLimit: visibleAssetLimit,
+            step: assetLimitStep
         )
     }
 }
@@ -772,7 +897,10 @@ private struct CandidateThumbnailView: View {
         .onAppear(perform: loadImage)
         .onDisappear {
             photoLibraryManager.cancelImageRequest(requestID)
+            requestID = nil
             loadingAssetIdentifier = nil
+            image = nil
+            isLoading = false
         }
     }
 
@@ -1892,6 +2020,14 @@ private struct PhotoAssetDetailsPanel: View {
                     detailDivider
                     detailRow(label: L10n.string("修改时间"), value: modificationDateText, icon: "clock.arrow.circlepath")
                 }
+                if let sourceText {
+                    detailDivider
+                    detailRow(label: L10n.string("图库来源"), value: sourceText, icon: "photo.stack")
+                }
+                if let originalFilenameText {
+                    detailDivider
+                    detailRow(label: L10n.string("原始文件名"), value: originalFilenameText, icon: "doc.text")
+                }
                 Divider().background(PhotoDeleteStyle.hairline).padding(.leading, 44)
                 detailRow(label: L10n.string("类型"), value: mediaTypeText, icon: mediaTypeIcon)
                 Divider().background(PhotoDeleteStyle.hairline).padding(.leading, 44)
@@ -1954,6 +2090,14 @@ private struct PhotoAssetDetailsPanel: View {
     private var modificationDateText: String? {
         guard let modificationDate = asset.modificationDate else { return nil }
         return AppDateFormatter.string(from: modificationDate, dateStyle: .medium, timeStyle: .short)
+    }
+
+    private var sourceText: String? {
+        PhotoAssetSourceFormatter.sourceDescription(for: asset.sourceType)
+    }
+
+    private var originalFilenameText: String? {
+        PhotoAssetSourceFormatter.originalFilename(for: asset)
     }
 
     private var mediaTypeText: String {

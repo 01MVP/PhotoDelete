@@ -159,6 +159,113 @@ enum PhotoLibraryDeferredReloadPolicy {
     }
 }
 
+enum PhotoLibraryChangeRouting: Equatable {
+    case albumOnly
+    case library
+}
+
+enum PhotoLibraryChangeRoutingPolicy {
+    static func route(
+        hasChangeDetails: Bool,
+        insertedCount: Int,
+        removedCount: Int,
+        changedCount: Int,
+        hasMoves: Bool
+    ) -> PhotoLibraryChangeRouting {
+        guard hasChangeDetails else { return .albumOnly }
+        return route(
+            insertedCount: insertedCount,
+            removedCount: removedCount,
+            changedCount: changedCount,
+            hasMoves: hasMoves
+        )
+    }
+
+    static func route(
+        insertedCount: Int,
+        removedCount: Int,
+        changedCount: Int,
+        hasMoves: Bool
+    ) -> PhotoLibraryChangeRouting {
+        let hasResourceChanges = insertedCount > 0 ||
+            removedCount > 0 ||
+            changedCount > 0 ||
+            hasMoves
+        return hasResourceChanges ? .library : .albumOnly
+    }
+}
+
+enum PhotoLibraryLocalAlbumChangePulsePolicy {
+    static let timeout: TimeInterval = 2
+
+    static func appendExpectedPulses(
+        expectedDeadlines: inout [Date],
+        count: Int,
+        now: Date,
+        timeout: TimeInterval = Self.timeout
+    ) {
+        guard count > 0 else { return }
+        let deadline = now.addingTimeInterval(max(timeout, 0))
+        expectedDeadlines.append(contentsOf: repeatElement(deadline, count: count))
+    }
+
+    static func discardExpiredPulses(
+        expectedDeadlines: inout [Date],
+        now: Date
+    ) {
+        expectedDeadlines.removeAll { $0 <= now }
+    }
+
+    @discardableResult
+    static func cancelOneExpectedPulse(
+        expectedDeadlines: inout [Date]
+    ) -> Bool {
+        guard !expectedDeadlines.isEmpty else { return false }
+        expectedDeadlines.removeLast()
+        return true
+    }
+
+    static func consumeExpectedPulse(
+        expectedDeadlines: inout [Date],
+        now: Date,
+        hasResourceChanges: Bool
+    ) -> Bool {
+        discardExpiredPulses(expectedDeadlines: &expectedDeadlines, now: now)
+
+        // A resource change always follows the normal library path. Do not
+        // spend a local album token on it (or let the token suppress it).
+        guard !hasResourceChanges, !expectedDeadlines.isEmpty else { return false }
+        expectedDeadlines.removeFirst()
+        return true
+    }
+
+}
+
+enum PhotoLibraryAlbumWriteAdmissionPolicy {
+    /// The queue limit applies to waiting requests. The active transaction is
+    /// already removed from that queue, so the bounded total is 32 waiting + 1
+    /// active request. Keeping this explicit avoids an off-by-one drift between
+    /// the admission check and the queue's head-index bookkeeping.
+    static let maximumWaitingRequests = 32
+
+    static func outstandingRequestCount(
+        waitingRequestCount: Int,
+        hasActiveRequest: Bool
+    ) -> Int {
+        max(waitingRequestCount, 0) + (hasActiveRequest ? 1 : 0)
+    }
+
+    static func canEnqueue(
+        waitingRequestCount: Int,
+        hasActiveRequest: Bool,
+        maximumWaitingRequests: Int = Self.maximumWaitingRequests
+    ) -> Bool {
+        _ = hasActiveRequest // The limit intentionally counts waiting requests.
+        guard maximumWaitingRequests > 0, waitingRequestCount >= 0 else { return false }
+        return waitingRequestCount < maximumWaitingRequests
+    }
+}
+
 enum VideoCompressionQuality: String, CaseIterable, Identifiable {
     case high
     case balanced
@@ -622,13 +729,70 @@ class PhotoLibraryManager: NSObject, ObservableObject {
     private var pendingLoadCompletions: [() -> Void] = []
     private var localChangeNotificationsRemaining = 0
     private var localChangeResetWorkItem: DispatchWorkItem?
+    /// Album membership writes emit collection-only PHChange pulses.  These
+    /// short-lived tokens let the observer distinguish those local pulses from
+    /// external album edits without suppressing real asset changes.
+    private var expectedLocalAlbumChangeDeadlines: [Date] = []
+    private var expectedLocalAlbumChangeResetWorkItem: DispatchWorkItem?
     private var isRestoringSnapshot = false
     private var rebuildCachedAssetsWorkItem: DispatchWorkItem?
     private var rebuildCachedAssetsGeneration = 0
     private var needsPhotoLibraryReloadAfterCurrentLoad = false
 
+    private enum AlbumWriteRequest {
+        case add(
+            album: PHAssetCollection,
+            assets: [PHAsset],
+            completion: (Bool, Int, Error?) -> Void
+        )
+        case remove(
+            album: PHAssetCollection,
+            assets: [PHAsset],
+            completion: (Bool, Error?) -> Void
+        )
+    }
+
+    private final class AlbumWriteCompletionGate {
+        private let lock = NSLock()
+        private var didComplete = false
+
+        func run(_ completion: @escaping () -> Void) {
+            let invoke = { [self] in
+                lock.lock()
+                guard !didComplete else {
+                    lock.unlock()
+                    return
+                }
+                didComplete = true
+                lock.unlock()
+                completion()
+            }
+
+            if Thread.isMainThread {
+                invoke()
+            } else {
+                DispatchQueue.main.async(execute: invoke)
+            }
+        }
+    }
+
+    /// Photos serializes writes internally, but queuing here prevents a burst of
+    /// album filings from creating a matching burst of change callbacks and retained
+    /// PHChange work. The cache is populated off-main on the first request for an
+    /// album and then updated from successful local writes.
+    private var pendingAlbumWrites: [AlbumWriteRequest] = []
+    private var pendingAlbumWriteHeadIndex = 0
+    private static let maximumPendingAlbumWrites = PhotoLibraryAlbumWriteAdmissionPolicy.maximumWaitingRequests
+    private var isAlbumWriteInFlight = false
+    private var albumAssetIdentifiersByID: [String: Set<String>] = [:]
+    private var albumAssetCacheGeneration = 0
+    private var albumWriteCoordinatorGeneration = 0
+    private var activeAlbumWriteAccessRevoked = false
+    private var activeAlbumWriteTransactionSubmitted = false
+
     private var isObserverRegistered = false
     var onLibraryDataChanged: (() -> Void)?
+    var onAlbumDataChanged: (() -> Void)?
 
     var hasPhotoLibraryAccess: Bool {
         authorizationStatus == .authorized || authorizationStatus == .limited
@@ -655,6 +819,11 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         hasLoadedPhotoLibrary = false
         isRestoringSnapshot = false
         needsPhotoLibraryReloadAfterCurrentLoad = false
+        expectedLocalAlbumChangeResetWorkItem?.cancel()
+        expectedLocalAlbumChangeResetWorkItem = nil
+        expectedLocalAlbumChangeDeadlines.removeAll(keepingCapacity: true)
+        cancelAlbumWriteQueue(error: PhotoLibraryWriteError.noLibraryAccess)
+        invalidateAlbumMembershipCache()
         cancelPendingRebuildCachedAssets()
         pendingLoadCompletions.removeAll()
         imageCache.removeAllObjects()
@@ -2601,6 +2770,70 @@ class PhotoLibraryManager: NSObject, ObservableObject {
         }
     }
 
+    private func expectLocalAlbumChange(count: Int = 1) {
+        let clampedCount = max(count, 1)
+        let updateCounter = { [weak self] in
+            guard let self else { return }
+            PhotoLibraryLocalAlbumChangePulsePolicy.appendExpectedPulses(
+                expectedDeadlines: &self.expectedLocalAlbumChangeDeadlines,
+                count: clampedCount,
+                now: Date()
+            )
+            self.scheduleExpectedLocalAlbumChangeExpiry()
+        }
+
+        if Thread.isMainThread {
+            updateCounter()
+        } else {
+            DispatchQueue.main.async(execute: updateCounter)
+        }
+    }
+
+    private func scheduleExpectedLocalAlbumChangeExpiry() {
+        dispatchPrecondition(condition: .onQueue(.main))
+        expectedLocalAlbumChangeResetWorkItem?.cancel()
+        expectedLocalAlbumChangeResetWorkItem = nil
+
+        guard let earliestDeadline = expectedLocalAlbumChangeDeadlines.min() else {
+            return
+        }
+
+        let delay = max(earliestDeadline.timeIntervalSinceNow, 0)
+        let resetWorkItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            PhotoLibraryLocalAlbumChangePulsePolicy.discardExpiredPulses(
+                expectedDeadlines: &self.expectedLocalAlbumChangeDeadlines,
+                now: Date()
+            )
+            self.expectedLocalAlbumChangeResetWorkItem = nil
+            self.scheduleExpectedLocalAlbumChangeExpiry()
+        }
+        expectedLocalAlbumChangeResetWorkItem = resetWorkItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: resetWorkItem)
+    }
+
+    @discardableResult
+    private func consumeExpectedLocalAlbumChange(hasResourceChanges: Bool) -> Bool {
+        dispatchPrecondition(condition: .onQueue(.main))
+        let consumed = PhotoLibraryLocalAlbumChangePulsePolicy.consumeExpectedPulse(
+            expectedDeadlines: &expectedLocalAlbumChangeDeadlines,
+            now: Date(),
+            hasResourceChanges: hasResourceChanges
+        )
+        scheduleExpectedLocalAlbumChangeExpiry()
+        return consumed
+    }
+
+    @discardableResult
+    private func cancelOneExpectedLocalAlbumChange() -> Bool {
+        dispatchPrecondition(condition: .onQueue(.main))
+        let canceled = PhotoLibraryLocalAlbumChangePulsePolicy.cancelOneExpectedPulse(
+            expectedDeadlines: &expectedLocalAlbumChangeDeadlines
+        )
+        scheduleExpectedLocalAlbumChangeExpiry()
+        return canceled
+    }
+
     private func shouldApplyChangeIncrementally() -> Bool {
         guard localChangeNotificationsRemaining > 0 else { return false }
         localChangeNotificationsRemaining -= 1
@@ -2931,6 +3164,9 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             PHAssetCollectionChangeRequest.deleteAssetCollections([album] as NSArray)
         }) { success, error in
             DispatchQueue.main.async {
+                if success {
+                    self.invalidateAlbumMembershipCache()
+                }
                 completion(success, error)
             }
         }
@@ -2953,34 +3189,10 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             return
         }
 
-        let albumAssets = PHAsset.fetchAssets(in: album, options: nil)
-        var existingAssetIDs: Set<String> = []
-        albumAssets.enumerateObjects { asset, _, _ in
-            existingAssetIDs.insert(asset.localIdentifier)
-        }
-        let assetsToAdd = uniqueAssets.filter { !existingAssetIDs.contains($0.localIdentifier) }
-        guard !assetsToAdd.isEmpty else {
-            completion(true, 0, nil)
-            return
-        }
-
-        PHPhotoLibrary.shared().performChanges({
-            if let addAssetRequest = PHAssetCollectionChangeRequest(for: album) {
-                addAssetRequest.addAssets(assetsToAdd as NSArray)
-            }
-        }) { success, error in
-            DispatchQueue.main.async {
-                let verifiedSuccess = success && self.album(
-                    withIdentifier: album.localIdentifier,
-                    containsAllAssetIdentifiers: assetsToAdd.map(\.localIdentifier)
-                )
-                completion(
-                    verifiedSuccess,
-                    verifiedSuccess ? assetsToAdd.count : 0,
-                    verifiedSuccess ? nil : (error ?? PhotoLibraryWriteError.unsupportedAlbumAdd)
-                )
-            }
-        }
+        // Membership lookup and the write are serialized and the first lookup is
+        // performed off-main. This preserves duplicate-aware counts without doing a
+        // full album enumeration on the UI thread for every filing.
+        enqueueAlbumWrite(.add(album: album, assets: uniqueAssets, completion: completion))
     }
 
     func removePhotosFromAlbum(_ assets: [PHAsset], album: PHAssetCollection, completion: @escaping (Bool, Error?) -> Void) {
@@ -3000,58 +3212,573 @@ class PhotoLibraryManager: NSObject, ObservableObject {
             return
         }
 
-        let albumAssets = PHAsset.fetchAssets(in: album, options: nil)
-        var existingAssetIDs: Set<String> = []
-        albumAssets.enumerateObjects { asset, _, _ in
-            existingAssetIDs.insert(asset.localIdentifier)
+        enqueueAlbumWrite(.remove(album: album, assets: uniqueAssets, completion: completion))
+    }
+
+    private func enqueueAlbumWrite(_ request: AlbumWriteRequest) {
+        let enqueue = { [weak self] in
+            guard let self else { return }
+            let pendingCount = self.pendingAlbumWrites.count - self.pendingAlbumWriteHeadIndex
+            guard PhotoLibraryAlbumWriteAdmissionPolicy.canEnqueue(
+                waitingRequestCount: pendingCount,
+                hasActiveRequest: self.isAlbumWriteInFlight,
+                maximumWaitingRequests: Self.maximumPendingAlbumWrites
+            ) else {
+                let error: PhotoLibraryWriteError
+                switch request {
+                case .add:
+                    error = .unsupportedAlbumAdd
+                case .remove:
+                    error = .unsupportedAlbumRemove
+                }
+                self.failAlbumWriteRequest(request, error: error)
+                return
+            }
+            self.pendingAlbumWrites.append(request)
+            self.drainAlbumWriteQueueIfNeeded()
         }
-        let assetsToRemove = uniqueAssets.filter { existingAssetIDs.contains($0.localIdentifier) }
-        guard !assetsToRemove.isEmpty else {
-            completion(true, nil)
+
+        if Thread.isMainThread {
+            enqueue()
+        } else {
+            DispatchQueue.main.async(execute: enqueue)
+        }
+    }
+
+    private func drainAlbumWriteQueueIfNeeded() {
+        dispatchPrecondition(condition: .onQueue(.main))
+        guard !isAlbumWriteInFlight else { return }
+        guard pendingAlbumWriteHeadIndex < pendingAlbumWrites.count else {
+            // Every queued request has been consumed. Reset the head together
+            // with the backing storage so a completion-triggered drain cannot
+            // subscript past the end of the array.
+            pendingAlbumWrites.removeAll(keepingCapacity: true)
+            pendingAlbumWriteHeadIndex = 0
             return
         }
 
+        isAlbumWriteInFlight = true
+        activeAlbumWriteAccessRevoked = false
+        activeAlbumWriteTransactionSubmitted = false
+        let request = pendingAlbumWrites[pendingAlbumWriteHeadIndex]
+        pendingAlbumWriteHeadIndex += 1
+        compactPendingAlbumWritesIfNeeded()
+        let completionGate = AlbumWriteCompletionGate()
+        let coordinatorGeneration = albumWriteCoordinatorGeneration
+        switch request {
+        case let .add(album, assets, completion):
+            prepareAlbumAdd(
+                album: album,
+                assets: assets,
+                completionGate: completionGate,
+                coordinatorGeneration: coordinatorGeneration,
+                completion: completion
+            )
+        case let .remove(album, assets, completion):
+            prepareAlbumRemove(
+                album: album,
+                assets: assets,
+                completionGate: completionGate,
+                coordinatorGeneration: coordinatorGeneration,
+                completion: completion
+            )
+        }
+    }
+
+    private func compactPendingAlbumWritesIfNeeded() {
+        guard pendingAlbumWriteHeadIndex > 0 else { return }
+        if pendingAlbumWriteHeadIndex >= pendingAlbumWrites.count {
+            // The request just consumed was the final queued item. Clear the
+            // consumed storage immediately; this is both safe for the next
+            // drain and keeps the queue bounded between writes.
+            pendingAlbumWrites.removeAll(keepingCapacity: true)
+            pendingAlbumWriteHeadIndex = 0
+            return
+        }
+        guard pendingAlbumWriteHeadIndex >= 16,
+              pendingAlbumWriteHeadIndex * 2 >= pendingAlbumWrites.count else { return }
+        pendingAlbumWrites.removeFirst(pendingAlbumWriteHeadIndex)
+        pendingAlbumWriteHeadIndex = 0
+    }
+
+    private func failAlbumWriteRequest(_ request: AlbumWriteRequest, error: Error) {
+        switch request {
+        case let .add(_, _, completion):
+            completion(false, 0, error)
+        case let .remove(_, _, completion):
+            completion(false, error)
+        }
+    }
+
+    private func cancelAlbumWriteQueue(error: Error) {
+        dispatchPrecondition(condition: .onQueue(.main))
+        // Keep the active request alive. If it is still preparing, the next
+        // preflight callback will report the access loss; if performChanges has
+        // already been submitted, its Photos callback remains authoritative.
+        if isAlbumWriteInFlight, !activeAlbumWriteTransactionSubmitted {
+            activeAlbumWriteAccessRevoked = true
+        }
+
+        let queuedRequests = Array(pendingAlbumWrites.dropFirst(pendingAlbumWriteHeadIndex))
+        pendingAlbumWrites.removeAll(keepingCapacity: true)
+        pendingAlbumWriteHeadIndex = 0
+
+        queuedRequests.forEach { failAlbumWriteRequest($0, error: error) }
+    }
+
+    private func failAlbumAddBeforeTransaction(
+        coordinatorGeneration: Int,
+        completionGate: AlbumWriteCompletionGate,
+        completion: @escaping (Bool, Int, Error?) -> Void,
+        error: Error = PhotoLibraryWriteError.noLibraryAccess
+    ) {
+        completionGate.run { [weak self] in
+            guard let self else {
+                completion(false, 0, error)
+                return
+            }
+            self.completeAlbumWrite(coordinatorGeneration: coordinatorGeneration) {
+                completion(false, 0, error)
+            }
+        }
+    }
+
+    private func failAlbumRemoveBeforeTransaction(
+        coordinatorGeneration: Int,
+        completionGate: AlbumWriteCompletionGate,
+        completion: @escaping (Bool, Error?) -> Void,
+        error: Error = PhotoLibraryWriteError.noLibraryAccess
+    ) {
+        completionGate.run { [weak self] in
+            guard let self else {
+                completion(false, error)
+                return
+            }
+            self.completeAlbumWrite(coordinatorGeneration: coordinatorGeneration) {
+                completion(false, error)
+            }
+        }
+    }
+
+    private func finishAlbumAdd(
+        coordinatorGeneration: Int,
+        completionGate: AlbumWriteCompletionGate,
+        completion: @escaping (Bool, Int, Error?) -> Void,
+        success: Bool,
+        insertedCount: Int,
+        error: Error?
+    ) {
+        completionGate.run { [weak self] in
+            guard let self else {
+                completion(success, insertedCount, error)
+                return
+            }
+            self.completeAlbumWrite(coordinatorGeneration: coordinatorGeneration) {
+                completion(success, insertedCount, error)
+            }
+        }
+    }
+
+    private func finishAlbumRemove(
+        coordinatorGeneration: Int,
+        completionGate: AlbumWriteCompletionGate,
+        completion: @escaping (Bool, Error?) -> Void,
+        success: Bool,
+        error: Error?
+    ) {
+        completionGate.run { [weak self] in
+            guard let self else {
+                completion(success, error)
+                return
+            }
+            self.completeAlbumWrite(coordinatorGeneration: coordinatorGeneration) {
+                completion(success, error)
+            }
+        }
+    }
+
+    private func verifyAlbumMembershipAfterWrite(
+        in album: PHAssetCollection,
+        completion: @escaping (Set<String>) -> Void
+    ) {
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let identifiers = self?.fetchAlbumAssetIdentifiers(in: album) ?? []
+            DispatchQueue.main.async {
+                completion(identifiers)
+            }
+        }
+    }
+
+    private func prepareAlbumAdd(
+        album: PHAssetCollection,
+        assets: [PHAsset],
+        completionGate: AlbumWriteCompletionGate,
+        coordinatorGeneration: Int,
+        completion: @escaping (Bool, Int, Error?) -> Void
+    ) {
+        guard coordinatorGeneration == albumWriteCoordinatorGeneration else { return }
+        guard hasPhotoLibraryAccess, !activeAlbumWriteAccessRevoked else {
+            failAlbumAddBeforeTransaction(
+                coordinatorGeneration: coordinatorGeneration,
+                completionGate: completionGate,
+                completion: completion
+            )
+            return
+        }
+        let albumID = album.localIdentifier
+        if let existingAssetIDs = albumAssetIdentifiersByID[albumID] {
+            performAlbumAdd(
+                album: album,
+                assets: assets,
+                existingAssetIDs: existingAssetIDs,
+                cacheGeneration: albumAssetCacheGeneration,
+                coordinatorGeneration: coordinatorGeneration,
+                completionGate: completionGate,
+                completion: completion
+            )
+            return
+        }
+
+        let fetchGeneration = albumAssetCacheGeneration
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            guard let self else { return }
+            let existingAssetIDs = self.fetchAlbumAssetIdentifiers(in: album)
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                guard coordinatorGeneration == self.albumWriteCoordinatorGeneration else { return }
+                guard self.hasPhotoLibraryAccess, !self.activeAlbumWriteAccessRevoked else {
+                    self.failAlbumAddBeforeTransaction(
+                        coordinatorGeneration: coordinatorGeneration,
+                        completionGate: completionGate,
+                        completion: completion
+                    )
+                    return
+                }
+                guard fetchGeneration == self.albumAssetCacheGeneration else {
+                    self.prepareAlbumAdd(
+                        album: album,
+                        assets: assets,
+                        completionGate: completionGate,
+                        coordinatorGeneration: coordinatorGeneration,
+                        completion: completion
+                    )
+                    return
+                }
+                self.albumAssetIdentifiersByID[albumID] = existingAssetIDs
+                self.performAlbumAdd(
+                    album: album,
+                    assets: assets,
+                    existingAssetIDs: existingAssetIDs,
+                    cacheGeneration: fetchGeneration,
+                    coordinatorGeneration: coordinatorGeneration,
+                    completionGate: completionGate,
+                    completion: completion
+                )
+            }
+        }
+    }
+
+    private func performAlbumAdd(
+        album: PHAssetCollection,
+        assets: [PHAsset],
+        existingAssetIDs: Set<String>,
+        cacheGeneration: Int,
+        coordinatorGeneration: Int,
+        completionGate: AlbumWriteCompletionGate,
+        completion: @escaping (Bool, Int, Error?) -> Void
+    ) {
+        guard coordinatorGeneration == albumWriteCoordinatorGeneration else { return }
+        guard hasPhotoLibraryAccess, !activeAlbumWriteAccessRevoked else {
+            failAlbumAddBeforeTransaction(
+                coordinatorGeneration: coordinatorGeneration,
+                completionGate: completionGate,
+                completion: completion
+            )
+            return
+        }
+        let assetsToAdd = assets.filter { !existingAssetIDs.contains($0.localIdentifier) }
+        guard !assetsToAdd.isEmpty else {
+            finishAlbumAdd(
+                coordinatorGeneration: coordinatorGeneration,
+                completionGate: completionGate,
+                completion: completion,
+                success: true,
+                insertedCount: 0,
+                error: nil
+            )
+            return
+        }
+
+        // Register immediately before submitting the transaction.  The change
+        // observer may receive the collection-only pulse before the Photos
+        // completion callback, so the token must already be visible on main.
+        expectLocalAlbumChange()
+        activeAlbumWriteTransactionSubmitted = true
+        var didCreateChangeRequest = false
+        let transactionCompletionGate = AlbumWriteCompletionGate()
+        PHPhotoLibrary.shared().performChanges({
+            if let addAssetRequest = PHAssetCollectionChangeRequest(for: album) {
+                didCreateChangeRequest = true
+                addAssetRequest.addAssets(assetsToAdd as NSArray)
+            }
+        }) { [weak self] success, error in
+            guard let self else { return }
+            transactionCompletionGate.run {
+                guard success, didCreateChangeRequest else {
+                    self.cancelOneExpectedLocalAlbumChange()
+                    self.finishAlbumAdd(
+                        coordinatorGeneration: coordinatorGeneration,
+                        completionGate: completionGate,
+                        completion: completion,
+                        success: false,
+                        insertedCount: 0,
+                        error: error ?? PhotoLibraryWriteError.unsupportedAlbumAdd
+                    )
+                    return
+                }
+
+                guard self.albumAssetCacheGeneration != cacheGeneration else {
+                    self.albumAssetIdentifiersByID[album.localIdentifier, default: []].formUnion(
+                        assetsToAdd.map(\.localIdentifier)
+                    )
+                    self.finishAlbumAdd(
+                        coordinatorGeneration: coordinatorGeneration,
+                        completionGate: completionGate,
+                        completion: completion,
+                        success: true,
+                        insertedCount: assetsToAdd.count,
+                        error: nil
+                    )
+                    return
+                }
+
+                let verificationGeneration = self.albumAssetCacheGeneration
+                self.verifyAlbumMembershipAfterWrite(in: album) { [weak self] actualAssetIDs in
+                    guard let self else {
+                        completion(true, 0, nil)
+                        return
+                    }
+                    let insertedIDs = Set(assetsToAdd.map(\.localIdentifier)).intersection(actualAssetIDs)
+                    if self.albumAssetCacheGeneration == verificationGeneration {
+                        self.albumAssetIdentifiersByID[album.localIdentifier] = actualAssetIDs
+                    } else {
+                        self.albumAssetIdentifiersByID.removeAll(keepingCapacity: true)
+                    }
+                    self.finishAlbumAdd(
+                        coordinatorGeneration: coordinatorGeneration,
+                        completionGate: completionGate,
+                        completion: completion,
+                        success: true,
+                        insertedCount: insertedIDs.count,
+                        error: nil
+                    )
+                }
+            }
+        }
+    }
+
+    private func prepareAlbumRemove(
+        album: PHAssetCollection,
+        assets: [PHAsset],
+        completionGate: AlbumWriteCompletionGate,
+        coordinatorGeneration: Int,
+        completion: @escaping (Bool, Error?) -> Void
+    ) {
+        guard coordinatorGeneration == albumWriteCoordinatorGeneration else { return }
+        guard hasPhotoLibraryAccess, !activeAlbumWriteAccessRevoked else {
+            failAlbumRemoveBeforeTransaction(
+                coordinatorGeneration: coordinatorGeneration,
+                completionGate: completionGate,
+                completion: completion
+            )
+            return
+        }
+        let albumID = album.localIdentifier
+        if let existingAssetIDs = albumAssetIdentifiersByID[albumID] {
+            performAlbumRemove(
+                album: album,
+                assets: assets,
+                existingAssetIDs: existingAssetIDs,
+                cacheGeneration: albumAssetCacheGeneration,
+                coordinatorGeneration: coordinatorGeneration,
+                completionGate: completionGate,
+                completion: completion
+            )
+            return
+        }
+
+        let fetchGeneration = albumAssetCacheGeneration
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            guard let self else { return }
+            let existingAssetIDs = self.fetchAlbumAssetIdentifiers(in: album)
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                guard coordinatorGeneration == self.albumWriteCoordinatorGeneration else { return }
+                guard self.hasPhotoLibraryAccess, !self.activeAlbumWriteAccessRevoked else {
+                    self.failAlbumRemoveBeforeTransaction(
+                        coordinatorGeneration: coordinatorGeneration,
+                        completionGate: completionGate,
+                        completion: completion
+                    )
+                    return
+                }
+                guard fetchGeneration == self.albumAssetCacheGeneration else {
+                    self.prepareAlbumRemove(
+                        album: album,
+                        assets: assets,
+                        completionGate: completionGate,
+                        coordinatorGeneration: coordinatorGeneration,
+                        completion: completion
+                    )
+                    return
+                }
+                self.albumAssetIdentifiersByID[albumID] = existingAssetIDs
+                self.performAlbumRemove(
+                    album: album,
+                    assets: assets,
+                    existingAssetIDs: existingAssetIDs,
+                    cacheGeneration: fetchGeneration,
+                    coordinatorGeneration: coordinatorGeneration,
+                    completionGate: completionGate,
+                    completion: completion
+                )
+            }
+        }
+    }
+
+    private func performAlbumRemove(
+        album: PHAssetCollection,
+        assets: [PHAsset],
+        existingAssetIDs: Set<String>,
+        cacheGeneration: Int,
+        coordinatorGeneration: Int,
+        completionGate: AlbumWriteCompletionGate,
+        completion: @escaping (Bool, Error?) -> Void
+    ) {
+        guard coordinatorGeneration == albumWriteCoordinatorGeneration else { return }
+        guard hasPhotoLibraryAccess, !activeAlbumWriteAccessRevoked else {
+            failAlbumRemoveBeforeTransaction(
+                coordinatorGeneration: coordinatorGeneration,
+                completionGate: completionGate,
+                completion: completion
+            )
+            return
+        }
+        let assetsToRemove = assets.filter { existingAssetIDs.contains($0.localIdentifier) }
+        guard !assetsToRemove.isEmpty else {
+            finishAlbumRemove(
+                coordinatorGeneration: coordinatorGeneration,
+                completionGate: completionGate,
+                completion: completion,
+                success: true,
+                error: nil
+            )
+            return
+        }
+
+        // See the add path above: this token is consumed only for an album-only
+        // pulse and can never route an asset insert/remove away from the library
+        // change handler.
+        expectLocalAlbumChange()
+        activeAlbumWriteTransactionSubmitted = true
+        var didCreateChangeRequest = false
+        let transactionCompletionGate = AlbumWriteCompletionGate()
         PHPhotoLibrary.shared().performChanges({
             if let removeAssetRequest = PHAssetCollectionChangeRequest(for: album) {
+                didCreateChangeRequest = true
                 removeAssetRequest.removeAssets(assetsToRemove as NSArray)
             }
-        }) { success, error in
-            DispatchQueue.main.async {
-                let verifiedSuccess = success && self.album(
-                    withIdentifier: album.localIdentifier,
-                    excludesAllAssetIdentifiers: assetsToRemove.map(\.localIdentifier)
-                )
-                completion(verifiedSuccess, verifiedSuccess ? nil : (error ?? PhotoLibraryWriteError.unsupportedAlbumRemove))
+        }) { [weak self] success, error in
+            guard let self else { return }
+            transactionCompletionGate.run {
+                guard success, didCreateChangeRequest else {
+                    self.cancelOneExpectedLocalAlbumChange()
+                    self.finishAlbumRemove(
+                        coordinatorGeneration: coordinatorGeneration,
+                        completionGate: completionGate,
+                        completion: completion,
+                        success: false,
+                        error: error ?? PhotoLibraryWriteError.unsupportedAlbumRemove
+                    )
+                    return
+                }
+
+                guard self.albumAssetCacheGeneration != cacheGeneration else {
+                    self.albumAssetIdentifiersByID[album.localIdentifier]?.subtract(
+                        assetsToRemove.map(\.localIdentifier)
+                    )
+                    self.finishAlbumRemove(
+                        coordinatorGeneration: coordinatorGeneration,
+                        completionGate: completionGate,
+                        completion: completion,
+                        success: true,
+                        error: nil
+                    )
+                    return
+                }
+
+                let verificationGeneration = self.albumAssetCacheGeneration
+                self.verifyAlbumMembershipAfterWrite(in: album) { [weak self] actualAssetIDs in
+                    guard let self else {
+                        completion(false, PhotoLibraryWriteError.unsupportedAlbumRemove)
+                        return
+                    }
+                    let removedIDs = Set(assetsToRemove.map(\.localIdentifier)).subtracting(actualAssetIDs)
+                    let didRemoveAllRequestedAssets = removedIDs.count == assetsToRemove.count
+                    if self.albumAssetCacheGeneration == verificationGeneration {
+                        self.albumAssetIdentifiersByID[album.localIdentifier] = actualAssetIDs
+                    } else {
+                        self.albumAssetIdentifiersByID.removeAll(keepingCapacity: true)
+                    }
+                    self.finishAlbumRemove(
+                        coordinatorGeneration: coordinatorGeneration,
+                        completionGate: completionGate,
+                        completion: completion,
+                        success: didRemoveAllRequestedAssets,
+                        error: didRemoveAllRequestedAssets ? nil : PhotoLibraryWriteError.unsupportedAlbumRemove
+                    )
+                }
             }
         }
     }
 
-    private func album(withIdentifier identifier: String, containsAllAssetIdentifiers assetIdentifiers: [String]) -> Bool {
-        guard let collection = fetchAlbum(withIdentifier: identifier) else { return false }
-        let fetchResult = PHAsset.fetchAssets(in: collection, options: nil)
-        var containedIdentifiers: Set<String> = []
-        fetchResult.enumerateObjects { asset, _, _ in
-            containedIdentifiers.insert(asset.localIdentifier)
+    private func completeAlbumWrite(
+        coordinatorGeneration: Int,
+        _ completion: @escaping () -> Void
+    ) {
+        let finish = { [weak self] in
+            guard let self else {
+                completion()
+                return
+            }
+            guard self.albumWriteCoordinatorGeneration == coordinatorGeneration else { return }
+            self.isAlbumWriteInFlight = false
+            self.activeAlbumWriteAccessRevoked = false
+            self.activeAlbumWriteTransactionSubmitted = false
+            completion()
+            self.drainAlbumWriteQueueIfNeeded()
         }
-        return assetIdentifiers.allSatisfy { containedIdentifiers.contains($0) }
+
+        if Thread.isMainThread {
+            finish()
+        } else {
+            DispatchQueue.main.async(execute: finish)
+        }
     }
 
-    private func album(withIdentifier identifier: String, excludesAllAssetIdentifiers assetIdentifiers: [String]) -> Bool {
-        guard let collection = fetchAlbum(withIdentifier: identifier) else { return false }
-        let fetchResult = PHAsset.fetchAssets(in: collection, options: nil)
-        var containedIdentifiers: Set<String> = []
+    private func fetchAlbumAssetIdentifiers(in album: PHAssetCollection) -> Set<String> {
+        let fetchResult = PHAsset.fetchAssets(in: album, options: nil)
+        var identifiers: Set<String> = []
+        identifiers.reserveCapacity(fetchResult.count)
         fetchResult.enumerateObjects { asset, _, _ in
-            containedIdentifiers.insert(asset.localIdentifier)
+            identifiers.insert(asset.localIdentifier)
         }
-        return assetIdentifiers.allSatisfy { !containedIdentifiers.contains($0) }
+        return identifiers
     }
 
-    private func fetchAlbum(withIdentifier identifier: String) -> PHAssetCollection? {
-        let collections = PHAssetCollection.fetchAssetCollections(
-            withLocalIdentifiers: [identifier],
-            options: nil
-        )
-        return collections.firstObject
+    private func invalidateAlbumMembershipCache() {
+        albumAssetCacheGeneration += 1
+        albumAssetIdentifiersByID.removeAll(keepingCapacity: true)
     }
 
     // MARK: - Statistics
@@ -3550,22 +4277,37 @@ extension PhotoLibraryManager: PHPhotoLibraryChangeObserver {
             guard self.hasLoadedPhotoLibrary else { return }
 
             guard let fetchResult = self.allPhotosResult else {
-                self.onLibraryDataChanged?()
+                self.handleAlbumOnlyChange()
                 return
             }
 
             guard let changes = changeInstance.changeDetails(for: fetchResult) else {
-                self.onLibraryDataChanged?()
+                self.handleAlbumOnlyChange()
                 return
             }
 
+            // Keep the tracked fetch result advancing even for collection-only
+            // changes.  The route below controls whether the asset caches are
+            // rebuilt, not whether the observer's baseline is updated.
             self.allPhotosResult = changes.fetchResultAfterChanges
 
-            let isExpectedLocalChange = self.shouldApplyChangeIncrementally()
+            let route = PhotoLibraryChangeRoutingPolicy.route(
+                hasChangeDetails: true,
+                insertedCount: changes.insertedObjects.count,
+                removedCount: changes.removedObjects.count,
+                changedCount: changes.changedObjects.count,
+                hasMoves: changes.hasMoves
+            )
+            guard route == .library else {
+                self.handleAlbumOnlyChange()
+                return
+            }
+
+            self.invalidateAlbumMembershipCache()
 
             if changes.hasIncrementalChanges && !changes.hasMoves {
                 self.applyIncrementalPhotoChanges(changes)
-            } else if isExpectedLocalChange {
+            } else if self.shouldApplyChangeIncrementally() {
                 self.applyIncrementalPhotoChanges(changes)
             } else {
                 self.scheduleRebuildCachedAssets(from: changes.fetchResultAfterChanges)
@@ -3575,6 +4317,19 @@ extension PhotoLibraryManager: PHPhotoLibraryChangeObserver {
 }
 
 private extension PhotoLibraryManager {
+    func handleAlbumOnlyChange() {
+        dispatchPrecondition(condition: .onQueue(.main))
+        // A successful local add/remove updates DataManager's album list and
+        // membership synchronously in its write completion.  Consume the one
+        // expected collection-only pulse so it does not trigger a full album
+        // enumeration for every filed photo.  External pulses still reconcile.
+        if consumeExpectedLocalAlbumChange(hasResourceChanges: false) {
+            return
+        }
+        invalidateAlbumMembershipCache()
+        onAlbumDataChanged?()
+    }
+
     static func currentScreenPixelSize() -> CGSize {
         if Thread.isMainThread {
             return readCurrentScreenPixelSize()

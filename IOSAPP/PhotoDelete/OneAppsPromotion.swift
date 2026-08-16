@@ -23,7 +23,7 @@ enum OneAppsPromotionCatalog {
             name: "OneScan",
             systemImage: "doc.viewfinder",
             assetImageName: "OneAppsIcon_onescan",
-            subtitleKey: "私密文档扫描",
+            subtitleKey: "PDF 扫描",
             summaryKey: "扫描纸质文档，在本地整理最近扫描，并按需导出清晰 PDF。",
             appStoreURL: URL(string: "https://apps.apple.com/app/id6788495535"),
             productURL: URL(string: "https://oneapps.studio/apps/onescan")!
@@ -33,20 +33,10 @@ enum OneAppsPromotionCatalog {
             name: "OneHabit",
             systemImage: "checkmark.circle",
             assetImageName: "OneAppsIcon_onehabit",
-            subtitleKey: "私密习惯追踪",
-            summaryKey: "用灵活计划、清晰进度和私有同步，建立真正适合日常生活的习惯。",
+            subtitleKey: "习惯追踪",
+            summaryKey: "用灵活计划、清晰进度和 iCloud 同步，建立真正适合日常生活的习惯。",
             appStoreURL: URL(string: "https://apps.apple.com/app/id6788409678"),
             productURL: URL(string: "https://oneapps.studio/apps/onehabit")!
-        ),
-        .init(
-            id: "onepack",
-            name: "OnePack",
-            systemImage: "suitcase.rolling",
-            assetImageName: "OneAppsIcon_onepack",
-            subtitleKey: "可复用的打包清单",
-            summaryKey: "从模板创建本次打包清单，逐项勾选，完成后归档，下次还能继续用。",
-            appStoreURL: URL(string: "https://apps.apple.com/app/id6788841724"),
-            productURL: URL(string: "https://oneapps.studio/apps/onepack")!
         ),
         .init(
             id: "onefocus",
@@ -84,7 +74,7 @@ enum OneAppsPromotionCatalog {
             systemImage: "text.page.badge.magnifyingglass",
             assetImageName: "OneAppsIcon_onemarkup",
             subtitleKey: "Markdown 与 HTML 编辑",
-            summaryKey: "快速打开、编辑并分享 Markdown、HTML、SVG 与纯文本，私密且离线。",
+            summaryKey: "快速打开、编辑并分享 Markdown、HTML、SVG 与纯文本；内容在本地处理，也可离线使用。",
             appStoreURL: URL(string: "https://apps.apple.com/app/id6792251542"),
             productURL: URL(string: "https://oneapps.studio/apps/onemarkup")!
         ),
@@ -94,7 +84,7 @@ enum OneAppsPromotionCatalog {
             systemImage: "waveform",
             assetImageName: "OneAppsIcon_onevoice",
             subtitleKey: "录音与语音转文字",
-            summaryKey: "录音、离线转写，并在 Apple 设备间通过私有 iCloud 同步。",
+            summaryKey: "录音、离线转写，并通过 iCloud 在 Apple 设备间同步。",
             appStoreURL: URL(string: "https://apps.apple.com/app/id6789639056"),
             productURL: URL(string: "https://oneapps.studio/apps/onevoice")!
         ),
@@ -114,7 +104,7 @@ enum OneAppsPromotionCatalog {
             systemImage: "figure.stand",
             assetImageName: "OneAppsIcon_oneposture",
             subtitleKey: "本地坐姿提醒",
-            summaryKey: "隐私优先的本地姿势监控，减少误报并提供可靠提醒。",
+            summaryKey: "在设备本地监测坐姿，减少误报并提供可靠提醒。",
             appStoreURL: nil,
             productURL: URL(string: "https://oneapps.studio/apps/oneposture")!
         ),
@@ -283,7 +273,7 @@ struct OneAppsCatalogPage: View {
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundColor(PhotoDeleteStyle.primaryText)
 
-                    Text(L10n.string("独立小而美的 App，专注、私密、好用。"))
+                    Text(L10n.string("独立小而美的 App，专注、简洁、好用。"))
                         .font(.system(size: 14, weight: .regular))
                         .foregroundColor(PhotoDeleteStyle.secondaryText)
                         .multilineTextAlignment(.center)

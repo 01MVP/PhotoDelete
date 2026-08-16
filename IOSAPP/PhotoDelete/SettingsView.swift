@@ -26,6 +26,7 @@ struct SettingsView: View {
     @AppStorage(AppConstants.upSwipeActionKey) private var upSwipeActionValue = SwipeGesturePreset.standard.upAction.rawValue
     @AppStorage(AppConstants.reviewVideoAutoPlayKey) private var reviewVideoAutoPlay = true
     @AppStorage(AppConstants.reviewLivePhotoAutoPlayKey) private var reviewLivePhotoAutoPlay = false
+    @AppStorage(AppConstants.reviewSortOrderKey) private var reviewSortOrderValue = PhotoReviewSortOrder.newestFirst.rawValue
     @AppStorage(AppConstants.appAppearanceKey) private var appAppearanceValue = AppAppearance.system.rawValue
     @AppStorage(AppConstants.appThemeKey) private var appThemeValue = PhotoDeleteTheme.defaultTheme.rawValue
     @State private var activeSheet: SettingsSheet?
@@ -148,7 +149,7 @@ struct SettingsView: View {
 
                     StatCard(
                         value: stats.formattedSpaceSaved,
-                        label: L10n.string("节省"),
+                        label: L10n.string("删除内容"),
                         color: PhotoDeleteStyle.warning
                     )
                 }
@@ -370,6 +371,12 @@ struct SettingsView: View {
                         activeSheet = .gestureSettings
                     }
                 )
+
+                Divider()
+                    .background(PhotoDeleteStyle.hairline)
+                    .padding(.horizontal, 16)
+
+                ReviewSortOrderSettingRow(selectedValue: $reviewSortOrderValue)
 
                 Divider()
                     .background(PhotoDeleteStyle.hairline)
@@ -907,6 +914,111 @@ struct SettingToggleRow: View {
     }
 }
 
+struct ReviewSortOrderSettingRow: View {
+    @Binding var selectedValue: String
+
+    private var selectedOrder: PhotoReviewSortOrder {
+        PhotoReviewSortOrder.normalized(selectedValue)
+    }
+
+    var body: some View {
+        Menu {
+            ForEach(PhotoReviewSortOrder.allCases) { order in
+                Button {
+                    selectedValue = order.rawValue
+                } label: {
+                    Label(
+                        order.title,
+                        systemImage: order == selectedOrder ? "checkmark" : order.icon
+                    )
+                }
+            }
+        } label: {
+            HStack(spacing: 12) {
+                PhotoDeleteIconTile(icon: "arrow.up.arrow.down")
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(L10n.string("照片顺序"))
+                        .photoDeletePrimaryLabel()
+                        .lineLimit(1)
+
+                    Text(selectedOrder.title)
+                        .photoDeleteSecondaryLabel(.caption)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 12)
+
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(PhotoDeleteStyle.tertiaryText)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .frame(minHeight: PhotoDeleteStyle.rowMinHeight)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(L10n.string("照片顺序")))
+        .accessibilityValue(Text(selectedOrder.title))
+    }
+}
+
+struct RandomReviewBatchSizeSettingRow: View {
+    @Binding var selectedValue: Int
+
+    private var selectedSize: PhotoRandomReviewBatchSize {
+        PhotoRandomReviewBatchSize.normalized(selectedValue)
+    }
+
+    var body: some View {
+        Menu {
+            ForEach(PhotoRandomReviewBatchSize.allCases) { size in
+                Button {
+                    selectedValue = size.rawValue
+                } label: {
+                    Label(
+                        size.title,
+                        systemImage: size == selectedSize ? "checkmark" : "photo.stack"
+                    )
+                }
+            }
+        } label: {
+            HStack(spacing: 12) {
+                PhotoDeleteIconTile(icon: "photo.stack")
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(L10n.string("每轮照片数量"))
+                        .photoDeletePrimaryLabel()
+                        .lineLimit(1)
+
+                    Text(selectedSize.subtitle)
+                        .photoDeleteSecondaryLabel(.caption)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 12)
+
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(PhotoDeleteStyle.tertiaryText)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .frame(minHeight: PhotoDeleteStyle.rowMinHeight)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(L10n.string("每轮照片数量")))
+        .accessibilityValue(Text(selectedSize.subtitle))
+        .accessibilityIdentifier("random-review-batch-size-setting")
+    }
+}
+
 private struct AppPromotionRow: View {
     let imageName: String
     let title: String
@@ -969,8 +1081,10 @@ struct GestureSettingsView: View {
     @AppStorage(AppConstants.reviewVideoAutoPlayKey) private var reviewVideoAutoPlay = true
     @AppStorage(AppConstants.reviewLivePhotoAutoPlayKey) private var reviewLivePhotoAutoPlay = false
     @AppStorage(AppConstants.reviewVideoMutedKey) private var reviewVideoMuted = true
+    @AppStorage(AppConstants.reviewSortOrderKey) private var reviewSortOrderValue = PhotoReviewSortOrder.newestFirst.rawValue
     @AppStorage(AppConstants.hapticsEnabledKey) private var hapticsEnabled = true
     @AppStorage(AppConstants.randomReviewHideFiledPhotosKey) private var randomReviewHideFiledPhotos = true
+    @AppStorage(AppConstants.randomReviewBatchSizeKey) private var randomReviewBatchSizeValue = PhotoRandomReviewBatchSize.defaultValue.rawValue
 
     var body: some View {
         NavigationStack {
@@ -979,6 +1093,7 @@ struct GestureSettingsView: View {
 
                 ScrollView {
                     VStack(spacing: PhotoDeleteStyle.sectionSpacing) {
+                        reviewSortOrderSection
                         randomReviewSection
                         mediaPlaybackSection
                         currentGesturePreview
@@ -1007,18 +1122,37 @@ struct GestureSettingsView: View {
         }
     }
 
+    private var reviewSortOrderSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(L10n.string("浏览顺序"))
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(PhotoDeleteStyle.primaryText)
+
+            ReviewSortOrderSettingRow(selectedValue: $reviewSortOrderValue)
+                .photoDeleteCard()
+        }
+    }
+
     private var randomReviewSection: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text(L10n.string("随机浏览"))
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundColor(PhotoDeleteStyle.primaryText)
 
-            SettingToggleRow(
-                icon: "rectangle.stack.badge.minus",
-                title: L10n.string("隐藏已归类照片"),
-                subtitle: L10n.string("默认不再显示已加入用户相册的照片"),
-                isOn: $randomReviewHideFiledPhotos
-            )
+            VStack(spacing: 0) {
+                RandomReviewBatchSizeSettingRow(selectedValue: $randomReviewBatchSizeValue)
+
+                Divider()
+                    .background(PhotoDeleteStyle.hairline)
+                    .padding(.horizontal, 16)
+
+                SettingToggleRow(
+                    icon: "rectangle.stack.badge.minus",
+                    title: L10n.string("隐藏已归类照片"),
+                    subtitle: L10n.string("默认不再显示已加入用户相册的照片"),
+                    isOn: $randomReviewHideFiledPhotos
+                )
+            }
             .photoDeleteCard()
         }
     }

@@ -56,6 +56,11 @@ enum UITestPhotoLibrarySeeder {
 
     private static func seedAuthorizedLibrary(language: String, completion: @escaping () -> Void) {
         let albumPlan = makeAlbumPlan(language: language)
+        if hasCompleteSeedLibrary(albumPlan: albumPlan) {
+            completion()
+            return
+        }
+
         let cleanupTitles = Set(makeAlbumPlan(language: "zh-Hans").map(\.title) +
             makeAlbumPlan(language: "en").map(\.title) +
             ["Test", "Test2", "胖泽爱躺萍", "西冲周末游 2023-7-22", "斑斑"])
@@ -281,6 +286,27 @@ enum UITestPhotoLibrarySeeder {
             collections.append(collection)
         }
         return collections
+    }
+
+    private static func hasCompleteSeedLibrary(albumPlan: [AlbumSeed]) -> Bool {
+        let expectedCounts = Dictionary(grouping: makePhotoSeeds(albumPlan: albumPlan), by: \.albumTitle)
+            .mapValues(\.count)
+        let collections = fetchUserAlbums(matching: Set(albumPlan.map(\.title)))
+        guard collections.count == albumPlan.count else { return false }
+
+        var hasVideo = false
+        for collection in collections {
+            guard let title = collection.localizedTitle,
+                  let expectedCount = expectedCounts[title] else {
+                return false
+            }
+            let assets = PHAsset.fetchAssets(in: collection, options: nil)
+            guard assets.count >= expectedCount else { return false }
+            assets.enumerateObjects { asset, _, _ in
+                hasVideo = hasVideo || asset.mediaType == .video
+            }
+        }
+        return hasVideo
     }
 
     private static func assets(in collections: [PHAssetCollection]) -> [PHAsset] {
