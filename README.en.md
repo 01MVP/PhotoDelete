@@ -129,7 +129,12 @@ The default license is the [GNU Affero General Public License v3.0](LICENSE).
 - **Open-source commercial use is free.** You may ship and sell a product based on this code if you also release your source under AGPL-3.0.
 - **Closed-source commercial use is CNY 299.** If you want to sell a closed-source product, you need a license from the author. The fee is 299 yuan, paid once.
 
-Contact [MakerJackie](https://x.com/makerjackie) for a closed-source license.
+Contact [MakerJackie](https://x.com/makerjackie) for a closed-source license. You can also scan the codes below — they work as a tip, or as the 299-yuan closed-source license fee.
+
+<p align="center">
+  <img src="site/assets/sponsor/wxpay.jpg" width="240" alt="WeChat Pay" />
+  <img src="site/assets/sponsor/alipay.jpg" width="240" alt="Alipay" />
+</p>
 
 Copyright (c) 2025-2026 MakerJackie / 01MVP.
 
